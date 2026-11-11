@@ -89,6 +89,50 @@
         "agents/explore.md": "89119f837ce821157e23b09fb4b79b7a73e1e0339ebb6794f9b038808fc84da7"
       },
       "sha256": "ff390adc15018a443716d8abb3e8c01412bfde1d7ea33b925b4f4e747655e0dc"
+    },
+    {
+      "id": "thermo-nuclear-review",
+      "kind": "skill",
+      "origin": "vendored",
+      "source": "https://github.com/cursor/plugins",
+      "version": "dc415439eebed0cd8fddb11e896dee43bce9d8b0",
+      "license": "MIT",
+      "modified": true,
+      "scope": "project",
+      "tools": [
+        "claude",
+        "codex",
+        "cursor",
+        "gemini"
+      ],
+      "files": {
+        "skills/thermo-nuclear-review/SKILL.md": "b6e12953b84f42393348d829b81902e368df473758e077dd3fa21df4e84eeefb",
+        "skills/thermo-nuclear-review/LICENSE": "702f5f331b56aff0e33d8c7826df5202559f894145eb70355c6477b55b5bb8a0",
+        "skills/thermo-nuclear-review/SOURCE.md": "95f86a3a42e428ba73008f7d768677fa9bea8c76dc7e7de996afd56ce8bc012e"
+      },
+      "sha256": "5bc3176f9bffbb571c8f6f5666434a61dbcc0957d9b35c6d4d93587460926ee1"
+    },
+    {
+      "id": "thermo-nuclear-code-quality-review",
+      "kind": "skill",
+      "origin": "vendored",
+      "source": "https://github.com/cursor/plugins",
+      "version": "dc415439eebed0cd8fddb11e896dee43bce9d8b0",
+      "license": "MIT",
+      "modified": true,
+      "scope": "project",
+      "tools": [
+        "claude",
+        "codex",
+        "cursor",
+        "gemini"
+      ],
+      "files": {
+        "skills/thermo-nuclear-code-quality-review/SKILL.md": "214eff76dd7a1e82694805661e8aa44316422349c487cbdf67fa6dd5b0802900",
+        "skills/thermo-nuclear-code-quality-review/LICENSE": "702f5f331b56aff0e33d8c7826df5202559f894145eb70355c6477b55b5bb8a0",
+        "skills/thermo-nuclear-code-quality-review/SOURCE.md": "9176201d6e9e96fac3b01747c4c500f8613807710862647db215df5c489e5825"
+      },
+      "sha256": "341e58c684f1b1fe91de55c1f96b11fd5e40dcff4df71b091bd7f5943bd0f64a"
     }
   ]
 }
