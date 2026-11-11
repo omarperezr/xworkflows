@@ -7,6 +7,15 @@ const read = (p) => (existsSync(p) ? readFileSync(p, "utf8") : "");
 const ls = (d) => (existsSync(d) ? readdirSync(d).filter((f) => f.endsWith(".md")).sort().map((f) => read(join(d, f))) : []);
 
 const research = (dir) => { try { return JSON.parse(read(join(dir, "research.json"))); } catch { return null; } };
+// "file:line" of each citation render dropped (## Dropped citations in research.md)
+const dropped = (md) => new Set([...(md.split(/^## Dropped citations[^\n]*\n/m)[1]?.split(/^## /m)[0] ?? "").matchAll(/^- \w+: (\S+:\d+)/gm)].map((m) => m[1]));
+// kinds with their dropped rules removed; none at all when research.md is missing
+function kindsOf(dir) {
+  const md = read(join(dir, "research.md"));
+  if (!md) return [];
+  const d = dropped(md);
+  return kindList(research(dir)).map((k) => ({ ...k, rules: (k.rules ?? []).filter((r) => !d.has(`${r.file}:${r.line}`)) }));
+}
 // kinds is a map keyed by kind (an array is accepted too)
 const kindList = (r) => Object.values(r?.kinds ?? {}).filter(Boolean);
 
@@ -27,15 +36,17 @@ export function grade(dir, rubric) {
 }
 
 export function stats(values) {
+  if (!values.length) return { min: null, max: null, mean: null, spread: null };
   const min = Math.min(...values), max = Math.max(...values);
   return { min, max, mean: Math.round((values.reduce((a, b) => a + b, 0) / values.length) * 100) / 100, spread: max - min };
 }
 
-export const kindsFound = (dir) => kindList(research(dir)).filter((k) => k.status === "found").map((k) => k.kind);
+export const kindsFound = (dir) => kindsOf(dir).filter((k) => k.status === "found" && k.rules.length).map((k) => k.kind);
 
 export function noMoneyCheck(dir) {
   const why = [];
-  const ks = kindList(research(dir));
+  const ks = kindsOf(dir);
+  if (!ks.length) why.push("research.md or research.json missing");
   for (const k of ks) {
     if (k.status === "not-present" && k.rules?.length) why.push(`${k.kind}: not-present but has ${k.rules.length} rule(s)`);
     if (k.kind === "values") for (const r of k.rules ?? []) if (/money|currency|price/i.test(`${r.rule} ${r.quote}`)) why.push(`values: money rule ${r.file}:${r.line}`);
@@ -45,9 +56,10 @@ export function noMoneyCheck(dir) {
   return { ok: !why.length, why };
 }
 
-export function recommendedReport(logText, r) {
+export function recommendedReport(logText, r, researchMd = "") {
+  const d = dropped(researchMd);
   const rules = kindList(r).flatMap((k) => (k.status === "found" ? k.rules ?? [] : []));
-  const verified = new Set(rules.map((x) => `${x.file}:${x.line}`));
+  const verified = new Set(rules.map((x) => `${x.file}:${x.line}`).filter((c) => !d.has(c)));
   const found = new Set(kindList(r).filter((k) => k.status === "found").map((k) => k.kind));
   const out = [];
   for (const l of lastRun(logText)) {
@@ -68,14 +80,15 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   if (flag === "--rubric") {
     const rubric = JSON.parse(read(rest[0]));
     const trials = rest.slice(1);
+    if (!trials.length) { console.error("no trial folders"); process.exit(2); }
     const rows = trials.map((t) => ({ trial: t, ...grade(t, rubric), meta: JSON.parse(read(join(t, "meta.json")) || "{}") }));
     const byInv = Object.fromEntries(rubric.invariants.map((i) => [i.id, rows.filter((r) => r.I.includes(i.id)).length / rows.length]));
     show({
-      trials: rows.map((r) => ({ trial: r.trial, R: r.R.length, I: r.I.length, missedR: r.R, misses: r.meta.misses, costUsd: r.meta.costUsd })),
+      trials: rows.map((r) => ({ trial: r.trial, R: r.R.length, I: r.I.length, missedR: rubric.invariants.map((i) => i.id).filter((id) => !r.R.includes(id)), missedI: rubric.invariants.map((i) => i.id).filter((id) => !r.I.includes(id)), misses: r.meta.misses, costUsd: r.meta.costUsd })),
       R: stats(rows.map((r) => r.R.length)), I: stats(rows.map((r) => r.I.length)), recoveryRateI: byInv,
     });
   } else if (flag === "--kinds") for (const t of rest) console.log(t, kindsFound(t).length);
   else if (flag === "--no-money") for (const t of rest) console.log(t, JSON.stringify(noMoneyCheck(t)));
-  else if (flag === "--log") for (const t of rest) show(recommendedReport(read(join(t, "interview.log.jsonl")), research(t)));
+  else if (flag === "--log") for (const t of rest) show(recommendedReport(read(join(t, "interview.log.jsonl")), research(t), read(join(t, "research.md"))));
   else { console.error("usage: grade.mjs --rubric <file> <trialDir...> | --kinds|--no-money|--log <trialDir...>"); process.exit(2); }
 }

@@ -1,17 +1,21 @@
-import { test } from "node:test";
+import { test, after } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync, mkdtempSync, writeFileSync, cpSync } from "node:fs";
+import { readFileSync, mkdtempSync, writeFileSync, cpSync, mkdirSync, existsSync, unlinkSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { grade, stats, kindsFound, noMoneyCheck, recommendedReport } from "./grade.mjs";
-import { answerFor, toAnswers, stripPlan, stripLeft } from "./answers.mjs";
+import { answerFor, toAnswers, stripPlan, stripLeft, loadAnswers } from "./answers.mjs";
+import { prepareCopy, stopFor, withOwnerBackup, apiKeyGuard } from "./trial-lib.mjs";
 
 const FX = new URL("../test/fixtures/proof/", import.meta.url).pathname;
 const TRIAL = FX + "trial";
 const LOG = readFileSync(FX + "interview.log.jsonl", "utf8");
 const RUBRIC = JSON.parse(readFileSync(FX + "rubric.json", "utf8"));
 const research = () => JSON.parse(readFileSync(TRIAL + "/research.json", "utf8"));
-const copy = () => { const d = mkdtempSync(join(tmpdir(), "proof-")); cpSync(TRIAL, d, { recursive: true }); return d; };
+const made = [];
+after(() => made.forEach((d) => rmSync(d, { recursive: true, force: true })));
+const tmp = () => { const d = mkdtempSync(join(tmpdir(), "proof-")); made.push(d); return d; };
+const copy = () => { const d = tmp(); cpSync(TRIAL, d, { recursive: true }); return d; };
 const setJson = (d, f) => { const r = research(); f(r); writeFileSync(d + "/research.json", JSON.stringify(r)); };
 
 test("answerFor rules", () => {
@@ -80,6 +84,66 @@ test("recommendedReport", () => {
   assert.equal(by["H5-conc"], false); // not-present kind
   assert.equal(by["H5-snap"], true); // H5-<kind> with kind found
   assert.equal(rep.length, 5);
+});
+
+test("loadAnswers reads the pretty object and a log, and fails when empty", () => {
+  assert.deepEqual(loadAnswers(JSON.stringify({ "H1-a": "Yes" }, null, 2)), { "H1-a": "Yes" });
+  assert.equal(loadAnswers(LOG)["H1-a"], "Yes");
+  assert.throws(() => loadAnswers("not json\n"), /no answer/);
+  assert.throws(() => loadAnswers("{}"), /no answer/);
+});
+
+test("prepareCopy order: strip before install before graphify", () => {
+  const calls = [];
+  const exec = (cmd, args) => {
+    calls.push([cmd, ...args].join(" "));
+    return args[0] === "ls-files" ? (calls.some((c) => c.includes(" rm ")) ? "src/x.js\n" : "AGENTS.md\nsrc/x.js\n") : "abc123\n";
+  };
+  const sha = prepareCopy({ dir: "/d", source: "/s", commit: "c1", strip: ["AGENTS.md"], repo: "/r", exec, copyDir() {} });
+  assert.equal(sha, "abc123");
+  const at = (s) => calls.findIndex((c) => c.includes(s));
+  assert.ok(at("clone") < at(" rm ") && at(" rm ") < at("remove instruction files") && at("remove instruction files") < at("install --yes") && at("install --yes") < at("graphify update"));
+  assert.throws(() => prepareCopy({ dir: "/d", source: "/s", commit: "c1", strip: ["AGENTS.md"], repo: "/r", exec: (c, a) => (a[0] === "ls-files" ? "AGENTS.md\n" : ""), copyDir() {} }), /strip left/);
+});
+
+test("stopFor ends the trial on next-step or full-review", () => {
+  assert.equal(stopFor("Skill", { skill: "next-step" }), "S5-skip");
+  assert.equal(stopFor("Skill", { skill: "xworkflows:full-review" }), "S5-skip");
+  assert.equal(stopFor("Skill", { skill: "adapt" }), null);
+  assert.equal(stopFor("Bash", { skill: "next-step" }), null);
+});
+
+test("withOwnerBackup removes the profile during the run and restores it, also on error", async () => {
+  const home = tmp();
+  mkdirSync(join(home, ".xworkflows"));
+  const f = join(home, ".xworkflows/owner.md");
+  writeFileSync(f, "mine");
+  await withOwnerBackup(home, () => { assert.equal(existsSync(f), false); writeFileSync(f, "trial"); });
+  assert.equal(readFileSync(f, "utf8"), "mine");
+  await assert.rejects(withOwnerBackup(home, () => { throw new Error("x"); }));
+  assert.equal(readFileSync(f, "utf8"), "mine");
+  const empty = tmp();
+  await withOwnerBackup(empty, () => { mkdirSync(join(empty, ".xworkflows")); writeFileSync(join(empty, ".xworkflows/owner.md"), "t"); });
+  assert.equal(existsSync(join(empty, ".xworkflows/owner.md")), false);
+});
+
+test("apiKeyGuard refuses per-token billing", () => {
+  assert.match(apiKeyGuard({ ANTHROPIC_API_KEY: "k" }), /billed per token/);
+  assert.match(apiKeyGuard({ ANTHROPIC_AUTH_TOKEN: "t" }), /claude\.ai login/);
+  assert.equal(apiKeyGuard({}), null);
+});
+
+test("grade and report ignore dropped citations; empty stats; missing research.md", () => {
+  const d = copy();
+  writeFileSync(d + "/research.md", readFileSync(d + "/research.md", "utf8") + "\n## Dropped citations\n\n- idem: src/idem.js:10 \"q\"\n");
+  assert.equal(kindsFound(d).includes("idem"), false);
+  assert.equal(kindsFound(d).length, 10);
+  const rep = recommendedReport(LOG, research(), readFileSync(d + "/research.md", "utf8"));
+  assert.equal(rep.find((r) => r.id === "H4-x").cited, true);
+  assert.deepEqual(stats([]), { min: null, max: null, mean: null, spread: null });
+  unlinkSync(d + "/research.md");
+  assert.equal(kindsFound(d).length, 0);
+  assert.equal(noMoneyCheck(d).ok, false);
 });
 
 test("strip removes paths and fails if any remains", () => {

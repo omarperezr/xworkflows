@@ -24,6 +24,15 @@ export function toAnswers(logText) {
   return a;
 }
 
+// A pretty { id: answer } object (as printed below) or a JSONL log; throws when no id loads.
+export function loadAnswers(text) {
+  let a = null;
+  try { const j = JSON.parse(text); if (j && typeof j === "object" && !Array.isArray(j)) a = j; } catch { /* not one object */ }
+  a ??= toAnswers(text);
+  if (!Object.keys(a).length) throw new Error("no answer id loaded");
+  return a;
+}
+
 export function answerFor(q, answers) {
   const id = q.header;
   if (id === "S5-next") return { answer: "", miss: false, stop: true };
