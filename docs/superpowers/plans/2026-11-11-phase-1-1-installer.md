@@ -59,7 +59,7 @@
 **Interfaces:**
 - Produces, in `bin/xworkflows.test.mjs` (every later task reuses them):
   - `repo(setup?: Record<string, string>) -> string`: makes a temp folder, runs `git init -q -b main`, sets local `user.name`/`user.email`, writes each `setup` path with its content, returns the folder.
-  - `cli(cwd: string, args: string[], opts?: { input?: string, env?: object }) -> { status: number, stdout: string, stderr: string }`: runs `node <repo>/bin/xworkflows.mjs ...args` with `spawnSync`, stdin not a terminal.
+  - `cli(cwd: string, args: string[], opts?: { input?: string, env?: object }) -> { status: number, stdout: string, stderr: string }`: runs `node <repo>/bin/xworkflows.mjs ...args` with `spawnSync`, stdin not a terminal, env `{ ...process.env, ...opts.env }` with `XWORKFLOWS_FREE` and `XWORKFLOWS_RECORD` removed first.
 - Produces, in `bin/xworkflows.mjs`: `PKG` (package root from `import.meta.url`), `ROOT` (target top level), `main(argv)` dispatching on the first argument; exits as Global Constraints say.
 
 - [ ] **Step 1: Write the failing tests**
