@@ -22,8 +22,7 @@ Each invariant the interview proof misses adds one line under its heading.
 ## 4. Risks, the costliest mistake first
 
 - What is the costliest mistake an agent could make here: lost data, lost money, a leak, a broken promise to users?
-- Has something like it happened before? What broke, and what stops it now?
-- For each risk: How does the code prevent this today, and what rule must every change follow?
+- Has something like it happened before, and what broke? For each risk: How does the code prevent this today, and what rule must every change follow?
 
 ## 5. What must not change; what is free to change
 
@@ -32,20 +31,20 @@ Each invariant the interview proof misses adds one line under its heading.
 
 How the code enforces it, one question per mechanism; each answer is a rule line:
 
-- Which currency or unit is the source of truth, and which values are only derived from it?
-- Which values are frozen on a record when it is written (a rate, a cost, the amount charged), so a later change never restates a past row?
-- How is rounding done: are stored values exact and rounded once, only when shown?
-- Which data changes only through server functions, and do they change it by deltas rather than by setting absolute values?
-- Where is access enforced: in the database for every row, with the client untrusted and UI gating never counted as security?
-- Can a write arrive twice (offline, retried, a double click), and how does it replay without taking effect twice?
-- When one user action touches several rows, is it one request and one transaction?
-- Is any work done per row that could be done once: a query per loop iteration, a server call per item?
+- Which currency or unit is the source of truth, and how are the other values worked out from it?
+- When a record is written, which of its values stay as they were then, and which are worked out again later?
+- How and where is rounding done?
+- Which data may change only one way, and how?
+- Where is access checked, and can the screens be bypassed?
+- What happens when the same write arrives twice: offline, retried, a double click?
+- When one user action changes several rows, how many requests and transactions does it take?
+- How does the code handle work over many rows or items: once for all of them, or once per item?
 - Which domain, legal or tax rules must the code follow, and where are they written down?
 
 ## 6. Zones and which paths are risk paths
 
 - Does this split match how you think about the code? Merge, split or rename any?
-- Which paths are risk paths: a change there needs the risk reviewer every time?
+- Which of these zones, by name, hold risks? The risk reviewer is an agent that checks every change there against the rules above.
 
 ## 7. How the owner works
 
