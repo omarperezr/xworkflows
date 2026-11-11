@@ -7,5 +7,5 @@
 - license: MIT, see LICENSE
 
 Modified:
-- A `## Whole-repo mode` section was added: how to review a named zone instead of a branch diff, and the finding shape (`severity`, `kind`, `file`, `line`, `title`, `case`).
+- A `## Whole-repo mode` section was added: review a named zone instead of a branch diff; it overrides Output Expectations, Approval Bar and Review Tone; the response is a JSON array of findings (`severity`, `kind`, `file`, `line`, `title`, `case`), empty array when none.
 - The upstream text is otherwise unchanged.

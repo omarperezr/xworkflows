@@ -18,3 +18,17 @@ for (const name of ["thermo-nuclear-review", "thermo-nuclear-code-quality-review
     assert.equal(p.origin, "vendored"); assert.equal(p.license, "MIT"); assert.equal(p.modified, true);
   });
 }
+
+for (const name of ["thermo-nuclear-review", "thermo-nuclear-code-quality-review"]) {
+  test(`${name} whole-repo mode has the JSON return contract`, () => {
+    const s = read(`skills/${name}/SKILL.md`).split(/^## Whole-repo mode$/m)[1].split(/^#{1,2} /m)[0];
+    assert.match(s, /JSON array/);
+    assert.match(s, /empty array/);
+    assert.match(s, /"the PR", "the branch" and "the diff" mean "the zone"/);
+    if (name === "thermo-nuclear-review") {
+      assert.match(s, /replaces the Scope restriction/);
+      assert.match(s, /skip the PR\/MR discussion check/);
+      assert.match(s, /"Final Response"/);
+    } else for (const h of ["Output Expectations", "Approval Bar", "Review Tone"]) assert.ok(s.includes(`"${h}"`), h);
+  });
+}

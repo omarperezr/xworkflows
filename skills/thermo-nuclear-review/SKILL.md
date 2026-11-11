@@ -19,9 +19,11 @@ DO NOT report vulnerabilities in existing code that is not being changed.
 
 ## Whole-repo mode
 
-When the request names a zone (the paths the prompt lists) instead of a branch diff, review the live code of that zone as if all of it were being added, and report issues in existing code too. Ignore code outside the named paths, and skip files that a later file in the zone replaces. Do not edit files: return findings only.
+When the request names a zone (the paths the prompt lists) instead of a branch diff, review the live code of that zone as if all of it were being added, and report issues in existing code too. Ignore code outside the named paths, and skip files that a later file in the zone replaces. Do not edit files. In this mode "the PR", "the branch" and "the diff" mean "the zone".
 
-Report each finding with these fields:
+This mode replaces the Scope restriction above: the zone's current code is in scope, including code that is not being changed. Also skip the PR/MR discussion check (gh/glab, BugBot comments); do not run it. The "Final Response" section does not apply: the output is the findings array below.
+
+Return contract: the entire response is a JSON array of finding objects, with no prose review and no approve/block verdict. Each object has exactly these fields:
 
 - `severity`: `high`, `medium` or `low`
 - `kind`: `error` (something is wrong) or `restructure` (works, but the structure should change)
@@ -29,6 +31,9 @@ Report each finding with these fields:
 - `line`
 - `title`
 - `case`: the concrete scenario or evidence that shows the problem
+
+When there are no findings, return an empty array: `[]`.
+
 
 # Guidelines
 

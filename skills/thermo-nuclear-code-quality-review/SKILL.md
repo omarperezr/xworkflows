@@ -22,9 +22,11 @@ Start from this baseline:
 
 ## Whole-repo mode
 
-When the request names a zone (the paths the prompt lists) instead of a branch diff, review the live code of that zone as if all of it were being added, and report issues in existing code too. Ignore code outside the named paths, and skip files that a later file in the zone replaces. Do not edit files: return findings only.
+When the request names a zone (the paths the prompt lists) instead of a branch diff, review the live code of that zone as if all of it were being added, and report issues in existing code too. Ignore code outside the named paths, and skip files that a later file in the zone replaces. Do not edit files. In this mode "the PR", "the branch" and "the diff" mean "the zone".
 
-Report each finding with these fields:
+This mode overrides "Output Expectations", "Approval Bar" and "Review Tone": do not write a prioritized prose review or an approval decision; the output is the findings array below. Use `restructure` for structural findings.
+
+Return contract: the entire response is a JSON array of finding objects, with no prose review and no approve/block verdict. Each object has exactly these fields:
 
 - `severity`: `high`, `medium` or `low`
 - `kind`: `error` (something is wrong) or `restructure` (works, but the structure should change)
@@ -32,6 +34,9 @@ Report each finding with these fields:
 - `line`
 - `title`
 - `case`: the concrete scenario or evidence that shows the problem
+
+When there are no findings, return an empty array: `[]`.
+
 
 ## Non-Negotiable Additional Standards
 

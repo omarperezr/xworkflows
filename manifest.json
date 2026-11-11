@@ -106,11 +106,11 @@
         "gemini"
       ],
       "files": {
-        "skills/thermo-nuclear-review/SKILL.md": "b6e12953b84f42393348d829b81902e368df473758e077dd3fa21df4e84eeefb",
+        "skills/thermo-nuclear-review/SKILL.md": "73004532dae6f52935950caced2446b835379393cf0df20623561dd817c6af60",
         "skills/thermo-nuclear-review/LICENSE": "702f5f331b56aff0e33d8c7826df5202559f894145eb70355c6477b55b5bb8a0",
-        "skills/thermo-nuclear-review/SOURCE.md": "95f86a3a42e428ba73008f7d768677fa9bea8c76dc7e7de996afd56ce8bc012e"
+        "skills/thermo-nuclear-review/SOURCE.md": "0ec84f1cc5e5d91e5f1b7bc03461c55c3f79a79302646a092abca1b93779b3c7"
       },
-      "sha256": "5bc3176f9bffbb571c8f6f5666434a61dbcc0957d9b35c6d4d93587460926ee1"
+      "sha256": "4550732c80216da5bedf3af0fb85fa3d3d2b487eea6e14adce571a7b8b4c392d"
     },
     {
       "id": "thermo-nuclear-code-quality-review",
@@ -128,11 +128,11 @@
         "gemini"
       ],
       "files": {
-        "skills/thermo-nuclear-code-quality-review/SKILL.md": "214eff76dd7a1e82694805661e8aa44316422349c487cbdf67fa6dd5b0802900",
+        "skills/thermo-nuclear-code-quality-review/SKILL.md": "ca3738f76cca43ec3662920c150869266fb4b29c4c97296e8a4a6523dcf8e90a",
         "skills/thermo-nuclear-code-quality-review/LICENSE": "702f5f331b56aff0e33d8c7826df5202559f894145eb70355c6477b55b5bb8a0",
-        "skills/thermo-nuclear-code-quality-review/SOURCE.md": "9176201d6e9e96fac3b01747c4c500f8613807710862647db215df5c489e5825"
+        "skills/thermo-nuclear-code-quality-review/SOURCE.md": "0867d3e01173ef653bb28d7df29694d62ab042c6d65a790f49fbe678ac19476a"
       },
-      "sha256": "341e58c684f1b1fe91de55c1f96b11fd5e40dcff4df71b091bd7f5943bd0f64a"
+      "sha256": "d2d3cf626999e04fa8a15113c19d9118b07f718185ff43badb13276b5bea3290"
     }
   ]
 }
