@@ -66,17 +66,18 @@ Each observed failure, the task that fixes it, the test that would catch its ret
 | `scan.mjs` | Too many hits on a big repo | Slow scan, noisy agent input | T2 cap test | 30 hits per kind, 160 characters, most-changed files first |
 | `scan.mjs` | No git history (fresh `git init`, shallow clone) | Ordering by change count fails | Review Focus 1 test | Fall back to path order |
 | `scan.mjs` | Binary or non-UTF-8 file | Crash or garbage hits | Review Focus 4 test | Skip files with a NUL byte in the first 8000 bytes |
-| `research.workflow.js` | Workflow tool missing (old CLI, SDK session) | Adapt cannot research | T10 step 1 spike; skill text | Adapt stops and says so; spike stops the plan and asks the owner |
+| `research.workflow.js` | Workflow tool missing (old CLI, SDK session) | Adapt cannot research | T0 spike; skill text | Adapt stops and says so; spike stops the plan and asks the owner |
 | `research.workflow.js` | A kind agent dies (`null`) | Kind has no decision | T5 render test | Render exits 1 naming the kind; rerun |
 | `research.workflow.js` | Topic 4 wrongly says `absent` for a kind with 0 hits | A real mechanism is skipped | Fixture trial (every kind has hits there); public repo trial | Skip needs both 0 hits and `absent`; recorded with its reason in research.md |
 | `research.mjs render` | Quote whitespace differs from the file | A true citation dropped | T5 citation tests | Whitespace collapsed; ±3 lines; dropped ones listed, never silent |
 | `research.mjs render` | Model alters `research.json` while copying | Unverifiable data | T5 hash test | `sum` mismatch exits 1 |
 | `research.mjs queue/check` | An item id collides or exceeds 12 characters | Replay matches the wrong answer | T6 id test | Fixed id scheme, unit tested |
 | `adapt-gates` | `check` fails on a bug | Agent cannot write the summary (trap) | T7 tests; deny message | Message lists ids and the bypass `XWORKFLOWS_FREE=1`; exceptions allow |
-| `adapt-gates` | Run file left behind after a crash | Gates stay on in later sessions | T7 `stale run file with an approved summary denies nothing` | Gates act only while `summary.md` is absent or `status: draft` |
+| `adapt-gates` | Run file left behind after a crash | Gates stay on in later sessions | T7 `stale run file denies nothing` | Run file expires 12 hours after `startedAt`; a resume runs `research.mjs start`, which refreshes `startedAt`; every deny names `research.mjs done` |
+| `adapt-gates`, `research.mjs check` | Fixed option labels translated into the owner's language | Approved summary never allowed; `-r` follow-up never required | T1 `fixed labels stay English`; T7 `translated label is not a pick` | Fixed labels sent verbatim in English, translation in the option description (owner, 2026-11-11) |
 | `adapt-gates` | The model passes wrong `zeroHits` to the Workflow | A kind with hits is skipped | T7 `Workflow args must match the scan` | Gate compares `args.zeroHits` with `scan.json` and denies a mismatch |
-| `adapt-record` | PostToolUse payload shape differs from the fixture | Nothing logged, `check` never passes | T7 two shapes; T10 step 1 records a real payload | Reads `tool_input.answers` first, then parses the response text; T10 spike adds the real payload as a fixture |
-| `proof/harness.mjs` | `canUseTool` not called for AskUserQuestion | Trial hangs or skips questions | T10 spike | Spike first; stop and ask the owner |
+| `adapt-record` | PostToolUse payload shape differs from the fixture | Nothing logged, `check` never passes | T7 on the T0 real payload | Reads `tool_input.answers` first, then parses the response text; T10 spike adds the real payload as a fixture |
+| `proof/harness.mjs` | `canUseTool` not called for AskUserQuestion | Trial hangs or skips questions | T0 spike | Spike first; stop and ask the owner |
 | `proof/harness.mjs` | Cost per trial too high | Owner's account drained | `meta.json` cost printed after each trial | Owner approved 8 trials; cost shown after the first |
 | `proof/grade.mjs` | Rubric patterns too loose or too strict | R or I miscounted | Owner hand count on one trial | Counts must agree; rubric written before trials and frozen |
 | `scan.mjs` | xworkflows' own installed files (its signal catalog) are scanned once committed | The catalog cites itself | T2 `installed files excluded` | Drop every path in `.xworkflows/installed.json` `files` keys and `created` |
@@ -90,8 +91,8 @@ Each observed failure, the task that fixes it, the test that would catch its ret
 
 Imagine the proof failed. The likely reasons, the early signal, and what the plan does:
 
-1. **Workflow does not run inside an SDK session.** Signal: T10 step 1 spike fails. Action: stop, report, ask the owner (a fallback changes the spec).
-2. **The record hook logs nothing in real sessions.** Signal: T10 spike shows an empty log. Action: add the real payload as a fixture, fix the parser before any trial.
+1. **Workflow does not run inside an SDK session.** Signal: T0 spike fails. Action: stop, report, ask the owner (a fallback changes the spec).
+2. **The record hook logs nothing in real sessions.** Signal: T0 spike shows an empty log. Action: add the real payload as a fixture, fix the parser before any trial.
 3. **R still varies by more than 1.** Signal: per-kind `status` differs across replays in `meta.json`. Action: diff the three `research.json` files kind by kind; a flipping kind gets a scan signal or a sharper prompt; rerun 3 replays (counts as a new version; earlier numbers stay recorded).
 4. **I < 8 although R ≥ 6.** Signal: the grader's per-invariant table shows research found it but no rule file has it. Action: check the T8 rule-placement step and the risk-review checklist; this is a writing bug, not a research one.
 5. **Overfitting to the reference project.** Signal: public repo trial fails or the fixture passes only with reference-like code. Action: the failure blocks the merge; fix signals generically.
@@ -128,14 +129,14 @@ Run by the controller before any other task. Nothing here is shipped except two 
 
 **Files:**
 - Modify: `package.json` (`devDependencies`), create `package-lock.json`, `.gitignore` (`node_modules/`)
-- Create: `hooks/fixtures/claude/ask-post-real.json` (recorded, home path already replaced by `run.mjs`)
+- Create: `hooks/fixtures/claude/ask-post-real.json`, `hooks/fixtures/claude/workflow-pre-real.json` (recorded, home path already replaced by `run.mjs`)
 - Modify: the spec's 5.1 ids and 4.2 args to the rulings in Global Constraints
 
 - [ ] **Step 1:** `npm install --save-dev @anthropic-ai/claude-agent-sdk`.
-- [ ] **Step 2:** In a scratch git repo with a `.claude/agents/probe.md` read-only agent and `.claude/settings.json` holding a PostToolUse entry (matcher `AskUserQuestion`) that runs `node <repo>/hooks/run.mjs claude marks` with `XWORKFLOWS_RECORD=<scratch>/rec`, run a short SDK script: `query()` with `settingSources: ['project']` and a `canUseTool` that answers AskUserQuestion; the prompt asks the agent to run `Workflow` with `scriptPath` pointing at a two-agent script that uses `agentType: 'probe'`, `model: 'sonnet'`, a `schema`, and reads `args.x`, then to ask one AskUserQuestion with header `T0-q`.
-- [ ] **Step 3: Pass** when: the Workflow returns both schema objects and echoes `args.x`; the question gets the canned answer; a recorded file holds the PostToolUse input. Copy that input to `hooks/fixtures/claude/ask-post-real.json`.
+- [ ] **Step 2:** In a scratch git repo with a `.claude/agents/probe.md` read-only agent and `.claude/settings.json` holding a PostToolUse entry (matcher `AskUserQuestion`) that runs `node <repo>/hooks/run.mjs claude marks` with `XWORKFLOWS_RECORD=<scratch>/rec`, run a short SDK script: `query()` with `settingSources: ['project']` and a `canUseTool` that answers AskUserQuestion; a PreToolUse entry (matcher `Workflow`) recording the same way; the prompt asks the agent to run `Workflow` with `scriptPath` pointing at a two-agent script that uses `agentType: 'probe'`, `model: 'sonnet'`, a `schema`, and reads `args.x`, then to ask two AskUserQuestion questions with headers `T0-q` and `T0-r`; `canUseTool` answers `T0-q` with the label `Yes` and `T0-r` with free text `typed answer`, then aborts the query.
+- [ ] **Step 3: Pass** when: the Workflow returns both schema objects and echoes `args.x`; both answers arrive (label and free text); recorded files hold the PreToolUse `Workflow` input (with `scriptPath` and `args`) and the PostToolUse AskUserQuestion input; a result message with `total_cost_usd` arrives after the abort (if not, the harness takes cost from the last usage it saw and T10 says so). Copy the two inputs to `hooks/fixtures/claude/ask-post-real.json` and `hooks/fixtures/claude/workflow-pre-real.json`.
 - [ ] **Step 4: Fail** on any of the three: stop the plan and ask the owner (each changes the spec).
-- [ ] **Step 5:** Apply the id, args and re-adapt rulings to the spec (5.1, 4.2, 5.6) and commit `package.json package-lock.json .gitignore hooks/fixtures/claude/ask-post-real.json docs/superpowers/specs/2026-11-11-phase1-2b-adapt-reproducible-design.md`: `chore: spike SDK, Workflow scriptPath and AskUserQuestion payload`.
+- [ ] **Step 5:** Apply the id, args and re-adapt rulings to the spec (5.1, 4.2, 5.6) and commit `package.json package-lock.json .gitignore hooks/fixtures/claude/ask-post-real.json hooks/fixtures/claude/workflow-pre-real.json docs/superpowers/specs/2026-11-11-phase1-2b-adapt-reproducible-design.md`: `chore: spike SDK, Workflow scriptPath and AskUserQuestion payload`.
 
 ### Task 1: Question rules: yes/no per item replaces multi-select
 
@@ -146,9 +147,9 @@ Run by the controller before any other task. Nothing here is shipped except two 
 **Interfaces:**
 - Produces: the question-rules block that T8 keeps verbatim at the top of the skill.
 
-- [ ] **Step 1: Replace the failing test.** Rename the test to `adapt question rules`. Assert the text before `## Step 1` contains the four style names `open`, `confirm`, `mechanism`, `choice`, and: `One item per question: Yes, No, I don't know.`, `If none fits, or it is something else, write it in Other.`, `(Recommended)` only on an option backed by a verified citation, `An answer typed in Other wins over research.`, `I don't know` settles the item. Assert it does not match `/multiSelect/`.
+- [ ] **Step 1: Replace the failing test.** Rename the test to `adapt question rules`. Assert the text before `## Step 1` contains the four style names `open`, `confirm`, `mechanism`, `choice`, and: `One item per question: Yes, No, I don't know.`, `If none fits, or it is something else, write it in Other.`, `(Recommended)` only on an option backed by a verified citation, `An answer typed in Other wins over research.`, `I don't know` settles the item. Assert it does not match `/multiSelect/`. Add test `fixed labels stay English`: the block lists the eight fixed labels and says they are sent verbatim, translation in the description.
 - [ ] **Step 2: Run** `node --test skills/day-one.test.mjs`. Expected: FAIL on the new test.
-- [ ] **Step 3: Rewrite lines 10-16** to spec 5.2's styles: all questions through `AskUserQuestion`, header is the item id; `open` (options `I don't know`, `Skip: not relevant here`, "Write your answer in Other."), `confirm` (one item per question, `Yes`, `No`, `I don't know`, up to 4 per call), `mechanism` (`Nothing does today`, `I don't know`, "Write the mechanism in Other."), `choice` (2 to 4 options drafted from research or earlier answers); the Other note on every non-confirm question; `(Recommended)` only on an option backed by a verified citation; Other wins over research; `I don't know` and `Skip` settle the item; `I don't know` on a mechanism writes `unprotected: <risk>`. Delete the multi-select rules.
+- [ ] **Step 3: Rewrite lines 10-16** to spec 5.2's styles: all questions through `AskUserQuestion`, header is the item id; `open` (options `I don't know`, `Skip: not relevant here`, "Write your answer in Other."), `confirm` (one item per question, `Yes`, `No`, `I don't know`, up to 4 per call), `mechanism` (`Nothing does today`, `I don't know`, "Write the mechanism in Other."), `choice` (2 to 4 options drafted from research or earlier answers); the Other note on every non-confirm question; `(Recommended)` only on an option backed by a verified citation; Other wins over research; `I don't know` and `Skip` settle the item; `I don't know` on a mechanism writes `unprotected: <risk>`; fixed option labels (`Yes`, `No`, `I don't know`, `Skip: not relevant here`, `Nothing does today`, `Right`, `Wrong`, `Missing something`) are sent verbatim in English, with their translation in the option `description` (owner, 2026-11-11). Delete the multi-select rules.
 - [ ] **Step 4: Run** `node bin/xworkflows.mjs pack && node --test $(git ls-files '*.test.mjs')`. Expected: all pass.
 - [ ] **Step 5: Commit** `skills/adapt/SKILL.md skills/day-one.test.mjs manifest.json` with `feat(adapt): yes/no per item replaces multi-select`.
 
@@ -174,12 +175,13 @@ Run by the controller before any other task. Nothing here is shipped except two 
   - `unknown language gives zero hits, valid output`: a dir with one `.go` file; every `total` 0; `JSON.parse` of the output works.
   - `binary files skipped`: a file with a NUL byte yields no hit.
   - `graphifyignore written by the scan`: a `dist/` folder and a file whose first line has `@generated` are excluded, and `.graphifyignore` afterwards holds `dist/` and that file, plus any lines that were already there.
+  - `existing graphifyignore lines applied`: an owner line `gen/` already in `.graphifyignore` drops hits under `gen/`.
   - `installed files excluded`: a `.xworkflows/installed.json` listing `.claude/skills/adapt/scan.mjs` drops hits in that file.
   - `fixture has one plant per kind in JS, Python and SQL`: plants cover the three extensions, each at least twice.
   - `every signal has a matching example`: each signal's `example` matches its regex and its `counter` does not.
   - `fixtures are never packed`: no manifest piece lists a path under `test/`.
 - [ ] **Step 3: Run** `git add skills/adapt/scan.test.mjs && node --test skills/adapt/scan.test.mjs`. Expected: FAIL (module missing).
-- [ ] **Step 4: Implement `scan(root)`.** Files: `git ls-files` when `.git` exists, else a recursive walk; drop `node_modules/`, `dist/`, `build/`, `vendor/`, lockfiles, `*.min.*`, files whose first line contains `@generated` or `DO NOT EDIT`, `graphify-out/`, `.xworkflows/`, and the installed xworkflows files (`.xworkflows/installed.json` `files` keys and `created`). Write `.graphifyignore`: existing lines kept, then the dropped generated and vendored paths, sorted, without duplicates. Signals per spec 4.1 table, as data at the top of the file. Hit order: change count over `git log -n 500 --name-only --format= HEAD` descending (fixed for a commit), then path, then line. `text` trimmed to 160 characters. `layout`: bytes per folder at depth 1 and 2, sorted by path. Object keys written in a fixed order; arrays sorted; no timestamps.
+- [ ] **Step 4: Implement `scan(root)`.** Files: `git ls-files` when `.git` exists, else a recursive walk; drop `node_modules/`, `dist/`, `build/`, `vendor/`, lockfiles, `*.min.*`, files whose first line contains `@generated` or `DO NOT EDIT`, `graphify-out/`, `.xworkflows/`, the installed xworkflows files (`.xworkflows/installed.json` `files` keys and `created`), and paths matched by lines already in `.graphifyignore` read as path prefixes or `*.<ext>` (comment: `shortcut: .graphifyignore read as prefixes and *.ext only, upgrade to full gitignore syntax if a project needs it`). Write `.graphifyignore`: existing lines kept, then the dropped generated and vendored paths, sorted, without duplicates. Signals per spec 4.1 table, as data at the top of the file. Hit order: change count over `git log -n 500 --name-only --format= HEAD` descending (fixed for a commit), then path, then line. `text` trimmed to 160 characters. `layout`: bytes per folder at depth 1 and 2, sorted by path. Object keys written in a fixed order; arrays sorted; no timestamps.
 - [ ] **Step 5: Run** `node --test skills/adapt/scan.test.mjs`. Expected: PASS.
 - [ ] **Step 6: Pack and full run.** `node bin/xworkflows.mjs pack && node --test $(git ls-files '*.test.mjs') && node bin/xworkflows.mjs pack --check`. Expected: all pass, `pack --check` silent.
 - [ ] **Step 7: Commit** the new files, the fixture files by path, and `manifest.json`: `feat(adapt): deterministic scan with twelve mechanism kinds`.
@@ -243,7 +245,8 @@ Run by the controller before any other task. Nothing here is shipped except two 
 
 - [ ] **Step 1: Failing tests:**
   - `script sum equals research.mjs sum`: the T4 script's `sum` (evaluated) and `research.mjs` `sum` agree on three sample strings.
-  - `start and done manage the run file`: `start` creates it with the HEAD commit; with a draft summary a second `start` keeps the same `run`; without one it makes a new `run`; with an approved summary it copies `research.json` to `research.prev.json`; `done` removes the run file.
+  - `start and done manage the run file`: `start` creates it with the HEAD commit; with a draft summary a second `start` keeps the same `run` and refreshes `startedAt`; without one it makes a new `run`; with an approved summary it copies `research.json` to `research.prev.json`; with no summary it deletes any `research.prev.json`; `done` removes the run file.
+  - `hash mismatch twice stops`: a second mismatch in the same run makes `render` print `Research could not be copied unchanged twice: stop and tell the owner.` and exit 1 (count kept in the run file as `mismatches`).
   - `citation kept, fake dropped and listed`: a real quote at line ± 2 with extra spaces kept; a quote absent from the file dropped and listed under `## Dropped citations`.
   - `render failure conditions`: exit 1 and an error naming the kind for each of: a kind result `null`; an invalid `status`; `found` with every citation dropped; a `notChecked` path that is in the scan's hit files or `sql` files. Exit 0 when `notChecked` lists an unrelated path.
   - `render exits 1 on a hash mismatch`: change one character of `research.json` after writing; the message says to rerun the Workflow and write its result unchanged.
@@ -276,6 +279,7 @@ Styles: `confirm` for `H1-what`, `H6-r<n>`, `H7-g<n>`; `open` for `H2-*`, `H4-*`
   - `check ignores other runs`: log lines from another `run` do not count.
   - `check counts answers from the resumed run` (Review Focus 5).
   - `follow-up required`: `H5-idem` answered `Nothing does today` without `H5-idem-r` makes `check` list `H5-idem-r`.
+  - `translated label is not a pick`: `P-H3` answered `Bien` (not a fixed label) leaves `check --approved` listing `P-H3`.
   - `approved check needs every heading Right`: `check --approved` lists `P-H3` when its last answer is `Wrong`, and passes after a later `Right`.
 - [ ] **Step 2: Run** the research tests. Expected: FAIL.
 - [ ] **Step 3: Implement** `buildQueue`, `missing`, and the CLI subcommands; log at `.xworkflows/interview.log.jsonl`, run from the run file.
@@ -292,7 +296,7 @@ Note for reviewers of T6 and T7: between T6 and T8 the skill text still names th
 - Create: `hooks/core/adapt-gates.mjs`, `hooks/core/adapt-record.mjs`
 - Create: `hooks/core/adapt-gates.test.mjs`, `hooks/core/adapt-record.test.mjs`
 - Use: `hooks/fixtures/claude/ask-post-real.json` (from T0); create `hooks/fixtures/claude/ask-post-response-text.json` only if T0 shows the answers in the response text
-- Modify: `manifest.json` (two new pieces, `tools: ["claude"]`), `hooks/adapters/adapters.test.mjs`
+- Modify: `manifest.json` (two new pieces, `tools: ["claude"]`), `hooks/adapters/adapters.test.mjs`, `bin/xworkflows.test.mjs` (existing assertions that count hook entries are updated for the two new pieces)
 
 **Interfaces:**
 - Consumes: run file (T5); `node .claude/skills/<installed name>/research.mjs check [--approved]` (T6), installed name from `ctx.skillName('adapt')`.
@@ -312,6 +316,8 @@ Gate rule: active only while `.xworkflows/adapt-run.json` exists and its `starte
   - `gates active during a re-adapt`: approved summary, fresh run file, inline Workflow denied.
   - `summary Edit denied during a run`.
   - `scriptPath compared after realpath`: a symlinked root path is allowed.
+  - `translated label is not a pick`: with the log's `P-H1`..`P-H7` answered `Bien`, an approved summary is denied and the reason lists them.
+  - `Workflow event from the real payload`: `workflow-pre-real.json` normalizes to `kind: 'workflow'` with its `scriptPath` and `args`.
   - `spawn error allows and logs`: `runCheck` failing to spawn allows and writes `xworkflows: adapt check could not run` to stderr.
   - `deny reason names the installed skill`: with `skillName` returning `xwf-adapt`, the inline-Workflow reason names `.claude/skills/xwf-adapt/research.workflow.js`.
   - `adapt-record.test.mjs`: `one log line per question, matched by header` on `ask-post-real.json` (and the response-text fixture if T0 created one), each line carrying the option labels; nothing written without the run file; `run` taken from the run file.
@@ -324,7 +330,7 @@ Gate rule: active only while `.xworkflows/adapt-run.json` exists and its `starte
 ### Task 8: The adapt skill rewritten around the pieces
 
 **Files:**
-- Modify: `skills/adapt/SKILL.md` (steps 2 to 4; step 1 and step 5 kept)
+- Modify: `skills/adapt/SKILL.md` (steps 1 to 5: step 1's resume and re-adapt lines, step 5's header; steps 2 to 4 rewritten)
 - Modify: `skills/day-one.test.mjs`
 
 **Interfaces:**
@@ -337,6 +343,8 @@ Gate rule: active only while `.xworkflows/adapt-run.json` exists and its `starte
   - `playback by section`: `Hotspots`, `P-H1`, `Right`, `Wrong`, `Missing something`, `P-H<n>-fix`; no `Did I understand correctly?`.
   - `heading 5 names absent kinds`: the draft rules say heading 5 has a line `<kind>: <rule | unprotected: <risk> | not applicable>` for each absent kind.
   - `step 5 question id`: the step 5 question uses header `S5-next`.
+  - `resume runs start`: step 1's draft-resume line runs `research.mjs start` first.
+  - `research-only stops after render`: with `research-only`, step 2 ends after `render` (no `queue`, no `done`; the run file expires).
   - `re-adapt reruns research`: step 1's re-adapt runs step 2 in full, then `research.mjs queue` asks only what changed.
   - `rule without a path goes to AGENTS.md`: the step 4 table says an owner-added rule with no path goes to `AGENTS.md` `## Project rules` only.
   - `gitignore lines`: step 4 appends `graphify-out/`, `.xworkflows/research.md`, `.xworkflows/research.json`, `.xworkflows/scan.json`, `.xworkflows/interview.json`, `.xworkflows/interview.log.jsonl`, `.xworkflows/adapt-run.json`; then runs `research.mjs done` after the commit.
@@ -368,7 +376,7 @@ Gate rule: active only while `.xworkflows/adapt-run.json` exists and its `starte
 - Create: `test/fixtures/proof/` (a sample trial folder, a sample log, a sample rubric)
 
 **Interfaces:**
-- Produces: `export function answerFor(q: { header, question, options }, answers: Record<id, string>): { answer: string, miss: boolean, stop?: true }`; `export function recommendedReport(logText: string, research): { id, option, cited: boolean }[]`; `export function grade(trialDir: string, rubric: { invariants: { id, patterns: string[] }[] }): { R: string[], I: string[] }`; `export function stats(values: number[]): { min, max, mean, spread }`; `export function kindsFound(trialDir): string[]`; `export function noMoneyCheck(trialDir): { ok: boolean, why: string[] }`; `export function toAnswers(logText: string): Record<id, string>` (last answer per id of the last run). CLI: `node proof/harness.mjs --source <dir> --commit <sha> [--init] [--strip <comma list>] --answers <file|none> --trials <n> --mode full|research-only --out <dir>`; `node proof/grade.mjs --rubric <file> | --kinds | --no-money | --log <trialDir...>`; `node proof/answers.mjs <log>`.
+- Produces: `export function answerFor(q: { header, question, options }, answers: Record<id, string>): { answer: string, miss: boolean, stop?: true }`; `export function recommendedReport(logText: string, research): { id, option, cited: boolean }[]` (`cited` is true when the option text contains a `file:line` that appears among `research.json`'s verified kind rules, or the item is `H5-<kind>` with that kind `found`); `export function grade(trialDir: string, rubric: { invariants: { id, patterns: string[] }[] }): { R: string[], I: string[] }`; `export function stats(values: number[]): { min, max, mean, spread }`; `export function kindsFound(trialDir): string[]`; `export function noMoneyCheck(trialDir): { ok: boolean, why: string[] }`; `export function toAnswers(logText: string): Record<id, string>` (last answer per id of the last run). CLI: `node proof/harness.mjs --source <dir> --commit <sha> [--init] [--strip <comma list>] --answers <file|none> --trials <n> --mode full|research-only --out <dir>`; `node proof/grade.mjs --rubric <file> | --kinds | --no-money | --log <trialDir...>`; `node proof/answers.mjs <log>`.
 
 - [ ] **Step 1:** The SDK and the payload fixture come from T0; nothing to spike here.
 - [ ] **Step 2: Failing tests** in `proof/proof.test.mjs`:
@@ -378,12 +386,12 @@ Gate rule: active only while `.xworkflows/adapt-run.json` exists and its `starte
   - `kindsFound`: the sample `research.json` with 11 found kinds gives 11.
   - `noMoneyCheck`: fails on a rule inside a `not-present` kind; fails on a `values` rule matching `/money|currency|price/i`; passes with one `input` rule.
   - `toAnswers`: last answer per id, last run only.
-  - `recommendedReport`: a logged option `X (Recommended)` on an item with no verified citation is reported `cited: false`.
+  - `recommendedReport`: a logged option `X (Recommended)` with no matching `file:line` is `cited: false`; one naming a verified rule's `file:line` is `cited: true`.
   - `strip removes paths and fails if any remains` (pure helper `stripPlan(list, existing)` in `answers.mjs`).
 - [ ] **Step 3: Run** `git add proof/proof.test.mjs && node --test proof/proof.test.mjs`. Expected: FAIL.
 - [ ] **Step 4: Implement.** Harness per spec 7: clone `--source` at `--commit` into `mkdtemp` (with `--init`: copy the folder, `git init`, commit), remove `origin`, `node <repo>/bin/xworkflows.mjs install --yes`, `graphify update .`, with `--strip`: `git rm -r` each listed path, commit `proof: remove instruction files`, fail if any path remains; then `query({ prompt: '/adapt' | '/adapt research-only', options: { cwd, model: 'claude-opus-5-5', settingSources: ['project'], canUseTool, abortController } })`; `canUseTool` allows every tool unchanged and fills `AskUserQuestion` answers via `answerFor`; on `stop` it aborts the query and records `stoppedAt: 'S5-next'`; a 60-minute timer also aborts (`stoppedAt: 'timeout'`, the trial counts as failed). Save `.xworkflows/research.md`, `research.json`, `scan.json`, `interview.log.jsonl`, `AGENTS.md`, `.claude/rules/`, `.claude/agents/risk-review.md`, and `meta.json` (`trial`, `model`, `cliVersion` from `claude --version`, `skillHash` = the `adapt` piece `sha256`, `commit`, `costUsd` from the result message, `misses`, `durationMs`, `kinds` statuses). Print the cost after each trial. Grader per the Interfaces; R text is heading 5 of `research.md`; I text is `AGENTS.md` `## Project rules`, `.claude/rules/*.md` and `risk-review.md`; patterns are case-insensitive regex, all must match.
 - [ ] **Step 5: Run** full suite and `pack --check`. Expected: PASS (proof tests do not import the SDK).
-- [ ] **Step 6: Commit** `package.json package-lock.json .gitignore proof/*.mjs test/fixtures/proof/...` and the new hook fixture: `test(proof): harness, grader and answer replay`.
+- [ ] **Step 6: Commit** `proof/*.mjs` and `test/fixtures/proof/...` by path (package files were committed in T0): `test(proof): harness, grader and answer replay`.
 
 ### Task 11: Trials and the record (controller and owner)
 
