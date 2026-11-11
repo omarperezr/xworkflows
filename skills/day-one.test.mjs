@@ -164,13 +164,12 @@ test("README names graphify, superpowers brainstorming and the cursor/plugins cr
 test("adapt asks how the code prevents each risk; research looks for mechanisms; zones question is plain", () => {
   const s = read("skills/adapt/SKILL.md");
   const Q = "How does the code prevent this today, and what rule must every change follow?";
-  has(s, ["mechanisms research found go straight under heading 5", "up to 4 per call",
-    "`no rule needed` and `I don't know` are accepted answers", "`unprotected: <risk>`", "That line is settled, not a guess",
+  has(s, ["mechanisms research found go straight under heading 5", "up to 4 per call", "`unprotected: <risk>`", "That line is settled, not a guess",
     "Heading 5 groups its rule lines under the risk they prevent, costliest risk first, then `rules tied to no risk`.", "grouped under the risk it prevents",
     "in heading 5's order: each risk, then the rules that prevent it", "whose path in `research.md` is in the zone's paths", "one line per heading 5 mechanism rule"]);
   assert.equal(read("skills/adapt/research.mjs").split(Q).length, 2);
   const zq = s.split("The zones question, in plain words:")[1].split(/^#{2,3} /m)[0];
-  has(zq, ["so a bigger area costs more to review, and so does each extra zone", "everyday words", "about 5 MB", "`H6-zones`", "`(Recommended)`"]);
+  has(zq, ["so a bigger area costs more to review, and so does each extra zone", "everyday words", "about 5 MB", "`H6-zones` in a call of its own", "never `(Recommended)`"]);
   has(s.split("### Zones")[1], ["`.xworkflows/scan.json`", "`dir/*`", "`*`"]);
   has(s.split("## Step 4")[1], ["becomes `src/**`; `dir/*` and `*` stay as written"]);
   assert.doesNotMatch(zq, /bytes/);
@@ -185,7 +184,7 @@ test("adapt question rules", () => {
   assert.doesNotMatch(s, /multiSelect/);
   assert.doesNotMatch(rules, /multi-select answer/);
   assert.doesNotMatch(s.split("## Step 3")[1].split("### Zones")[0], /marked `\(Recommended\)`\./);
-  has(s, ["No other options, and no Other note.", "`(Recommended)` per the question rules, with the Other note"]);
+  has(s, ["No other options, and no Other note.", "never `(Recommended)` (a proposal is not a citation), with the Other note"]);
 });
 test("fixed labels stay English", () => {
   const rules = read("skills/adapt/SKILL.md").split("## Step 1")[0];
@@ -225,11 +224,11 @@ test("heading 5 names absent kinds", () => {
 test("step 5 question id", () => has(step(5), ["header `S5-next`"]));
 test("resume runs start", () => {
   const l = step(1).split("\n").find((x) => x.includes("`status: draft`"));
-  inOrder(l, ["research.mjs start", "step 3"]);
+  inOrder(l, ["research.mjs start", "research.mjs check", "ask only the ids `check` lists", "step 3"]);
 });
 test("research-only stops after render", () => {
   const s = step(2);
-  inOrder(s, ["research.mjs render", "`research-only`", "No `queue`, no `done`", "research.mjs queue"]);
+  inOrder(s, ["research.mjs render", "`research-only`, run `node <base>/research.mjs done`", "No `queue`.", "research.mjs queue"]);
 });
 test("re-adapt reruns research", () => {
   const l = step(1).split("\n").find((x) => x.includes("`status: approved`"));
@@ -245,4 +244,28 @@ test("gitignore lines", () => {
   has(l, ["`graphify-out/`", "`.xworkflows/research.md`", "`.xworkflows/research.json`", "`.xworkflows/research.prev.json`", "`.xworkflows/scan.json`",
     "`.xworkflows/interview.json`", "`.xworkflows/interview.log.jsonl`", "`.xworkflows/adapt-run.json`"]);
   inOrder(s, ["git commit -m", "research.mjs done"]);
+});
+
+test("fix round 1: every stop in step 2 ends the run", () => {
+  const ls = step(2).split("\n");
+  for (const k of ["`graphify` is missing", "Without the Workflow tool", "At a second mismatch", "If `render` fails again", "`research-only`"])
+    assert.ok(ls.find((l) => l.includes(k)).includes("research.mjs done"), k);
+  inOrder(step(2), ["rm -f .xworkflows/research.json", "`.xworkflows/research.json` with the Write tool"]);
+});
+test("fix round 1: zones, H1 and H5 follow-ups are mapped", () => {
+  const s = step(3);
+  has(s, ["`H6-zones` is the zones question below, asked once, in a call of its own.", "after any merge, rename or split given in Other",
+    "`Yes` adds that scan zone's paths to `paths.risk`", "ask the risk of each new part in plain text and write it under heading 6",
+    "On a bare `No`, ask in plain text what it is, and list heading 1 under `Hotspots` until `P-H1` is `Right`.",
+    "a rule in Other becomes `<kind>: <rule>`; `I don't know` becomes `<kind>: unprotected: <risk>`; `Skip: not relevant here` becomes `<kind>: not applicable`.",
+    "`P-H6` also covers the zones, the risk paths and the `## Config` block"]);
+  assert.ok(!read("skills/adapt/SKILL.md").includes("no rule needed"));
+});
+test("fix round 1: approved check before step 4, summary written first", () => {
+  inOrder(step(3), ["`Right`, run `node <base>/research.mjs check --approved`", "When it exits 0, the interview ends. Go to step 4."]);
+  has(step(4), ["`.xworkflows/summary.md` first"]);
+});
+test("fix round 1: re-adapt draft has all eight headings and asks heading 8", () => {
+  const l = step(1).split("\n").find((x) => x.includes("`status: approved`"));
+  inOrder(l, ["ask heading 8 (`H8-*`) again", "with all eight headings"]);
 });

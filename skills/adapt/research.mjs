@@ -82,13 +82,14 @@ const KIND_Q = { values: "Which currency or unit is the source of truth, how are
 const OPEN = ["I don't know", "Skip: not relevant here"];
 const FIXED = ["Right", "Wrong", "Missing something"];
 
-// The fixed-id interview queue (spec 5.1). `prev` is research.prev.json on a re-adapt.
-export function buildQueue(research, scan, prev) {
+// The fixed-id interview queue (spec 5.1). `prev` is research.prev.json on a re-adapt; `cfg` is .xworkflows/config.json.
+export function buildQueue(research, scan, prev, cfg) {
   const item = (id, heading, style, text, options) => ({ id, heading, style, text, ...(options ? { options } : {}) });
   const open = (id, h, text) => item(id, h, "open", text, OPEN);
   const confirm = (id, h, text) => item(id, h, "confirm", text, ["Yes", "No", "I don't know"]);
   const choice = (id, h, text) => item(id, h, "choice", text);
   const have = new Set(Object.values(research.topics || {}).flatMap((t) => (t.lines || []).filter((l) => l.heading === "config" && l.key).map((l) => l.key)));
+  if (prev) for (const k of CONFIG_KEYS) if (k.split(".").reduce((o, p) => o?.[p], cfg) !== undefined) have.add(k); // a re-adapt asks only keys still without a value
   const config = CONFIG_KEYS.map((k, i) => (have.has(k) ? null : open(`C${i + 1}`, "config", `What is the value of ${k} (${GLOSS[k]})?`))).filter(Boolean);
   const mech = KINDS.filter((k) => research.kinds?.[k]?.status === "absent" && (!prev || prev.kinds?.[k]?.status !== "absent"))
     .map((k) => item(`H5-${k}`, "5", "mechanism", `${KIND_Q[k]} ${SPEC_Q}`, ["Nothing does today", "I don't know"]));
@@ -172,7 +173,7 @@ function cli(cmd, root) {
   } else if (cmd === "queue" || cmd === "check") {
     const need = (f) => { try { return readJson(join(dir, f)); } catch { console.error(`adapt: ${f} is missing or unreadable`); process.exit(1); } };
     if (cmd === "queue") {
-      const q = buildQueue(need("research.json"), need("scan.json"), existsSync(prev) ? need("research.prev.json") : null);
+      const q = buildQueue(need("research.json"), need("scan.json"), existsSync(prev) ? need("research.prev.json") : null, existsSync(join(dir, "config.json")) ? need("config.json") : null);
       writeFileSync(join(dir, "interview.json"), JSON.stringify(q, null, 2) + "\n");
     } else {
       const { run } = need("adapt-run.json");

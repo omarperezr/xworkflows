@@ -278,6 +278,14 @@ test("re-adapt asks only changed kinds", () => {
   assert.deepEqual(ids(q).filter((i) => /^C\d+$/.test(i)), CFG.map((_, i) => `C${i + 1}`));
 });
 
+test("re-adapt skips config keys already in config.json", () => {
+  const prev = allFound();
+  const config = { paths: { code: ["src/"], risk: [] }, tests: { run: "npm test" } };
+  const c = ids(buildQueue(allFound(), ZSCAN, prev, config)).filter((i) => /^C\d+$/.test(i));
+  assert.deepEqual(c, CFG.map((_, i) => `C${i + 1}`).filter((i) => !["C1", "C2", "C6"].includes(i)));
+  assert.ok(ids(buildQueue(allFound(), ZSCAN, null, config)).includes("C1")); // a first adapt asks every key research left empty
+});
+
 test("queue order and styles", () => {
   const q = buildQueue(withStatus(allFound(), { idem: "absent" }), ZSCAN);
   assert.deepEqual(ids(q).slice(0, 22), ["H1-what", "H2-pays", "H2-refused", "H4-incident", "H4-risks", "H5-idem", "H5-keep", "H5-free", "H6-zones", "H6-r1", "H6-r2",
