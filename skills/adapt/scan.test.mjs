@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join, dirname, extname } from "node:path";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { KINDS, scan } from "./scan.mjs";
+import { KINDS, scan, proposeZones, sqlInventory } from "./scan.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = join(HERE, "../..");
@@ -130,4 +130,99 @@ test("fixtures are never packed", () => {
   const m = JSON.parse(readFileSync(join(REPO, "manifest.json"), "utf8"));
   for (const p of m.pieces) assert.ok(Object.keys(p.files).every((f) => !f.startsWith("test/")), p.id);
   assert.ok(existsSync(FIXTURE));
+});
+
+const L = (o) => Object.entries(o).map(([path, mb]) => ({ path, bytes: mb * 1e6 }));
+const keysOf = (z) => z.map((x) => x.key);
+
+test("zone rule splits, merges and bounds", () => {
+  const a = proposeZones(L({ src: 60, "src/a": 35, "src/b": 25, db: 30, tools: 9, x: 1 }).map((e) => ({ ...e, bytes: e.bytes / 1e6 * 1000 })));
+  for (const k of ["src-a", "src-b", "db", "tools"]) assert.ok(keysOf(a).includes(k), k);
+  assert.ok(a.some((z) => z.paths.includes("x")));
+  assert.ok(a.length >= 3 && a.length <= 6);
+  const b = proposeZones(L({ big: 7, "big/a": 4, "big/b": 3, c: 8, d: 8, e: 8, f: 8 }));
+  assert.ok(keysOf(b).includes("big-a") && keysOf(b).includes("big-b"));
+  const c = proposeZones(L(Object.fromEntries("abcdefghi".split("").map((k) => [k, 10]))));
+  assert.equal(c.length, 6);
+  const d = proposeZones(L({ a: 30, "a/x": 20, "a/y": 10, b: 20 }));
+  assert.equal(d.length, 3);
+});
+
+test("zone keys are valid", () => {
+  const z = proposeZones(L({ "My App": 30, "my_app": 30, ".github": 10, "src/Core": 20, src: 20, "src/Core/": 1 }));
+  assert.ok(z.every((x) => /^[a-z0-9-]+$/.test(x.key)));
+  assert.equal(new Set(keysOf(z)).size, z.length);
+  const all = z.flatMap((x) => x.paths);
+  assert.equal(new Set(all).size, all.length);
+});
+
+const mig = () => ["001", "002"].map((n) => ({ path: `db/migrations/${n}.sql`, text: readFileSync(join(FIXTURE, `db/migrations/${n}.sql`), "utf8") }));
+
+test("sql inventory keeps the last definition", () => {
+  const t = sqlInventory(mig()).triggers;
+  assert.deepEqual(t, [{ name: "account_touch", file: "db/migrations/002.sql", line: 2 }]);
+});
+
+test("sql inventory lists policies, security definer, uniques and checks", () => {
+  const s = sqlInventory(mig());
+  assert.deepEqual(s.policies.map((x) => x.file), ["db/migrations/001.sql"]);
+  assert.match(s.policies[0].name, /owner reads/);
+  assert.deepEqual(s.definers.map((x) => [x.name, x.line]), [["audit_log", 11]]);
+  assert.deepEqual(s.uniques.map((x) => x.name), ["account_email_uq"]);
+  assert.deepEqual(s.checks.map((x) => x.name), ["account_qty_ck"]);
+});
+
+test("scan wires zones and sql", () => {
+  const s = scan(fixture());
+  assert.ok(s.zones.length >= 1);
+  assert.ok(s.sql.triggers.some((t) => t.name === "account_touch" && t.file.endsWith("002.sql")));
+});
+
+test("every spec 4.1 example signal exists", () => {
+  const ex = { values: ["created_at at time zone 'utc'", "currency = 'EUR'"], conc: ["queue.consume(handle)", "version int not null"], compat: ["module.exports = { run };", "__version__ = \"1.2\""], input: ["if not request.user.is_authenticated:"] };
+  for (const [k, xs] of Object.entries(ex)) for (const x of xs) assert.ok(KINDS.find((q) => q.key === k).signals.some((s) => s.re.test(x)), x);
+  const dom = KINDS.find((q) => q.key === "domain").signals.find((s) => s.ext.includes(".md"));
+  assert.ok(dom && dom.re.test("Tax rules by law"));
+});
+
+test("delta ignores plain counters", () => {
+  const re = KINDS.find((k) => k.key === "delta").signals[0].re;
+  for (const l of ["i = i + 1", "count += 1", "n = n - 1;"]) assert.ok(!re.test(l), l);
+  for (const l of ["x.increment(1)", "F('stock') - 1", "stock = stock - :n", "set stock = stock - 1"]) assert.ok(re.test(l), l);
+});
+
+test("non-ASCII paths get their churn", () => {
+  const d = tmp();
+  put(d, "a.js", "x.toFixed(2);\n");
+  put(d, "é.js", "x.toFixed(2);\n");
+  commit(d);
+  for (const n of [1, 2]) { put(d, "é.js", `x.toFixed(2);// ${n}\n`); git(d, "add", "é.js"); git(d, "commit", "-q", "-m", "y"); }
+  assert.equal(scan(d).kinds.values.hits[0].file, "é.js");
+});
+
+test("hits ordered most-changed first", () => {
+  const d = tmp();
+  put(d, "a.js", "x.toFixed(2);\n");
+  put(d, "b.js", "x.toFixed(2);\n");
+  commit(d);
+  for (const n of [1, 2]) { put(d, "b.js", `x.toFixed(2);// ${n}\n`); git(d, "add", "b.js"); git(d, "commit", "-q", "-m", "y"); }
+  assert.deepEqual(scan(d).kinds.values.hits.map((h) => h.file), ["b.js", "a.js"]);
+});
+
+test("lockfiles and min files go to graphifyignore", () => {
+  const d = tmp();
+  put(d, "package-lock.json", "{}\n");
+  put(d, "static/app.min.js", "x.toFixed(2);\n");
+  put(d, "k.js", "x.toFixed(2);\n");
+  commit(d);
+  assert.deepEqual(scan(d).kinds.values.hits.map((h) => h.file), ["k.js"]);
+  const l = readFileSync(join(d, ".graphifyignore"), "utf8").split("\n");
+  assert.ok(l.includes("package-lock.json") && l.includes("static/app.min.js"));
+});
+
+test("checks recognise other CI and lint files", () => {
+  const d = tmp();
+  for (const p of [".gitlab-ci.yml", ".circleci/config.yml", "Jenkinsfile", ".pre-commit-config.yaml"]) put(d, p, "x.toFixed(2)\n");
+  commit(d);
+  assert.equal(scan(d).checks.length, 4);
 });

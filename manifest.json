@@ -185,10 +185,10 @@
       ],
       "files": {
         "skills/adapt/SKILL.md": "0567263d37ebfd7aee9e6c57ba48532e434ba9ed330faab0f71bc590ac381854",
-        "skills/adapt/scan.mjs": "6277149c8088ba919699151184d12338ae4c740c31c8fcbd9bccf2a7cca15b6b",
+        "skills/adapt/scan.mjs": "d0865504f18aa01cb8c36f0f35831be38b77a5cbd87b66ed527e721520dcd7c9",
         "skills/adapt/topics.md": "ad662fb4f70ea2ba7a7a5363feff1ad4083828bda1187ac6fbfa7fc71618a014"
       },
-      "sha256": "2ab1189901f8dcedeed040531928d832c88521fcca97f1993bdaf079c75369e4"
+      "sha256": "1ef9ec3301e4e41bbc3e4de817f7db158272bfba6398c8bc55a5e9c8d1aac607"
     },
     {
       "id": "full-review",
