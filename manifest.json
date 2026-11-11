@@ -16,7 +16,7 @@
         "gemini"
       ],
       "files": {
-        "hooks/run.mjs": "4d83bb7f95bd8d7cbf0a994ab681ee9fd7c33c2d1bbf38bad2924eb3fef0e290",
+        "hooks/run.mjs": "bd2c782da0d25ef09fd567e7a1b732240744662acc366760645ea44e8b9687cb",
         "hooks/mark.mjs": "f2ecad21dedeb1515287063237e6852b9374781f71ce876f13b57324bfcb88a5",
         "hooks/core/marks.mjs": "9f52d052c8fb1275e92335d1dd5664be0f1bff7d43a4a9432268bac01d61a2b7",
         "hooks/adapters/claude.mjs": "cff295737dffa2c26db768750f12439cdaf2f7aefa248b1b92c8448992e8eecf",
@@ -24,7 +24,7 @@
         "hooks/adapters/cursor.mjs": "394c1a81f4040089b67f0fbf1131012bbb5883bdf705ce3af12dff66d9b3cbd5",
         "hooks/adapters/gemini.mjs": "eff8f29bce46d7c4a7c62845f3762a16c6fd38e831e6c4a5d6b54361ec599175"
       },
-      "sha256": "9e74a93827ba844ad6a71b0beee295b8a07714aace1b5b89039365a111e6736b"
+      "sha256": "a224b68908a97f29dbff4aa62abb50f82af811ee3c7add2560052ca3604abf27"
     },
     {
       "id": "design-first",
@@ -46,9 +46,9 @@
         }
       ],
       "files": {
-        "hooks/core/design-first.mjs": "7bcb1720dc0ba402354c84083c455b21f9359c8cb7e968d9450c336598e7054e"
+        "hooks/core/design-first.mjs": "213646ac1a3129377bc1959681334ba106936612b018e70b7620615a0118ce2a"
       },
-      "sha256": "906c86399f2c69253150126e410bdc8cd17bdbd0c782a9e8a2465a9f9acdd068"
+      "sha256": "f1ca4c0ced121e4be10cfad875a62ba221e4356fde1aae84cf0a7448154729d3"
     },
     {
       "id": "grill",
@@ -89,6 +89,141 @@
         "agents/explore.md": "89119f837ce821157e23b09fb4b79b7a73e1e0339ebb6794f9b038808fc84da7"
       },
       "sha256": "ff390adc15018a443716d8abb3e8c01412bfde1d7ea33b925b4f4e747655e0dc"
+    },
+    {
+      "id": "thermo-nuclear-review",
+      "kind": "skill",
+      "origin": "vendored",
+      "source": "https://github.com/cursor/plugins",
+      "version": "dc415439eebed0cd8fddb11e896dee43bce9d8b0",
+      "license": "MIT",
+      "modified": true,
+      "scope": "project",
+      "tools": [
+        "claude",
+        "codex",
+        "cursor",
+        "gemini"
+      ],
+      "files": {
+        "skills/thermo-nuclear-review/SKILL.md": "73004532dae6f52935950caced2446b835379393cf0df20623561dd817c6af60",
+        "skills/thermo-nuclear-review/LICENSE": "702f5f331b56aff0e33d8c7826df5202559f894145eb70355c6477b55b5bb8a0",
+        "skills/thermo-nuclear-review/SOURCE.md": "0ec84f1cc5e5d91e5f1b7bc03461c55c3f79a79302646a092abca1b93779b3c7"
+      },
+      "sha256": "4550732c80216da5bedf3af0fb85fa3d3d2b487eea6e14adce571a7b8b4c392d"
+    },
+    {
+      "id": "thermo-nuclear-code-quality-review",
+      "kind": "skill",
+      "origin": "vendored",
+      "source": "https://github.com/cursor/plugins",
+      "version": "dc415439eebed0cd8fddb11e896dee43bce9d8b0",
+      "license": "MIT",
+      "modified": true,
+      "scope": "project",
+      "tools": [
+        "claude",
+        "codex",
+        "cursor",
+        "gemini"
+      ],
+      "files": {
+        "skills/thermo-nuclear-code-quality-review/SKILL.md": "ca3738f76cca43ec3662920c150869266fb4b29c4c97296e8a4a6523dcf8e90a",
+        "skills/thermo-nuclear-code-quality-review/LICENSE": "702f5f331b56aff0e33d8c7826df5202559f894145eb70355c6477b55b5bb8a0",
+        "skills/thermo-nuclear-code-quality-review/SOURCE.md": "0867d3e01173ef653bb28d7df29694d62ab042c6d65a790f49fbe678ac19476a"
+      },
+      "sha256": "d2d3cf626999e04fa8a15113c19d9118b07f718185ff43badb13276b5bea3290"
+    },
+    {
+      "id": "zone-review",
+      "kind": "agent",
+      "origin": "own",
+      "version": "0.1.0",
+      "license": "MIT",
+      "scope": "project",
+      "tools": [
+        "claude",
+        "codex",
+        "cursor",
+        "gemini"
+      ],
+      "files": {
+        "agents/zone-review.md": "ed9a8f778975d231d9396331b93ecf501e91b0515cfe7557f59a50a8e8388232"
+      },
+      "sha256": "351cb0ee3d709aa8d13fbe476a919ebfdc6a1f20e24ad37e42f7c97e60147caf"
+    },
+    {
+      "id": "verify-finding",
+      "kind": "agent",
+      "origin": "own",
+      "version": "0.1.0",
+      "license": "MIT",
+      "scope": "project",
+      "tools": [
+        "claude",
+        "codex",
+        "cursor",
+        "gemini"
+      ],
+      "files": {
+        "agents/verify-finding.md": "963907a0b9a829073df6d4399d6e3de438b9c2187c2e7f7f4a439a235a342c82"
+      },
+      "sha256": "d52df65921147320bde1603aed2c13f962741a78b72458fcb1c35f0928fe3f31"
+    },
+    {
+      "id": "adapt",
+      "kind": "skill",
+      "origin": "own",
+      "version": "0.1.0",
+      "license": "MIT",
+      "scope": "project",
+      "tools": [
+        "claude",
+        "codex",
+        "cursor",
+        "gemini"
+      ],
+      "files": {
+        "skills/adapt/SKILL.md": "121bc26e7450ffd1dd22d746af19917bd1103bf569a71e84b48f0d8daceba0fe",
+        "skills/adapt/topics.md": "10240b054d5183fd164bd4092d027676051daf2cb6cf1b5c74997dda0c1cadaa"
+      },
+      "sha256": "4a8c428a9c7a2e4c3dba587276bfe512b52a21a84ccfa5be998c9c2520ae95c0"
+    },
+    {
+      "id": "full-review",
+      "kind": "skill",
+      "origin": "own",
+      "version": "0.1.0",
+      "license": "MIT",
+      "scope": "project",
+      "tools": [
+        "claude",
+        "codex",
+        "cursor",
+        "gemini"
+      ],
+      "files": {
+        "skills/full-review/SKILL.md": "d8879b367674c739fdce0806a290c0f240ef3bd30f6359f1609a275abcf48d15"
+      },
+      "sha256": "b858f0eb28ae009180c9fa81c3bf544af6bbf0a358d49c6b1b1c5b870dbe0c1c"
+    },
+    {
+      "id": "next-step",
+      "kind": "skill",
+      "origin": "own",
+      "version": "0.1.0",
+      "license": "MIT",
+      "scope": "project",
+      "tools": [
+        "claude",
+        "codex",
+        "cursor",
+        "gemini"
+      ],
+      "files": {
+        "skills/next-step/SKILL.md": "2910847c9516828e473843e91d71937a0757815a471ed75be9962dc8953cb290"
+      },
+      "sha256": "5d6283d037c41ce92e0d5f9adb616a01816f62e900f8a8feceda33ace4c702ec"
     }
   ]
 }

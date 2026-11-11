@@ -81,3 +81,8 @@ test("non-write events: allow", () => {
   assert.ok(allowed(decide(ev([], { kind: "shell", command: "ls" }), ctx())));
   assert.ok(allowed(decide(ev([], { kind: "other" }), ctx())));
 });
+
+test("deny names the installed skill", () => {
+  const d = decide(ev([{ path: spec, content: "# x" }]), { ...ctx(), skillName: () => "xwf-grill" });
+  assert.match(d.reason, /^Run \/xwf-grill and settle/);
+});

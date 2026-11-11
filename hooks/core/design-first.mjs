@@ -20,7 +20,7 @@ export function decide(ev, ctx) {
       && /Questions for the owner|Owner's answers/.test((disk ?? "") + "\n" + after);
     if ((creates || asks) && !ctx.marked(SKILL)) {
       const rel = path.relative(ev.root, abs);
-      return { decision: "deny", reason: `Run the ${SKILL} skill and settle the design questions with ${owner} before writing ${rel}.` };
+      return { decision: "deny", reason: `Run /${ctx.skillName?.(SKILL) ?? SKILL} and settle the design questions with ${owner} before writing ${rel}.` };
     }
   }
   return { decision: "allow" };

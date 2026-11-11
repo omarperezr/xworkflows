@@ -33,7 +33,7 @@ xworkflows fixes this with rules that are **enforced**, not just suggested. A ru
 
 ## Status
 
-This is an early version. The installer and `doctor` work for Claude Code. **Only step 2 of the method is enforced today**: the agent cannot write a spec until it has asked you the design questions.
+This is an early version. The installer and `doctor` work for Claude Code. **Only step 2 of the method is enforced today**: the agent cannot write a spec until it has asked you the design questions. Day one now ships `/adapt`, `/full-review` and `/next-step` for Claude Code. `/adapt` needs the `graphify` command installed. `/next-step` hands the chosen step to the `brainstorming` skill of the [superpowers](https://github.com/obra/superpowers) plugin.
 
 | Tool | Status |
 |---|---|
@@ -105,7 +105,7 @@ The other three tools have their config in the same `sandbox/` folder (`.codex/`
 
 ## What comes next
 
-1. Claude Code, complete: an installer, a `doctor` check, the other four hooks, all seven steps, and a pilot in a second real project.
+1. Claude Code, complete (in progress: the installer and day one are done; the rest of the method and the pilot in a second real project come next).
 2. Codex.
 3. Cursor.
 4. Gemini CLI.
@@ -114,4 +114,4 @@ The full design is in [docs/design.md](docs/design.md).
 
 ## License
 
-MIT. The `grill` skill is adapted from [mattpocock/skills](https://github.com/mattpocock/skills) (MIT); see `skills/grill/SOURCE.md`.
+MIT. The `grill` skill is adapted from [mattpocock/skills](https://github.com/mattpocock/skills) (MIT); see `skills/grill/SOURCE.md`. The `thermo-nuclear-review` and `thermo-nuclear-code-quality-review` skills are adapted from [cursor/plugins](https://github.com/cursor/plugins) (MIT); see their `SOURCE.md`.

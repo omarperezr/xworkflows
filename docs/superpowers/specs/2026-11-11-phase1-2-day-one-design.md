@@ -79,7 +79,7 @@ No questions. First the main session builds the code graph, `graphify
 update .`, after writing `.graphifyignore` (1.3 section 8a; graphify is
 required, owner 2026-11-11), and reads `graphify-out/GRAPH_REPORT.md`. Then
 it launches `explore` agents (phase 0), which ask `graphify query` before
-opening files, one per topic, 10 lines each, all in one Workflow (or at most 2 Agent calls), because
+opening files, one per topic, 10 lines each (topic 7 up to 20), all in one Workflow (or at most 2 Agent calls), because
 the `orchestrator` hook denies a third Agent otherwise (1.3 rule 5; Claude's call):
 
 1. Stack, build files, linters.
@@ -90,6 +90,11 @@ the `orchestrator` hook denies a third Agent otherwise (1.3 rule 5; Claude's cal
 4. Where data and money move: database, payments, auth, outside calls.
 5. History: files changed most in 12 months, reverts, fix commits.
 6. Next steps already written down (6.2).
+7. Mechanisms: what the code itself enforces (database guards, server-only
+   writes, idempotency, frozen values, transactions, money and rounding
+   helpers, batched work, domain rules), one candidate rule line each with
+   its path, plus areas present with no rule found (owner, 2026-11-11:
+   interview proof fix).
 
 Research reads every file git tracks and the history as commit messages and
 file stats, never past versions of files (`git show <sha>:<path>`) (Claude's
@@ -195,8 +200,10 @@ rule files (Claude's call on the shape):
 
 `key`: lowercase letters, digits, `-`; unique; also the rule file name.
 `paths`: relative to the repository root; a path is in one zone at most.
-`note`: optional, one line. Research proposes 3 to 5 zones, sized in bytes so
-the owner sees the review cost; generated and vendored code is left out
+`note`: optional, one line. Research proposes 3 to 5 zones, sized in bytes;
+the owner is shown zones with everyday names and rounded sizes, and told that
+a bigger area and each extra zone cost more to review (owner, 2026-11-11:
+interview proof fix); generated and vendored code is left out
 unless the owner adds it.
 
 New key `paths.reviews`, default `docs/superpowers/reviews` (Claude's call,
