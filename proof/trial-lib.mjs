@@ -1,5 +1,5 @@
 // Pure-ish trial helpers (no SDK import): the tests load this file with a stubbed exec.
-import { existsSync, readFileSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, renameSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { stripLeft, stripPlan } from "./answers.mjs";
 
@@ -48,12 +48,26 @@ export function stopFor(toolName, input) {
   return null;
 }
 
-// Move the owner's real profile aside while a trial runs, then put it back (also on error).
+const backupOf = (home) => join(home, ".xworkflows", "owner.md.proof-backup");
+
+// Put the owner's profile back from the on-disk backup (a trial's own owner.md is discarded). True when a backup existed.
+export function restoreOwner(home) {
+  const b = backupOf(home);
+  if (!existsSync(b)) return false;
+  renameSync(b, join(home, ".xworkflows", "owner.md"));
+  return true;
+}
+
+// Move the owner's real profile aside (a rename, never held only in memory) while a trial runs, then put it back, also on error.
 export async function withOwnerBackup(home, fn) {
   const f = join(home, ".xworkflows", "owner.md");
-  const had = existsSync(f) ? readFileSync(f) : null;
-  if (had) rmSync(f);
+  if (existsSync(f)) renameSync(f, backupOf(home));
   try { return await fn(); } finally {
-    if (had) { mkdirSync(join(home, ".xworkflows"), { recursive: true }); writeFileSync(f, had); } else rmSync(f, { force: true });
+    if (!restoreOwner(home)) rmSync(f, { force: true });
   }
+}
+
+// Amount counted toward the total cap: the recorded cost only for a clean end, else at least the per-trial cap.
+export function countedCost(r, perTrial) {
+  return r.failed || r.error || !["S5-next", "S5-skip", null].includes(r.stoppedAt) ? Math.max(r.costUsd, perTrial) : r.costUsd;
 }

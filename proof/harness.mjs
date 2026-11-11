@@ -1,6 +1,6 @@
 // Development-only: runs /adapt in fresh repo copies through the Claude Agent SDK.
 // usage: node proof/harness.mjs --source <dir> --commit <sha> [--init] [--strip a,b] --answers <file|none> --trials <n> --mode full|research-only --out <dir>
-import { apiKeyGuard, budgetStop, prepareCopy, stopFor, withOwnerBackup } from "./trial-lib.mjs";
+import { apiKeyGuard, budgetStop, countedCost, prepareCopy, restoreOwner, stopFor, withOwnerBackup } from "./trial-lib.mjs";
 import { answerFor, loadAnswers } from "./answers.mjs";
 import { execFileSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -35,11 +35,18 @@ const strip = (o.strip || "").split(",").filter(Boolean);
 
 async function trial(n) {
   const cwd = mkdtempSync(join(tmpdir(), "proof-trial-"));
-  const commit = prepareCopy({ dir: cwd, source, commit: o.commit, init: o.init, strip, repo: REPO, exec, copyDir: (a, b) => cpSync(a, b, { recursive: true }) });
+  let commit;
+  try {
+    commit = prepareCopy({ dir: cwd, source, commit: o.commit, init: o.init, strip, repo: REPO, exec, copyDir: (a, b) => cpSync(a, b, { recursive: true }) });
+  } catch (e) {
+    console.error(`trial ${n}: prepare failed: ${e}`);
+    rmSync(cwd, { recursive: true, force: true });
+    return { cwd, commit: null, stoppedAt: "prepare", misses: 0, costUsd: 0, cliVersion: "unknown", error: String(e), failed: true, durationMs: 0 };
+  }
   const ac = new AbortController();
-  let stoppedAt = null, misses = 0, costUsd = 0, cliVersion = "unknown", error = null, fallback = null;
-  const stop = (why) => { stoppedAt = why; fallback ??= setTimeout(() => ac.abort(), 60_000); };
-  const timer = setTimeout(() => { stoppedAt = "timeout"; ac.abort(); }, TIMEOUT_MS);
+  let stoppedAt = null, misses = 0, costUsd = 0, cliVersion = "unknown", error = null, fallback = null, failed = false;
+  const stop = (why) => { stoppedAt = why; fallback ??= setTimeout(() => { failed = true; ac.abort(); }, 60_000); };
+  const timer = setTimeout(() => { stoppedAt = "timeout"; failed = true; ac.abort(); }, TIMEOUT_MS);
   const canUseTool = async (name, input) => {
     const skip = stopFor(name, input);
     if (skip) { stop(skip); return { behavior: "deny", message: "trial ends here", interrupt: true }; }
@@ -62,14 +69,14 @@ async function trial(n) {
       if (m.type === "system" && m.subtype === "init" && m.claude_code_version) cliVersion = m.claude_code_version;
       if (m.type === "result") {
         if (typeof m.total_cost_usd === "number") costUsd = m.total_cost_usd;
-        if (m.subtype === "error_max_budget_usd") { stoppedAt = "budget"; break; }
+        if (String(m.subtype).startsWith("error_")) { failed = true; stoppedAt ??= m.subtype === "error_max_budget_usd" ? "budget" : m.subtype; break; }
         if (stoppedAt === "S5-next" || stoppedAt === "S5-skip") break;
       }
     }
   } catch (e) { if (!ac.signal.aborted) { error = String(e); console.error(`trial ${n}: ${e}`); } }
   clearTimeout(timer); clearTimeout(fallback);
   ac.abort();
-  return { cwd, commit, stoppedAt, misses, costUsd, cliVersion, error, durationMs: Date.now() - t0 };
+  return { cwd, commit, stoppedAt, misses, costUsd, cliVersion, error, failed: failed || !!error, durationMs: Date.now() - t0 };
 }
 
 function save(n, r) {
@@ -89,17 +96,20 @@ function save(n, r) {
   writeFileSync(join(dir, "meta.json"), JSON.stringify({
     trial: n, model: MODEL, cliVersion: r.cliVersion, skillHash, commit: r.commit, stripped: strip,
     costUsd: r.costUsd, misses: r.misses, durationMs: r.durationMs, stoppedAt: r.stoppedAt,
-    failed: r.stoppedAt === "timeout" || r.stoppedAt === "budget" || !!r.error, error: r.error, kinds,
+    failed: r.failed, error: r.error, kinds,
   }, null, 2) + "\n");
 }
 
+if (restoreOwner(homedir())) console.log("restored ~/.xworkflows/owner.md from a backup left by an earlier killed run");
+for (const sig of ["SIGINT", "SIGTERM"]) process.on(sig, () => { restoreOwner(homedir()); process.exit(1); });
 let spent = 0;
 for (let n = 1; n <= Number(o.trials); n++) {
   const why = budgetStop(spent, perTrial, totalCap);
   if (why) { console.log(`not starting trial ${n}: ${why}`); break; }
   const r = await withOwnerBackup(homedir(), () => trial(n));
-  spent += r.costUsd;
-  console.log(`trial ${n}: ${r.costUsd.toFixed(2)} USD, total so far ${spent.toFixed(2)} USD of ${totalCap} cap`);
+  const counted = countedCost(r, perTrial);
+  spent += counted;
+  console.log(`trial ${n}: recorded ${r.costUsd.toFixed(2)} USD, counted ${counted.toFixed(2)} USD, total so far ${spent.toFixed(2)} USD of ${totalCap} cap`);
   try { save(n, r); } catch (e) { console.error(`trial ${n}: save failed: ${e}`); }
   rmSync(r.cwd, { recursive: true, force: true });
 }

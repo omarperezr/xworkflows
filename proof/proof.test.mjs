@@ -1,11 +1,11 @@
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync, mkdtempSync, writeFileSync, cpSync, mkdirSync, existsSync, unlinkSync, rmSync } from "node:fs";
+import { readFileSync, mkdtempSync, writeFileSync, cpSync, mkdirSync, existsSync, unlinkSync, rmSync, renameSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { grade, stats, kindsFound, noMoneyCheck, recommendedReport } from "./grade.mjs";
 import { answerFor, toAnswers, stripPlan, stripLeft, loadAnswers } from "./answers.mjs";
-import { prepareCopy, stopFor, withOwnerBackup, apiKeyGuard, budgetStop } from "./trial-lib.mjs";
+import { prepareCopy, stopFor, withOwnerBackup, apiKeyGuard, budgetStop, countedCost, restoreOwner } from "./trial-lib.mjs";
 
 const FX = new URL("../test/fixtures/proof/", import.meta.url).pathname;
 const TRIAL = FX + "trial";
@@ -122,6 +122,13 @@ test("withOwnerBackup removes the profile during the run and restores it, also o
   assert.equal(readFileSync(f, "utf8"), "mine");
   await assert.rejects(withOwnerBackup(home, () => { throw new Error("x"); }));
   assert.equal(readFileSync(f, "utf8"), "mine");
+  // a killed run leaves the backup on disk: restoring puts it back
+  renameSync(f, f + ".proof-backup");
+  assert.equal(restoreOwner(home), true);
+  assert.equal(readFileSync(f, "utf8"), "mine");
+  assert.equal(restoreOwner(home), false);
+  // during the run the profile exists on disk as owner.md.proof-backup
+  await withOwnerBackup(home, () => assert.equal(readFileSync(f + ".proof-backup", "utf8"), "mine"));
   const empty = tmp();
   await withOwnerBackup(empty, () => { mkdirSync(join(empty, ".xworkflows")); writeFileSync(join(empty, ".xworkflows/owner.md"), "t"); });
   assert.equal(existsSync(join(empty, ".xworkflows/owner.md")), false);
@@ -133,6 +140,15 @@ test("apiKeyGuard refuses per-token billing", () => {
   assert.match(apiKeyGuard({ ANTHROPIC_API_KEY: "k" }), /--api-credits/);
   assert.equal(apiKeyGuard({ ANTHROPIC_API_KEY: "k" }, true), null);
   assert.equal(apiKeyGuard({}), null);
+});
+
+test("countedCost is conservative unless the end was clean", () => {
+  const ok = { costUsd: 2, stoppedAt: "S5-next", error: null, failed: false };
+  assert.equal(countedCost(ok, 15), 2);
+  assert.equal(countedCost({ ...ok, stoppedAt: null }, 15), 2);
+  assert.equal(countedCost({ ...ok, stoppedAt: "S5-skip" }, 15), 2);
+  for (const bad of [{ stoppedAt: "timeout" }, { stoppedAt: "budget" }, { error: "x" }, { failed: true }, { stoppedAt: "error_during_execution" }]) assert.equal(countedCost({ ...ok, ...bad }, 15), 15);
+  assert.equal(countedCost({ ...ok, failed: true, costUsd: 20 }, 15), 20);
 });
 
 test("budgetStop keeps spent plus one trial cap within the total", () => {
