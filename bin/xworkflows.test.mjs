@@ -367,3 +367,48 @@ test("doctor fails when the probe hangs", () => {
   assert.equal(out.status, 1);
   assert.match(out.stdout, /^fail probe/m);
 });
+
+test("uninstall on a fresh project leaves nothing", () => {
+  const r = repo({ "app.py": "" });
+  cli(r, ["install"]);
+  assert.equal(cli(r, ["uninstall"]).status, 0);
+  assert.deepEqual(readdirSync(r).sort(), [".git", "app.py"]);
+});
+test("uninstall restores a pilot-shaped project", () => {
+  const settings = { env: { A: "1" }, hooks: { PreToolUse: [theirs] } };
+  const files = { "CLAUDE.md": "# Rules\n", "AGENTS.md": "# Mine\n", ".claude/settings.json": JSON.stringify(settings, null, 2) + "\n" };
+  const r = repo(files);
+  cli(r, ["install", "--yes"]);
+  const s = readJson(r, ".claude/settings.json"); s.hooks.PreToolUse.push({ hooks: [{ type: "command", command: "/opt/later.sh" }] });
+  writeJson(r, ".claude/settings.json", s);
+  assert.equal(cli(r, ["uninstall"]).status, 0);
+  assert.equal(readFileSync(join(r, "CLAUDE.md"), "utf8"), files["CLAUDE.md"]);
+  assert.equal(readFileSync(join(r, "AGENTS.md"), "utf8"), files["AGENTS.md"]);
+  assert.deepEqual(readJson(r, ".claude/settings.json"), { ...settings, hooks: { PreToolUse: [theirs, { hooks: [{ type: "command", command: "/opt/later.sh" }] }] } });
+  assert.ok(!existsSync(join(r, ".xworkflows")));
+});
+test("uninstall keeps changed files and config.json", () => {
+  const r = repo(); cli(r, ["install"]);
+  appendFileSync(join(r, ".claude/agents/explore.md"), "mine\n");
+  writeFileSync(join(r, ".xworkflows/config.json"), "{}\n");
+  const out = cli(r, ["uninstall"]);
+  assert.match(out.stdout, /kept \(changed locally\): \.claude\/agents\/explore\.md/);
+  assert.ok(existsSync(join(r, ".xworkflows/config.json")));
+  assert.ok(!existsSync(join(r, ".xworkflows/installed.json")));
+});
+test("uninstall without a record exits 1", () => {
+  assert.equal(cli(repo(), ["uninstall"]).status, 1);
+});
+test("uninstall keeps an edited merged entry and a settings file that does not parse", () => {
+  const r = repo(); cli(r, ["install"]);
+  const s = readJson(r, ".claude/settings.json");
+  s.hooks.PreToolUse.find((e) => e.hooks[0].command.includes("claude design-first")).hooks[0].command += " --extra";
+  writeJson(r, ".claude/settings.json", s);
+  const out = cli(r, ["uninstall"]);
+  assert.match(out.stdout, /kept \(changed locally\): \.claude\/settings\.json hooks\.PreToolUse/);
+  assert.equal(readJson(r, ".claude/settings.json").hooks.PreToolUse.length, 1);
+  const r2 = repo(); cli(r2, ["install"]);
+  writeFileSync(join(r2, ".claude/settings.json"), "{ nope");
+  assert.equal(cli(r2, ["uninstall"]).status, 0);
+  assert.equal(readFileSync(join(r2, ".claude/settings.json"), "utf8"), "{ nope");
+});

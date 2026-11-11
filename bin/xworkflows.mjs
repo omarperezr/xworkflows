@@ -2,7 +2,7 @@
 import { execFileSync, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { createInterface } from "node:readline/promises";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, rmdirSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { isDeepStrictEqual } from "node:util";
@@ -88,7 +88,7 @@ export function main(argv) {
   }
   if (cmd === "install") return install(flags);
   if (cmd === "doctor") return doctor();
-  die(1, "not built yet");
+  return uninstall();
 }
 
 const EMPTY = { xworkflows: "", tools: ["claude"], pieces: {}, files: {}, merged: [], blocks: [], imports: [], created: [], declined: [], kept: [], renamed: {} };
@@ -386,6 +386,72 @@ function doctor() {
   say(bytes > budget ? "fail" : "ok", `always-loaded: ${bytes} bytes of ${budget}`);
   say("ok", "Claude Code: tested");
   finish();
+}
+
+function uninstall() {
+  let rec;
+  try { rec = { ...EMPTY, ...JSON.parse(readFileSync(join(ROOT, ".xworkflows/installed.json"), "utf8")) }; }
+  catch (e) { die(1, e.code === "ENOENT" ? "not installed" : ".xworkflows/installed.json does not parse; fix or remove it"); }
+  const out = [], gone = [];
+  const rm = (p) => { rmSync(join(ROOT, p)); gone.push(p); };
+  const write = (p, text) => { writeFileSync(join(ROOT, p), text); out.push(`changed ${p}`); };
+  for (const [p, { sha256 }] of Object.entries(rec.files)) {
+    if (rec.kept.includes(p) || !existsSync(join(ROOT, p))) continue;
+    if (hash(read(ROOT, p)) === sha256) { rm(p); out.push(`deleted ${p}`); }
+    else out.push(`kept (changed locally): ${p}`);
+  }
+  const sp = ".claude/settings.json";
+  const merged = rec.merged.filter((m) => m.file === sp);
+  if (merged.length && read(ROOT, sp) !== null) {
+    let s;
+    try { s = JSON.parse(read(ROOT, sp)); } catch { out.push(`kept (does not parse): ${sp}`); }
+    if (s) {
+      let changed = false;
+      for (const m of merged) {
+        const parents = [s];
+        for (const k of m.key) parents.push(parents.at(-1)?.[k]);
+        const arr = parents.at(-1);
+        if (!Array.isArray(arr)) continue;
+        const i = arr.findIndex((e) => isDeepStrictEqual(e, m.entry));
+        const id = m.entry?.hooks?.[0]?.command?.match(/run\.mjs" claude (\S+)/)?.[1];
+        if (i >= 0) { arr.splice(i, 1); changed = true; }
+        else if (id && arr.some((e) => isOurs(e, id))) { out.push(`kept (changed locally): ${sp} ${m.key.join(".")}`); continue; }
+        if (m.createdKey) {
+          for (let d = m.key.length; d > 0 && Object.keys(parents[d] ?? {}).length === 0; d--) delete parents[d - 1][m.key[d - 1]];
+        }
+      }
+      if (changed) write(sp, json(s));
+    }
+  }
+  for (const b of rec.blocks) {
+    const t = read(ROOT, b.file), a = t?.indexOf(START) ?? -1, e = a < 0 ? -1 : t.indexOf(END, a);
+    if (e < 0) continue;
+    let from = a;
+    if (t.slice(0, a).endsWith("\n\n")) from--; // the blank line install added
+    write(b.file, t.slice(0, from) + t.slice(e + END.length + (t[e + END.length] === "\n" ? 1 : 0)));
+  }
+  for (const { file, line } of rec.imports) {
+    const t = read(ROOT, file), ls = t?.split("\n") ?? [], i = ls.lastIndexOf(line);
+    if (i < 0) continue;
+    ls.splice(i, 1);
+    write(file, ls.join("\n"));
+  }
+  for (const p of rec.created) {
+    const t = read(ROOT, p);
+    let empty = t !== null && t.trim() === "";
+    try { empty ||= t !== null && isDeepStrictEqual(JSON.parse(t), {}); } catch {}
+    if (empty && !rec.kept.includes(p)) { rm(p); out.push(`deleted ${p}`); }
+  }
+  rm(".xworkflows/installed.json");
+  for (const p of gone) {
+    for (let d = dirname(p); d !== "."; d = dirname(d)) {
+      if (!existsSync(join(ROOT, d))) continue;
+      if (readdirSync(join(ROOT, d)).length) break;
+      rmdirSync(join(ROOT, d));
+      out.push(`deleted ${d}/`);
+    }
+  }
+  console.log(out.join("\n") + (out.length ? "\n" : "") + "uninstalled");
 }
 
 main(process.argv.slice(2));
