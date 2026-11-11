@@ -33,7 +33,7 @@ xworkflows fixes this with rules that are **enforced**, not just suggested. A ru
 
 ## Status
 
-This is an early version. The installer and `doctor` work for Claude Code. **Only step 2 of the method is enforced today**: the agent cannot write a spec until it has asked you the design questions. Day one now ships `/adapt`, `/full-review` and `/next-step` for Claude Code.
+This is an early version. The installer and `doctor` work for Claude Code. **Only step 2 of the method is enforced today**: the agent cannot write a spec until it has asked you the design questions. Day one now ships `/adapt`, `/full-review` and `/next-step` for Claude Code. `/adapt` needs the `graphify` command installed. `/next-step` hands the chosen step to the `brainstorming` skill of the [superpowers](https://github.com/obra/superpowers) plugin.
 
 | Tool | Status |
 |---|---|
@@ -114,4 +114,4 @@ The full design is in [docs/design.md](docs/design.md).
 
 ## License
 
-MIT. The `grill` skill is adapted from [mattpocock/skills](https://github.com/mattpocock/skills) (MIT); see `skills/grill/SOURCE.md`.
+MIT. The `grill` skill is adapted from [mattpocock/skills](https://github.com/mattpocock/skills) (MIT); see `skills/grill/SOURCE.md`. The `thermo-nuclear-review` and `thermo-nuclear-code-quality-review` skills are adapted from [cursor/plugins](https://github.com/cursor/plugins) (MIT); see their `SOURCE.md`.

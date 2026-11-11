@@ -17,7 +17,7 @@ When `adapt` did not just start you (its question already showed the estimate), 
 
 ## Step 3: The Workflow
 
-Run one Workflow with the script below. Pass the `zones` array as the Workflow `args`.
+Run one Workflow with the script below. Pass `{ zones, skills }` as the Workflow `args`: `zones` is the `zones` array; `skills` maps each review to its installed folder, `.claude/skills/<name>`, or `.claude/skills/xwf-<name>` when `renamed` in `.xworkflows/installed.json` has that key with value `<name>`.
 
 ```js
 export const meta = {
@@ -27,7 +27,8 @@ export const meta = {
 };
 
 const REVIEWS = ["thermo-nuclear-review", "thermo-nuclear-code-quality-review"];
-const ZONES = args;
+const ZONES = args.zones;
+const SKILLS = args.skills;
 const RANK = { high: 0, medium: 1, low: 2 };
 const schema = {
   type: "object",
@@ -56,7 +57,7 @@ const jobs = [];
 for (const review of REVIEWS) {
   for (const zone of ZONES) {
     jobs.push(async () => {
-      const prompt = `Follow .claude/skills/${review}/SKILL.md, its "Whole-repo mode" section, on this zone only. Zone "${zone.key}", paths: ${zone.paths.join(", ")}. Return the findings in the "findings" field.`;
+      const prompt = `Follow ${SKILLS[review]}/SKILL.md, its "Whole-repo mode" section, on this zone only. Zone "${zone.key}", paths: ${zone.paths.join(", ")}. Return the findings in the "findings" field.`;
       const out = await agent(prompt, { agentType: "zone-review", schema });
       return out.findings.map((f) => ({ ...f, review, zone: zone.key }));
     });
@@ -99,7 +100,7 @@ Do not commit yet: the file is committed once, after the owner's decisions are r
 
 ## Step 5: Decide each restructuring
 
-Ask one question per restructuring, up to 4 per call, each decided on its own: `Do it`, `Drop it`, `Pending list`. Nothing is applied without a yes. Record each answer under `## Owner's decisions (YYYY-MM-DD)`, with the restructuring's number and title. Then commit only the review file, once: `git add <file>`, then `git commit -m "docs: full review YYYY-MM-DD" -- <file>`, so files the owner staged stay out. No AI author or co-author line. No push. Items answered `Do it` are the first source of `/next-step`.
+Ask one question per restructuring, up to 4 per call, each decided on its own: `Do it`, `Drop it`, `Pending list`, none marked recommended. Nothing is applied without a yes. Record each answer under `## Owner's decisions (YYYY-MM-DD)`, with the restructuring's number and title. Then commit only the review file, once: `git add <file>`, then `git commit -m "docs: full review YYYY-MM-DD" -- <file>`, so files the owner staged stay out. No AI author or co-author line. No push. Items answered `Do it` are the first source of `/next-step`.
 
 ## Step 6: The pending list
 

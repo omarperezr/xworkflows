@@ -108,3 +108,56 @@ test("next-step pins sources, GitHub skip and the hand-off section", () => {
   assert.deepEqual([...order].sort((a, b) => a - b), order);
   assert.ok(s.split("\n").length < 120);
 });
+
+const has = (s, ts) => { for (const t of ts) assert.ok(s.includes(t), t); };
+const WIP_SKIP = "uncommitted changes, skipping paths under `.xworkflows/`, `graphify-out/` and the files listed in `.xworkflows/installed.json`";
+
+test("day one leaves the repo clean: gitignore and WIP skip list", () => {
+  const s = read("skills/adapt/SKILL.md");
+  has(s, ["Append `graphify-out/` and `.xworkflows/research.md` to `.gitignore` (create it if missing), only the lines not already there.",
+    "plus `.graphifyignore` and `.gitignore`", "write nothing but `.graphifyignore`, `graphify-out/`, `research.md` and the draft."]);
+  assert.ok(read("skills/adapt/topics.md").includes(WIP_SKIP));
+  assert.ok(read("skills/next-step/SKILL.md").includes(WIP_SKIP));
+});
+test("adapt research reads no content diffs; the proof copy commits its removal", () => {
+  has(read("skills/adapt/SKILL.md"), ["no `git log -p`; `git diff` and `git stash show` only with `--stat` or `--name-only`."]);
+  const t7 = read("docs/superpowers/plans/2026-11-11-phase-1-2-day-one.md").split("### Task 7")[1];
+  assert.match(t7, /with `git rm -r` and commit the removal in the copy/);
+  assert.doesNotMatch(t7, /from the working tree only/);
+});
+test("verify-finding: temp dir, forced removal, config tests, deps, cannot run here", () => {
+  const b = read("agents/verify-finding.md");
+  has(b, ["`mktemp -d`", "outside the repo", "`tests.run`, `tests.files` and `tests.notRunnable`", "`node_modules`, `.venv`", "discarded: cannot run here: <why>"]);
+  assert.equal(b.match(/git worktree remove --force <temp dir>/g).length, 2);
+  assert.doesNotMatch(b, /git worktree remove <temp dir>/);
+  assert.ok(read("skills/next-step/SKILL.md").includes("`discarded: cannot run here: <why>`: say why in one line, keep the candidate's card"));
+});
+test("next-step: plain text under 2 candidates, reads paths.reviews, names the verify branch", () => {
+  const s = read("skills/next-step/SKILL.md");
+  has(s, ["With fewer than 2 candidates, ask `What is the next step?` in plain text, not `AskUserQuestion`",
+    "`paths.reviews` (default `docs/superpowers/reviews`)", "`<review date>-E<n>`", "`P-<n>` for a card",
+    "A picked card whose `Origin:` is a review file counts as a review error.", "pass `verify/<id>`"]);
+  assert.ok(s.split("## Step 2")[0].includes("paths.reviews"));
+});
+test("adapt reuses a fresh research.md when there is no summary", () => {
+  has(read("skills/adapt/SKILL.md").split("## Step 2")[0], ["No `summary.md`, but `.xworkflows/research.md` has `commit:` equal to `HEAD`", "go to step 3"]);
+});
+test("full-review resolves renamed review skills; restructuring question has no recommendation", () => {
+  const s = read("skills/full-review/SKILL.md");
+  has(s, ["`.claude/skills/xwf-<name>`", "`renamed` in `.xworkflows/installed.json`", "`Do it`, `Drop it`, `Pending list`, none marked recommended"]);
+  const js = s.match(/```js\n([\s\S]*?)```/)[1];
+  assert.match(js, /args\.skills/);
+  assert.doesNotMatch(js, /\.claude\/skills\/\$\{review\}/);
+});
+test("adapt: installer files stay uncommitted, existing files are merged, topic 6 list reaches explore", () => {
+  const s = read("skills/adapt/SKILL.md");
+  has(s, ["If an installer file (the `files` keys and `created` list in `.xworkflows/installed.json`) is still uncommitted, tell the owner which ones. Do not commit them.",
+    "is merged, never overwritten", "`## Changes to existing files`", "merge into only that section", "`.claude/skills/adapt/topics.md`"]);
+  assert.doesNotMatch(s, /replace only that section/);
+  assert.ok(s.split("\n").length < 200);
+});
+test("README names graphify, superpowers brainstorming and the cursor/plugins credit", () => {
+  const r = read("README.md");
+  has(r, ["`/adapt` needs the `graphify` command installed", "`brainstorming` skill of the [superpowers]"]);
+  assert.match(r.split("## License")[1], /\[cursor\/plugins\]\(https:\/\/github\.com\/cursor\/plugins\) \(MIT\)/);
+});

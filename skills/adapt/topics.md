@@ -49,7 +49,7 @@ Each invariant the interview proof misses adds one line under its heading.
 Next steps already written down, searched in this order:
 
 1. Pending list (`paths.pending`, default `docs/PENDING.md`): cards "in progress", then "scheduled".
-2. Work in progress in git: uncommitted changes; local branches not merged into `mainBranch` with a commit in the last 30 days.
+2. Work in progress in git: uncommitted changes, skipping paths under `.xworkflows/`, `graphify-out/` and the files listed in `.xworkflows/installed.json` (`files` keys, `created`); local branches not merged into `mainBranch` with a commit in the last 30 days.
 3. Plans in `paths.plans` with unchecked boxes (`- [ ]`), newest first.
 4. The other pending cards, in file order.
 5. `TODO.md`, `TODO`, `ROADMAP.md`, `NEXT.md` at the root or in `docs/`; README sections titled roadmap, todo, next or planned.

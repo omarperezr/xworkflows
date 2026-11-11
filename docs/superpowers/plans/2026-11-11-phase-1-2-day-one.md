@@ -305,7 +305,7 @@ test("next-step pins sources, GitHub skip and the hand-off section", () => {
 This task is run by the controller with the owner, live; it is not delegated.
 
 - [ ] **Step 1: Prepare (controller).** Read the reference location and its 10 invariants from `docs/reference-coupling.md` and the reference's instructions. Write one yes/no line per invariant to `docs/proof/private/invariants.md`; add `docs/proof/private/` to `.gitignore` first. Show the lines to the owner and fix any they reject.
-- [ ] **Step 2: Copy.** `git clone` the reference into the scratchpad; remove `CLAUDE.md` files, `.claude/` and `docs/` from the working tree only; run `node <repo>/bin/xworkflows.mjs install --yes` there.
+- [ ] **Step 2: Copy.** `git clone` the reference into the scratchpad; remove `CLAUDE.md` files, `.claude/` and `docs/` with `git rm -r` and commit the removal in the copy; run `node <repo>/bin/xworkflows.mjs install --yes` there.
 - [ ] **Step 3: R.** The owner runs `claude` in the copy and types `/adapt research-only`. Count R of 10 on `.xworkflows/research.md`.
 - [ ] **Step 4: I.** The owner runs `/adapt` to "Yes, you understood". Count I of 10 on `AGENTS.md`, `.claude/rules/` and `.claude/agents/risk-review.md`, each tagged research, question, or owner after a "No". Record playbacks, questions and minutes.
 - [ ] **Step 5: Mark.** Pass: I ≥ 8. Each missed invariant adds one question to `skills/adapt/topics.md` under its heading (commit it by path, `pack`). Write the numbers, without any reference content, to `docs/proof/2026-11-11-interview-proof.md`: R, I, I by origin, playbacks, questions, minutes, pass or fail, and the commands used. Commit it and `.gitignore` by path.

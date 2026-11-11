@@ -13,7 +13,8 @@ Questions go through `AskUserQuestion`: at most 4 per call, research's guess fir
 
 - `.xworkflows/summary.md` has `status: draft`: resume the interview from it. Skip research; read `.xworkflows/research.md` and go to step 3.
 - `.xworkflows/summary.md` has `status: approved`: re-adapt. Run step 2 only on the commits after its `commit:` line (`git log <commit>..HEAD --stat`). If research changes no line of the approved summary, say so and stop before any playback: no draft, no write, no commit; leave `summary.md` as it is. Otherwise play back the approved summary with each changed line marked `(changed)`. Same stop rule. In step 4, rewrite only the files whose content changes.
-- No `summary.md`: start at step 2.
+- No `summary.md`, but `.xworkflows/research.md` has `commit:` equal to `HEAD` (as after `/adapt research-only`): reuse it. With `research-only`, give its path and stop; otherwise go to step 3.
+- Otherwise: start at step 2.
 
 ## Step 2: Research
 
@@ -24,7 +25,7 @@ No questions in this step.
 3. Read `graphify-out/GRAPH_REPORT.md`. Then run one `graphify query "<what are the main parts of this project?>"` yourself; the lookup rule wants a recent query before any `explore` agent.
 4. Launch one `explore` agent per topic below, all six in one Workflow. Without the Workflow tool, use at most 2 Agent calls of three topics each. Every prompt says:
    - Ask `graphify query` before opening files. Verify each path still exists.
-   - Read history as commit messages and file stats only (`git log --oneline`, `--stat`, `--name-only`). Never read past versions of files: no `git show <sha>:<path>`, no `git log -p`.
+   - Read history as commit messages and file stats only (`git log --oneline`, `--stat`, `--name-only`). Never read past versions of files or content diffs: no `git show <sha>:<path>`, no `git log -p`; `git diff` and `git stash show` only with `--stat` or `--name-only`.
    - Answer in 10 lines or fewer.
 5. The six topics:
    1. Stack, build files, linters.
@@ -32,7 +33,7 @@ No questions in this step.
    3. Tests: file patterns, run command, folders that need a service such as a database (fills `tests.files`, `tests.run`, `tests.notRunnable`).
    4. Where data and money move: database, payments, auth, outside calls.
    5. History of the last 12 months: files changed most, reverts, fix commits.
-   6. Next steps already written down, searched in the order of "Research topic 6" in `topics.md`.
+   6. Next steps already written down. Paste into this prompt the list under `## Research topic 6` of `.claude/skills/adapt/topics.md`; the agent searches in that order.
 6. Write `.xworkflows/research.md`:
    - Front matter `commit: <HEAD sha>`.
    - A first draft of the summary under the eight headings of step 3. Each line ends `(code)` or `(git)`. Leave a line empty rather than guess wildly.
@@ -80,7 +81,7 @@ Rules:
 
 ### Playback
 
-1. Write the whole summary: the eight headings, plain words, one line per item, as short as it can be without dropping a detail. No line cap. Each line ends `(code)`, `(git)` or `(you)`. After heading 8, a `## Config` block lists each required key and its value.
+1. Write the whole summary: the eight headings, plain words, one line per item, as short as it can be without dropping a detail. No line cap. Each line ends `(code)`, `(git)` or `(you)`. After heading 8, a `## Config` block lists each required key and its value. If `docs/BUSINESS.md`, a `.claude/rules/<key>.md` or a `## Project rules` section already exists, then add `## Changes to existing files`: per file, the lines step 4 adds or changes.
 2. Save it to `.xworkflows/summary.md` with front matter `status: draft` and `commit: <sha research read>`. The saved draft leaves heading 8 empty; on resume, ask heading 8 again.
 3. Ask one question: `Did I understand correctly?` with two options, `Yes, you understood` and `No`. Neither is marked recommended. No other options.
 4. On `No`: ask the open question `What did I miss or get wrong?` and wait for the answer. Then ask questions only about that. Then play back the whole summary again, each changed line marked `(changed)`, save the draft, and ask `Did I understand correctly?` again. No cap on playbacks.
@@ -88,13 +89,13 @@ Rules:
 
 ## Step 4: Write
 
-Only after `Yes, you understood`. Before that answer, write nothing but `.graphifyignore`, `research.md` and the draft. The main session writes all of these in one step:
+Only after `Yes, you understood`. Before that answer, write nothing but `.graphifyignore`, `graphify-out/`, `research.md` and the draft. An existing `docs/BUSINESS.md`, `.claude/rules/<key>.md` or `## Project rules` section is merged, never overwritten: keep its lines, add or change only what the playback showed. The main session writes all of these in one step:
 
 | File | Content |
 |---|---|
 | `.xworkflows/summary.md` | Headings 1 to 7 as approved. Front matter `status: approved`, `date: YYYY-MM-DD`, `commit: <sha research read>`. |
 | `docs/BUSINESS.md` | Headings 1 to 3, then `## Goals` (below). |
-| `AGENTS.md` | Headings 4 and 5 as unbreakable rules, one line each, under `## Project rules`. Put it after the `<!-- xworkflows:end -->` line, outside the `<!-- xworkflows:start -->` block. Never edit inside the block; the installer owns it. If `## Project rules` exists, replace only that section. |
+| `AGENTS.md` | Headings 4 and 5 as unbreakable rules, one line each, under `## Project rules`. Put it after the `<!-- xworkflows:end -->` line, outside the `<!-- xworkflows:start -->` block. Never edit inside the block; the installer owns it. If `## Project rules` exists, merge into only that section. |
 | `.claude/rules/<zone key>.md` | One file per zone that has a rule. Front matter `paths:` lists the zone's paths as globs (`src/` becomes `src/**`). Then the rules, one line each. |
 | `.claude/agents/risk-review.md` | The risk reviewer (below). |
 | `.xworkflows/config.json` | Merged key by key (below). |
@@ -124,9 +125,11 @@ Goals in `docs/BUSINESS.md`, one line per aspiration, no dates. G1 is the 3-mont
 
 Then commit, without asking (the owner already approved the content):
 
-1. `git add` each repository file written above by explicit path, plus `.graphifyignore`. Never `git add .` or `-A`. Never `~/.xworkflows/owner.md` or `research.md`.
-2. `git commit -m "chore: adapt xworkflows to this project" -- <the same paths>`, so files the owner staged before stay out. No AI author or co-author line. No push.
-3. Show the owner the commit's short sha and its file list.
+1. Append `graphify-out/` and `.xworkflows/research.md` to `.gitignore` (create it if missing), only the lines not already there.
+2. `git add` each repository file written above by explicit path, plus `.graphifyignore` and `.gitignore`. Never `git add .` or `-A`. Never `~/.xworkflows/owner.md` or `research.md`.
+3. `git commit -m "chore: adapt xworkflows to this project" -- <the same paths>`, so files the owner staged before stay out. No AI author or co-author line. No push.
+4. Show the owner the commit's short sha and its file list.
+5. If an installer file (the `files` keys and `created` list in `.xworkflows/installed.json`) is still uncommitted, tell the owner which ones. Do not commit them.
 
 ## Step 5: Next
 

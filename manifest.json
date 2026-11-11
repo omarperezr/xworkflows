@@ -166,9 +166,9 @@
         "gemini"
       ],
       "files": {
-        "agents/verify-finding.md": "d2f66739016dfcc4345b2993a5eaf9acf3050d8448eab0f407256f1ebd0ad194"
+        "agents/verify-finding.md": "963907a0b9a829073df6d4399d6e3de438b9c2187c2e7f7f4a439a235a342c82"
       },
-      "sha256": "82445daf9c6ece010c9bea8ab6ce085c94bb0150ef71cac6a6449ce5e50e3ca7"
+      "sha256": "d52df65921147320bde1603aed2c13f962741a78b72458fcb1c35f0928fe3f31"
     },
     {
       "id": "adapt",
@@ -184,10 +184,10 @@
         "gemini"
       ],
       "files": {
-        "skills/adapt/SKILL.md": "bd564974dc62ce135ebde95af76fe4ebab1236d44a8e4c0251b5f6e55d50e677",
-        "skills/adapt/topics.md": "cfd3995838539c6b5d3c7e9bc736c57d5c464f6482ce60edf6d2752eae1a2626"
+        "skills/adapt/SKILL.md": "426419815cad90070efc0ec56ec1dad01101242c6fe469d299c777a318e46398",
+        "skills/adapt/topics.md": "da5aa9455f0344755fa2176f71f2b9800ddb4e1cc6a2c55cb4f19164160ee1de"
       },
-      "sha256": "f75bab2e9f99ef94419ac0087181f8fc7034c28a72b6b7e17c04f77a9ee671f9"
+      "sha256": "9147b3f622c6fc684bb1bc630f7806f17edd170b47c2a8c57f3de50e7c24c6b0"
     },
     {
       "id": "full-review",
@@ -203,9 +203,9 @@
         "gemini"
       ],
       "files": {
-        "skills/full-review/SKILL.md": "97766fb0e34e5e84a96777f34539015eb59676c5cec145622ac3ab32868b6d42"
+        "skills/full-review/SKILL.md": "d8879b367674c739fdce0806a290c0f240ef3bd30f6359f1609a275abcf48d15"
       },
-      "sha256": "baa14073716caece880aa436262cd0c1161d6b839b2040ca59e3cdbcb2ec5053"
+      "sha256": "b858f0eb28ae009180c9fa81c3bf544af6bbf0a358d49c6b1b1c5b870dbe0c1c"
     },
     {
       "id": "next-step",
@@ -221,9 +221,9 @@
         "gemini"
       ],
       "files": {
-        "skills/next-step/SKILL.md": "fd0e05feac1fbb98bf14a13c9c54a73290629f6308c8a6d722cea4977db0d45e"
+        "skills/next-step/SKILL.md": "2910847c9516828e473843e91d71937a0757815a471ed75be9962dc8953cb290"
       },
-      "sha256": "b6d401f7b78107d31f55e4c37b12a6ee8e8e89977adf543c980ed4e6df55d1fb"
+      "sha256": "5d6283d037c41ce92e0d5f9adb616a01816f62e900f8a8feceda33ace4c702ec"
     }
   ]
 }
