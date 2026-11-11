@@ -16,15 +16,15 @@
         "gemini"
       ],
       "files": {
-        "hooks/run.mjs": "bd2c782da0d25ef09fd567e7a1b732240744662acc366760645ea44e8b9687cb",
+        "hooks/run.mjs": "7e94bd1ffec9525d367899183eca203d88ddcbf230067003df1bdcfcfaf15873",
         "hooks/mark.mjs": "f2ecad21dedeb1515287063237e6852b9374781f71ce876f13b57324bfcb88a5",
         "hooks/core/marks.mjs": "9f52d052c8fb1275e92335d1dd5664be0f1bff7d43a4a9432268bac01d61a2b7",
-        "hooks/adapters/claude.mjs": "cff295737dffa2c26db768750f12439cdaf2f7aefa248b1b92c8448992e8eecf",
+        "hooks/adapters/claude.mjs": "c9a915f88eda53a9c505c0e4bb76d746db76242aa0cf944318f685d95f866af1",
         "hooks/adapters/codex.mjs": "0589bf97b5cec7e06fee8a70bd92d8a0f51e8bb082cc241f743a80308e44d059",
         "hooks/adapters/cursor.mjs": "394c1a81f4040089b67f0fbf1131012bbb5883bdf705ce3af12dff66d9b3cbd5",
         "hooks/adapters/gemini.mjs": "eff8f29bce46d7c4a7c62845f3762a16c6fd38e831e6c4a5d6b54361ec599175"
       },
-      "sha256": "a224b68908a97f29dbff4aa62abb50f82af811ee3c7add2560052ca3604abf27"
+      "sha256": "55872391a19a401d0e6c5aac912bd6f85455576a4b402dd557ec1c9c3ce68826"
     },
     {
       "id": "design-first",
@@ -49,6 +49,48 @@
         "hooks/core/design-first.mjs": "213646ac1a3129377bc1959681334ba106936612b018e70b7620615a0118ce2a"
       },
       "sha256": "f1ca4c0ced121e4be10cfad875a62ba221e4356fde1aae84cf0a7448154729d3"
+    },
+    {
+      "id": "adapt-gates",
+      "kind": "hook",
+      "origin": "own",
+      "version": "0.1.0",
+      "license": "MIT",
+      "scope": "project",
+      "tools": [
+        "claude"
+      ],
+      "claude": [
+        {
+          "event": "PreToolUse",
+          "matcher": "Write|Edit|MultiEdit|Workflow"
+        }
+      ],
+      "files": {
+        "hooks/core/adapt-gates.mjs": "e7409567c844834624017ac5080e46725b248498da329b1cfda931c676c9ae0f"
+      },
+      "sha256": "731c7f5ec96552e00276d4745cfb4c89892bb1a1bfc68a71eb275951580106ab"
+    },
+    {
+      "id": "adapt-record",
+      "kind": "hook",
+      "origin": "own",
+      "version": "0.1.0",
+      "license": "MIT",
+      "scope": "project",
+      "tools": [
+        "claude"
+      ],
+      "claude": [
+        {
+          "event": "PostToolUse",
+          "matcher": "AskUserQuestion"
+        }
+      ],
+      "files": {
+        "hooks/core/adapt-record.mjs": "0e26809252c07201cc799efc103847eace7ad00e85051cd36713d70870487e0a"
+      },
+      "sha256": "2c26fb380f2ce392891f0eb11dd25306de22555c13c944b907213b26b5c02dc8"
     },
     {
       "id": "grill",

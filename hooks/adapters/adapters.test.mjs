@@ -110,3 +110,13 @@ test("gemini replace on a missing spec is denied and maps to { path, old, new }"
   const state = { XWORKFLOWS_STATE_DIR: mkdtempSync(join(tmpdir(), "xwf-test-")) };
   assert.ok(tools.gemini.denied(spawn("gemini", input, state).stdout));
 });
+
+test("claude: Workflow and PostToolUse normalize", async () => {
+  const { normalize, answer } = await import("./claude.mjs");
+  const w = normalize({ session_id: "s", cwd: "/p", tool_name: "Workflow", tool_input: { script: "x" } }, {});
+  assert.equal(w.kind, "workflow");
+  assert.equal(w.inline, true);
+  const p = normalize({ session_id: "s", cwd: "/p", hook_event_name: "PostToolUse", tool_name: "AskUserQuestion", tool_input: { a: 1 }, tool_response: { b: 2 } }, {});
+  assert.deepEqual([p.event, p.tool, p.input, p.response], ["postTool", "AskUserQuestion", { a: 1 }, { b: 2 }]);
+  assert.equal(answer({ decision: "allow" }).stdout, "");
+});
