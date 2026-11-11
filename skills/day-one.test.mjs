@@ -70,7 +70,7 @@ test("adapt pins its questions, headings, keys and outputs", () => {
   for (const k of ["paths.code", "paths.risk", "paths.heavyRead", "paths.codeAnyway", "tests.files", "tests.run", "tests.notRunnable", "checks", "zones"]) assert.ok(s.includes(k), k);
   for (const h of ["What it is", "Who pays, what is sold, what is not done", "Aspirations at about 3, 12 and 36 months",
     "Risks, the costliest mistake first", "What must not change; what is free to change", "Zones and which paths are risk paths",
-    "How the owner works", "About you"]) { assert.ok(s.includes(h), h); assert.ok(read("skills/adapt/topics.md").includes(h), h); }
+    "How the owner works", "About you"]) { assert.ok(s.includes(h), h); assert.ok(read("skills/adapt/research.mjs").includes(h), h); }
 });
 test("adapt leaves the tree clean on an unchanged re-run and commits only its files", () => {
   const s = read("skills/adapt/SKILL.md");
@@ -116,7 +116,7 @@ test("day one leaves the repo clean: gitignore and WIP skip list", () => {
   const s = read("skills/adapt/SKILL.md");
   has(s, ["Append `graphify-out/` and `.xworkflows/research.md` to `.gitignore` (create it if missing), only the lines not already there.",
     "plus `.graphifyignore` and `.gitignore`", "write nothing but `.graphifyignore`, `graphify-out/`, `research.md` and the draft."]);
-  assert.ok(read("skills/adapt/topics.md").includes(WIP_SKIP));
+  assert.ok(read("skills/adapt/research.workflow.js").includes(WIP_SKIP.replaceAll("`", "\\`"))); // the script keeps backticks escaped
   assert.ok(read("skills/next-step/SKILL.md").includes(WIP_SKIP));
 });
 test("adapt research reads no content diffs; the proof copy commits its removal", () => {
@@ -162,7 +162,7 @@ test("README names graphify, superpowers brainstorming and the cursor/plugins cr
   assert.match(r.split("## License")[1], /\[cursor\/plugins\]\(https:\/\/github\.com\/cursor\/plugins\) \(MIT\)/);
 });
 test("adapt asks how the code prevents each risk; research looks for mechanisms; zones question is plain", () => {
-  const s = read("skills/adapt/SKILL.md"), t = read("skills/adapt/topics.md");
+  const s = read("skills/adapt/SKILL.md");
   const Q = "How does the code prevent this today, and what rule must every change follow?";
   has(s, [Q, "7. Mechanisms: what the code itself enforces.", "each topic 7 mechanism as a candidate rule line", "with its path, tagged `(code)`",
     "Only for a risk or \"must not change\" item where research found no mechanism, ask", "mechanisms research found go straight under heading 5",
@@ -170,12 +170,7 @@ test("adapt asks how the code prevents each risk; research looks for mechanisms;
     "Options `Nothing does today` and `I don't know`", "`no rule needed` and `I don't know` are accepted answers", "`unprotected: <risk>`", "That line is settled, not a guess",
     "Heading 5 groups its rule lines under the risk they prevent, costliest risk first, then `rules tied to no risk`.", "grouped under the risk it prevents",
     "in heading 5's order: each risk, then the rules that prevent it", "whose path in `research.md` is in the zone's paths", "one line per heading 5 mechanism rule"]);
-  assert.equal(t.split(Q).length, 2);
-  const mech = t.split("How the code enforces it, one question per mechanism")[1].split(/^## /m)[0];
-  const qs = mech.split("\n").filter((l) => /^- .+\?$/.test(l));
-  assert.ok(qs.length >= 8);
-  for (const q of qs) assert.doesNotMatch(q, /only through|for every row|client untrusted/, q);
-  assert.doesNotMatch(t.split("## 6.")[1].split(/^## /m)[0], /\//);
+  assert.equal(read("skills/adapt/research.mjs").split(Q).length, 2);
   const zq = s.split("The zones question, in plain words:")[1].split(/^#{2,3} /m)[0];
   has(zq, ["so a bigger area costs more to review, and so does each extra zone", "everyday words", "about 5 MB", "Does this split match how you think about the code?", "`(Recommended)`"]);
   assert.doesNotMatch(zq, /bytes/);
@@ -190,7 +185,6 @@ test("adapt question rules", () => {
   assert.doesNotMatch(s, /multiSelect/);
   assert.doesNotMatch(rules, /multi-select answer/);
   assert.doesNotMatch(s.split("## Step 3")[1].split("### Zones")[0], /marked `\(Recommended\)`\./);
-  assert.doesNotMatch(read("skills/adapt/topics.md"), /marked `\(Recommended\)`/);
   has(s, ["No other options, and no Other note.", "`(Recommended)` per the question rules, with the Other note"]);
 });
 test("fixed labels stay English", () => {

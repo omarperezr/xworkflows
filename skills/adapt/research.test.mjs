@@ -96,7 +96,7 @@ import { execFileSync, spawnSync } from "node:child_process";
 import { mkdtempSync, mkdirSync, writeFileSync, existsSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { sum, verifyCitation, renderResearch } from "./research.mjs";
+import { sum, verifyCitation, renderResearch, buildQueue, missing } from "./research.mjs";
 
 const MJS = new URL("./research.mjs", import.meta.url).pathname;
 const G = ["-c", "user.name=test", "-c", "user.email=test@example.invalid"];
@@ -254,4 +254,135 @@ test("fix round 1: dead topic, path spellings, missing run file", () => {
   const m = cli(d, "render");
   assert.equal(m.status, 1);
   assert.match(m.stderr, /rerun the Workflow and write its result unchanged/);
+});
+
+// ---- queue and check
+const CFG = ["paths.code", "paths.risk", "paths.heavyRead", "paths.codeAnyway", "tests.files", "tests.run", "tests.notRunnable", "checks.project", "checks.patterns", "checks.ratchets"];
+const ZSCAN = { zones: [{ key: "api", paths: ["api"], bytes: 1 }, { key: "web", paths: ["web"], bytes: 1 }] };
+const allAbsent = () => {
+  const kinds = {};
+  for (const k of KINDS) kinds[k] = { kind: k, status: "absent", rules: [], notChecked: [] };
+  const topics = {};
+  for (const t of ["t1", "t2", "t3", "t4", "t5", "t6"]) topics[t] = { lines: [] };
+  return { topics, kinds, skipped: {} };
+};
+const withStatus = (r, o) => { for (const [k, st] of Object.entries(o)) r.kinds[k] = { ...r.kinds[k], status: st }; return r; };
+const allFound = () => withStatus(allAbsent(), Object.fromEntries(KINDS.map((k) => [k, "found"])));
+const ids = (q) => q.map((i) => i.id);
+
+test("re-adapt asks only changed kinds", () => {
+  const prev = withStatus(allFound(), {});
+  const cur = withStatus(allFound(), { idem: "absent" });
+  const q = buildQueue(cur, ZSCAN, prev);
+  assert.deepEqual(ids(q).filter((i) => !/^C\d+$/.test(i)), ["H5-idem"]);
+  assert.deepEqual(ids(q).filter((i) => /^C\d+$/.test(i)), CFG.map((_, i) => `C${i + 1}`));
+});
+
+test("queue order and styles", () => {
+  const q = buildQueue(withStatus(allFound(), { idem: "absent" }), ZSCAN);
+  assert.deepEqual(ids(q).slice(0, 22), ["H1-what", "H2-pays", "H2-refused", "H4-incident", "H4-risks", "H5-idem", "H5-keep", "H5-free", "H6-zones", "H6-r1", "H6-r2",
+    "H7-g1", "H7-g2", "H7-g3", "H7-g4", "H7-depth", "H7-push", "H3-3m", "H3-12m", "H3-36m", "H8-reply", "H8-budget"]);
+  const st = Object.fromEntries(q.map((i) => [i.id, i.style]));
+  for (const i of ["H2-pays", "H2-refused", "H4-incident", "H4-risks", "H5-keep", "H5-free", "C1"]) assert.equal(st[i], "open", i);
+  for (const i of ["H1-what", "H6-r1", "H6-r2", "H7-g1", "H7-g4"]) assert.equal(st[i], "confirm", i);
+  for (const i of ["H5-idem"]) assert.equal(st[i], "mechanism");
+  for (const i of ["H6-zones", "H7-depth", "H7-push", "H3-3m", "H8-reply", "H8-budget"]) assert.equal(st[i], "choice", i);
+  assert.equal(q.find((i) => i.id === "H6-r1").text, "Does a mistake in api risk money, data or access?");
+  assert.equal(q.find((i) => i.id === "H4-incident").text, "Tell me about one real time something went wrong here: what broke, and what did it cost?");
+  assert.equal(q.find((i) => i.id === "H5-idem").text, "How does the code prevent this today, and what rule must every change follow?");
+});
+
+test("one H5 item per absent kind", () => {
+  const q = buildQueue(withStatus(allFound(), { idem: "absent", txn: "absent", conc: "not-present" }), ZSCAN);
+  assert.deepEqual(ids(q).filter((i) => /^H5-/.test(i) && !["H5-keep", "H5-free"].includes(i)), ["H5-idem", "H5-txn"]);
+});
+
+test("a config line removes its C item", () => {
+  const r = allFound();
+  r.topics.t1.lines.push({ heading: "config", key: "tests.run", text: "x", tag: "code" });
+  assert.ok(!ids(buildQueue(r, ZSCAN)).includes("C6"));
+  assert.ok(ids(buildQueue(r, ZSCAN)).includes("C5"));
+});
+
+test("ids are unique and at most 12 characters", () => {
+  const q = buildQueue(allAbsent(), ZSCAN);
+  const i = ids(q);
+  assert.equal(new Set(i).size, i.length);
+  for (const x of [...i, ...i.filter((y) => /^H5-/.test(y)).map((y) => y + "-r"), "P-H7-fix"]) assert.ok(x.length <= 12, x);
+  assert.ok(i.includes("H5-values") && i.includes("C10"));
+});
+
+test("styles define I don't know", () => {
+  for (const i of buildQueue(allAbsent(), ZSCAN)) {
+    if (i.style === "open") assert.ok(i.options.includes("I don't know"), i.id);
+    if (i.style === "mechanism") assert.deepEqual(i.options, ["Nothing does today", "I don't know"], i.id);
+  }
+});
+
+test("same research gives byte-identical interview.json", () => {
+  const out = [];
+  for (let n = 0; n < 2; n++) {
+    const d = repo();
+    put(d, sample(), { ...SCAN, ...ZSCAN });
+    assert.equal(cli(d, "queue").status, 0);
+    out.push(readFileSync(X(d, "interview.json"), "utf8"));
+  }
+  assert.equal(out[0], out[1]);
+  assert.ok(JSON.parse(out[0]).some((i) => i.id === "H1-what"));
+});
+
+const L = (id, answer, run = "r1") => ({ run, id, question: "q", options: [], answer });
+const fullLog = (q, run = "r1") => q.map((i) => L(i.id, "Yes", run));
+
+test("check ignores other runs", () => {
+  const q = buildQueue(allFound(), ZSCAN);
+  assert.deepEqual(missing(q, fullLog(q, "old"), "r1"), ids(q));
+  assert.deepEqual(missing(q, fullLog(q), "r1"), []);
+});
+
+test("check counts answers from the resumed run", () => {
+  const d = repo();
+  put(d, sample(), { ...SCAN, ...ZSCAN });
+  cli(d, "start");
+  const run = readFileSync(X(d, "adapt-run.json"), "utf8").match(/"run": "([^"]+)"/)[1];
+  cli(d, "queue");
+  const q = rj(d, "interview.json");
+  writeFileSync(X(d, "interview.log.jsonl"), fullLog(q, run).map((l) => JSON.stringify(l)).join("\n") + "\n");
+  writeFileSync(X(d, "summary.md"), "---\nstatus: draft\n---\n");
+  cli(d, "start");
+  const r = cli(d, "check");
+  assert.equal(r.status, 0, r.stdout);
+  assert.equal(r.stdout, "");
+});
+
+test("follow-up required", () => {
+  const q = buildQueue(withStatus(allFound(), { idem: "absent" }), ZSCAN);
+  const log = fullLog(q).map((l) => (l.id === "H5-idem" ? { ...l, answer: "Nothing does today" } : l));
+  assert.deepEqual(missing(q, log, "r1"), ["H5-idem-r"]);
+  assert.deepEqual(missing(q, [...log, L("H5-idem-r", "use a key")], "r1"), []);
+});
+
+test("translated label is not a pick", () => {
+  const q = buildQueue(allFound(), ZSCAN);
+  const P = (a) => [1, 2, 3, 4, 5, 6, 7].map((n) => L(`P-H${n}`, n === 3 ? a : "Right"));
+  assert.deepEqual(missing(q, [...fullLog(q), ...P("Bien")], "r1", true), ["P-H3"]);
+  assert.deepEqual(missing(q, [...fullLog(q), ...P("Right")], "r1", true), []);
+});
+
+test("approved check needs every heading Right", () => {
+  const d = repo();
+  put(d, sample(), { ...SCAN, ...ZSCAN });
+  cli(d, "start");
+  const run = readFileSync(X(d, "adapt-run.json"), "utf8").match(/"run": "([^"]+)"/)[1];
+  cli(d, "queue");
+  const lines = [...fullLog(rj(d, "interview.json"), run)];
+  for (let n = 1; n <= 7; n++) lines.push(L(`P-H${n}`, n === 3 ? "Wrong" : "Right", run));
+  const w = (ls) => writeFileSync(X(d, "interview.log.jsonl"), ls.map((l) => JSON.stringify(l)).join("\n") + "\n");
+  w(lines);
+  assert.equal(spawnSync("node", [MJS, "check"], { cwd: d, encoding: "utf8" }).status, 0);
+  const r = spawnSync("node", [MJS, "check", "--approved"], { cwd: d, encoding: "utf8" });
+  assert.equal(r.status, 1);
+  assert.equal(r.stdout, "P-H3\n");
+  w([...lines, L("P-H3", "Right", run)]);
+  assert.equal(spawnSync("node", [MJS, "check", "--approved"], { cwd: d, encoding: "utf8" }).status, 0);
 });

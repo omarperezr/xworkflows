@@ -75,6 +75,62 @@ export function renderResearch(root, research, scan) {
   return { md: out.join("\n"), errors, dropped };
 }
 
+const CONFIG_KEYS = ["paths.code", "paths.risk", "paths.heavyRead", "paths.codeAnyway", "tests.files", "tests.run", "tests.notRunnable", "checks.project", "checks.patterns", "checks.ratchets"];
+const OPEN = ["I don't know", "Skip: not relevant here"];
+const FIXED = ["Right", "Wrong", "Missing something"];
+
+// The fixed-id interview queue (spec 5.1). `prev` is research.prev.json on a re-adapt.
+export function buildQueue(research, scan, prev) {
+  const item = (id, heading, style, text, options) => ({ id, heading, style, text, ...(options ? { options } : {}) });
+  const open = (id, h, text) => item(id, h, "open", text, OPEN);
+  const confirm = (id, h, text) => item(id, h, "confirm", text, ["Yes", "No", "I don't know"]);
+  const choice = (id, h, text) => item(id, h, "choice", text);
+  const have = new Set(Object.values(research.topics || {}).flatMap((t) => (t.lines || []).filter((l) => l.heading === "config" && l.key).map((l) => l.key)));
+  const config = CONFIG_KEYS.map((k, i) => (have.has(k) ? null : open(`C${i + 1}`, "config", `What is the value of ${k}?`))).filter(Boolean);
+  const mech = KINDS.filter((k) => research.kinds?.[k]?.status === "absent" && (!prev || prev.kinds?.[k]?.status !== "absent"))
+    .map((k) => item(`H5-${k}`, "5", "mechanism", "How does the code prevent this today, and what rule must every change follow?", ["Nothing does today", "I don't know"]));
+  if (prev) return [...mech, ...config];
+  return [
+    confirm("H1-what", "1", "Is this what the project is?"),
+    open("H2-pays", "2", "Who pays for this, and what is sold?"),
+    open("H2-refused", "2", "What does this project refuse to do?"),
+    open("H4-incident", "4", "Tell me about one real time something went wrong here: what broke, and what did it cost?"),
+    open("H4-risks", "4", "Which mistakes would cost the most here, in your words?"),
+    ...mech,
+    open("H5-keep", "5", "What must not change?"),
+    open("H5-free", "5", "What is free to change?"),
+    choice("H6-zones", "6", "Does this split of the code into zones match how you think about it?"),
+    ...(scan.zones || []).map((z, i) => confirm(`H6-r${i + 1}`, "6", `Does a mistake in ${z.key} risk money, data or access?`)),
+    ...[
+      "Keep one branch per batch, merged with --no-ff and never rebased after review?",
+      "Push only when you say so?",
+      "Add files by explicit path, never `git add .` or `-A`?",
+      "No commit, PR or comment names an AI as author or co-author?",
+    ].map((t, i) => confirm(`H7-g${i + 1}`, "7", t)),
+    choice("H7-depth", "7", "How deep should a review go on a normal change?"),
+    choice("H7-push", "7", "Who may push?"),
+    choice("H3-3m", "3", "What do you want at about 3 months?"),
+    choice("H3-12m", "3", "What do you want at about 12 months?"),
+    choice("H3-36m", "3", "What do you want at about 36 months?"),
+    choice("H8-reply", "8", "How should I reply to you?"),
+    choice("H8-budget", "8", "What model budget per session or month should I keep to?"),
+    ...config,
+  ];
+}
+
+// Ids with no answer in `run`; `-r` follow-ups after `Nothing does today`; with `approved`, P-H1..P-H7 last answer must be `Right`.
+export function missing(queue, log, run, approved = false) {
+  const last = {};
+  for (const l of log) if (l.run === run && l.answer !== undefined && l.answer !== "") last[l.id] = l.answer;
+  const out = [];
+  for (const { id } of queue) {
+    if (!(id in last)) out.push(id);
+    else if (/^H5-/.test(id) && last[id] === "Nothing does today" && !(`${id}-r` in last)) out.push(`${id}-r`);
+  }
+  if (approved) for (let n = 1; n <= 7; n++) if (last[`P-H${n}`] !== FIXED[0]) out.push(`P-H${n}`);
+  return out;
+}
+
 const git = (root, args) => execFileSync("git", args, { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
 const readJson = (p) => JSON.parse(readFileSync(p, "utf8"));
 
@@ -110,8 +166,17 @@ function cli(cmd, root) {
     const { md, errors } = renderResearch(root, research, scan);
     if (errors.length) { console.error(errors.join("\n")); process.exit(1); }
     writeFileSync(join(dir, "research.md"), md);
+  } else if (cmd === "queue") {
+    const q = buildQueue(readJson(join(dir, "research.json")), readJson(join(dir, "scan.json")), existsSync(prev) ? readJson(prev) : null);
+    writeFileSync(join(dir, "interview.json"), JSON.stringify(q, null, 2) + "\n");
+  } else if (cmd === "check") {
+    const { run } = readJson(runFile);
+    const logFile = join(dir, "interview.log.jsonl");
+    const log = existsSync(logFile) ? readFileSync(logFile, "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l)) : [];
+    const ids = missing(readJson(join(dir, "interview.json")), log, run, process.argv.includes("--approved"));
+    if (ids.length) { console.log(ids.join("\n")); process.exit(1); }
   } else {
-    console.error("usage: research.mjs start|done|render");
+    console.error("usage: research.mjs start|done|render|queue|check [--approved]");
     process.exit(2);
   }
 }

@@ -204,11 +204,10 @@
       "files": {
         "skills/adapt/SKILL.md": "0567263d37ebfd7aee9e6c57ba48532e434ba9ed330faab0f71bc590ac381854",
         "skills/adapt/scan.mjs": "ef0e6d03ba1e87d3af7ce1a322dca7b567d0ca3b6b51824574e05930ead99da4",
-        "skills/adapt/topics.md": "ad662fb4f70ea2ba7a7a5363feff1ad4083828bda1187ac6fbfa7fc71618a014",
         "skills/adapt/research.workflow.js": "08642db6d9c94a2d925a85fb3d9bac4799d698e6079773f35db5e04cf7a712b2",
-        "skills/adapt/research.mjs": "6364fbbd3d2bae9a8f7497b7167d05429df44ccbc4cba51ccbcc3fe0d6a8eda1"
+        "skills/adapt/research.mjs": "94031d4c2856ee30ec71343be0bebe9a5b57fd8be5ee6b6adfb3914325422673"
       },
-      "sha256": "12d3f679d5bdebea736acfbe7f68e2f7fe3b7e09228b59b398b2ed64ce7b9a4a"
+      "sha256": "4adddb3a27bd38c9b891e99b7c5d4a205138354b8f5794fd7d43ea1618757945"
     },
     {
       "id": "full-review",
