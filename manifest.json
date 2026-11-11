@@ -184,10 +184,10 @@
         "gemini"
       ],
       "files": {
-        "skills/adapt/SKILL.md": "f268665cf08d9e6ea1ef48eecf302185a41029d1cf89cd19231ca1b4c9bd7386",
-        "skills/adapt/topics.md": "10240b054d5183fd164bd4092d027676051daf2cb6cf1b5c74997dda0c1cadaa"
+        "skills/adapt/SKILL.md": "8daa28d1802e74a2cfedb8339268967d4398ad340fbe80ee67951a604c12ff32",
+        "skills/adapt/topics.md": "ad662fb4f70ea2ba7a7a5363feff1ad4083828bda1187ac6fbfa7fc71618a014"
       },
-      "sha256": "363c032d6920872fdd2acab80882d688844abbe75761b9c434e87ab917fdf11a"
+      "sha256": "67d0d9c1073c9bd11e2b6a532c7db86559b3fe9117d52a4b23719affff6b6de9"
     },
     {
       "id": "full-review",

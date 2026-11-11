@@ -1,6 +1,6 @@
 # Question bank for adapt
 
-Questions research cannot answer by itself, per summary heading. Ask one only when research left it empty or unsure. Put research's guess first, marked `(Recommended)`.
+Questions research cannot answer by itself, per summary heading. Ask one only when research left it empty or unsure. Put research's guess first; the question rules in `SKILL.md` say when it is `(Recommended)` and when a question allows several answers.
 
 Each invariant the interview proof misses adds one line under its heading.
 
