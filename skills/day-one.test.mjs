@@ -45,6 +45,15 @@ test("verify-finding answers red: or discarded:", () => {
   assert.match(body, /`red: <test path> <command>`/);
   assert.match(body, /`discarded: <reason>`/);
   assert.match(body, /verify\/<finding-id>/);
-  assert.match(body, /current HEAD/);
-  assert.match(body, /starting branch/);
+  assert.match(body, /git worktree add/);
+  assert.match(body, /git worktree remove/);
+  assert.match(body, /discarded: not reproduced/);
+  assert.match(body, /only that test file/);
+  assert.match(body, /git branch -D verify\/<finding-id>/);
+  assert.doesNotMatch(body, /switch back/i);
+});
+test("zone-review bash is read-only", () => {
+  const body = read("agents/zone-review.md");
+  assert.match(body, /git log, diff, show, ls-files, blame, status/);
+  assert.match(body, /No redirects/);
 });
