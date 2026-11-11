@@ -3,6 +3,7 @@ import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { isDeepStrictEqual } from "node:util";
 import { fileURLToPath } from "node:url";
 
 export const PKG = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -98,7 +99,65 @@ function target(f) {
   return ".xworkflows/" + f;
 }
 
-// Reads and parses every target file before any write (ruling P2); Tasks 4-5 add settings.json, CLAUDE.md, AGENTS.md here.
+const read = (root, p) => (existsSync(join(root, p)) ? readFileSync(join(root, p), "utf8") : null);
+const hookCmd = (id) => `node "$(git rev-parse --show-toplevel)/.xworkflows/hooks/run.mjs" claude ${id}`;
+const MARK = "Bash(node .xworkflows/mark.mjs:*)";
+const START = "<!-- xworkflows:start -->";
+const END = "<!-- xworkflows:end -->";
+
+// Each merge: { path, text (null when nothing changes), rec: new record entries }.
+function mergeSettings(root, manifest) {
+  const path = ".claude/settings.json";
+  const old = read(root, path);
+  let s = {};
+  if (old !== null) {
+    try { s = JSON.parse(old); } catch { die(1, `${path} does not parse; fix it`); }
+    if (!s || typeof s !== "object" || Array.isArray(s)) die(1, `${path} is not a JSON object`);
+  }
+  const want = [];
+  for (const p of manifest.pieces) {
+    for (const c of p.claude ?? []) {
+      const entry = { ...(c.matcher && { matcher: c.matcher }), hooks: [{ type: "command", command: hookCmd(p.id) }] };
+      const ours = (e) => e?.hooks?.some((h) => `${h.command} `.includes(`/.xworkflows/hooks/run.mjs" claude ${p.id} `));
+      want.push({ key: ["hooks", c.event], entry, ours });
+    }
+  }
+  if (want.length) want.push({ key: ["permissions", "allow"], entry: MARK, ours: () => false });
+  const merged = [];
+  for (const { key, entry, ours } of want) {
+    let o = s, createdKey = false;
+    for (const k of key.slice(0, -1)) {
+      if (!(k in o)) { o[k] = {}; createdKey = true; }
+      o = o[k];
+      if (!o || typeof o !== "object" || Array.isArray(o)) die(1, `${path}: ${k} is not an object`);
+    }
+    const last = key.at(-1);
+    if (!(last in o)) { o[last] = []; createdKey = true; }
+    if (!Array.isArray(o[last])) die(1, `${path}: ${key.join(".")} is not an array`);
+    if (o[last].some((e) => isDeepStrictEqual(e, entry) || ours(e))) continue;
+    o[last].push(entry);
+    merged.push({ file: path, key, entry, createdKey });
+  }
+  return { path, text: merged.length ? json(s) : null, rec: { merged, created: old === null && merged.length ? [path] : [] } };
+}
+
+function mergeAgents(root) {
+  const path = "AGENTS.md";
+  const old = read(root, path);
+  const block = `${START}\n${readFileSync(join(PKG, "templates/AGENTS.md"), "utf8").replace(/\n+$/, "")}\n${END}\n`;
+  let text;
+  const a = old?.indexOf(START) ?? -1;
+  if (a >= 0) {
+    const b = old.indexOf(END, a);
+    if (b < 0) die(1, `${path} has ${START} without ${END}; fix it`);
+    const e = b + END.length + (old[b + END.length] === "\n" ? 1 : 0);
+    text = old.slice(0, a) + block + old.slice(e);
+  } else if (!old) text = block;
+  else text = old + (old.endsWith("\n") ? "" : "\n") + "\n" + block;
+  return { path, text: text === old ? null : text, rec: { blocks: [{ file: path }], created: old === null ? [path] : [] } };
+}
+
+// Reads and parses every target file before any write (ruling P2); Task 5 adds the existing-CLAUDE.md question.
 export function plan(manifest, root, record) {
   const tiers = readFileSync(join(PKG, "tiers.json"), "utf8");
   const writes = [{ path: ".xworkflows/tiers.json", text: tiers, piece: "installer" }];
@@ -113,7 +172,11 @@ export function plan(manifest, root, record) {
       writes.push({ path: t, text, piece: p.id });
     }
   }
-  return { writes, merges: [], questions: [] };
+  const merges = [mergeSettings(root, manifest), mergeAgents(root)];
+  if (read(root, "CLAUDE.md") === null) {
+    merges.push({ path: "CLAUDE.md", text: "@AGENTS.md\n", rec: { imports: [{ file: "CLAUDE.md", line: "@AGENTS.md" }], created: ["CLAUDE.md"] } });
+  }
+  return { writes, merges, questions: [] };
 }
 
 const differs = (root, w) => !existsSync(join(root, w.path)) || readFileSync(join(root, w.path), "utf8") !== w.text;
@@ -125,8 +188,14 @@ const put = (root, path, text) => {
 export function apply(pl, root, manifest, record) {
   const out = [];
   for (const w of pl.writes) if (differs(root, w)) { put(root, w.path, w.text); out.push(w.path); }
-  // merges (Task 4) go here, before the record
   const next = { ...record, xworkflows: manifest.version, tools: ["claude"], pieces: {}, files: {} };
+  for (const m of pl.merges) {
+    if (m.text !== null) { put(root, m.path, m.text); out.push(m.path); }
+    for (const [k, list] of Object.entries(m.rec)) {
+      next[k] = [...next[k]];
+      for (const x of list) if (!next[k].some((y) => isDeepStrictEqual(x, y))) next[k].push(x);
+    }
+  }
   for (const p of manifest.pieces) next.pieces[p.id] = { version: p.version, sha256: p.sha256 };
   for (const w of pl.writes) next.files[w.path] = { piece: w.piece, sha256: hash(w.text) };
   const text = json(next);
@@ -154,6 +223,7 @@ function install(flags) {
   const pl = plan(m, ROOT, record);
   if (flags["dry-run"]) {
     for (const w of pl.writes) if (differs(ROOT, w)) console.log(`would write ${w.path}`);
+    for (const m of pl.merges) if (m.text !== null) console.log(`would merge ${m.path}`);
     return;
   }
   const done = apply(pl, ROOT, m, record);

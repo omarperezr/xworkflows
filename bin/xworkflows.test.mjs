@@ -46,6 +46,9 @@ test("outside a git repository every command exits 1", () => {
   for (const c of ["install", "doctor", "uninstall"]) assert.equal(cli(dir, [c]).status, 1, c);
 });
 
+const readJson = (r, p) => JSON.parse(readFileSync(join(r, p), "utf8"));
+const writeJson = (r, p, v) => writeFileSync(join(r, p), JSON.stringify(v, null, 2) + "\n");
+
 const PKG_ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 
 function packageCopy() {
@@ -147,4 +150,77 @@ test("a corrupt installed.json stops install", () => {
   const r = repo({ ".xworkflows/installed.json": "{nope" });
   assert.equal(cli(r, ["install"]).status, 1);
   assert.deepEqual(readdirSync(join(r, ".xworkflows")), ["installed.json"]);
+});
+
+const theirs = { matcher: "Write|Edit|MultiEdit|Bash", hooks: [{ type: "command", command: "/opt/guard.sh" }] };
+test("settings merge appends ours after theirs, same matcher included", () => {
+  const before = { env: { A: "1" }, hooks: { PreToolUse: [theirs] } };
+  const r = repo({ ".claude/settings.json": JSON.stringify(before) });
+  assert.equal(cli(r, ["install"]).status, 0);
+  const after = readJson(r, ".claude/settings.json");
+  assert.deepEqual(after.env, before.env);
+  assert.deepEqual(after.hooks.PreToolUse[0], theirs);
+  assert.equal(after.hooks.PreToolUse.length, 2);
+  assert.match(after.hooks.PreToolUse[1].hooks[0].command, /\.xworkflows\/hooks\/run\.mjs" claude design-first$/);
+  assert.deepEqual(after.permissions.allow, ["Bash(node .xworkflows/mark.mjs:*)"]);
+});
+test("an edited entry of ours is not duplicated", () => {
+  const r = repo();
+  cli(r, ["install"]);
+  const s = readJson(r, ".claude/settings.json");
+  s.hooks.PreToolUse[0].matcher = "Write";
+  writeJson(r, ".claude/settings.json", s);
+  cli(r, ["install"]);
+  assert.equal(readJson(r, ".claude/settings.json").hooks.PreToolUse.length, 1);
+});
+test("broken settings.json: exit 1, tree unchanged", () => {
+  const r = repo({ ".claude/settings.json": "{oops" });
+  assert.equal(cli(r, ["install"]).status, 1);
+  assert.deepEqual(readdirSync(r).sort(), [".claude", ".git"]);
+});
+test("AGENTS.md: block appended once, outside text kept, no trailing newline handled", () => {
+  const r = repo({ "AGENTS.md": "# Mine\nkeep this" });
+  cli(r, ["install"]);
+  const once = readFileSync(join(r, "AGENTS.md"), "utf8");
+  assert.ok(once.startsWith("# Mine\nkeep this\n"));
+  assert.equal(once.match(/xworkflows:start/g).length, 1);
+  cli(r, ["install"]);
+  assert.equal(readFileSync(join(r, "AGENTS.md"), "utf8"), once);
+});
+test("missing CLAUDE.md is created with the import", () => {
+  const r = repo();
+  cli(r, ["install"]);
+  assert.equal(readFileSync(join(r, "CLAUDE.md"), "utf8"), "@AGENTS.md\n");
+  assert.ok(readJson(r, ".xworkflows/installed.json").created.includes("CLAUDE.md"));
+});
+test("rerun: nothing to do, files byte-equal, record entries once", () => {
+  const r = repo();
+  cli(r, ["install"]);
+  const snap = () => ["AGENTS.md", "CLAUDE.md", ".claude/settings.json", ".xworkflows/installed.json"].map((p) => readFileSync(join(r, p), "utf8"));
+  const a = snap();
+  assert.match(cli(r, ["install"]).stdout, /^nothing to do$/m);
+  assert.deepEqual(snap(), a);
+  const rec = readJson(r, ".xworkflows/installed.json");
+  assert.equal(rec.merged.length, 2);
+  assert.deepEqual(rec.merged[0].key, ["hooks", "PreToolUse"]);
+  assert.equal(rec.merged[0].createdKey, true);
+  assert.deepEqual(rec.blocks, [{ file: "AGENTS.md" }]);
+  assert.deepEqual(rec.imports, [{ file: "CLAUDE.md", line: "@AGENTS.md" }]);
+  assert.deepEqual(rec.created.sort(), [".claude/settings.json", "AGENTS.md", "CLAUDE.md"]);
+});
+test("AGENTS.md: a changed block is replaced in place, text outside kept; existing CLAUDE.md untouched", () => {
+  const r = repo({ "AGENTS.md": "top\n<!-- xworkflows:start -->\nold\n<!-- xworkflows:end -->\nbottom\n", "CLAUDE.md": "mine\n" });
+  cli(r, ["install"]);
+  const t = readFileSync(join(r, "AGENTS.md"), "utf8");
+  assert.ok(t.startsWith("top\n<!-- xworkflows:start -->\n## xworkflows"));
+  assert.ok(t.endsWith("<!-- xworkflows:end -->\nbottom\n"));
+  assert.equal(readFileSync(join(r, "CLAUDE.md"), "utf8"), "mine\n");
+  assert.deepEqual(readJson(r, ".xworkflows/installed.json").created, [".claude/settings.json"]);
+});
+test("dry-run lists merges and writes nothing", () => {
+  const r = repo();
+  const out = cli(r, ["install", "--dry-run"]);
+  assert.match(out.stdout, /would merge AGENTS\.md/);
+  assert.match(out.stdout, /would merge \.claude\/settings\.json/);
+  assert.deepEqual(readdirSync(r), [".git"]);
 });
