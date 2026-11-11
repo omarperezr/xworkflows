@@ -34,6 +34,7 @@ How the code enforces it, one question per mechanism; each answer is a rule line
 - Which currency or unit is the source of truth, and how are the other values worked out from it?
 - When a record is written, which of its values stay as they were then, and which are worked out again later?
 - How and where is rounding done?
+- When the same amount is shown in several currencies, units or rates, which one may be used to enter or record it, and which are only for viewing?
 - Which data may change only one way, and how?
 - Where is access checked, and can the screens be bypassed?
 - What happens when the same write arrives twice: offline, retried, a double click?
