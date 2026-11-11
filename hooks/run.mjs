@@ -25,7 +25,10 @@ try {
     if (ev.kind === "shell" && markFrom(ev.command)) writeFileSync(markFile(stateDir, markFrom(ev.command), ev.session), "");
     const user = JSON.parse(read(join(ev.root, ".xworkflows", "config.json")) ?? "{}");
     const config = { ...defaults, ...user, paths: { ...defaults.paths, ...user.paths } };
-    const ctx = { config, readFile: read, marked: (skill) => existsSync(markFile(stateDir, skill, ev.session)) };
+    const skillName = (id) => { // the installed name: a renamed skill (xwf-grill) differs from its id
+      try { const k = Object.entries(JSON.parse(read(join(ev.root, ".xworkflows", "installed.json"))).renamed ?? {}).find(([, v]) => v === id); return k ? k[0].split("/").pop() : id; } catch { return id; }
+    };
+    const ctx = { config, readFile: read, skillName, marked: (skill) => existsSync(markFile(stateDir, skill, ev.session)) };
     out = adapter.answer(core.decide(ev, ctx));
   }
 } catch (e) {

@@ -491,3 +491,22 @@ test("doctor fails when a kept grill never marks itself, warns when it does", ()
   assert.match(o2.stdout, /^warn kept theirs: \.claude\/skills\/grill/m);
   assert.doesNotMatch(o2.stdout, /never marks itself/);
 });
+
+test("kept grill doctor message offers only the way that works", () => {
+  const r = repo({ ".claude/skills/grill/SKILL.md": "---\nname: grill\n---\nmine\n" });
+  cli(r, ["install"]);
+  const out = cli(r, ["doctor"]);
+  assert.match(out.stdout, /^fail kept grill never marks itself/m);
+  assert.doesNotMatch(out.stdout, /--yes/);
+});
+
+test("design-first deny names xwf-grill after a rename", () => {
+  const r = repo({ ".claude/skills/grill/SKILL.md": "---\nname: grill\n---\nmine\n" });
+  cli(r, ["install", "--yes"]);
+  const ev = JSON.stringify({ session_id: "s1", cwd: r, hook_event_name: "PreToolUse", tool_name: "Write",
+    tool_input: { file_path: join(r, "docs/superpowers/specs/x.md"), content: "# x\n" } });
+  const env = { ...process.env, CLAUDE_PROJECT_DIR: r };
+  for (const k of ["XWORKFLOWS_FREE", "XWORKFLOWS_RECORD", "XWORKFLOWS_STATE_DIR"]) delete env[k];
+  const out = spawnSync("node", [join(r, ".xworkflows/hooks/run.mjs"), "claude", "design-first"], { input: ev, cwd: r, encoding: "utf8", env });
+  assert.match(JSON.parse(out.stdout).hookSpecificOutput.permissionDecisionReason, /^Run \/xwf-grill/);
+});

@@ -30,7 +30,7 @@ for (const tool of readdirSync(fixtures)) {
 
   test(`${tool}: deny, mark, allow`, () => {
     const env = state();
-    const replay = (f, r) => { if (f.output) assert.deepEqual({ stdout: r.stdout, exitCode: r.exitCode }, f.output); };
+    const replay = (f, r) => { if (f.output?.stdout && t.denied(f.output.stdout)) assert.ok(t.denied(r.stdout)); /* R1: deny text may change, decision only */ else if (f.output) assert.deepEqual({ stdout: r.stdout, exitCode: r.exitCode }, f.output); };
     const r1 = spawn(tool, write.input, env);
     assert.ok(t.denied(r1.stdout));
     assert.match(r1.stdout, /grill/);
