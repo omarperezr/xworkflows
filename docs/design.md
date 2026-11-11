@@ -81,8 +81,10 @@ reviewer 230, risk reviewer 108. Ask, plan, implement with agents, review by
 risk is what is really used. Tokens per stage are in section 13.
 
 Inside stage 5: a finding enters the plan only after `verify-finding`
-reproduces it with a failing test. The fix goes back to the same reviewer,
-who reads only the diff of the fix. Two rounds at most; if findings that
+reproduces it with a failing test. There is one review per batch, before the
+batch merges. A fix is confirmed by a fresh reviewer of the same role, never
+the one that asked for it; it reads only the diff of the fix (owner,
+2026-11-11). Two rounds at most; if findings that
 block still remain, the owner decides: fix, accept, or revert.
 
 ## 4. Source layout (the `xworkflows` repository)
@@ -97,10 +99,13 @@ hooks/core/*.mjs       hook logic, one file per hook, each with *.test.mjs
 hooks/adapters/        one thin wrapper per tool
 checks/*.mjs           the brakes run by `xworkflows check`
 tiers.json             tier -> model, one table per tool
-vendor/<piece>/        third-party pieces that were modified, with LICENSE and SOURCE.md
 templates/             files written into a project (BUSINESS.md, PENDING.md, AGENTS.md)
 docs/                  this design, the per-tool gaps, the install guide
 ```
+
+Modified third-party pieces live in `skills/<name>/` (or `agents/`) with
+`LICENSE` and `SOURCE.md`, as `grill` does. There is no `vendor/` folder
+(owner, 2026-11-11).
 
 One source, four outputs. Nothing tool-specific is written by hand.
 
@@ -126,7 +131,7 @@ parser. One entry per piece:
 
 - `kind`: `skill`, `agent`, `hook`, `rule`, `check`, `plugin`, `cli`.
 - `origin`: `own` (written here), `vendored` (third-party, modified, copied
-  in `vendor/` with its license), `fetched` (third-party, untouched, pulled
+  into `skills/<name>/` or `agents/` with its license), `fetched` (third-party, untouched, pulled
   from its source at the pinned version).
 - `scope`: `project` (travels with git) or `user` (personal preferences).
 - A piece with no pinned version or no license does not ship. `grill` and
@@ -157,7 +162,7 @@ compiles to a single binary with Bun; a Go or Rust rewrite is not planned.
 |---|---|
 | `install` | Unpack: detect which of the four tools are present, write each one's layout, fetch `fetched` pieces at their pinned version, verify every hash, install the git `pre-push` hook, write `.xworkflows/installed.json` |
 | `pack` | Rebuild `manifest.json` from the source tree: recompute hashes, fail on a piece with no version or license |
-| `doctor` | Exit 0 only if every installed file matches its hash, every required CLI answers, every hook test passes and every tool's layout is complete. Prints the size of the always-loaded instructions |
+| `doctor` | Exit 0 unless a piece is missing or unreadable; a file changed locally is a warn. Also checks that every required CLI answers, every hook test passes and every tool's layout is complete (owner, 2026-11-11). Prints the size of the always-loaded instructions |
 | `check` | Run the brakes (section 9). Called by `pre-push` |
 | `update` | Show the diff between installed and latest. A file untouched since install is replaced; a file the project changed is shown side by side and kept unless accepted |
 | `propose` | Take a project's local change to a piece and prepare it as a patch against `xworkflows` |
@@ -201,7 +206,7 @@ The installer owns only what it wrote. `installed.json` is the list.
 | A file exists and is not in `installed.json` | **Never overwritten** |
 | JSON settings (`.claude/settings.json`, `.codex/hooks.json`, `.cursor/hooks.json`, Gemini `settings.json`) | **Merged**: its hook entries are appended to the existing arrays; no existing key or entry is changed or reordered. Its entries are recognized by their command path under `.xworkflows/` |
 | `AGENTS.md` exists | **Merged**: one block between `<!-- xworkflows:start -->` and `<!-- xworkflows:end -->`; text outside the block is never touched |
-| `CLAUDE.md` or `GEMINI.md` exists | **Asked**: add one line that imports `AGENTS.md`. On no, the file is left alone and `doctor` reports that this tool does not load the rules |
+| `CLAUDE.md` or `GEMINI.md` exists | **Asked**: add one line that imports `AGENTS.md`. On no, the file is left alone and `doctor` warns that this tool does not load the rules (owner, 2026-11-11) |
 | `core.hooksPath` is set, or a `pre-push` hook exists | **Asked**: chain (the existing hook runs first, then `xworkflows check`). Never replaced |
 | An agent, skill or rule with the same name exists | **Asked** per file: keep theirs, or install under a prefixed name |
 | The working tree has uncommitted changes | Proceeds, and prints the list of files it wrote so they can be committed apart |
@@ -297,14 +302,14 @@ What the full read of the reference hooks added (2026-11-10; line by line in
 - Cursor's hook input carries the user's email. Adapters never store or
   print it.
 - `memory` does nothing on Windows today (it needs bash and qmd). The product
-  version is Node only; qmd stays optional.
+  version is Node only; qmd is required (section 7.5).
 - 22 of the 222 hook lines carry a fixed project name (`grep -cE`); all of
   them map to a config key, a product constant or an adapter.
 
 ### 7.3 Skills
 
 Own: `deepen`, `orchestrate`, `plan`, `adapt` (the interview), `pending`,
-`dream` (section 7.9).
+`dream` (section 7.9), `full-review` and `next-step` (section 8.5).
 Vendored (modified, with license): `grill` (mattpocock/skills, MIT), `tdd`,
 `ponytail`, `ponytail-review`, `thermo-nuclear-review` and
 `thermo-nuclear-code-quality-review` (cursor/plugins, MIT).
@@ -340,8 +345,12 @@ Files in the repository, readable by all four tools:
 - Decisions are written into the plan or spec they belong to, in the commit
   that makes them.
 
-`qmd` indexes these files when it is installed. It is optional; without it
-the fallback is `grep`. Past sessions are not indexed.
+`qmd` is required (owner, 2026-11-11). The memory folder is an Obsidian-style
+vault indexed by `qmd`. Past sessions are not indexed.
+
+Facts of type `user` and `feedback` go to `~/.xworkflows/owner.md`, never into
+the repository. Facts of type `project` and `reference` stay in the
+repository memory (owner, 2026-11-11).
 
 Three guardrails, added 2026-11-10 after a talk on context engineering by an
 Anthropic engineer (transcript read up to minute 20; the rest was missing):
@@ -370,11 +379,6 @@ overwritten, and the `index-current` brake fails a push whose index does not
 match its files. Claude Code loads the first 200 lines or 25 KB of the
 index; the 24,000-byte budget of section 13 sits under that.
 
-Open: Claude Code writes four kinds of memory (about the user, feedback,
-project, reference) into one folder. Facts about the person do not belong in
-a repository others clone, and one setting cannot split them. To settle in
-phase 0.
-
 ### 7.6 Git rules
 
 Shipped as defaults; the interview confirms each one:
@@ -388,7 +392,9 @@ Shipped as defaults; the interview confirms each one:
 
 Every key below replaces a value that is fixed in the reference code; the
 line each came from is in `docs/reference-coupling.md`. The interview fills
-it; defaults are the reference's values.
+it. A project-specific key has no default: a missing one makes the brakes
+that need it exit 2 and `doctor` fail, while `[]` written by the interview is
+a valid answer. The reference column is not the default (owner, 2026-11-11).
 
 | Key | Meaning | Reference value |
 |---|---|---|
@@ -402,10 +408,16 @@ it; defaults are the reference's values.
 | `paths.heavyRead` | Folders the main session may not read at length | `src supabase` |
 | `paths.curated` | Files only the main session may change | new: instructions, rules, the business file |
 | `roles.reviewer`, `roles.riskReviewer`, `roles.implementers`, `roles.lookup` | Agent names per role | `revisar`, `dinero`, two implementers, `Explore` |
+| `roles.verifier`, `roles.builtIn` | Agent name of the finding verifier; built-in agent names the project allows | new |
+| `zones` | The zones of the code the interview found | new; default `[]` |
+| `paths.reviews` | Where review notes live | new; default `docs/superpowers/reviews` |
+| `git.rules` | The git rules the owner confirmed (section 7.6) | new |
+| `brakes.changeSize.warn`, `brakes.changeSize.max` | Code lines changed on a branch: warn, fail | new; defaults 400, 800 |
+| `tokens.sessionStartBytes` | Budget for text the session-start hooks inject (section 13) | new |
 | `limits.inlineReadLines` | Longest read in the main session | 40 |
 | `limits.agentsBeforeWorkflow` | Agents in a row before a scripted run is required | 2 |
 | `limits.commentRatio`, `limits.commentMinLines` | Comment brake | 0.20, 30 |
-| `lookup.index` | Command, folder and minutes of the code index rule | `graphify query`, `graphify-out`, 30 |
+| `lookup.index` | Command, folder and minutes of the code index rule | `graphify query`, `graphify-out`, 30; also the default (owner, 2026-11-11) |
 | `mainSession.denyWeb`, `mainSession.denyExtensions` | What the main session hands to an agent | true; `png jpg pdf` |
 | `tests.files` | Patterns that mark a test file | `*.test.ts`, `*.test.tsx`, `*.test.mjs` |
 | `tests.run` | Command that runs given test files | `node --test <files>` |
@@ -425,9 +437,10 @@ it; defaults are the reference's values.
 Not configurable, the same in every project (product vocabulary, in
 English): the seal line `<role> ok at <sha>`; the commit-body escapes
 `no-test:`, `no-test-for: <sha>`, `no-review:`, `comments:`,
-`pending-for: <sha>`; the pending card `P-<n>` closed by `closes P-<n>`; the
+`pending-for: <sha>`, `size-ok: <reason>`; the pending card `P-<n>` closed by `closes P-<n>`; the
 report keys `red:`, `green:`, `skipped:`, `sha:`, `reviewed:`,
-`not checked:`, `blocked:`; the comment mark `shortcut:`.
+`not checked:`, `blocked:`, `discarded:`, `no-test:`, `needs judgment:`,
+`cannot test:`, `ask-owner:`; the comment mark `shortcut:`.
 
 ### 7.8 How the flow looks things up, tests and looks at screens
 
@@ -599,11 +612,17 @@ Facts are never asked of the owner.
 
 ### 8.2 Interview
 
-One session of about six rounds of four questions, recommended option first,
-30 to 45 minutes. In the user's language. Rounds:
+The agent asks until it is confident it understands the project in every
+aspect (owner, 2026-11-11). Questions come with the recommended option first,
+in the user's language. Then it plays back a plain summary that is concise and
+skips no detail, and asks «Did I understand correctly?». On «No» it asks what
+was missed, fixes the summary and asks again. It stops on «Yes, you
+understood». The interview does not end while a required config key is
+missing. The summary headings are these topics, plus «about you», which is kept
+in `~/.xworkflows/owner.md`, outside the repository:
 
 1. Business: who pays, what is sold, what is not done.
-2. Goals at 3, 12 and 36 months.
+2. Goals at 3, 12 and 36 months, rough aspirations with no dates.
 3. Risk: «which mistake would cost you the most?»
 4. Architecture: what must not change, what is free to change.
 5. Way of working: git rules, review depth, who may push.
@@ -618,7 +637,7 @@ recommended answer marked.
 
 | File | Content |
 |---|---|
-| `docs/BUSINESS.md` | Who pays, what is sold, goals at 3/12/36 months with dates, what is not done. A living file |
+| `docs/BUSINESS.md` | Who pays, what is sold, goals at 3/12/36 months, no dates, as lines `G<n> (about N months): ...`, what is not done. A living file |
 | `AGENTS.md` | The project's unbreakable rules, from round 3 and 4 |
 | `rules/<zone>.md` | Rules per zone of the code, with their paths |
 | the `risk-review` agent | That project's reviewer: what it guards and the checklist it holds |
@@ -627,8 +646,16 @@ recommended answer marked.
 ### 8.4 Re-adaptation
 
 - By command: the `adapt` skill run again asks only what changed.
-- By date: when a goal in `BUSINESS.md` reaches its date, the `memory` hook
-  says so at session start.
+- By age: when the approved summary is more than 3 months old, the `memory`
+  hook says so at session start (owner, 2026-11-11).
+
+### 8.5 After the interview
+
+One question: run a full review first, or start on the next step. Neither is
+recommended; the full-review option shows its token estimate. Then a next step
+is chosen from: what the owner asked for; next steps already written in the
+project; otherwise suggestions (or the findings of the full review). The skills
+`full-review` and `next-step` do this (owner, 2026-11-11).
 
 ## 9. Brakes (`xworkflows check`)
 
@@ -648,6 +675,12 @@ The same script in all four tools, run by git `pre-push`. It fails the push on:
 | `stale-memory` | A memory file names a path that no longer exists in the repository |
 | `index-current` | The memory index is not what the script generates from the memory files |
 | `project` | The project's own checks (tests, type check), listed in `config.json`, fail |
+| `change-size` | Code lines changed on the branch against `mainBranch`: warn at 400, fail at 800. Tests, docs, fixtures, JSON, lockfiles and generated files are not counted; SQL migrations count. Escape: a `size-ok: <reason>` line in the commit body |
+| `graph-current` | On a push to `mainBranch` in a project with code, `graphify-out/graph.json` is older than the pushed head |
+
+`graphify` is required in every project with code. Git hooks (`post-merge`,
+and `post-commit` on `mainBranch`) and the session-start hook keep it current.
+`graphify-out/` is git-ignored (owner, 2026-11-11).
 
 Hooks are the early help; this is the stop that does not depend on the tool.
 
@@ -666,7 +699,7 @@ domain checks stay in the reference project.
 | `skills-travel` | `skills-agentes` |
 | `patterns` | `frenos` (its rules become a per-project list) |
 | `ratchet` | `trinquete` (its one counter becomes a per-project list) |
-| `goal-cited`, `signature`, `stale-memory`, `index-current` | new |
+| `goal-cited`, `signature`, `stale-memory`, `index-current`, `change-size`, `graph-current` | new |
 
 ### 9.2 Check packs
 
@@ -695,7 +728,7 @@ Not shipped (reference-project domain): `dia-caracas`, `reloj-telefono`,
 
 ## 10. Proof that it works
 
-1. Clean install on macOS and on Windows, per tool: `xworkflows doctor` exits 0.
+1. Clean install on macOS, per tool: `xworkflows doctor` exits 0. Windows runs at publish on a Windows CI runner (owner, 2026-11-11).
 2. Every installed file's hash equals the manifest's.
 3. `node --test hooks/ checks/` passes.
 4. Pilot in a second real project (the pilot), measured: minutes from
@@ -776,11 +809,16 @@ pass the check, or the docs show a tool cannot deny a write, its column in
 Then:
 
 1. Claude Code: manifest, installer, `doctor`, the five hooks, the seven
-   stages. Pilot in the second project.
+   stages, pilot in the second project. Phase 1 is split into four
+   sub-projects built in order: (1) installer; (2) day one; (3) the rest of
+   the method; (4) pilot. Their specs are
+   `docs/superpowers/specs/2026-11-11-phase1-{1..4}-*-design.md` (owner,
+   2026-11-11).
 2. Codex.
 3. Cursor.
 4. Gemini CLI.
-5. Publish when all four pass points 1, 6 and 7 of section 10.
+5. Publish when all four pass points 1, 6 and 7 of section 10. Windows proof
+   1 moves here and runs on a Windows CI runner (owner, 2026-11-11).
 
 ## 12. What the official docs say, tool by tool
 
