@@ -510,3 +510,10 @@ test("design-first deny names xwf-grill after a rename", () => {
   const out = spawnSync("node", [join(r, ".xworkflows/hooks/run.mjs"), "claude", "design-first"], { input: ev, cwd: r, encoding: "utf8", env });
   assert.match(JSON.parse(out.stdout).hookSpecificOutput.permissionDecisionReason, /^Run \/xwf-grill/);
 });
+
+test("install maps tiers of zone-review and verify-finding", () => {
+  const r = repo();
+  assert.equal(cli(r, ["install"]).status, 0);
+  assert.match(readFileSync(join(r, ".claude/agents/zone-review.md"), "utf8"), /^model: opus$/m);
+  assert.match(readFileSync(join(r, ".claude/agents/verify-finding.md"), "utf8"), /^model: sonnet$/m);
+});

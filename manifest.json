@@ -133,6 +133,42 @@
         "skills/thermo-nuclear-code-quality-review/SOURCE.md": "0867d3e01173ef653bb28d7df29694d62ab042c6d65a790f49fbe678ac19476a"
       },
       "sha256": "d2d3cf626999e04fa8a15113c19d9118b07f718185ff43badb13276b5bea3290"
+    },
+    {
+      "id": "zone-review",
+      "kind": "agent",
+      "origin": "own",
+      "version": "0.1.0",
+      "license": "MIT",
+      "scope": "project",
+      "tools": [
+        "claude",
+        "codex",
+        "cursor",
+        "gemini"
+      ],
+      "files": {
+        "agents/zone-review.md": "f5473abdc092fe4eca48cc788625546b4874885710693d6306fe063bf7972675"
+      },
+      "sha256": "80023931f80118642dfa762582868a79eb7c8e92c6d28473b9a6cdc79a47001f"
+    },
+    {
+      "id": "verify-finding",
+      "kind": "agent",
+      "origin": "own",
+      "version": "0.1.0",
+      "license": "MIT",
+      "scope": "project",
+      "tools": [
+        "claude",
+        "codex",
+        "cursor",
+        "gemini"
+      ],
+      "files": {
+        "agents/verify-finding.md": "51f60e0c32b753c6d5d59e90bcf69498aa271a69377e31f7b6f7bf3b30098fbe"
+      },
+      "sha256": "9cd2b2ed16d99b511cd8549cb5a2e5855b21017d6815692d574f71ca398d803a"
     }
   ]
 }

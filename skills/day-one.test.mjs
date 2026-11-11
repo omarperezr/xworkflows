@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const read = (p) => readFileSync(join(ROOT, p), "utf8");
+const front = (p) => Object.fromEntries(read(p).split(/^---$/m)[1].trim().split("\n").map((l) => [l.slice(0, l.indexOf(":")), l.slice(l.indexOf(":") + 1).trim()]));
 const manifest = () => JSON.parse(read("manifest.json"));
 
 for (const name of ["thermo-nuclear-review", "thermo-nuclear-code-quality-review"]) {
@@ -32,3 +33,18 @@ for (const name of ["thermo-nuclear-review", "thermo-nuclear-code-quality-review
     } else for (const h of ["Output Expectations", "Approval Bar", "Review Tone"]) assert.ok(s.includes(`"${h}"`), h);
   });
 }
+
+test("zone-review is top tier and cannot write", () => {
+  const f = front("agents/zone-review.md");
+  assert.equal(f.tier, "top");
+  assert.doesNotMatch(f.tools, /Write|Edit/);
+});
+test("verify-finding answers red: or discarded:", () => {
+  assert.equal(front("agents/verify-finding.md").tier, "medium");
+  const body = read("agents/verify-finding.md");
+  assert.match(body, /`red: <test path> <command>`/);
+  assert.match(body, /`discarded: <reason>`/);
+  assert.match(body, /verify\/<finding-id>/);
+  assert.match(body, /current HEAD/);
+  assert.match(body, /starting branch/);
+});
