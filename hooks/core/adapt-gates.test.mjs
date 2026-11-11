@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, writeFileSync, symlinkSync, realpathSync, readFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, symlinkSync, realpathSync, rmSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { decide } from "./adapt-gates.mjs";
@@ -62,7 +62,49 @@ test("deny reason names the installed skill", () => {
   assert.match(d.reason, /\.claude\/skills\/xwf-adapt\/research\.workflow\.js/);
   assert.match(d.reason, /xwf-adapt\/research\.mjs done/);
 });
-test("spawn error allows", () => ok(decide(sw(summary("draft", FIVE)), ctx(files(), () => ({ code: 0 })))));
+const quiet = (f) => { const w = process.stderr.write; let t = ""; process.stderr.write = (x) => ((t += x), true); try { f(); } finally { process.stderr.write = w; } return t; };
+test("spawn error allows and logs", () => {
+  for (const r of [{ code: null }, { code: 1, out: "", err: "Error: Cannot find module" }, { code: 137, out: "x" }, { code: 1, out: "" }]) {
+    let d;
+    const t = quiet(() => { d = decide(sw(summary("draft", FIVE)), ctx(files(), () => r)); });
+    ok(d);
+    assert.match(t, /xworkflows: adapt check could not run/);
+  }
+});
+test("exit 1 with an adapt: line on stderr denies with that line", () =>
+  deny(decide(sw(summary("draft", FIVE)), ctx(files(), () => ({ code: 1, out: "", err: "adapt: interview.json is missing or unreadable\n" }))), /adapt: interview\.json is missing or unreadable/));
+test("run.mjs: a check that cannot run lets the call through and says so", () => {
+  const d = mkdtempSync(join(tmpdir(), "xwf-g-"));
+  mkdirSync(join(d, ".xworkflows"));
+  writeFileSync(join(d, ".xworkflows/adapt-run.json"), JSON.stringify(fresh));
+  const input = { session_id: "s", cwd: d, tool_name: "Write", tool_input: { file_path: join(d, ".xworkflows/summary.md"), content: summary("draft", FIVE) } };
+  const r = spawnSync("node", [join(import.meta.dirname, "..", "run.mjs"), "claude", "adapt-gates"], { input: JSON.stringify(input), encoding: "utf8", env: { ...process.env, XWORKFLOWS_FREE: "" } });
+  assert.equal(r.stdout, "");
+  assert.match(r.stderr, /xworkflows: adapt check could not run/);
+});
+test("status is read case-insensitively; none means draft rules", () => {
+  const c = ctx(files(), missing("H1-a"));
+  deny(decide(sw(summary("Draft", FIVE)), c), /H1-a/);
+  deny(decide(sw(summary('"draft"', FIVE)), c), /H1-a/);
+  deny(decide(sw("no front matter"), c), /H1-a/);
+  deny(decide(sw(""), c), /H1-a/);
+  deny(decide(sw(summary("APPROVED")), c), /exactly the English label Right/);
+});
+test("heading 5 keeps its ### sub-headings", () => ok(decide(sw(summary("draft", "### Risk a\n- snap: not applicable (you)\n### Risk b\n")), ctx())));
+test("zeroHits compared as a set", () => ok(decide(wf({ args: { zeroHits: ["conc", "snap", "snap"] } }), ctx())));
+test("a symlinked write path to research.md is denied; a not-yet-existing file resolves", () => {
+  const d = realpathSync(mkdtempSync(join(tmpdir(), "xwf-g-")));
+  mkdirSync(join(d, ".xworkflows"));
+  const link = join(d, "alias");
+  symlinkSync(join(d, ".xworkflows"), link);
+  try {
+    const f = { [join(d, ".xworkflows/adapt-run.json")]: JSON.stringify(fresh) };
+    const c = { readFile: (p) => f[p] ?? null, runCheck: () => ({ code: 0 }), skillName: () => "adapt" };
+    const e = (p) => ({ ...wr([{ path: p, content: "x" }]), root: d });
+    deny(decide(e(join(link, "research.md")), c), /research\.mjs render/);
+    deny(decide(e("./.xworkflows/../.xworkflows/research.md"), c), /render/);
+  } finally { rmSync(link); }
+});
 test("scriptPath compared after realpath", () => {
   const d = mkdtempSync(join(tmpdir(), "xwf-g-"));
   const real = realpathSync(d);

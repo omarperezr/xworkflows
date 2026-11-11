@@ -29,10 +29,9 @@ try {
     const skillName = (id) => { // the installed name: a renamed skill (xwf-grill) differs from its id
       try { const k = Object.entries(JSON.parse(read(join(ev.root, ".xworkflows", "installed.json"))).renamed ?? {}).find(([, v]) => v === id); return k ? k[0].split("/").pop() : id; } catch { return id; }
     };
-    const runCheck = (args) => { // a broken check never traps
-      const r = spawnSync("node", [join(ev.root, ".claude", "skills", skillName("adapt"), "research.mjs"), "check", ...args], { cwd: ev.root, encoding: "utf8", timeout: 10000 });
-      if (r.error) { process.stderr.write("xworkflows: adapt check could not run\n"); return { code: 0, out: "" }; }
-      return { code: r.status, out: r.stdout.trim() };
+    const runCheck = (args) => { // the gate decides what a failed check means
+      const r = spawnSync(process.execPath, [join(ev.root, ".claude", "skills", skillName("adapt"), "research.mjs"), "check", ...args], { cwd: ev.root, encoding: "utf8", timeout: 10000 });
+      return { code: r.error ? null : r.status, out: r.stdout ?? "", err: r.stderr ?? "" };
     };
     const ctx = { config, runCheck, readFile: read, skillName, marked: (skill) => existsSync(markFile(stateDir, skill, ev.session)) };
     out = adapter.answer(core.decide(ev, ctx));

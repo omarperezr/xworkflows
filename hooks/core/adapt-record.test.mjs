@@ -31,3 +31,9 @@ test("nothing written without the run file", () => {
   assert.equal(decide(ev, ctx).decision, "allow");
   assert.ok(!existsSync(log(root)));
 });
+test("a stale run file records nothing", () => {
+  const { root, ev, ctx } = setup("run-7");
+  writeFileSync(join(root, ".xworkflows/adapt-run.json"), JSON.stringify({ run: "run-7", startedAt: Date.now() - 13 * 3600e3 }));
+  decide(ev, ctx);
+  assert.ok(!existsSync(log(root)));
+});

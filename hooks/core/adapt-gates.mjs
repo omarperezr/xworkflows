@@ -3,6 +3,7 @@ import { realpathSync } from "node:fs";
 
 const HEADINGS = ["What it is", "Who pays", "Aspirations at about", "Risks, the costliest", "What must not change", "Zones and which", "How the owner works", "About you"];
 const real = (p) => { try { return realpathSync(p); } catch { return path.resolve(p); } };
+const realFile = (p) => { const a = path.resolve(p); try { return realpathSync(a); } catch { return path.join(real(path.dirname(a)), path.basename(a)); } };
 const json = (s) => { try { return JSON.parse(s); } catch { return null; } };
 
 export function decide(ev, ctx) {
@@ -14,7 +15,13 @@ export function decide(ev, ctx) {
   const deny = (why) => ({ decision: "deny", reason: `${why} No adapt running? Run node .claude/skills/${name}/research.mjs done. To bypass in an emergency: XWORKFLOWS_FREE=1.` });
   const check = (...a) => {
     const r = ctx.runCheck(a);
-    return r.code === 0 ? null : r.out || "the adapt check failed";
+    if (r.code === 0) return null;
+    const out = (r.out ?? "").trim();
+    if (r.code === 1 && out) return `Ask these first: ${out.split("\n").join(", ")}.`;
+    const line = r.code === 1 ? (r.err ?? "").split("\n").find((l) => l.startsWith("adapt: ")) : null;
+    if (line) return line;
+    process.stderr.write("xworkflows: adapt check could not run\n"); // a crash, a signal or a spawn error never traps
+    return null;
   };
 
   if (ev.kind === "workflow") {
@@ -23,29 +30,29 @@ export function decide(ev, ctx) {
     const scan = json(ctx.readFile(x("scan.json")));
     if (!scan) return deny("Run the scan first: .xworkflows/scan.json is missing.");
     const zero = Object.entries(scan.kinds ?? {}).filter(([, k]) => k.total === 0).map(([k]) => k).sort();
-    const given = [...(ev.args?.zeroHits ?? [])].sort();
+    const given = [...new Set(ev.args?.zeroHits ?? [])].sort();
     if (zero.join() !== given.join()) return deny(`args.zeroHits must be exactly the kinds with no hits in scan.json: ${zero.join(", ") || "none"}.`);
     return { decision: "allow" };
   }
 
   for (const w of ev.writes ?? []) {
-    const abs = path.resolve(ev.root, w.path.replaceAll("\\", "/"));
-    if (abs === x("research.md")) return deny(`research.md is written by node .claude/skills/${name}/research.mjs render.`);
-    if (abs !== x("summary.md")) continue;
+    const abs = realFile(path.resolve(ev.root, w.path.replaceAll("\\", "/")));
+    if (abs === realFile(x("research.md"))) return deny(`research.md is written by node .claude/skills/${name}/research.mjs render.`);
+    if (abs !== realFile(x("summary.md"))) continue;
     if (w.content === undefined) return deny("Write the whole summary with Write.");
-    const status = (w.content.match(/^status:\s*(\w+)/m) ?? [])[1];
+    const status = (w.content.match(/^status:\s*["']?(\w+)/mi) ?? [])[1]?.toLowerCase();
     if (status === "approved") {
       const miss = check("--approved");
-      if (miss) return deny(`Ask these first: ${miss.split("\n").join(", ")}.`);
-    } else if (status === "draft") {
+      if (miss) return deny(`${miss} The P-H1..P-H7 answers must be exactly the English label Right.`);
+    } else {
       const miss = check();
-      if (miss) return deny(`Ask these first: ${miss.split("\n").join(", ")}.`);
+      if (miss) return deny(miss);
       const lines = w.content.split("\n");
       const at = HEADINGS.map((h) => lines.findIndex((l) => /^#+\s/.test(l) && l.includes(h)));
       const lack = HEADINGS.filter((_, i) => at[i] < 0);
       if (lack.length) return deny(`The summary lacks these headings: ${lack.join("; ")}.`);
       const r = json(ctx.readFile(x("research.json")));
-      const end = lines.findIndex((l, i) => i > at[4] && /^#+\s/.test(l));
+      const end = lines.findIndex((l, i) => i > at[4] && /^#{1,2}\s/.test(l));
       const five = lines.slice(at[4], end < 0 ? undefined : end).map((l) => l.replace(/^\s*[-*]?\s*/, ""));
       const none = Object.entries(r?.kinds ?? {}).filter(([k, v]) => v.status === "absent" && !five.some((l) => l.startsWith(`${k}:`))).map(([k]) => k);
       if (none.length) return deny(`Heading 5 needs a line for each of these, "<kind>: <rule>", "<kind>: unprotected: <risk>" or "<kind>: not applicable": ${none.join(", ")}.`);

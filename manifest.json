@@ -16,7 +16,7 @@
         "gemini"
       ],
       "files": {
-        "hooks/run.mjs": "7e94bd1ffec9525d367899183eca203d88ddcbf230067003df1bdcfcfaf15873",
+        "hooks/run.mjs": "0b6ed3e0dd4a8731cd166ccb6d90b73ab5f1981cbfa9fa867419c1a97f56bc62",
         "hooks/mark.mjs": "f2ecad21dedeb1515287063237e6852b9374781f71ce876f13b57324bfcb88a5",
         "hooks/core/marks.mjs": "9f52d052c8fb1275e92335d1dd5664be0f1bff7d43a4a9432268bac01d61a2b7",
         "hooks/adapters/claude.mjs": "c9a915f88eda53a9c505c0e4bb76d746db76242aa0cf944318f685d95f866af1",
@@ -24,7 +24,7 @@
         "hooks/adapters/cursor.mjs": "394c1a81f4040089b67f0fbf1131012bbb5883bdf705ce3af12dff66d9b3cbd5",
         "hooks/adapters/gemini.mjs": "eff8f29bce46d7c4a7c62845f3762a16c6fd38e831e6c4a5d6b54361ec599175"
       },
-      "sha256": "55872391a19a401d0e6c5aac912bd6f85455576a4b402dd557ec1c9c3ce68826"
+      "sha256": "5950c23e96699698aee7a6cbadc4b47afe7547cc91dd54a7473c0c33efee0a5c"
     },
     {
       "id": "design-first",
@@ -67,9 +67,9 @@
         }
       ],
       "files": {
-        "hooks/core/adapt-gates.mjs": "e7409567c844834624017ac5080e46725b248498da329b1cfda931c676c9ae0f"
+        "hooks/core/adapt-gates.mjs": "875dcd5a8af6e901408f6c49f2bf167f501ad69db3f1ea6ea4212f1c741d9c06"
       },
-      "sha256": "731c7f5ec96552e00276d4745cfb4c89892bb1a1bfc68a71eb275951580106ab"
+      "sha256": "5c9417c7ddd92c1b53cdf96d7e6da885d95edd00cc0fa3cb6392378c2538322d"
     },
     {
       "id": "adapt-record",
@@ -88,9 +88,9 @@
         }
       ],
       "files": {
-        "hooks/core/adapt-record.mjs": "0e26809252c07201cc799efc103847eace7ad00e85051cd36713d70870487e0a"
+        "hooks/core/adapt-record.mjs": "d37616614691520eace48927b139b05f7e0cc8e909ed06ecae9b7af91f880261"
       },
-      "sha256": "2c26fb380f2ce392891f0eb11dd25306de22555c13c944b907213b26b5c02dc8"
+      "sha256": "d43783df72c19e571172bb30c6666d0a4be149e85837790a92b4de1f48abc63b"
     },
     {
       "id": "grill",
