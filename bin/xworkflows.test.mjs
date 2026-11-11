@@ -246,3 +246,74 @@ test("installed.json deleted: found entries of ours are recorded again", () => {
   assert.deepEqual(m[0].key, ["hooks", "PreToolUse"]);
   assert.equal(m[0].createdKey, false);
 });
+
+test("pilot-shaped project: nothing of theirs changes without --yes", () => {
+  const settings = { env: { PYTHONPATH: "." }, hooks: { PreToolUse: [theirs, { ...theirs, matcher: "Read" }] } };
+  const r = repo({ "CLAUDE.md": "# Rules\nno trailing newline", ".claude/settings.json": JSON.stringify(settings, null, 2), "app.py": "" });
+  git(r, "add CLAUDE.md .claude/settings.json"); git(r, "commit -qm base");
+  writeFileSync(join(r, "dirty.py"), "uncommitted");
+  const out = cli(r, ["install"]);
+  assert.equal(out.status, 0);
+  assert.equal(readFileSync(join(r, "CLAUDE.md"), "utf8"), "# Rules\nno trailing newline");
+  assert.match(out.stdout, /answered for you: Add @AGENTS\.md to CLAUDE\.md\? -> no/);
+  const s = readJson(r, ".claude/settings.json");
+  assert.deepEqual(s.hooks.PreToolUse.slice(0, 2), settings.hooks.PreToolUse);
+  assert.deepEqual(readJson(r, ".xworkflows/installed.json").declined, [{ file: "CLAUDE.md", what: "import" }]);
+});
+test("--yes adds the import on its own line", () => {
+  const r = repo({ "CLAUDE.md": "# Rules\nlast" });
+  cli(r, ["install", "--yes"]);
+  assert.equal(readFileSync(join(r, "CLAUDE.md"), "utf8"), "# Rules\nlast\n@AGENTS.md\n");
+});
+test("a stored 'no' is honored, even with --yes", () => {
+  const r = repo({ "CLAUDE.md": "# Rules\n" });
+  cli(r, ["install"]);
+  cli(r, ["install", "--yes"]);
+  assert.equal(readFileSync(join(r, "CLAUDE.md"), "utf8"), "# Rules\n");
+});
+test("skill collision: keep theirs by default, xwf- prefix with --yes", () => {
+  const mine = { ".claude/skills/grill/SKILL.md": "---\nname: grill\n---\nmine\n" };
+  const a = repo(mine);
+  const out = cli(a, ["install"]);
+  assert.match(out.stdout, /answered for you: A skill grill exists\. Keep theirs or install ours as xwf-grill\? -> keep theirs/);
+  assert.equal(readFileSync(join(a, ".claude/skills/grill/SKILL.md"), "utf8"), mine[".claude/skills/grill/SKILL.md"]);
+  const rec = readJson(a, ".xworkflows/installed.json");
+  assert.deepEqual(rec.kept, [".claude/skills/grill"]);
+  assert.ok(!Object.keys(rec.files).some((p) => p.startsWith(".claude/skills/grill/")));
+  cli(a, ["install", "--yes"]);
+  assert.ok(!existsSync(join(a, ".claude/skills/xwf-grill")));
+  const b = repo(mine);
+  cli(b, ["install", "--yes"]);
+  assert.match(readFileSync(join(b, ".claude/skills/xwf-grill/SKILL.md"), "utf8"), /^name: xwf-grill$/m);
+  assert.match(readFileSync(join(b, ".claude/skills/xwf-grill/SKILL.md"), "utf8"), /node \.xworkflows\/mark\.mjs grill/);
+  assert.equal(readJson(b, ".xworkflows/installed.json").renamed[".claude/skills/xwf-grill"], "grill");
+  assert.ok(readJson(b, ".xworkflows/installed.json").files[".claude/skills/xwf-grill/SKILL.md"]);
+});
+test("agent collision and dry-run", () => {
+  const r = repo({ ".claude/agents/explore.md": "mine\n" });
+  const d = cli(r, ["install", "--dry-run"]);
+  assert.ok(!existsSync(join(r, ".xworkflows")));
+  assert.match(d.stdout, /answered for you: An agent explore exists/);
+  cli(r, ["install", "--yes"]);
+  assert.match(readFileSync(join(r, ".claude/agents/xwf-explore.md"), "utf8"), /^name: xwf-explore$/m);
+  assert.equal(readFileSync(join(r, ".claude/agents/explore.md"), "utf8"), "mine\n");
+});
+test("identical unrecorded file is adopted; a different one stops install", () => {
+  const r = repo();
+  cli(r, ["install"]);
+  rmSync(join(r, ".xworkflows/installed.json"));
+  assert.equal(cli(r, ["install"]).status, 0);
+  rmSync(join(r, ".xworkflows/installed.json"));
+  appendFileSync(join(r, ".xworkflows/hooks/run.mjs"), "// mine\n");
+  const out = cli(r, ["install"]);
+  assert.equal(out.status, 1);
+  assert.match(out.stderr, /exists and is not ours: \.xworkflows\/hooks\/run\.mjs/);
+});
+test("a recorded file changed locally is kept", () => {
+  const r = repo();
+  cli(r, ["install"]);
+  appendFileSync(join(r, ".claude/agents/explore.md"), "local note\n");
+  const out = cli(r, ["install"]);
+  assert.match(out.stdout, /kept \(changed locally\): \.claude\/agents\/explore\.md {2}new: agents\/explore\.md/);
+  assert.match(readFileSync(join(r, ".claude/agents/explore.md"), "utf8"), /local note/);
+});

@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
+import { createInterface } from "node:readline/promises";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import { fileURLToPath } from "node:url";
 
@@ -169,10 +170,14 @@ function mergeAgents(root) {
   return { path, text: text === old ? null : text, rec: { blocks: [{ file: path }], created: old === null ? [path] : [] } };
 }
 
-// Reads and parses every target file before any write (ruling P2); Task 5 adds the existing-CLAUDE.md question.
-export function plan(manifest, root, record) {
+const UNIT = /^\.claude\/(skills|agents)\/[^/]+/;
+const IMPORT = "Add @AGENTS.md to CLAUDE.md?";
+
+// Reads and parses every target file before any write (ruling P2) and refuses before any write.
+// `ans` maps question id -> chosen label; an unanswered question is listed in `questions` and planned with its safe answer.
+export function plan(manifest, root, record, ans = {}) {
   const tiers = readFileSync(join(PKG, "tiers.json"), "utf8");
-  const writes = [{ path: ".xworkflows/tiers.json", text: tiers, piece: "installer" }];
+  let writes = [{ path: ".xworkflows/tiers.json", text: tiers, piece: "installer", src: "tiers.json" }];
   for (const p of manifest.pieces) {
     for (const f of Object.keys(p.files)) {
       const t = target(f);
@@ -181,14 +186,52 @@ export function plan(manifest, root, record) {
       if (f.startsWith("agents/")) {
         text = text.replace(/^tier: (\w+)$/m, (_, k) => `model: ${JSON.parse(tiers).claude[k]}`);
       }
-      writes.push({ path: t, text, piece: p.id });
+      writes.push({ path: t, text, piece: p.id, src: f });
     }
   }
-  const merges = [mergeSettings(root, manifest, record), mergeAgents(root)];
-  if (read(root, "CLAUDE.md") === null) {
-    merges.push({ path: "CLAUDE.md", text: "@AGENTS.md\n", rec: { imports: [{ file: "CLAUDE.md", line: "@AGENTS.md" }], created: ["CLAUDE.md"] } });
+  const questions = [], kept = [], renamed = {}, notes = [];
+  const ask = (id, text, labels) => {
+    if (ans[id] === undefined) questions.push({ id, text, labels });
+    return ans[id] ?? labels[0];
+  };
+  const units = {};
+  for (const w of writes) { const u = w.path.match(UNIT)?.[0]; if (u) (units[u] ??= []).push(w); }
+  writes = writes.filter((w) => !UNIT.test(w.path));
+  for (const [u, ws] of Object.entries(units)) {
+    const id = basename(u, ".md");
+    const nu = `${dirname(u)}/xwf-${basename(u)}`;
+    const mine = ws.some((w) => record.files[w.path]);
+    let rename = !!record.renamed[nu];
+    if (record.kept.includes(u)) continue;
+    if (!rename && !mine && existsSync(join(root, u)) && !ws.every((w) => read(root, w.path) === w.text)) {
+      const kind = u.includes("/skills/") ? "skill" : "agent";
+      const a = ask(`unit:${u}`, `${kind === "skill" ? "A skill" : "An agent"} ${id} exists. Keep theirs or install ours as xwf-${id}?`, ["keep theirs", `xwf-${id}`]);
+      if (a === "keep theirs") { kept.push(u); continue; }
+      rename = true;
+    }
+    if (rename) renamed[nu] = ws[0].piece;
+    for (const w of ws) {
+      const named = w.path === u || w.path.endsWith("/SKILL.md");
+      writes.push(rename ? { ...w, path: nu + w.path.slice(u.length), text: named ? w.text.replace(/^name: .*$/m, `name: xwf-${id}`) : w.text } : w);
+    }
   }
-  return { writes, merges, questions: [] };
+  for (const w of writes) {
+    const cur = read(root, w.path);
+    if (cur === null || cur === w.text) continue;
+    const rec = record.files[w.path];
+    if (!rec) die(1, `exists and is not ours: ${w.path}`);
+    if (hash(cur) !== rec.sha256) { w.keep = true; notes.push(`kept (changed locally): ${w.path}  new: ${w.src}`); }
+  }
+  const merges = [mergeSettings(root, manifest, record), mergeAgents(root)];
+  const claude = read(root, "CLAUDE.md");
+  if (claude === null) {
+    merges.push({ path: "CLAUDE.md", text: "@AGENTS.md\n", rec: { imports: [{ file: "CLAUDE.md", line: "@AGENTS.md" }], created: ["CLAUDE.md"] } });
+  } else if (!/^@AGENTS\.md\s*$/m.test(claude) && !record.declined.some((d) => d.file === "CLAUDE.md" && d.what === "import")) {
+    if (ask("import", IMPORT, ["no", "yes"]) === "yes") {
+      merges.push({ path: "CLAUDE.md", text: claude + (claude.endsWith("\n") ? "" : "\n") + "@AGENTS.md\n", rec: { imports: [{ file: "CLAUDE.md", line: "@AGENTS.md" }] } });
+    } else merges.push({ path: "CLAUDE.md", text: null, rec: { declined: [{ file: "CLAUDE.md", what: "import" }] } });
+  }
+  return { writes, merges, questions, kept, renamed, notes };
 }
 
 const differs = (root, w) => !existsSync(join(root, w.path)) || readFileSync(join(root, w.path), "utf8") !== w.text;
@@ -199,8 +242,8 @@ const put = (root, path, text) => {
 
 export function apply(pl, root, manifest, record) {
   const out = [];
-  for (const w of pl.writes) if (differs(root, w)) { put(root, w.path, w.text); out.push(w.path); }
-  const next = { ...record, xworkflows: manifest.version, tools: ["claude"], pieces: {}, files: {} };
+  for (const w of pl.writes) if (!w.keep && differs(root, w)) { put(root, w.path, w.text); out.push(w.path); }
+  const next = { ...record, xworkflows: manifest.version, tools: ["claude"], pieces: {}, files: {}, kept: [...new Set([...record.kept, ...pl.kept])], renamed: { ...record.renamed, ...pl.renamed } };
   for (const m of pl.merges) {
     if (m.text !== null) { put(root, m.path, m.text); out.push(m.path); }
     for (const [k, list] of Object.entries(m.rec)) {
@@ -209,14 +252,14 @@ export function apply(pl, root, manifest, record) {
     }
   }
   for (const p of manifest.pieces) next.pieces[p.id] = { version: p.version, sha256: p.sha256 };
-  for (const w of pl.writes) next.files[w.path] = { piece: w.piece, sha256: hash(w.text) };
+  for (const w of pl.writes) next.files[w.path] = w.keep ? record.files[w.path] : { piece: w.piece, sha256: hash(w.text) };
   const text = json(next);
   const rp = ".xworkflows/installed.json";
   if (!existsSync(join(root, rp)) || readFileSync(join(root, rp), "utf8") !== text) { put(root, rp, text); out.push(rp); }
   return out;
 }
 
-function install(flags) {
+async function install(flags) {
   const m = readManifest();
   for (const p of m.pieces) {
     for (const [f, h] of Object.entries(p.files)) {
@@ -232,15 +275,28 @@ function install(flags) {
       die(1, ".xworkflows/installed.json does not parse; fix or remove it");
     }
   }
-  const pl = plan(m, ROOT, record);
-  if (flags["dry-run"]) {
-    for (const w of pl.writes) if (differs(ROOT, w)) console.log(`would write ${w.path}`);
-    for (const m of pl.merges) if (m.text !== null) console.log(`would merge ${m.path}`);
-    return;
+  let pl = plan(m, ROOT, record);
+  const ans = {}, auto = [];
+  const rl = pl.questions.length && !flags.yes && !flags["dry-run"] && process.stdin.isTTY ? createInterface({ input: process.stdin, output: process.stdout }) : null;
+  for (const q of pl.questions) {
+    if (flags.yes) ans[q.id] = q.labels[1];
+    else if (rl) {
+      const r = (await rl.question(`${q.text} (${q.labels.join(" / ")}) `)).trim();
+      ans[q.id] = r && q.labels[1].startsWith(r) ? q.labels[1] : q.labels[0];
+    } else { ans[q.id] = q.labels[0]; auto.push(`answered for you: ${q.text} -> ${q.labels[0]}`); }
   }
-  const done = apply(pl, ROOT, m, record);
-  console.log(done.length ? done.join("\n") : "nothing to do");
-  console.log("Next: open Claude Code and type /adapt");
+  rl?.close();
+  if (pl.questions.length) pl = plan(m, ROOT, record, ans);
+  for (const n of pl.notes) console.log(n);
+  if (flags["dry-run"]) {
+    for (const w of pl.writes) if (!w.keep && differs(ROOT, w)) console.log(`would write ${w.path}`);
+    for (const m of pl.merges) if (m.text !== null) console.log(`would merge ${m.path}`);
+  } else {
+    const done = apply(pl, ROOT, m, record);
+    console.log(done.length ? done.join("\n") : "nothing to do");
+    console.log("Next: open Claude Code and type /adapt");
+  }
+  for (const a of auto) console.log(a);
 }
 
 main(process.argv.slice(2));
