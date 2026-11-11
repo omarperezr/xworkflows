@@ -41,7 +41,7 @@ if (env.XWORKFLOWS_RECORD && input) {
     const home = homedir();
     if ("user_email" in input) input.user_email = null; // Cursor's email is never stored
     const text = JSON.stringify({ label: "recorded", input, output: out }, null, 2)
-      .replaceAll(home, "~").replaceAll(home.replace(/[\\/]/g, "-"), "~");
+      .replaceAll(home, "/home/user").replaceAll(home.replace(/[\\/]/g, "-"), "-home-user"); // absolute stand-in, so replayed paths still resolve
     mkdirSync(env.XWORKFLOWS_RECORD, { recursive: true });
     writeFileSync(join(env.XWORKFLOWS_RECORD, `${tool}-${Date.now()}.json`), text);
   } catch (e) {

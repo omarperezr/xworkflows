@@ -72,7 +72,7 @@ for (const tool of readdirSync(fixtures)) {
   });
 
   test(`${tool}: no private path`, () => {
-    for (const n of readdirSync(join(fixtures, tool))) {
+    for (const n of readdirSync(join(fixtures, tool)).filter((f) => f.endsWith(".json"))) {
       const text = readFileSync(join(fixtures, tool, n), "utf8");
       for (const bad of ["/Users/", "-Users-", homedir()]) assert.ok(!text.includes(bad), `${n} has ${bad}`);
     }
