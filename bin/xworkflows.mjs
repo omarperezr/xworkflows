@@ -361,7 +361,7 @@ function doctor() {
     const env = { ...process.env, CLAUDE_PROJECT_DIR: ROOT, XWORKFLOWS_STATE_DIR: state };
     delete env.XWORKFLOWS_FREE; delete env.XWORKFLOWS_RECORD;
     const event = { session_id: `doctor-${process.pid}`, cwd: ROOT, hook_event_name: "PreToolUse", tool_name: "Write", tool_input: { file_path: join(ROOT, specs, "xwf-doctor-probe.md"), content: "# probe\n" } };
-    const r = spawnSync(command, { shell: true, cwd: ROOT, env, input: JSON.stringify(event), encoding: "utf8" });
+    const r = spawnSync(command, { shell: true, cwd: ROOT, env, input: JSON.stringify(event), encoding: "utf8", timeout: Number(process.env.XWORKFLOWS_PROBE_TIMEOUT_MS) || 10000 });
     rmSync(state, { recursive: true, force: true });
     let d; try { d = JSON.parse(r.stdout).hookSpecificOutput?.permissionDecision; } catch {}
     say(d === "deny" ? "ok" : "fail", d === "deny" ? "probe: design-first denies a spec write" : `probe: expected deny, got ${d ?? "no valid output"}`);
@@ -370,10 +370,12 @@ function doctor() {
   const seen = new Set();
   let bytes = 0;
   const load = (p) => {
-    if (seen.has(p) || !existsSync(p)) return;
+    if (seen.has(p)) return;
+    let text;
+    try { if (!statSync(p).isFile()) return; text = readFileSync(p, "utf8"); } catch { return; }
     seen.add(p);
     bytes += statSync(p).size;
-    for (const l of readFileSync(p, "utf8").split("\n")) {
+    for (const l of text.split("\n")) {
       const m = l.trim().match(/^@(\S+)/);
       if (m) load(resolve(dirname(p), m[1]));
     }

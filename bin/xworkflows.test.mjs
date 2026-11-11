@@ -352,3 +352,18 @@ for (const [name, breakIt] of [
   const r = repo(); cli(r, ["install"]); breakIt(r);
   assert.equal(cli(r, ["doctor"]).status, 1);
 });
+test("doctor skips an @import that is a folder", () => {
+  const r = repo(); cli(r, ["install"]);
+  mkdirSync(join(r, "docs"));
+  appendFileSync(join(r, "CLAUDE.md"), "@docs\n");
+  const out = cli(r, ["doctor"]);
+  assert.equal(out.status, 0, out.stdout + out.stderr);
+  assert.match(out.stdout, /^doctor: 0 fail/m);
+});
+test("doctor fails when the probe hangs", () => {
+  const r = repo(); cli(r, ["install"]);
+  writeFileSync(join(r, ".xworkflows/hooks/core/design-first.mjs"), "await new Promise(() => setInterval(() => {}, 1000));\n");
+  const out = cli(r, ["doctor"], { env: { XWORKFLOWS_PROBE_TIMEOUT_MS: "1500" } });
+  assert.equal(out.status, 1);
+  assert.match(out.stdout, /^fail probe/m);
+});
