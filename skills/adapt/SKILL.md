@@ -7,13 +7,18 @@ Before anything else, run `node .xworkflows/mark.mjs adapt` in the shell.
 
 Talk to the owner in the owner's language. Headings, config keys and file contents stay in English. Ask the fixed questions below with exactly their meaning; in English, use the exact words.
 
-Questions go through `AskUserQuestion`, at most 4 per call. You do not know this project yet: research's options are guesses, never a forced choice.
+All questions go through `AskUserQuestion`; the `header` is the item id. You do not know this project yet: research's options are guesses, never a forced choice. Five styles:
 
-- Set `multiSelect: true` whenever more than one option can be true at once, for example: who pays, what is refused, which parts are live, kinds of costly mistake, risks, what must not change, what is free to change, which zones hold risks, where or how a rule is enforced. Single choice only where the options exclude each other: yes or no, keep or change a default, the zones split, `Did I understand correctly?`, `Run a full review first, or start on the next step?`, review depth, who may push.
-- End every other question with one short note, in the owner's language; `Did I understand correctly?` and `Run a full review first, or start on the next step?` get none. With `multiSelect`: `You can pick several. If none fits, or it is something else, write it in Other.` Otherwise: `If none fits, or it is something else, write it in Other.`
-- Research's guess goes first, marked `(Recommended)` only when its line in `research.md` ends `(code)` or `(git)`. A guess without that tag is not recommended, and neither is any option where a step says so. `AskUserQuestion` needs 2 to 4 options: with one guess, add the most plausible alternative, not recommended; with more than 4, split the question in two.
-- An answer typed in Other wins over research's guess, which is dropped; options the owner picked are kept with it.
-- Each picked option of a multi-select answer becomes its own line under its heading, never one merged line.
+- `open`: options `I don't know` and `Skip: not relevant here`. The question says: `Write your answer in Other.`
+- `confirm`: One item per question: Yes, No, I don't know. Options `Yes`, `No`, `I don't know`; up to 4 questions per call. Never a multi-select list.
+- `mechanism`: options `Nothing does today` and `I don't know`. The question says: `Write the mechanism in Other.`
+- `choice`: 2 to 4 options drafted from research or earlier answers.
+- Playback (`Right`, `Wrong`, `Missing something`) is asked where a step says so.
+
+- Every question that is not `confirm` ends with one short note, in the owner's language: `If none fits, or it is something else, write it in Other.` This includes `choice`.
+- `(Recommended)` only on an option backed by a verified citation, on any style. A guess is never recommended.
+- An answer typed in Other wins over research. `I don't know` settles the item; so does `Skip: not relevant here`. `I don't know` on a mechanism writes `unprotected: <risk>`.
+- The eight fixed labels are `Yes`, `No`, `I don't know`, `Skip: not relevant here`, `Nothing does today`, `Right`, `Wrong`, `Missing something`. Send them verbatim in English; put the translation in the option `description`.
 
 ## Step 1: Resume
 
