@@ -39,6 +39,7 @@ process.exitCode = out.exitCode;
 if (env.XWORKFLOWS_RECORD && input) {
   try {
     const home = homedir();
+    if ("user_email" in input) input.user_email = null; // Cursor's email is never stored
     const text = JSON.stringify({ label: "recorded", input, output: out }, null, 2)
       .replaceAll(home, "~").replaceAll(home.replace(/[\\/]/g, "-"), "~");
     mkdirSync(env.XWORKFLOWS_RECORD, { recursive: true });

@@ -1,0 +1,8 @@
+{
+  "label": "documented",
+  "source": "https://geminicli.com/docs/hooks/reference/ and https://geminicli.com/docs/reference/tools/",
+  "read": "2026-11-11",
+  "input": { "session_id": "doc-gemini-1", "transcript_path": "", "cwd": "/project", "hook_event_name": "BeforeTool",
+    "timestamp": "2026-11-11T00:00:00Z", "tool_name": "run_shell_command",
+    "tool_input": { "command": "node .xworkflows/mark.mjs grill" } }
+}

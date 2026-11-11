@@ -92,3 +92,12 @@ test("recording replaces the home folder", () => {
   assert.equal(j.label, "recorded");
   assert.ok(j.input && j.output);
 });
+
+test("recorder drops cursor user_email", () => {
+  const rec = mkdtempSync(join(tmpdir(), "xwf-rec-"));
+  const input = { conversation_id: "c1", cwd: "/project", user_email: "someone@example.com", tool_name: "Read", tool_input: {} };
+  spawn("cursor", input, { XWORKFLOWS_RECORD: rec, XWORKFLOWS_STATE_DIR: mkdtempSync(join(tmpdir(), "xwf-test-")) });
+  const files = readdirSync(rec);
+  assert.equal(files.length, 1);
+  assert.ok(!readFileSync(join(rec, files[0]), "utf8").includes("someone@example.com"));
+});

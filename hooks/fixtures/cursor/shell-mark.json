@@ -1,0 +1,9 @@
+{
+  "label": "documented",
+  "source": "https://cursor.com/docs/agent/hooks",
+  "read": "2026-11-11",
+  "input": { "conversation_id": "doc-cursor-1", "generation_id": "g1", "hook_event_name": "preToolUse",
+    "workspace_roots": ["/project"], "user_email": null, "transcript_path": null, "cwd": "/project",
+    "tool_name": "Shell", "tool_use_id": "abc124",
+    "tool_input": { "command": "node .xworkflows/mark.mjs grill", "working_directory": "/project" } }
+}
