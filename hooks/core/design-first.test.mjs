@@ -19,6 +19,12 @@ test("new spec without grill: deny; with grill: allow", () => {
   assert.ok(allowed(decide(ev(w), ctx({}, true))));
 });
 
+test("new spec made by an edit with an empty old string: deny; with grill: allow", () => {
+  const w = [{ path: spec, old: "", new: "# x" }];
+  assert.ok(denied(decide(ev(w), ctx())));
+  assert.ok(allowed(decide(ev(w), ctx({}, true))));
+});
+
 test("edit adding a question under the heading: deny; with grill: allow", () => {
   const w = [{ path: planQ, ...addQ }];
   assert.ok(denied(decide(ev(w), ctx(qFile))));

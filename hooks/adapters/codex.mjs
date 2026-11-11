@@ -9,13 +9,17 @@ export function parsePatch(text) {
   };
   const endFile = () => {
     endHunk();
+    if (file?.moved) writes.push({ path: file.path, old: "", new: "" }); // a move into specs creates a file even without hunks
     if (file?.add) writes.push({ path: file.path, content: file.lines.join("\n") });
     file = null;
   };
   for (const line of text.split(/\r?\n/)) {
     const m = line.match(/^\*\*\* (Add File|Update File|Delete File|Move to): (.+)$/);
     if (m || line.startsWith("*** ")) {
-      if (m?.[1] === "Move to") continue;
+      if (m?.[1] === "Move to") {
+        if (file) Object.assign(file, { path: m[2], moved: true });
+        continue;
+      }
       endFile();
       if (m?.[1] === "Add File") file = { path: m[2], add: true, lines: [] };
       if (m?.[1] === "Update File") file = { path: m[2] };

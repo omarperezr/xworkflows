@@ -101,3 +101,12 @@ test("recorder drops cursor user_email", () => {
   assert.equal(files.length, 1);
   assert.ok(!readFileSync(join(rec, files[0]), "utf8").includes("someone@example.com"));
 });
+
+test("gemini replace on a missing spec is denied and maps to { path, old, new }", async () => {
+  const { normalize } = await import("./gemini.mjs");
+  const root = mkdtempSync(join(tmpdir(), "xwf-root-"));
+  const input = { session_id: "g1", cwd: root, tool_name: "replace", tool_input: { file_path: join(root, "docs/superpowers/specs/n.md"), old_string: "", new_string: "# x" } };
+  assert.deepEqual(normalize(input, {}).writes, [{ path: input.tool_input.file_path, old: "", new: "# x" }]);
+  const state = { XWORKFLOWS_STATE_DIR: mkdtempSync(join(tmpdir(), "xwf-test-")) };
+  assert.ok(tools.gemini.denied(spawn("gemini", input, state).stdout));
+});

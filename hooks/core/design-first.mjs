@@ -14,7 +14,7 @@ export function decide(ev, ctx) {
     if (!(inSpecs || abs.startsWith(plans)) || !abs.endsWith(".md")) continue;
     const disk = ctx.readFile(abs);
     const [before, after] = w.content !== undefined ? [disk ?? "", w.content] : [w.old ?? "", w.new ?? ""];
-    const creates = inSpecs && w.content !== undefined && disk === null;
+    const creates = inSpecs && disk === null;
     const seen = lines(before);
     const asks = [...lines(after)].some((l) => l.endsWith("?") && !seen.has(l))
       && /Questions for the owner|Owner's answers/.test((disk ?? "") + "\n" + after);

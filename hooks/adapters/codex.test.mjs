@@ -18,7 +18,7 @@ test("parsePatch: Update File gives one replacement per hunk", () => {
   assert.equal(w[1].new, "## Questions for the owner\n1. Which DB?\n2. Which cache?");
 });
 
-test("parsePatch ignores Delete File, Move to, and text without file blocks", () => {
+test("parsePatch ignores Delete File and text without file blocks", () => {
   assert.deepEqual(parsePatch("*** Begin Patch\n*** Delete File: a.md\n*** End Patch\n"), []);
   assert.deepEqual(parsePatch("hello"), []);
 });
@@ -37,4 +37,11 @@ test("normalize: no session throws", () => {
 test("parsePatch: CRLF line endings give the same write", () => {
   const p = "*** Begin Patch\r\n*** Add File: docs/superpowers/specs/a.md\r\n+# A\r\n+Why?\r\n*** End Patch\r\n";
   assert.deepEqual(parsePatch(p), [{ path: "docs/superpowers/specs/a.md", content: "# A\nWhy?" }]);
+});
+
+test("parsePatch: Move to retargets the block to the destination", () => {
+  const p = "*** Begin Patch\n*** Update File: drafts/a.md\n*** Move to: docs/superpowers/specs/a.md\n@@\n-x\n+y\n*** End Patch\n";
+  const w = parsePatch(p);
+  assert.ok(w.length && w.every((x) => x.path === "docs/superpowers/specs/a.md"));
+  assert.deepEqual(parsePatch("*** Begin Patch\n*** Update File: d/a.md\n*** Move to: docs/superpowers/specs/a.md\n*** End Patch\n").map((x) => x.path), ["docs/superpowers/specs/a.md"]);
 });
