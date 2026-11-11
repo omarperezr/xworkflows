@@ -1,0 +1,7 @@
+{
+  "label": "documented",
+  "source": "https://code.claude.com/docs/en/hooks",
+  "read": "2026-11-11",
+  "input": { "session_id": "doc-claude-1", "transcript_path": null, "cwd": "/project", "hook_event_name": "PreToolUse",
+    "tool_name": "Write", "tool_input": { "file_path": "/project/docs/superpowers/specs/2026-11-11-demo.md", "content": "# Demo\n" } }
+}

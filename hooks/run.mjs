@@ -1,0 +1,49 @@
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
+import { tmpdir, homedir } from "node:os";
+import { join } from "node:path";
+import { markFrom, markFile } from "./core/marks.mjs";
+
+const [tool, hook] = process.argv.slice(2);
+const env = process.env;
+const defaults = { owner: "the owner", paths: { specs: "docs/superpowers/specs", plans: "docs/superpowers/plans" } };
+const read = (p) => { try { return readFileSync(p, "utf8"); } catch { return null; } };
+let adapter;
+let input;
+let out = { stdout: "", exitCode: 0 };
+
+try {
+  if (!/^[a-z-]+$/.test(tool) || !/^[a-z-]+$/.test(hook)) throw new Error("bad tool or hook name");
+  adapter = await import(`./adapters/${tool}.mjs`);
+  const core = await import(`./core/${hook}.mjs`);
+  input = JSON.parse(readFileSync(0, "utf8"));
+  const ev = adapter.normalize(input, env);
+  const stateDir = env.XWORKFLOWS_STATE_DIR ?? tmpdir();
+  if (env.XWORKFLOWS_FREE) {
+    process.stderr.write(`xworkflows: ${hook} skipped by XWORKFLOWS_FREE\n`);
+    out = adapter.answer({ decision: "allow" });
+  } else {
+    if (ev.kind === "shell" && markFrom(ev.command)) writeFileSync(markFile(stateDir, markFrom(ev.command), ev.session), "");
+    const user = JSON.parse(read(join(ev.root, ".xworkflows", "config.json")) ?? "{}");
+    const config = { ...defaults, ...user, paths: { ...defaults.paths, ...user.paths } };
+    const ctx = { config, readFile: read, marked: (skill) => existsSync(markFile(stateDir, skill, ev.session)) };
+    out = adapter.answer(core.decide(ev, ctx));
+  }
+} catch (e) {
+  process.stderr.write(`xworkflows: ${hook} let the call through: ${e.message}\n`);
+  out = adapter?.answer({ decision: "allow" }) ?? out;
+}
+
+process.stdout.write(out.stdout);
+process.exitCode = out.exitCode;
+
+if (env.XWORKFLOWS_RECORD && input) {
+  try {
+    const home = homedir();
+    const text = JSON.stringify({ label: "recorded", input, output: out }, null, 2)
+      .replaceAll(home, "~").replaceAll(home.replace(/[\\/]/g, "-"), "~");
+    mkdirSync(env.XWORKFLOWS_RECORD, { recursive: true });
+    writeFileSync(join(env.XWORKFLOWS_RECORD, `${tool}-${Date.now()}.json`), text);
+  } catch (e) {
+    process.stderr.write(`xworkflows: record failed: ${e.message}\n`);
+  }
+}
