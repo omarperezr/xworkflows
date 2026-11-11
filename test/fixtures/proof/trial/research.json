@@ -1,0 +1,155 @@
+{
+ "topics": {},
+ "kinds": {
+  "values": {
+   "kind": "values",
+   "status": "found",
+   "rules": [
+    {
+     "rule": "values rule",
+     "file": "src/values.js",
+     "line": 10,
+     "quote": "values code"
+    }
+   ],
+   "notChecked": []
+  },
+  "snap": {
+   "kind": "snap",
+   "status": "found",
+   "rules": [
+    {
+     "rule": "snap rule",
+     "file": "src/snap.js",
+     "line": 10,
+     "quote": "snap code"
+    }
+   ],
+   "notChecked": []
+  },
+  "srvw": {
+   "kind": "srvw",
+   "status": "found",
+   "rules": [
+    {
+     "rule": "srvw rule",
+     "file": "src/srvw.js",
+     "line": 10,
+     "quote": "srvw code"
+    }
+   ],
+   "notChecked": []
+  },
+  "delta": {
+   "kind": "delta",
+   "status": "found",
+   "rules": [
+    {
+     "rule": "delta rule",
+     "file": "src/delta.js",
+     "line": 10,
+     "quote": "delta code"
+    }
+   ],
+   "notChecked": []
+  },
+  "idem": {
+   "kind": "idem",
+   "status": "found",
+   "rules": [
+    {
+     "rule": "idem rule",
+     "file": "src/idem.js",
+     "line": 10,
+     "quote": "idem code"
+    }
+   ],
+   "notChecked": []
+  },
+  "txn": {
+   "kind": "txn",
+   "status": "found",
+   "rules": [
+    {
+     "rule": "txn rule",
+     "file": "src/txn.js",
+     "line": 10,
+     "quote": "txn code"
+    }
+   ],
+   "notChecked": []
+  },
+  "access": {
+   "kind": "access",
+   "status": "found",
+   "rules": [
+    {
+     "rule": "access rule",
+     "file": "src/access.js",
+     "line": 10,
+     "quote": "access code"
+    }
+   ],
+   "notChecked": []
+  },
+  "batch": {
+   "kind": "batch",
+   "status": "found",
+   "rules": [
+    {
+     "rule": "batch rule",
+     "file": "src/batch.js",
+     "line": 10,
+     "quote": "batch code"
+    }
+   ],
+   "notChecked": []
+  },
+  "domain": {
+   "kind": "domain",
+   "status": "found",
+   "rules": [
+    {
+     "rule": "domain rule",
+     "file": "src/domain.js",
+     "line": 10,
+     "quote": "domain code"
+    }
+   ],
+   "notChecked": []
+  },
+  "compat": {
+   "kind": "compat",
+   "status": "found",
+   "rules": [
+    {
+     "rule": "compat rule",
+     "file": "src/compat.js",
+     "line": 10,
+     "quote": "compat code"
+    }
+   ],
+   "notChecked": []
+  },
+  "conc": {
+   "kind": "conc",
+   "status": "not-present",
+   "rules": [],
+   "notChecked": []
+  },
+  "input": {
+   "kind": "input",
+   "status": "found",
+   "rules": [
+    {
+     "rule": "input rule",
+     "file": "src/input.js",
+     "line": 10,
+     "quote": "input code"
+    }
+   ],
+   "notChecked": []
+  }
+ },
+ "skipped": {}
+}

@@ -1,0 +1,1 @@
+- checklist: transactions wrap multi-step writes
