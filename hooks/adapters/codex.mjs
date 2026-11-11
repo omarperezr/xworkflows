@@ -12,7 +12,7 @@ export function parsePatch(text) {
     if (file?.add) writes.push({ path: file.path, content: file.lines.join("\n") });
     file = null;
   };
-  for (const line of text.split("\n")) {
+  for (const line of text.split(/\r?\n/)) {
     const m = line.match(/^\*\*\* (Add File|Update File|Delete File|Move to): (.+)$/);
     if (m || line.startsWith("*** ")) {
       if (m?.[1] === "Move to") continue;

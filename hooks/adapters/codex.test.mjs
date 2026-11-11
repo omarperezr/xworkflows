@@ -33,3 +33,8 @@ test("normalize: array command becomes a shell command markFrom reads", () => {
 test("normalize: no session throws", () => {
   assert.throws(() => normalize({ tool_name: "Bash", tool_input: {} }, {}));
 });
+
+test("parsePatch: CRLF line endings give the same write", () => {
+  const p = "*** Begin Patch\r\n*** Add File: docs/superpowers/specs/a.md\r\n+# A\r\n+Why?\r\n*** End Patch\r\n";
+  assert.deepEqual(parsePatch(p), [{ path: "docs/superpowers/specs/a.md", content: "# A\nWhy?" }]);
+});
