@@ -4,3 +4,5 @@ docs/measure-tokens.py
 # Phase 0 run output.
 sandbox/docs/
 hooks/fixtures/claude/raw/
+# Interview proof: the reference project's invariants, never public.
+docs/proof/private/
