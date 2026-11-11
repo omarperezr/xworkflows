@@ -12,7 +12,7 @@ Questions go through `AskUserQuestion`: at most 4 per call, research's guess fir
 ## Step 1: Resume
 
 - `.xworkflows/summary.md` has `status: draft`: resume the interview from it. Skip research; read `.xworkflows/research.md` and go to step 3.
-- `.xworkflows/summary.md` has `status: approved`: re-adapt. Run step 2 only on the commits after its `commit:` line (`git log <commit>..HEAD --stat`). Play back the approved summary with each changed line marked `(changed)`. Same stop rule. In step 4, rewrite only the files whose content changes. Nothing changed: say so, write nothing, commit nothing.
+- `.xworkflows/summary.md` has `status: approved`: re-adapt. Run step 2 only on the commits after its `commit:` line (`git log <commit>..HEAD --stat`). If research changes no line of the approved summary, say so and stop before any playback: no draft, no write, no commit; leave `summary.md` as it is. Otherwise play back the approved summary with each changed line marked `(changed)`. Same stop rule. In step 4, rewrite only the files whose content changes.
 - No `summary.md`: start at step 2.
 
 ## Step 2: Research
@@ -125,7 +125,7 @@ Goals in `docs/BUSINESS.md`, one line per aspiration, no dates. G1 is the 3-mont
 Then commit, without asking (the owner already approved the content):
 
 1. `git add` each repository file written above by explicit path, plus `.graphifyignore`. Never `git add .` or `-A`. Never `~/.xworkflows/owner.md` or `research.md`.
-2. `git commit -m "chore: adapt xworkflows to this project"`. No AI author or co-author line. No push.
+2. `git commit -m "chore: adapt xworkflows to this project" -- <the same paths>`, so files the owner staged before stay out. No AI author or co-author line. No push.
 3. Show the owner the commit's short sha and its file list.
 
 ## Step 5: Next

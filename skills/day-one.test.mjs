@@ -72,3 +72,8 @@ test("adapt pins its questions, headings, keys and outputs", () => {
     "Risks, the costliest mistake first", "What must not change; what is free to change", "Zones and which paths are risk paths",
     "How the owner works", "About you"]) { assert.ok(s.includes(h), h); assert.ok(read("skills/adapt/topics.md").includes(h), h); }
 });
+test("adapt leaves the tree clean on an unchanged re-run and commits only its files", () => {
+  const s = read("skills/adapt/SKILL.md");
+  assert.ok(s.includes("If research changes no line of the approved summary, say so and stop before any playback"));
+  assert.ok(s.includes('git commit -m "chore: adapt xworkflows to this project" -- <the same paths>'));
+});
