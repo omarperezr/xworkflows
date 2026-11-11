@@ -7,7 +7,13 @@ Before anything else, run `node .xworkflows/mark.mjs adapt` in the shell.
 
 Talk to the owner in the owner's language. Headings, config keys and file contents stay in English. Ask the fixed questions below with exactly their meaning; in English, use the exact words.
 
-Questions go through `AskUserQuestion`: at most 4 per call, research's guess first and marked `(Recommended)`, except where a step says no option is recommended.
+Questions go through `AskUserQuestion`, at most 4 per call. You do not know this project yet: research's options are guesses, never a forced choice.
+
+- Set `multiSelect: true` whenever more than one option can be true at once, for example: who pays, what is refused, which parts are live, kinds of costly mistake, risks, what must not change, what is free to change, which zones hold risks, where or how a rule is enforced. Single choice only where the options exclude each other: yes or no, keep or change a default, the zones split, `Did I understand correctly?`, `Run a full review first, or start on the next step?`, review depth, who may push.
+- End every other question with one short note, in the owner's language; `Did I understand correctly?` and `Run a full review first, or start on the next step?` get none. With `multiSelect`: `You can pick several. If none fits, or it is something else, write it in Other.` Otherwise: `If none fits, or it is something else, write it in Other.`
+- Research's guess goes first, marked `(Recommended)` only when its line in `research.md` ends `(code)` or `(git)`. A guess without that tag is not recommended, and neither is any option where a step says so. `AskUserQuestion` needs 2 to 4 options: with one guess, add the most plausible alternative, not recommended; with more than 4, split the question in two.
+- An answer typed in Other wins over research's guess, which is dropped; options the owner picked are kept with it.
+- Each picked option of a multi-select answer becomes its own line under its heading, never one merged line.
 
 ## Step 1: Resume
 
@@ -58,7 +64,7 @@ The summary has these eight headings, verbatim, in this order:
 
 Rules:
 
-- Start from `research.md`. Ask only what research left empty or unsure. Research's guess is the first option, marked `(Recommended)`.
+- Start from `research.md`. Ask only what research left empty or unsure. Research's guess is the first option; the question rules above say when it is `(Recommended)`.
 - `topics.md` holds the questions research cannot answer, per heading. Ask one only when research did not settle it.
 - Heading 3: rough aspirations, no dates. One per period.
 - Headings 4 and 5: mechanisms research found go straight under heading 5, tagged `(code)`, and are confirmed in the playback. Only for a risk or "must not change" item where research found no mechanism, ask `How does the code prevent this today, and what rule must every change follow?` Options `Nothing does today` and `I don't know`, neither recommended (research has no guess); the owner may type the mechanism instead.
@@ -90,13 +96,13 @@ The zones question, in plain words:
 
 1. First say what zones are for: each area of the code gets its own rules, and the full review checks each area separately, so a bigger area costs more to review, and so does each extra zone.
 2. Name each proposed zone in everyday words (`the screens`, `the database`) with a rounded size (`about 5 MB`). No exact sizes, no paths: paths go in the playback's `## Config` block.
-3. Ask `Does this split match how you think about the code?`, your proposal first, `(Recommended)`.
+3. Ask `Does this split match how you think about the code?`, your proposal first, `(Recommended)` per the question rules, with the Other note: the owner types merges, splits and renames there.
 
 ### Playback
 
 1. Write the whole summary: the eight headings, plain words, one line per item, as short as it can be without dropping a detail. No line cap. Heading 5 lists every rule, one per line, grouped under the risk it prevents, so the owner can confirm or correct each. Each line ends `(code)`, `(git)` or `(you)`. After heading 8, a `## Config` block lists each required key and its value. If `docs/BUSINESS.md`, a `.claude/rules/<key>.md` or a `## Project rules` section already exists, then add `## Changes to existing files`: per file, the lines step 4 adds or changes.
 2. Save it to `.xworkflows/summary.md` with front matter `status: draft` and `commit: <sha research read>`. The saved draft leaves heading 8 empty; on resume, ask heading 8 again.
-3. Ask one question: `Did I understand correctly?` with two options, `Yes, you understood` and `No`. Neither is marked recommended. No other options.
+3. Ask one question: `Did I understand correctly?` with two options, `Yes, you understood` and `No`. Neither is marked recommended. No other options, and no Other note.
 4. On `No`: ask the open question `What did I miss or get wrong?` and wait for the answer. Then ask questions only about that. Then play back the whole summary again, each changed line marked `(changed)`, save the draft, and ask `Did I understand correctly?` again. No cap on playbacks.
 5. On `Yes, you understood`: the interview ends. Go to step 4.
 
