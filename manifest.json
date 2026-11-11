@@ -205,9 +205,9 @@
         "skills/adapt/SKILL.md": "0567263d37ebfd7aee9e6c57ba48532e434ba9ed330faab0f71bc590ac381854",
         "skills/adapt/scan.mjs": "ef0e6d03ba1e87d3af7ce1a322dca7b567d0ca3b6b51824574e05930ead99da4",
         "skills/adapt/topics.md": "ad662fb4f70ea2ba7a7a5363feff1ad4083828bda1187ac6fbfa7fc71618a014",
-        "skills/adapt/research.workflow.js": "58b29dc4d39dd32c774e88b416b7d26e57c4fb274a1a6eb75dbdb189aecca3ed"
+        "skills/adapt/research.workflow.js": "08642db6d9c94a2d925a85fb3d9bac4799d698e6079773f35db5e04cf7a712b2"
       },
-      "sha256": "176892fb0445a415ecbbb42ce370ca09d871b3ff323ef3db0386102e8a8a4edd"
+      "sha256": "c70f38be223a3cad9ff152c5fc823b55e4584d2151b8885811e92133fac67ac9"
     },
     {
       "id": "full-review",
