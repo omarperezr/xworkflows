@@ -169,6 +169,25 @@
         "agents/verify-finding.md": "d2f66739016dfcc4345b2993a5eaf9acf3050d8448eab0f407256f1ebd0ad194"
       },
       "sha256": "82445daf9c6ece010c9bea8ab6ce085c94bb0150ef71cac6a6449ce5e50e3ca7"
+    },
+    {
+      "id": "adapt",
+      "kind": "skill",
+      "origin": "own",
+      "version": "0.1.0",
+      "license": "MIT",
+      "scope": "project",
+      "tools": [
+        "claude",
+        "codex",
+        "cursor",
+        "gemini"
+      ],
+      "files": {
+        "skills/adapt/SKILL.md": "fc6ced90c51bb745336074040ae60abfd90e95fd2d39c19c45e4e804cdff6742",
+        "skills/adapt/topics.md": "cfd3995838539c6b5d3c7e9bc736c57d5c464f6482ce60edf6d2752eae1a2626"
+      },
+      "sha256": "355eff68644774380448ef228dc1608dfd94fc2df53b0ae37dd086fb4863368b"
     }
   ]
 }

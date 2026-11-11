@@ -8,6 +8,7 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const read = (p) => readFileSync(join(ROOT, p), "utf8");
 const front = (p) => Object.fromEntries(read(p).split(/^---$/m)[1].trim().split("\n").map((l) => [l.slice(0, l.indexOf(":")), l.slice(l.indexOf(":") + 1).trim()]));
 const manifest = () => JSON.parse(read("manifest.json"));
+const firstBodyLine = (s) => s.split(/^---$/m).slice(2).join("---").split("\n").find((l) => l.trim()) ?? "";
 
 for (const name of ["thermo-nuclear-review", "thermo-nuclear-code-quality-review"]) {
   test(`${name} is vendored with license and source`, () => {
@@ -56,4 +57,18 @@ test("zone-review bash is read-only", () => {
   const body = read("agents/zone-review.md");
   assert.match(body, /git log, diff, show, ls-files, blame, status/);
   assert.match(body, /No redirects/);
+});
+
+test("adapt pins its questions, headings, keys and outputs", () => {
+  const s = read("skills/adapt/SKILL.md");
+  assert.ok(firstBodyLine(s).includes("node .xworkflows/mark.mjs adapt"));
+  for (const t of ["Did I understand correctly?", "Yes, you understood", "What did I miss or get wrong?",
+    "status: draft", "status: approved", "research-only", ".xworkflows/research.md", "graphify update .",
+    "git show <sha>:<path>", "~/.xworkflows/owner.md", "chore: adapt xworkflows to this project",
+    "## Project rules", "- G<n> (about <N> months):", "Run a full review first, or start on the next step?",
+    "from one past run, not measured here"]) assert.ok(s.includes(t), t);
+  for (const k of ["paths.code", "paths.risk", "paths.heavyRead", "paths.codeAnyway", "tests.files", "tests.run", "tests.notRunnable", "checks", "zones"]) assert.ok(s.includes(k), k);
+  for (const h of ["What it is", "Who pays, what is sold, what is not done", "Aspirations at about 3, 12 and 36 months",
+    "Risks, the costliest mistake first", "What must not change; what is free to change", "Zones and which paths are risk paths",
+    "How the owner works", "About you"]) { assert.ok(s.includes(h), h); assert.ok(read("skills/adapt/topics.md").includes(h), h); }
 });
