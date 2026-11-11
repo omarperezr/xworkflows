@@ -1,6 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { spawnSync } from "node:child_process";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -76,4 +78,20 @@ test("adapt leaves the tree clean on an unchanged re-run and commits only its fi
   const s = read("skills/adapt/SKILL.md");
   assert.ok(s.includes("If research changes no line of the approved summary, say so and stop before any playback"));
   assert.ok(s.includes('git commit -m "chore: adapt xworkflows to this project" -- <the same paths>'));
+});
+
+test("full-review pins zones, file names, card form and decisions", () => {
+  const s = read("skills/full-review/SKILL.md");
+  assert.ok(firstBodyLine(s).includes("node .xworkflows/mark.mjs full-review"));
+  for (const t of ["No zones yet: run /adapt first.", "docs/superpowers/reviews", "YYYY-MM-DD-full-review.md",
+    "## Errors", "## Restructurings", "## Owner's decisions", "- **P-<n>** —", "Status: unscheduled.",
+    "Do it", "Drop it", "Pending list", "red:", "# Pending"]) assert.ok(s.includes(t), t);
+});
+test("full-review's Workflow script parses", () => {
+  const js = read("skills/full-review/SKILL.md").match(/```js\n([\s\S]*?)```/)[1];
+  const f = join(mkdtempSync(join(tmpdir(), "xwf-wf-")), "wf.mjs");
+  writeFileSync(f, js);
+  assert.equal(spawnSync("node", ["--check", f]).status, 0);
+  assert.match(js, /export const meta = \{/);
+  assert.match(js, /thermo-nuclear-code-quality-review/);
 });

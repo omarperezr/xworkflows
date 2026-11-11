@@ -188,6 +188,24 @@
         "skills/adapt/topics.md": "cfd3995838539c6b5d3c7e9bc736c57d5c464f6482ce60edf6d2752eae1a2626"
       },
       "sha256": "f75bab2e9f99ef94419ac0087181f8fc7034c28a72b6b7e17c04f77a9ee671f9"
+    },
+    {
+      "id": "full-review",
+      "kind": "skill",
+      "origin": "own",
+      "version": "0.1.0",
+      "license": "MIT",
+      "scope": "project",
+      "tools": [
+        "claude",
+        "codex",
+        "cursor",
+        "gemini"
+      ],
+      "files": {
+        "skills/full-review/SKILL.md": "6345a94adc5288426c79e3f6b36f64bee88e9d03c21854e209537f06fe8b278c"
+      },
+      "sha256": "c8fb40ee13044f8f80c580bb2a2bdd95ce17b799f707aa9036250ce01ff5e27b"
     }
   ]
 }
