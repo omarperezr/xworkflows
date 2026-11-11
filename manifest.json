@@ -91,6 +91,24 @@
       "sha256": "ff390adc15018a443716d8abb3e8c01412bfde1d7ea33b925b4f4e747655e0dc"
     },
     {
+      "id": "mechanism",
+      "kind": "agent",
+      "origin": "own",
+      "version": "0.1.0",
+      "license": "MIT",
+      "scope": "project",
+      "tools": [
+        "claude",
+        "codex",
+        "cursor",
+        "gemini"
+      ],
+      "files": {
+        "agents/mechanism.md": "198a48792624ff2b3d447f5f3e933c8845778038c947ec740e13444b20d770cb"
+      },
+      "sha256": "cfa684ecb49777e73bdad23696a1758546c8ff930da387301514614991972379"
+    },
+    {
       "id": "thermo-nuclear-review",
       "kind": "skill",
       "origin": "vendored",
@@ -186,9 +204,10 @@
       "files": {
         "skills/adapt/SKILL.md": "0567263d37ebfd7aee9e6c57ba48532e434ba9ed330faab0f71bc590ac381854",
         "skills/adapt/scan.mjs": "ef0e6d03ba1e87d3af7ce1a322dca7b567d0ca3b6b51824574e05930ead99da4",
-        "skills/adapt/topics.md": "ad662fb4f70ea2ba7a7a5363feff1ad4083828bda1187ac6fbfa7fc71618a014"
+        "skills/adapt/topics.md": "ad662fb4f70ea2ba7a7a5363feff1ad4083828bda1187ac6fbfa7fc71618a014",
+        "skills/adapt/research.workflow.js": "595bddd0c036d93dc7bed2ce22dee2f5093236ba65b51704e91c50f3d7b7122b"
       },
-      "sha256": "0653b420fbf0677f71a4ae61ba767a84adb72bb911b86cd56b5349418ff8d86f"
+      "sha256": "e6f831c2e1b293d35a156d51039d9a60af94459405029d8b385e9ff175def77a"
     },
     {
       "id": "full-review",

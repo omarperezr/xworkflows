@@ -1,0 +1,113 @@
+export const meta = {
+  name: "adapt-research",
+  description: "Fixed research for /adapt: six topic agents, then one agent per mechanism kind.",
+  phases: [{ title: "Topics" }, { title: "Mechanisms" }],
+};
+
+const KINDS = ["values", "snap", "srvw", "delta", "idem", "txn", "access", "batch", "domain", "compat", "conc", "input"];
+
+const TOPIC_SCHEMA = {
+  type: "object",
+  properties: {
+    lines: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          heading: { anyOf: [{ type: "integer", minimum: 1, maximum: 8 }, { type: "string", enum: ["config", "written"] }] },
+          text: { type: "string" },
+          tag: { type: "string", enum: ["code", "git"] },
+          key: { type: "string" },
+        },
+        required: ["heading", "text", "tag"],
+      },
+    },
+    areas: { type: "object" },
+  },
+  required: ["lines"],
+};
+
+const KIND_SCHEMA = {
+  type: "object",
+  properties: {
+    kind: { type: "string" },
+    status: { type: "string", enum: ["found", "absent", "not-present"] },
+    rules: {
+      type: "array",
+      maxItems: 5,
+      items: {
+        type: "object",
+        properties: { rule: { type: "string" }, file: { type: "string" }, line: { type: "integer" }, quote: { type: "string" } },
+        required: ["rule", "file", "line", "quote"],
+      },
+    },
+    notChecked: { type: "array", items: { type: "string" } },
+  },
+  required: ["kind", "status", "rules", "notChecked"],
+};
+
+// Same function as research.mjs `sum` (a test checks they agree).
+const sum = (s) => {
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = ((h * 33) ^ s.charCodeAt(i)) >>> 0;
+  return h.toString(16);
+};
+
+const RULES = `Rules:
+- Ask \`graphify query\` before opening files. Verify each path still exists.
+- Read history as commit messages and file stats only (\`git log --oneline\`, \`--stat\`, \`--name-only\`). Never read past versions of files or content diffs: no \`git show <sha>:<path>\`, no \`git log -p\`; \`git diff\` and \`git stash show\` only with \`--stat\` or \`--name-only\`.
+- Answer in 10 lines or fewer.
+- Return your answer through the schema: each line has a heading (the summary heading it belongs to, 1 to 8), text, and tag \`code\` (read from the code) or \`git\` (read from history). Leave a line out rather than guess wildly.`;
+
+const TOPIC6 = `Next steps already written down, searched in this order:
+1. Pending list (\`paths.pending\`, default \`docs/PENDING.md\`): cards "in progress", then "scheduled".
+2. Work in progress in git: uncommitted changes, skipping paths under \`.xworkflows/\`, \`graphify-out/\` and the files listed in \`.xworkflows/installed.json\` (\`files\` keys, \`created\`); local branches not merged into \`mainBranch\` with a commit in the last 30 days.
+3. Plans in \`paths.plans\` with unchecked boxes (\`- [ ]\`), newest first.
+4. The other pending cards, in file order.
+5. \`TODO.md\`, \`TODO\`, \`ROADMAP.md\`, \`NEXT.md\` at the root or in \`docs/\`; README sections titled roadmap, todo, next or planned.
+6. Open GitHub issues with \`gh issue list\`, only when \`gh\` is installed and authenticated and the repo has a GitHub remote. Otherwise print one line and skip this source.
+7. \`TODO\` and \`FIXME\` comments (\`git grep -nE '\\b(TODO|FIXME)\\b'\`): the count, and at most 5, from the files changed most.
+Return one line per item under heading "written": what, source, path.`;
+
+const topics = (zero) => [
+  "Stack, build files, linters. Heading 1.",
+  "Layout: top folders, size in bytes per folder (`git ls-files` with `wc -c`), what each holds. Propose 3 to 5 zones, each with an everyday name (`the screens`, `the database`), sized in bytes. Leave out generated and vendored code. Heading 2.",
+  "Tests: file patterns, run command, folders that need a service such as a database (fills `tests.files`, `tests.run`, `tests.notRunnable`). Heading 3.",
+  `Where data and money move: database, payments, auth, outside calls. Heading 4. Also return \`areas\`: for each of these kinds, ${JSON.stringify(zero)}, say whether the project has that area: "present", "absent" or "unsure". Kinds: values (money, time, units, rounding), snap (values frozen at write), srvw (writes through server functions), delta (changes as deltas), idem (retried or offline writes), txn (multi-row actions), access (database or server access control), batch (work over many rows), domain (legal, tax or domain rules), compat (public API, file formats, schemas), conc (locks, queues, order), input (validation of outside input).`,
+  "History of the last 12 months: files changed most, reverts, fix commits. Heading 5.",
+  TOPIC6,
+];
+
+const KIND_PROMPT = (kind) => `Mechanism kind \`${kind}\`. Read \`.xworkflows/scan.json\`: the \`kinds.${kind}.hits\` and the \`sql\` entries. Open the cited files. Search beyond the hits with \`graphify query\` and \`grep\`. Return at most 5 rules, each worded as how the code must do something, with file, line and \`quote\`, the exact source line. status: \`found\` (at least one rule), \`absent\` (the area for this kind exists, no mechanism found), \`not-present\` (the project has no such area). List in notChecked the paths you could not open. Read history only as commit messages and file stats.`;
+
+phase("Topics");
+const zero = args.zeroHits || [];
+const t = await parallel(
+  topics(zero).map((p, i) => () =>
+    agent(`Project root: ${args.root}\nTopic ${i + 1}.\n${p}\n\n${RULES}`, {
+      agentType: "explore", schema: TOPIC_SCHEMA, label: `t${i + 1}`, phase: "Topics",
+    })),
+);
+const topicRes = {};
+t.forEach((r, i) => { topicRes[`t${i + 1}`] = r; });
+
+const areas = (topicRes.t4 && topicRes.t4.areas) || {};
+const skipped = {};
+const run = [];
+for (const k of KINDS) {
+  if (zero.includes(k) && areas[k] === "absent") skipped[k] = "no scan hits and topic 4 found the area absent";
+  else run.push(k);
+}
+
+phase("Mechanisms");
+const res = await parallel(
+  run.map((k) => () =>
+    agent(KIND_PROMPT(k), { agentType: "mechanism", model: "sonnet", schema: KIND_SCHEMA, label: `k:${k}`, phase: "Mechanisms" })),
+);
+const kinds = {};
+for (const k of KINDS) if (skipped[k]) kinds[k] = { kind: k, status: "not-present", rules: [], notChecked: [] };
+run.forEach((k, i) => { kinds[k] = res[i]; });
+const ordered = {};
+for (const k of KINDS) ordered[k] = kinds[k];
+
+return { topics: topicRes, kinds: ordered, skipped, sum: sum(JSON.stringify({ topics: topicRes, kinds: ordered, skipped })) };
