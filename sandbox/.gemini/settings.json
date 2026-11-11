@@ -1,0 +1,10 @@
+{
+  "hooks": {
+    "BeforeTool": [
+      {
+        "matcher": "write_file|replace|run_shell_command",
+        "hooks": [{ "type": "command", "command": "node \"$(git rev-parse --show-toplevel)/hooks/run.mjs\" gemini design-first" }]
+      }
+    ]
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit|Bash",
+        "hooks": [{ "type": "command", "command": "node \"$(git rev-parse --show-toplevel)/hooks/run.mjs\" claude design-first" }]
+      }
+    ]
+  },
+  "permissions": { "allow": ["Bash(node .xworkflows/mark.mjs:*)"] }
+}

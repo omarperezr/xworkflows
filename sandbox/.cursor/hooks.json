@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "hooks": {
+    "preToolUse": [
+      { "command": "node \"$(git rev-parse --show-toplevel)/hooks/run.mjs\" cursor design-first", "matcher": "Shell|Write" }
+    ]
+  }
+}
