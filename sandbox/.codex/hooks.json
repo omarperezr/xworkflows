@@ -1,0 +1,10 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|apply_patch",
+        "hooks": [{ "type": "command", "command": "node \"$(git rev-parse --show-toplevel)/hooks/run.mjs\" codex design-first" }]
+      }
+    ]
+  }
+}

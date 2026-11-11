@@ -1,0 +1,8 @@
+{
+  "label": "documented",
+  "source": "https://developers.openai.com/codex/hooks ; patch grammar: https://github.com/openai/codex/blob/main/codex-rs/apply-patch/src/parser.rs",
+  "read": "2026-11-11",
+  "input": { "session_id": "doc-codex-1", "transcript_path": null, "cwd": "/project", "hook_event_name": "PreToolUse",
+    "turn_id": "t1", "tool_name": "apply_patch", "tool_use_id": "c1",
+    "tool_input": { "command": "*** Begin Patch\n*** Add File: docs/superpowers/specs/2026-11-11-demo.md\n+# Demo\n*** End Patch\n" } }
+}
