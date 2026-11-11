@@ -13,7 +13,7 @@ Read `zones` from `.xworkflows/config.json`. If it is missing or `[]`, say `No z
 
 ## Step 2: Ask first, when run alone
 
-When `adapt` did not just start you (its question already showed the estimate), ask yes or no: `Run the full review?` The description is `about X to Y million tokens, from one past run, not measured here`, where zones is the number of zones: X = zones × 2 × 0.17 and Y = zones × 2 × 0.25, rounded to one decimal. On no, stop.
+When `adapt` did not just start you (its question already showed the estimate), ask `Run the full review?` with two options, `Yes, run it` and `No, not now`, neither marked recommended. The description of `Yes, run it` is `about X to Y million tokens, from one past run, not measured here`, where zones is the number of zones: X = zones × 2 × 0.17 and Y = zones × 2 × 0.25, rounded to one decimal. On no, stop.
 
 ## Step 3: The Workflow
 
@@ -56,7 +56,7 @@ const jobs = [];
 for (const review of REVIEWS) {
   for (const zone of ZONES) {
     jobs.push(async () => {
-      const prompt = `Follow .claude/skills/${review}/SKILL.md, its "Whole-repo mode" section, on this zone only. Zone "${zone.key}", paths: ${zone.paths.join(", ")}.`;
+      const prompt = `Follow .claude/skills/${review}/SKILL.md, its "Whole-repo mode" section, on this zone only. Zone "${zone.key}", paths: ${zone.paths.join(", ")}. Return the findings in the "findings" field.`;
       const out = await agent(prompt, { agentType: "zone-review", schema });
       return out.findings.map((f) => ({ ...f, review, zone: zone.key }));
     });
@@ -78,11 +78,10 @@ for (const group of seen.values()) {
   all.push(...group.map((f) => ({ ...f, both })));
 }
 all.sort((a, b) => (b.both - a.both) || (RANK[a.severity] - RANK[b.severity]));
-// The script's value is this last expression: { errors, restructures }.
-({
+return {
   errors: all.filter((f) => f.kind === "error"),
   restructures: all.filter((f) => f.kind === "restructure"),
-});
+};
 ```
 
 If fewer agents returned than were launched, tell the owner how many, and put that in the review file header.
@@ -96,11 +95,11 @@ Read `paths.reviews` from `.xworkflows/config.json` (default `docs/superpowers/r
 - `## Restructurings`: the same form.
 - `## Owner's decisions (YYYY-MM-DD)`: empty for now.
 
-Commit only that file: `git add <file>`, then `git commit -m "docs: full review YYYY-MM-DD" -- <file>`, so files the owner staged stay out. No AI author or co-author line. No push.
+Do not commit yet: the file is committed once, after the owner's decisions are recorded (Step 5).
 
 ## Step 5: Decide each restructuring
 
-Ask one question per restructuring, up to 4 per call, each decided on its own: `Do it`, `Drop it`, `Pending list`. Nothing is applied without a yes. Record each answer under `## Owner's decisions (YYYY-MM-DD)`, with the restructuring's number and title. Then commit the review file the same way (`docs: full review decisions YYYY-MM-DD`). Items answered `Do it` are the first source of `/next-step`.
+Ask one question per restructuring, up to 4 per call, each decided on its own: `Do it`, `Drop it`, `Pending list`. Nothing is applied without a yes. Record each answer under `## Owner's decisions (YYYY-MM-DD)`, with the restructuring's number and title. Then commit only the review file, once: `git add <file>`, then `git commit -m "docs: full review YYYY-MM-DD" -- <file>`, so files the owner staged stay out. No AI author or co-author line. No push. Items answered `Do it` are the first source of `/next-step`.
 
 ## Step 6: The pending list
 

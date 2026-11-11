@@ -1,8 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { existsSync, readFileSync, mkdtempSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { spawnSync } from "node:child_process";
+import { existsSync, readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -87,11 +85,14 @@ test("full-review pins zones, file names, card form and decisions", () => {
     "## Errors", "## Restructurings", "## Owner's decisions", "- **P-<n>** —", "Status: unscheduled.",
     "Do it", "Drop it", "Pending list", "red:", "# Pending"]) assert.ok(s.includes(t), t);
 });
-test("full-review's Workflow script parses", () => {
+test("full-review's Workflow script compiles as an async body", () => {
   const js = read("skills/full-review/SKILL.md").match(/```js\n([\s\S]*?)```/)[1];
-  const f = join(mkdtempSync(join(tmpdir(), "xwf-wf-")), "wf.mjs");
-  writeFileSync(f, js);
-  assert.equal(spawnSync("node", ["--check", f]).status, 0);
   assert.match(js, /export const meta = \{/);
   assert.match(js, /thermo-nuclear-code-quality-review/);
+  const body = js.replace(/export const meta = \{[\s\S]*?\n\};\n/, "");
+  assert.doesNotMatch(body, /export const meta/);
+  const AsyncFunction = (async () => {}).constructor;
+  new AsyncFunction("args", "agent", "parallel", "pipeline", "log", "phase", body); // compiles only
+  assert.match(body, /\breturn\b/);
+  assert.doesNotMatch(body, /Date\.now|Math\.random/);
 });

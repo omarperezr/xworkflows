@@ -148,9 +148,9 @@
         "gemini"
       ],
       "files": {
-        "agents/zone-review.md": "60f6f62161b52497202fce5d5e1b9ff3171cb61199ed3ba4ac232da1ae17d16b"
+        "agents/zone-review.md": "ed9a8f778975d231d9396331b93ecf501e91b0515cfe7557f59a50a8e8388232"
       },
-      "sha256": "742f808e44b4d037062427827d04302f135ea350005a829a7ba71cafbb6b7b9a"
+      "sha256": "351cb0ee3d709aa8d13fbe476a919ebfdc6a1f20e24ad37e42f7c97e60147caf"
     },
     {
       "id": "verify-finding",
@@ -203,9 +203,9 @@
         "gemini"
       ],
       "files": {
-        "skills/full-review/SKILL.md": "6345a94adc5288426c79e3f6b36f64bee88e9d03c21854e209537f06fe8b278c"
+        "skills/full-review/SKILL.md": "97766fb0e34e5e84a96777f34539015eb59676c5cec145622ac3ab32868b6d42"
       },
-      "sha256": "c8fb40ee13044f8f80c580bb2a2bdd95ce17b799f707aa9036250ce01ff5e27b"
+      "sha256": "baa14073716caece880aa436262cd0c1161d6b839b2040ca59e3cdbcb2ec5053"
     }
   ]
 }
