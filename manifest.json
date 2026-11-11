@@ -1,0 +1,94 @@
+{
+  "name": "xworkflows",
+  "version": "0.1.0",
+  "pieces": [
+    {
+      "id": "hook-runtime",
+      "kind": "hook",
+      "origin": "own",
+      "version": "0.1.0",
+      "license": "MIT",
+      "scope": "project",
+      "tools": [
+        "claude",
+        "codex",
+        "cursor",
+        "gemini"
+      ],
+      "files": {
+        "hooks/run.mjs": "4d83bb7f95bd8d7cbf0a994ab681ee9fd7c33c2d1bbf38bad2924eb3fef0e290",
+        "hooks/mark.mjs": "f2ecad21dedeb1515287063237e6852b9374781f71ce876f13b57324bfcb88a5",
+        "hooks/core/marks.mjs": "9f52d052c8fb1275e92335d1dd5664be0f1bff7d43a4a9432268bac01d61a2b7",
+        "hooks/adapters/claude.mjs": "cff295737dffa2c26db768750f12439cdaf2f7aefa248b1b92c8448992e8eecf",
+        "hooks/adapters/codex.mjs": "0589bf97b5cec7e06fee8a70bd92d8a0f51e8bb082cc241f743a80308e44d059",
+        "hooks/adapters/cursor.mjs": "394c1a81f4040089b67f0fbf1131012bbb5883bdf705ce3af12dff66d9b3cbd5",
+        "hooks/adapters/gemini.mjs": "eff8f29bce46d7c4a7c62845f3762a16c6fd38e831e6c4a5d6b54361ec599175"
+      },
+      "sha256": "9e74a93827ba844ad6a71b0beee295b8a07714aace1b5b89039365a111e6736b"
+    },
+    {
+      "id": "design-first",
+      "kind": "hook",
+      "origin": "own",
+      "version": "0.1.0",
+      "license": "MIT",
+      "scope": "project",
+      "tools": [
+        "claude",
+        "codex",
+        "cursor",
+        "gemini"
+      ],
+      "claude": [
+        {
+          "event": "PreToolUse",
+          "matcher": "Write|Edit|MultiEdit|Bash"
+        }
+      ],
+      "files": {
+        "hooks/core/design-first.mjs": "7bcb1720dc0ba402354c84083c455b21f9359c8cb7e968d9450c336598e7054e"
+      },
+      "sha256": "906c86399f2c69253150126e410bdc8cd17bdbd0c782a9e8a2465a9f9acdd068"
+    },
+    {
+      "id": "grill",
+      "kind": "skill",
+      "origin": "vendored",
+      "source": "https://github.com/mattpocock/skills",
+      "version": "95249b0b49782349740fd9b8c6ce32b4e59e497a",
+      "license": "MIT",
+      "modified": true,
+      "scope": "project",
+      "tools": [
+        "claude",
+        "codex",
+        "cursor",
+        "gemini"
+      ],
+      "files": {
+        "skills/grill/SKILL.md": "e47dbadf6fd577421b48695a5ad715d64d18abcbb70887c036c8501b08434090",
+        "skills/grill/LICENSE": "0e7ac423bf2c6e223b7c5b156f8cf72da49d748e56a1641402c31f22ad07dbb5",
+        "skills/grill/SOURCE.md": "0d45975648257f7b7cd8ee01b8a891088e84f560dd377e8aacee6548bf068daf"
+      },
+      "sha256": "22304fe3fec29f5197a521a08011c4db05a3d026a65508e136b7731f6e786a72"
+    },
+    {
+      "id": "explore",
+      "kind": "agent",
+      "origin": "own",
+      "version": "0.1.0",
+      "license": "MIT",
+      "scope": "project",
+      "tools": [
+        "claude",
+        "codex",
+        "cursor",
+        "gemini"
+      ],
+      "files": {
+        "agents/explore.md": "89119f837ce821157e23b09fb4b79b7a73e1e0339ebb6794f9b038808fc84da7"
+      },
+      "sha256": "ff390adc15018a443716d8abb3e8c01412bfde1d7ea33b925b4f4e747655e0dc"
+    }
+  ]
+}
