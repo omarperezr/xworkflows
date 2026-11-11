@@ -1,0 +1,6 @@
+# Private: these name private paths and never enter the public repository.
+docs/reference-coupling.md
+docs/measure-tokens.py
+# Phase 0 run output.
+sandbox/docs/
+hooks/fixtures/claude/raw/
