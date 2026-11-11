@@ -226,9 +226,9 @@
         "gemini"
       ],
       "files": {
-        "agents/verify-finding.md": "963907a0b9a829073df6d4399d6e3de438b9c2187c2e7f7f4a439a235a342c82"
+        "agents/verify-finding.md": "1e879d50115326374d900ee8af12fea24069b3fb8a9c9c9e2563ba987d3ae5ec"
       },
-      "sha256": "d52df65921147320bde1603aed2c13f962741a78b72458fcb1c35f0928fe3f31"
+      "sha256": "4993932e80d4a4ade27399fd4f17c7358862685f377c9407ded2b71fe78c63d9"
     },
     {
       "id": "adapt",
@@ -283,9 +283,9 @@
         "gemini"
       ],
       "files": {
-        "skills/next-step/SKILL.md": "2910847c9516828e473843e91d71937a0757815a471ed75be9962dc8953cb290"
+        "skills/next-step/SKILL.md": "d85fc8030eb6a0265ae45c59f1bc2831f0c2d7a1d90b2b36fc00490403bb4c35"
       },
-      "sha256": "5d6283d037c41ce92e0d5f9adb616a01816f62e900f8a8feceda33ace4c702ec"
+      "sha256": "20c1ba9df7e0c643ac4c30b053fc70dcc9535b4a8d5b83f8e3db62e471404797"
     }
   ]
 }

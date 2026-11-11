@@ -269,3 +269,16 @@ test("fix round 1: re-adapt draft has all eight headings and asks heading 8", ()
   const l = step(1).split("\n").find((x) => x.includes("`status: approved`"));
   inOrder(l, ["ask heading 8 (`H8-*`) again", "with all eight headings"]);
 });
+
+test("next-step cannot-run-here keeps or creates a card", () => {
+  const l = read("skills/next-step/SKILL.md").split("\n").find((x) => x.includes("`discarded: cannot run here"));
+  for (const k of ["keep the candidate's card", "no card", "`Origin:` the review file", "`Status: scheduled`", "one above the highest `P-<n>`"])
+    assert.ok(l.includes(k), k);
+});
+test("verify-finding cleans up on every exit", () => {
+  const ls = read("agents/verify-finding.md").split("\n");
+  const s3 = ls.find((x) => x.startsWith("3."));
+  assert.ok(s3.includes("step 5 cleanup") && s3.indexOf("step 5 cleanup") < s3.indexOf("answer"), "step 3");
+  for (const n of ["4.", "5."]) assert.ok(ls.find((x) => x.startsWith(n)).includes("git worktree remove --force <temp dir>"), n);
+  assert.ok(ls.find((x) => x.startsWith("5.")).includes("git branch -D verify/<finding-id>"));
+});

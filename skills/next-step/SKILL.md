@@ -40,7 +40,7 @@ With fewer than 2 candidates, ask `What is the next step?` in plain text, not `A
 If the pick is an error from the full review, launch the `verify-finding` agent with it and its finding id before anything else. A picked card whose `Origin:` is a review file counts as a review error. The id is `<review date>-E<n>` for error `<n>` of the review file, or `P-<n>` for a card.
 
 - `red: <test path> <command>`: keep the pick; the test is part of the step, on branch `verify/<id>`.
-- `discarded: cannot run here: <why>`: say why in one line, keep the candidate's card in `paths.pending`, and go back to step 3 without it.
+- `discarded: cannot run here: <why>`: say why in one line, keep the candidate's card in `paths.pending`, and go back to step 3 without it. A review error with no card gets one appended in the Hand-off form (`Origin:` the review file, `Status: scheduled`), numbered one above the highest `P-<n>` found both in that file and in `git log --grep "closes P-"`, and committed like the Hand-off card.
 - Any other `discarded: <reason>`: drop the candidate, say why in one line, and go back to step 3 without it.
 
 ## Hand-off
