@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { appendFileSync, cpSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { appendFileSync, cpSync, existsSync, mkdtempSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -19,6 +19,8 @@ function repo(setup = {}) {
   }
   return dir;
 }
+
+const git = (cwd, args) => spawnSync("git", args.split(" "), { cwd, encoding: "utf8" }).stdout.trim();
 
 function cli(cwd, args, opts = {}) {
   const env = { ...process.env, ...opts.env };
@@ -93,4 +95,56 @@ test("hashes ignore CRLF", () => {
   const p = join(copy, "agents/explore.md");
   writeFileSync(p, readFileSync(p, "utf8").replaceAll("\n", "\r\n"));
   assert.equal(cliAt(copy, copy, ["pack", "--check"]).status, 0);
+});
+
+test("fresh install writes every piece and the record", () => {
+  const r = repo();
+  const out = cli(r, ["install"]);
+  assert.equal(out.status, 0, out.stderr);
+  for (const p of [".claude/skills/grill/SKILL.md", ".claude/agents/explore.md", ".xworkflows/mark.mjs",
+    ".xworkflows/hooks/run.mjs", ".xworkflows/hooks/core/design-first.mjs", ".xworkflows/hooks/core/marks.mjs",
+    ".xworkflows/hooks/adapters/claude.mjs", ".xworkflows/tiers.json", ".xworkflows/installed.json"])
+    assert.ok(existsSync(join(r, p)), p);
+  assert.ok(!existsSync(join(r, ".xworkflows/hooks/adapters/codex.mjs")));
+  assert.match(readFileSync(join(r, ".claude/agents/explore.md"), "utf8"), /^model: haiku$/m);
+  assert.doesNotMatch(readFileSync(join(r, ".claude/agents/explore.md"), "utf8"), /^tier:/m);
+  const rec = JSON.parse(readFileSync(join(r, ".xworkflows/installed.json"), "utf8"));
+  assert.deepEqual(Object.keys(rec), ["xworkflows", "tools", "pieces", "files", "merged", "blocks", "imports", "created", "declined", "kept", "renamed"]);
+  assert.equal(out.stdout.trim().split("\n").at(-1), "Next: open Claude Code and type /adapt");
+});
+test("second install changes nothing", () => {
+  const r = repo();
+  cli(r, ["install"]);
+  git(r, "add -A"); git(r, "commit -qm base");
+  const out = cli(r, ["install"]);
+  assert.equal(out.status, 0);
+  assert.equal(git(r, "status --porcelain"), "");
+  assert.match(out.stdout, /^nothing to do$/m);
+});
+test("--dry-run writes nothing", () => {
+  const r = repo({ "README.md": "x\n" });
+  const out = cli(r, ["install", "--dry-run"]);
+  assert.equal(out.status, 0);
+  assert.match(out.stdout, /^would write \.claude\/skills\/grill\/SKILL\.md$/m);
+  assert.deepEqual(readdirSync(r).sort(), [".git", "README.md"]);
+});
+test("run from a subfolder installs at the top level", () => {
+  const r = repo({ "src/a.py": "" });
+  assert.equal(cli(join(r, "src"), ["install"]).status, 0);
+  assert.ok(existsSync(join(r, ".xworkflows/installed.json")));
+  assert.ok(!existsSync(join(r, "src/.xworkflows")));
+});
+test("a tampered package file stops install before any write", () => {
+  const copy = packageCopy();
+  appendFileSync(join(copy, "skills/grill/SKILL.md"), "tamper\n");
+  const r = repo();
+  const out = cliAt(copy, r, ["install"]);
+  assert.equal(out.status, 1);
+  assert.match(out.stderr, /skills\/grill\/SKILL\.md/);
+  assert.deepEqual(readdirSync(r), [".git"]);
+});
+test("a corrupt installed.json stops install", () => {
+  const r = repo({ ".xworkflows/installed.json": "{nope" });
+  assert.equal(cli(r, ["install"]).status, 1);
+  assert.deepEqual(readdirSync(join(r, ".xworkflows")), ["installed.json"]);
 });
