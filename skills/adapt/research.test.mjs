@@ -119,6 +119,7 @@ function sample(over = {}) {
   kinds.values = { kind: "values", status: "found", rules: [{ rule: "round once", file: "a.js", line: 2, quote: "const total = round(x);" }], notChecked: [] };
   kinds.conc = { kind: "conc", status: "not-present", rules: [], notChecked: [] };
   const topics = { t1: { lines: [{ heading: "1", text: "a tool", tag: "code" }, { heading: "config", key: "tests.run", text: "node --test", tag: "code" }] }, t6: { lines: [{ heading: "written", text: "todo", tag: "git" }] } };
+  for (const t of ["t2", "t3", "t4", "t5"]) topics[t] = { lines: [] };
   const r = { topics, kinds, skipped: { conc: "no hits" }, ...over };
   r.sum = sum(JSON.stringify({ topics: r.topics, kinds: r.kinds, skipped: r.skipped }));
   return r;
@@ -233,4 +234,24 @@ test("render layout", () => {
   const again = readFileSync(X(d, "research.md"), "utf8");
   cli(d, "render");
   assert.equal(readFileSync(X(d, "research.md"), "utf8"), again);
+});
+
+test("fix round 1: dead topic, path spellings, missing run file", () => {
+  const d = repo();
+  const r = sample();
+  r.topics.t3 = null;
+  assert.match(renderResearch(d, r, SCAN).errors.join("\n"), /topic t3: agent returned nothing, rerun the Workflow/);
+  for (const p of ["./a.js", "x/../a.js", "db.sql/"]) {
+    const q = sample();
+    q.kinds.idem.notChecked = [p];
+    assert.match(renderResearch(d, q, SCAN).errors.join("\n"), /idem/, p);
+  }
+  writeFileSync(X(d, "summary.md"), "---\nstatus: draft\n---\n");
+  cli(d, "start");
+  assert.ok(existsSync(X(d, "adapt-run.json")));
+  rmSync(X(d, "adapt-run.json"));
+  put(d, { ...sample(), sum: "bad" });
+  const m = cli(d, "render");
+  assert.equal(m.status, 1);
+  assert.match(m.stderr, /rerun the Workflow and write its result unchanged/);
 });

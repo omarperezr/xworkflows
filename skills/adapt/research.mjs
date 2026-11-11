@@ -3,7 +3,7 @@
 // Standalone: node: built-ins only (it is copied into projects).
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync, mkdirSync, rmSync, copyFileSync } from "node:fs";
-import { join, resolve, sep } from "node:path";
+import { join, resolve, sep, posix } from "node:path";
 import { pathToFileURL } from "node:url";
 
 const KINDS = ["values", "snap", "srvw", "delta", "idem", "txn", "access", "batch", "domain", "compat", "conc", "input"];
@@ -17,6 +17,7 @@ export const sum = (s) => {
   return h.toString(16);
 };
 
+const norm = (p) => posix.normalize(String(p).replace(/^(\.\/)+/, "")).replace(/\/$/, "");
 const collapse = (s) => String(s).replace(/\s+/g, " ").trim();
 
 export function verifyCitation(root, c) {
@@ -35,14 +36,15 @@ export function renderResearch(root, research, scan) {
   const dropped = [];
   const kinds = research.kinds || {};
   const skipped = research.skipped || {};
-  const hitFiles = new Set([...Object.values(scan.kinds || {}).flatMap((k) => (k.hits || []).map((h) => h.file)), ...Object.values(scan.sql || {}).flat().map((x) => x.file)]);
+  const hitFiles = new Set([...Object.values(scan.kinds || {}).flatMap((k) => (k.hits || []).map((h) => norm(h.file))), ...Object.values(scan.sql || {}).flat().map((x) => norm(x.file))]);
   const byHeading = {};
   const add = (h, l) => ((byHeading[h] ||= []).push(l));
   const tag = (l) => `${l.text} (${l.tag})`;
   const config = [];
   const written = [];
-  for (const t of Object.keys(research.topics || {}).sort()) {
-    for (const l of (research.topics[t] && research.topics[t].lines) || []) {
+  for (const t of ["t1", "t2", "t3", "t4", "t5", "t6"]) {
+    if (!(research.topics || {})[t]) { errors.push(`topic ${t}: agent returned nothing, rerun the Workflow`); continue; }
+    for (const l of research.topics[t].lines || []) {
       if (l.heading === "config") config.push(`- ${l.key ? `\`${l.key}\`: ` : ""}${tag(l)}`);
       else if (l.heading === "written") written.push(`- ${tag(l)}`);
       else add(l.heading, `- ${tag(l)}`);
@@ -53,7 +55,7 @@ export function renderResearch(root, research, scan) {
     const r = kinds[k];
     if (!r) { errors.push(`${k}: agent returned nothing`); continue; }
     if (!["found", "absent", "not-present"].includes(r.status)) { errors.push(`${k}: invalid status ${JSON.stringify(r.status)}`); continue; }
-    for (const p of r.notChecked || []) if (hitFiles.has(p)) errors.push(`${k}: notChecked lists ${p}, a file that matters for mechanisms`);
+    for (const p of r.notChecked || []) if (hitFiles.has(norm(p))) errors.push(`${k}: notChecked lists ${p}, a file that matters for mechanisms`);
     if (r.status === "absent") { blocks.push(`- no rule found: ${k}`); continue; }
     if (r.status === "not-present") { blocks.push(`- ${k}: not-present${skipped[k] ? ` (skipped: ${skipped[k]})` : ""}`); continue; }
     let kept = 0;
