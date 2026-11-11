@@ -72,3 +72,21 @@ test("every topic prompt carries the graphify-first and history-only rules", asy
     assert.match(c.prompt, /git show/);
   }
 });
+
+test("every config key is named by exactly one topic prompt", async () => {
+  const { calls } = await run({ root: ".", zeroHits: [] });
+  const keys = ["paths.code", "paths.risk", "paths.heavyRead", "paths.codeAnyway", "tests.files", "tests.run", "tests.notRunnable", "checks.project", "checks.patterns", "checks.ratchets"];
+  for (const k of keys) assert.equal(calls.slice(0, 6).filter((c) => c.prompt.includes("`" + k + "`")).length, 1, k);
+  assert.match(calls[0].prompt, /\[\]/);
+});
+
+test("schemas use plain enums and topic 4 omits areas without zeroHits", async () => {
+  const { calls } = await run({ root: ".", zeroHits: [] });
+  const s = calls[0].opts.schema.properties;
+  assert.deepEqual(s.lines.items.properties.heading.enum.slice(0, 2), ["1", "2"]);
+  assert.ok(s.lines.items.properties.heading.enum.includes("config"));
+  assert.deepEqual(s.areas.additionalProperties.enum, ["present", "absent", "unsure"]);
+  assert.doesNotMatch(calls.find((c) => c.opts.label === "t4").prompt, /areas/);
+  const w = await run({ root: ".", zeroHits: ["conc"] });
+  assert.match(w.calls.find((c) => c.opts.label === "t4").prompt, /areas/);
+});

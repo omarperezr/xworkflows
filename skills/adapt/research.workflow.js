@@ -14,7 +14,7 @@ const TOPIC_SCHEMA = {
       items: {
         type: "object",
         properties: {
-          heading: { anyOf: [{ type: "integer", minimum: 1, maximum: 8 }, { type: "string", enum: ["config", "written"] }] },
+          heading: { type: "string", enum: ["1", "2", "3", "4", "5", "6", "7", "8", "config", "written"] },
           text: { type: "string" },
           tag: { type: "string", enum: ["code", "git"] },
           key: { type: "string" },
@@ -22,7 +22,7 @@ const TOPIC_SCHEMA = {
         required: ["heading", "text", "tag"],
       },
     },
-    areas: { type: "object" },
+    areas: { type: "object", additionalProperties: { type: "string", enum: ["present", "absent", "unsure"] } },
   },
   required: ["lines"],
 };
@@ -69,11 +69,13 @@ const TOPIC6 = `Next steps already written down, searched in this order:
 7. \`TODO\` and \`FIXME\` comments (\`git grep -nE '\\b(TODO|FIXME)\\b'\`): the count, and at most 5, from the files changed most.
 Return one line per item under heading "written": what, source, path.`;
 
+const CFG = (keys) => ` Also return one line per key with heading "config" and \`key\` set: ${keys.map((k) => `\`${k}\``).join(", ")}. A guess goes in \`text\`; a value empty on purpose is written as \`[]\`.`;
+
 const topics = (zero) => [
-  "Stack, build files, linters. Heading 1.",
-  "Layout: top folders, size in bytes per folder (`git ls-files` with `wc -c`), what each holds. Propose 3 to 5 zones, each with an everyday name (`the screens`, `the database`), sized in bytes. Leave out generated and vendored code. Heading 2.",
-  "Tests: file patterns, run command, folders that need a service such as a database (fills `tests.files`, `tests.run`, `tests.notRunnable`). Heading 3.",
-  `Where data and money move: database, payments, auth, outside calls. Heading 4. Also return \`areas\`: for each of these kinds, ${JSON.stringify(zero)}, say whether the project has that area: "present", "absent" or "unsure". Kinds: values (money, time, units, rounding), snap (values frozen at write), srvw (writes through server functions), delta (changes as deltas), idem (retried or offline writes), txn (multi-row actions), access (database or server access control), batch (work over many rows), domain (legal, tax or domain rules), compat (public API, file formats, schemas), conc (locks, queues, order), input (validation of outside input).`,
+  "Stack, build files, linters. Heading 1." + CFG(["checks.project", "checks.patterns", "checks.ratchets"]) + " checks.project = the project's own check commands; checks.patterns = pattern checks; checks.ratchets = counts that must not grow.",
+  "Layout: top folders, size in bytes per folder (`git ls-files` with `wc -c`), what each holds. Propose 3 to 5 zones, each with an everyday name (`the screens`, `the database`), sized in bytes. Leave out generated and vendored code. Heading 2." + CFG(["paths.code", "paths.risk", "paths.heavyRead", "paths.codeAnyway"]) + " paths.code = code folders; paths.risk = risk paths; paths.heavyRead = big or generated paths not to read whole; paths.codeAnyway = paths that look like non-code but are code.",
+  "Tests: file patterns, run command, folders that need a service such as a database Heading 3." + CFG(["tests.files", "tests.run", "tests.notRunnable"]) + " tests.files = test file globs; tests.run = the test command; tests.notRunnable = test folders that need a service.",
+  `Where data and money move: database, payments, auth, outside calls. Heading 4.${zero.length ? ` Also return \`areas\`: for each of these kinds, ${JSON.stringify(zero)}, say whether the project has that area: "present", "absent" or "unsure". Kinds: values (money, time, units, rounding), snap (values frozen at write), srvw (writes through server functions), delta (changes as deltas), idem (retried or offline writes), txn (multi-row actions), access (database or server access control), batch (work over many rows), domain (legal, tax or domain rules), compat (public API, file formats, schemas), conc (locks, queues, order), input (validation of outside input).` : ""}`,
   "History of the last 12 months: files changed most, reverts, fix commits. Heading 5.",
   TOPIC6,
 ];
