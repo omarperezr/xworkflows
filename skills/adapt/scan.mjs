@@ -12,15 +12,20 @@ const E = (re, example, counter, ext = CODE) => ({ re, ext, example, counter });
 export const KINDS = [
   { key: "values", name: "source of truth, units and precision", signals: [
     E(/\.toFixed\(|\bround\(|\bDecimal\(/i, "price.toFixed(2)", "// round trip to the server"),
+    E(/\b\w*(money|cents)\w*\(/i, "toCents(price)", "const monkey = money;"),
+    E(/\b(convert|to|from)_?units?\(/i, "convertUnit(x, 'kg')", "const unit = 1;"),
     E(/\bUTC\b|time_?zone|\bcurrency\w*|_unit\b|\bunit_(price|cost|of)\w*/i, "created_at at time zone 'utc'", "const community = 1;") ] },
   { key: "snap", name: "values frozen when a record is written", signals: [
     E(/\b\w+_at_sale\b|\bnew\.\w+\s*:?=/i, "new.unit_price := p.price;", "select renewal from plan;") ] },
   { key: "srvw", name: "data written only through server functions", signals: [
-    E(/\.rpc\(|\.from\(\s*["']\w+["']\s*\)\s*\.(insert|update|delete|upsert)\(/, "await db.rpc(\"make\", {})", "db.from(\"item\").select(\"*\")") ] },
+    E(/\.rpc\(|\.from\(\s*["']\w+["']\s*\)\s*\.(insert|update|delete|upsert)\(/, "await db.rpc(\"make\", {})", "db.from(\"item\").select(\"*\")"),
+    E(/\bcreate\s+(or\s+replace\s+)?function\b|\b(app|router)\.(post|put|patch|delete)\(|@(app|router)\.(post|put|patch|delete)\b/i, "create or replace function make_item()", "-- a function of time") ] },
   { key: "delta", name: "changes as deltas, never absolute values", signals: [
     E(/\bset\s+(\w+)\s*=\s*\1\s*[+-]|\.increment\(|\bF\(\s*["']\w+["']\s*\)\s*[+-]|\b(\w+)\s*=\s*\2\s*[+-]\s*:\w+/i, "set stock = stock - 1", "i = i + 1") ] },
   { key: "idem", name: "retried or offline writes applied once", signals: [
-    E(/\bon conflict\b|idempotency[_-]?key|\boutbox\b/i, "on conflict (id) do nothing", "# a merge conflict in git") ] },
+    E(/\bon conflict\b|idempotency[_-]?key|\boutbox\b/i, "on conflict (id) do nothing", "# a merge conflict in git"),
+    E(/\bunique\b.*\b(request|idempotency|event)_?id\b|\b(request|idempotency|event)_?id\b.*\bunique\b/i, "request_id text unique", "# a unique name"),
+    E(/\b(en|de)queue\w*\(|\bqueue\.(add|push|put)\(/i, "enqueue(job)", "const queued = 1;") ] },
   { key: "txn", name: "a multi-row action is one transaction", signals: [
     E(/^\s*begin\s*;|\btransaction\s*\(|transaction\.atomic/i, "with transaction.atomic():", "// transactions are explained in the docs") ] },
   { key: "access", name: "access checked by the database or server", signals: [
@@ -34,6 +39,7 @@ export const KINDS = [
   { key: "compat", name: "what must not break for those who use it", signals: [
     E(/\bdeprecated\b|schema_?version|format_?version|\bAPI_VERSION\b/i, "SCHEMA_VERSION = 3", "# the version of node we use"),
     E(/\b__all__\s*=|\bmodule\.exports\s*=\s*\{|^\s*export\s*\{/, "module.exports = { run };", "const exports2 = 1;"),
+    E(/\bchangelog\b|\bbreaking changes?\b/i, "Update the CHANGELOG", "# a log of changes", [...CODE, ".md"]),
     E(/\b__version__\b|\bversion\s*=\s*["']\d+\.\d+/, "__version__ = \"1.2\"", "# the version of node we use") ] },
   { key: "conc", name: "concurrency and order", signals: [
     E(/\bfor update\b|\bpg_advisory\w*\(|\bmutex\b|\bLock\(|\.lock\(/i, "lock = threading.Lock()", "const clock = now();"),
@@ -64,7 +70,7 @@ const readLines = (p) => (existsSync(p) ? readFileSync(p, "utf8").split("\n").ma
 
 const keyOf = (p) => p.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "zone";
 
-// Zones by the fixed rule of spec 4.4. shortcut: bytes of files directly inside a split folder are dropped, upgrade if zones must cover them.
+// Zones by the fixed rule of spec 4.4. A "<dir>/*" entry is the files directly in <dir>, "*" the root files.
 export function proposeZones(layout) {
   const by = new Map(layout.map((e) => [e.path, e.bytes]));
   const top = layout.filter((e) => !e.path.includes("/"));
@@ -87,7 +93,7 @@ export function proposeZones(layout) {
   while (zs.length > 6) { bySize(); const [a, b] = zs.splice(0, 2); zs.push({ paths: [...a.paths, ...b.paths].sort(), bytes: a.bytes + b.bytes, other: a.other || b.other, keyFrom: b }); }
   const used = new Set();
   return zs.map((z) => {
-    let k = z.other ? "other" : keyOf((z.keyFrom || z).paths[0]), n = 2;
+    let k = z.other ? "other" : keyOf((z.keyFrom || z).paths[0].replace(/^\*$/, "root")), n = 2;
     for (const base = k; used.has(k); n++) k = `${base}-${n}`;
     used.add(k);
     return { key: k, paths: [...z.paths].sort(), bytes: z.bytes };
@@ -104,9 +110,11 @@ export function sqlInventory(files) {
     let fn = null;
     text.split("\n").forEach((l, i) => {
       let x;
-      if ((x = /create\s+(?:or\s+replace\s+)?(?:constraint\s+)?trigger\s+("[^"]+"|[\w.]+)/i.exec(l))) set("triggers", strip(x[1]), path, i + 1);
+      if (/^\s*(create|alter|drop)\b/i.test(l)) fn = null; // a definer clause belongs to the statement it is in
+      if ((x = /create\s+(?:or\s+replace\s+)?(?:constraint\s+)?trigger\s+("[^"]+"|[\w.]+)(?:[^;]*?\s+on\s+([\w."]+))?/i.exec(l))) set("triggers", strip(x[1]) + (x[2] ? ` on ${strip(x[2])}` : ""), path, i + 1);
       if ((x = /create\s+policy\s+("[^"]+"|[\w.]+)(?:\s+on\s+([\w."]+))?/i.exec(l))) set("policies", strip(x[1]) + (x[2] ? ` on ${strip(x[2])}` : ""), path, i + 1);
-      if ((x = /create\s+(?:or\s+replace\s+)?function\s+([\w."]+)/i.exec(l))) { fn = { name: x[1], line: i + 1 }; m.definers.delete(fn.name); }
+      if ((x = /create\s+(?:or\s+replace\s+)?function\s+([\w."]+)/i.exec(l))) { fn = { name: strip(x[1]), line: i + 1 }; m.definers.delete(fn.name); }
+      if ((x = /alter\s+function\s+([\w."]+)/i.exec(l))) fn = { name: strip(x[1]), line: i + 1 };
       if (fn && /security\s+definer/i.test(l)) set("definers", fn.name, path, fn.line);
       if ((x = /create\s+unique\s+index\s+(?:concurrently\s+)?(?:if\s+not\s+exists\s+)?([\w."]+)/i.exec(l)) || (x = /constraint\s+([\w."]+)\s+unique\b/i.exec(l))) set("uniques", strip(x[1]), path, i + 1);
       if ((x = /constraint\s+([\w."]+)\s+check\s*\(/i.exec(l))) set("checks", strip(x[1]), path, i + 1);
@@ -150,14 +158,17 @@ export function scan(root) {
   for (const p of kept) {
     let buf;
     try { buf = readFileSync(join(root, p)); } catch { continue; }
-    if (buf.length <= 1 << 20 && buf.subarray(0, 8000).includes(0)) continue; // binary
+    if (buf.subarray(0, 8000).includes(0)) continue; // binary
     const s = buf.length <= 1 << 20 ? buf.toString("utf8") : "";
     const first = s.slice(0, s.indexOf("\n") < 0 ? undefined : s.indexOf("\n"));
     if (/@generated|DO NOT EDIT/.test(first)) { dropped.add(p); continue; }
     live.push(p);
     text.set(p, s);
+    if (!CODE.includes(extname(p)) || CHECKS.test(p)) continue; // zones count code bytes only
+    // layout keys: folders at depth 1 and 2, "*" for root files, "<dir>/*" for files directly in a depth-1 folder; a path is in one zone at most
     const segs = p.split("/");
-    for (const d of [1, 2]) if (segs.length > d) { const k = segs.slice(0, d).join("/"); layoutBytes.set(k, (layoutBytes.get(k) || 0) + buf.length); }
+    const keys = [segs.length === 1 ? "*" : segs[0], ...(segs.length > 2 ? [segs.slice(0, 2).join("/")] : segs.length === 2 ? [`${segs[0]}/*`] : [])];
+    for (const k of keys) layoutBytes.set(k, (layoutBytes.get(k) || 0) + buf.length);
   }
 
   const kinds = {};

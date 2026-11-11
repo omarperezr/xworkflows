@@ -160,7 +160,7 @@ const mig = () => ["001", "002"].map((n) => ({ path: `db/migrations/${n}.sql`, t
 
 test("sql inventory keeps the last definition", () => {
   const t = sqlInventory(mig()).triggers;
-  assert.deepEqual(t, [{ name: "account_touch", file: "db/migrations/002.sql", line: 2 }]);
+  assert.deepEqual(t, [{ name: "account_touch on account", file: "db/migrations/002.sql", line: 2 }]);
 });
 
 test("sql inventory lists policies, security definer, uniques and checks", () => {
@@ -175,7 +175,7 @@ test("sql inventory lists policies, security definer, uniques and checks", () =>
 test("scan wires zones and sql", () => {
   const s = scan(fixture());
   assert.ok(s.zones.length >= 1);
-  assert.ok(s.sql.triggers.some((t) => t.name === "account_touch" && t.file.endsWith("002.sql")));
+  assert.ok(s.sql.triggers.some((t) => t.name === "account_touch on account" && t.file.endsWith("002.sql")));
 });
 
 test("every spec 4.1 example signal exists", () => {
@@ -225,4 +225,69 @@ test("checks recognise other CI and lint files", () => {
   for (const p of [".gitlab-ci.yml", ".circleci/config.yml", "Jenkinsfile", ".pre-commit-config.yaml"]) put(d, p, "x.toFixed(2)\n");
   commit(d);
   assert.equal(scan(d).checks.length, 4);
+});
+
+const inZone = (z, f) => z.paths.some((p) => (p === "*" ? !f.includes("/") : p.endsWith("/*") ? f.startsWith(p.slice(0, -1)) && !f.slice(p.length - 1).includes("/") : f.startsWith(p + "/")));
+
+test("every code file lands in exactly one zone", () => {
+  const d = tmp();
+  const big = "x.toFixed(2);\n".repeat(200);
+  const files = ["src/index.js", "src/a/x.js", "src/b/y.js", "src/b/deep/z.js", "root.js", "db/m.sql", "tools/t.py"];
+  for (const f of files) put(d, f, big);
+  put(d, "src/a/more.js", big.repeat(3));
+  put(d, "src/b/more.js", big.repeat(3));
+  commit(d);
+  const z = scan(d).zones;
+  for (const f of [...files, "src/a/more.js", "src/b/more.js"]) assert.equal(z.filter((q) => inZone(q, f)).length, 1, f);
+});
+
+test("a flat repo gets a zone", () => {
+  const d = tmp();
+  for (const f of ["a.js", "b.js", "c.js"]) put(d, f, "x.toFixed(2);\n");
+  commit(d);
+  const z = scan(d).zones;
+  assert.ok(z.length >= 1);
+  assert.ok(["a.js", "b.js", "c.js"].every((f) => z.filter((q) => inZone(q, f)).length === 1));
+});
+
+test("docs and data do not make zones", () => {
+  const d = tmp();
+  put(d, "docs/guide.md", "words\n".repeat(50000));
+  put(d, "data/x.json", "{}".repeat(50000));
+  for (const f of ["src/a.js", "lib/b.js", "tools/c.js"]) put(d, f, "x.toFixed(2);\n");
+  commit(d);
+  const z = scan(d).zones;
+  assert.ok(z.every((q) => q.paths.every((p) => !/^(docs|data)/.test(p))));
+  assert.deepEqual(z.map((q) => q.key), ["lib", "src", "tools"]);
+});
+
+test("every spec 4.1 example category has a signal", () => {
+  const table = {
+    values: ["x.toFixed(2)", "round(x)", "Decimal(1)", "toCents(p)", "convertUnit(x)", "currency = 'EUR'", "created_at at time zone 'utc'"],
+    snap: ["new.unit_price := p.price;", "price_at_sale numeric"],
+    srvw: ["await db.rpc('x')", "create function make()", "db.from('t').insert({})"],
+    delta: ["set x = x + 1", "x.increment(1)", "F('x') + 1"],
+    idem: ["on conflict (id) do nothing", "idempotency_key", "request_id text unique", "enqueue(job)", "outbox"],
+    txn: ["begin;", "db.transaction(fn)"],
+    access: ["create policy p on t", "alter table t enable row level security;", "raise exception 'no'", "require_auth()"],
+    batch: ["xs.map(async (x) => f(x))", "for r in select 1 loop"],
+    domain: ["TAX_RATE = 0.2"],
+    compat: ["deprecated", "SCHEMA_VERSION = 3", "module.exports = { a }", "__version__ = \"1\"", "Update the CHANGELOG"],
+    conc: ["for update", "pg_advisory_lock(1)", "mutex", "queue.consume(h)", "version int not null"],
+    input: ["z.object({})", "validate(x)", "if not request.user.is_authenticated:"],
+  };
+  assert.deepEqual(Object.keys(table), KEYS);
+  for (const [k, xs] of Object.entries(table)) for (const x of xs) assert.ok(KINDS.find((q) => q.key === k).signals.some((s) => s.re.test(x)), `${k}: ${x}`);
+});
+
+test("triggers are keyed by name and table; a definer clause stays with its statement", () => {
+  const sql = [
+    "create trigger set_updated_at before update on a for each row execute function f();",
+    "create trigger set_updated_at before update on b for each row execute function f();",
+    "create function f() returns int as $$ select 1 $$ language sql;",
+    "alter function g() security definer;",
+  ].join("\n");
+  const r = sqlInventory([{ path: "m.sql", text: sql }]);
+  assert.deepEqual(r.triggers.map((t) => t.name), ["set_updated_at on a", "set_updated_at on b"]);
+  assert.deepEqual(r.definers.map((t) => t.name), ["g"]);
 });
