@@ -33,7 +33,7 @@ xworkflows fixes this with rules that are **enforced**, not just suggested. A ru
 
 ## Status
 
-This is an early version. **Only step 2 works today**: the agent cannot write a spec until it has asked you the design questions.
+This is an early version. The installer and `doctor` work for Claude Code. **Only step 2 of the method is enforced today**: the agent cannot write a spec until it has asked you the design questions.
 
 | Tool | Status |
 |---|---|
@@ -81,20 +81,23 @@ Then, in Claude Code:
 
 ### 3. Use it in your own project (Claude Code)
 
-There is no installer yet, so copy the files by hand. Run these from the root of your project:
+Run this from the root of your project (it must be a git repository):
 
 ```bash
-XWF=/path/to/xworkflows
-cp -r "$XWF/hooks" ./hooks
-cp -r "$XWF/sandbox/.xworkflows" ./.xworkflows
-mkdir -p .claude/skills .claude/agents
-cp -r "$XWF/sandbox/.claude/skills/grill" .claude/skills/
-cp "$XWF/sandbox/.claude/agents/explore.md" .claude/agents/
+node /path/to/xworkflows/bin/xworkflows.mjs install
 ```
 
-Then add the hook to `.claude/settings.json`. **If the file already exists, don't overwrite it.** Add the `PreToolUse` entry from [sandbox/.claude/settings.json](sandbox/.claude/settings.json) to your existing `hooks` instead.
+Then check it:
 
-If you already have a folder named `hooks/`, wait for the installer.
+```bash
+node /path/to/xworkflows/bin/xworkflows.mjs doctor
+```
+
+- `--dry-run`: shows what would be written, and writes nothing.
+- `--yes`: answers the questions for you (for scripts).
+- `uninstall`: removes what the installer added.
+
+Nothing is committed or pushed for you. The installer prints the paths to `git add`; you decide when to commit.
 
 Settings you can change are in `.xworkflows/config.json`: your name, and where your specs and plans live.
 

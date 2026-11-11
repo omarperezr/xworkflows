@@ -1,0 +1,8 @@
+{
+  "name": "xworkflows",
+  "version": "0.1.0",
+  "type": "module",
+  "bin": { "xworkflows": "bin/xworkflows.mjs" },
+  "engines": { "node": ">=22" },
+  "license": "MIT"
+}

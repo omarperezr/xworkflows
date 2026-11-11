@@ -9,3 +9,7 @@
 - All tools: a write made by a shell command (heredoc, `sed`) is not seen by `design-first` (read, not tested). Source: final review 2026-11-11.
 - Claude Code: `claude -p` in an untrusted workspace ignores project `permissions.allow`; `--allowedTools` applies. The installer must not rely on project permissions before trust. Source: tested: claude -p session 2026-11-11.
 - All tools: `design-first` compares paths by exact text: a case-variant path (`Docs/...` on a case-insensitive disk) or a symlinked root (`/tmp` vs `/private/tmp`) is not matched (not confirmed in a real session). Source: final review 2026-11-11.
+- Windows: the installer is not tested there (not tested; proof at publish). Source: phase 1.1, 2026-11-11.
+- Installer: the readline question path (existing `CLAUDE.md`) is covered only by a manual check (not tested in automation). Source: phase 1.1, 2026-11-11.
+- Installer: `npx github:` is not tested until publish (not tested). Source: phase 1.1, 2026-11-11.
+- Design-first: with a renamed `xwf-grill`, the deny message still says "Run the grill skill" (wording left to the owner). Source: phase 1.1 final review, 2026-11-11.
