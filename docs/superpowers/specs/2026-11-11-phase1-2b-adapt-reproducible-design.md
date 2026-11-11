@@ -93,7 +93,7 @@ Output keys:
 - `zones`: the proposal of 4.4.
 - `kinds`: for each of the twelve kinds below, `{ hits: [{ file, line, text }],
   total }`. At most 30 hits per kind, the most-changed files first (by
-  `git log --since=12.months --name-only` count), then by path. `text` is the
+  `git log -n 500 --name-only HEAD`, fixed for a commit count), then by path. `text` is the
   matched line, trimmed to 160 characters.
 - `sql`: from migration files, the last definition of each trigger, policy,
   function marked `security definer`, unique constraint and check constraint
