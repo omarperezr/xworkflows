@@ -30,11 +30,16 @@ export function prepareCopy({ dir, source, commit, init, strip, repo, exec, copy
   return git("rev-parse", "HEAD").trim();
 }
 
-// Owner rule: trials never bill per token. Returns the error text, or null when the environment is clean.
-export function apiKeyGuard(env) {
-  return env.ANTHROPIC_API_KEY || env.ANTHROPIC_AUTH_TOKEN
-    ? "proof: ANTHROPIC_API_KEY is set; trials would be billed per token. Unset it (e.g. env -u ANTHROPIC_API_KEY node proof/harness.mjs ...) so the SDK uses your claude.ai login."
+// Per-token billing needs the explicit --api-credits flag. Returns the error text, or null when allowed.
+export function apiKeyGuard(env, apiCredits = false) {
+  return !apiCredits && (env.ANTHROPIC_API_KEY || env.ANTHROPIC_AUTH_TOKEN)
+    ? "proof: ANTHROPIC_API_KEY is set; trials would be billed per token. Unset it (e.g. env -u ANTHROPIC_API_KEY node proof/harness.mjs ...) so the SDK uses your claude.ai login, or pass --api-credits to use API credits."
     : null;
+}
+
+// Another trial may start only while spent plus one per-trial cap stays within the total cap. Returns a reason to stop, or null.
+export function budgetStop(spent, perTrial, total) {
+  return spent + perTrial > total ? `spent ${spent.toFixed(2)} USD plus the ${perTrial} USD per-trial cap would exceed the ${total} USD total cap` : null;
 }
 
 // "S5-next" ends a trial; so does adapt moving on to next-step or full-review (it skips S5-next when zones are empty).

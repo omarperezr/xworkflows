@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { grade, stats, kindsFound, noMoneyCheck, recommendedReport } from "./grade.mjs";
 import { answerFor, toAnswers, stripPlan, stripLeft, loadAnswers } from "./answers.mjs";
-import { prepareCopy, stopFor, withOwnerBackup, apiKeyGuard } from "./trial-lib.mjs";
+import { prepareCopy, stopFor, withOwnerBackup, apiKeyGuard, budgetStop } from "./trial-lib.mjs";
 
 const FX = new URL("../test/fixtures/proof/", import.meta.url).pathname;
 const TRIAL = FX + "trial";
@@ -130,7 +130,15 @@ test("withOwnerBackup removes the profile during the run and restores it, also o
 test("apiKeyGuard refuses per-token billing", () => {
   assert.match(apiKeyGuard({ ANTHROPIC_API_KEY: "k" }), /billed per token/);
   assert.match(apiKeyGuard({ ANTHROPIC_AUTH_TOKEN: "t" }), /claude\.ai login/);
+  assert.match(apiKeyGuard({ ANTHROPIC_API_KEY: "k" }), /--api-credits/);
+  assert.equal(apiKeyGuard({ ANTHROPIC_API_KEY: "k" }, true), null);
   assert.equal(apiKeyGuard({}), null);
+});
+
+test("budgetStop keeps spent plus one trial cap within the total", () => {
+  assert.equal(budgetStop(0, 15, 60), null);
+  assert.equal(budgetStop(45, 15, 60), null);
+  assert.match(budgetStop(45.01, 15, 60), /exceed/);
 });
 
 test("grade and report ignore dropped citations; empty stats; missing research.md", () => {

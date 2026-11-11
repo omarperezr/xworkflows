@@ -1,6 +1,6 @@
 // Development-only: runs /adapt in fresh repo copies through the Claude Agent SDK.
 // usage: node proof/harness.mjs --source <dir> --commit <sha> [--init] [--strip a,b] --answers <file|none> --trials <n> --mode full|research-only --out <dir>
-import { apiKeyGuard, prepareCopy, stopFor, withOwnerBackup } from "./trial-lib.mjs";
+import { apiKeyGuard, budgetStop, prepareCopy, stopFor, withOwnerBackup } from "./trial-lib.mjs";
 import { answerFor, loadAnswers } from "./answers.mjs";
 import { execFileSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -8,9 +8,6 @@ import { homedir, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 
-const guard = apiKeyGuard(process.env);
-if (guard) { console.error(guard); process.exit(1); }
-const { query } = await import("@anthropic-ai/claude-agent-sdk");
 
 const REPO = resolve(import.meta.dirname, "..");
 const MODEL = "claude-opus-5-5";
@@ -21,7 +18,13 @@ const die = (m) => { console.error(m); process.exit(2); };
 const { values: o } = parseArgs({ options: {
   source: { type: "string" }, commit: { type: "string" }, init: { type: "boolean" }, strip: { type: "string" },
   answers: { type: "string" }, trials: { type: "string", default: "1" }, mode: { type: "string", default: "full" }, out: { type: "string" },
+  "api-credits": { type: "boolean" }, "max-usd-per-trial": { type: "string", default: "15" }, "max-usd-total": { type: "string", default: "60" },
 } });
+const guard = apiKeyGuard(process.env, o["api-credits"]);
+if (guard) { console.error(guard); process.exit(1); }
+const { query } = await import("@anthropic-ai/claude-agent-sdk");
+const perTrial = Number(o["max-usd-per-trial"]), totalCap = Number(o["max-usd-total"]);
+if (!(perTrial > 0) || !(totalCap > 0)) die("--max-usd-per-trial and --max-usd-total must be positive numbers");
 const source = o.source || process.env.XWF_PROOF_SOURCE;
 if (!source || !o.out || !o.answers || !["full", "research-only"].includes(o.mode)) die("usage: harness.mjs --source <dir> --commit <sha> [--init] [--strip a,b] --answers <file|none> --trials <n> --mode full|research-only --out <dir>");
 if (!/^[1-9]\d*$/.test(o.trials)) die("--trials must be a positive integer");
@@ -55,10 +58,11 @@ async function trial(n) {
     // A query emits several results (the Workflow finishes in a later turn): read until stop, timeout or stream end.
     // After a stop, the next result carries the last turn's cost.
     for await (const m of query({ prompt: o.mode === "research-only" ? "/adapt research-only" : "/adapt",
-      options: { cwd, model: MODEL, settingSources: ["project"], permissionMode: "default", systemPrompt: { type: "preset", preset: "claude_code" }, canUseTool, abortController: ac } })) {
+      options: { cwd, model: MODEL, settingSources: ["project"], permissionMode: "default", systemPrompt: { type: "preset", preset: "claude_code" }, canUseTool, abortController: ac, maxBudgetUsd: perTrial } })) {
       if (m.type === "system" && m.subtype === "init" && m.claude_code_version) cliVersion = m.claude_code_version;
       if (m.type === "result") {
         if (typeof m.total_cost_usd === "number") costUsd = m.total_cost_usd;
+        if (m.subtype === "error_max_budget_usd") { stoppedAt = "budget"; break; }
         if (stoppedAt === "S5-next" || stoppedAt === "S5-skip") break;
       }
     }
@@ -85,13 +89,17 @@ function save(n, r) {
   writeFileSync(join(dir, "meta.json"), JSON.stringify({
     trial: n, model: MODEL, cliVersion: r.cliVersion, skillHash, commit: r.commit, stripped: strip,
     costUsd: r.costUsd, misses: r.misses, durationMs: r.durationMs, stoppedAt: r.stoppedAt,
-    failed: r.stoppedAt === "timeout" || !!r.error, error: r.error, kinds,
+    failed: r.stoppedAt === "timeout" || r.stoppedAt === "budget" || !!r.error, error: r.error, kinds,
   }, null, 2) + "\n");
 }
 
+let spent = 0;
 for (let n = 1; n <= Number(o.trials); n++) {
+  const why = budgetStop(spent, perTrial, totalCap);
+  if (why) { console.log(`not starting trial ${n}: ${why}`); break; }
   const r = await withOwnerBackup(homedir(), () => trial(n));
-  console.log(`trial ${n}: cost $${r.costUsd.toFixed(2)}, ${r.misses} misses, stopped at ${r.stoppedAt ?? "stream end"}`);
+  spent += r.costUsd;
+  console.log(`trial ${n}: ${r.costUsd.toFixed(2)} USD, total so far ${spent.toFixed(2)} USD of ${totalCap} cap`);
   try { save(n, r); } catch (e) { console.error(`trial ${n}: save failed: ${e}`); }
   rmSync(r.cwd, { recursive: true, force: true });
 }
