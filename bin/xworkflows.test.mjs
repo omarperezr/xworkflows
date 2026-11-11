@@ -224,3 +224,25 @@ test("dry-run lists merges and writes nothing", () => {
   assert.match(out.stdout, /would merge \.claude\/settings\.json/);
   assert.deepEqual(readdirSync(r), [".git"]);
 });
+
+test("hook removed by the user then reinstalled: merged stays one entry, createdKey kept", () => {
+  const r = repo();
+  cli(r, ["install"]);
+  const s = readJson(r, ".claude/settings.json");
+  s.hooks.PreToolUse = [];
+  writeJson(r, ".claude/settings.json", s);
+  cli(r, ["install"]);
+  const m = readJson(r, ".xworkflows/installed.json").merged.filter((x) => x.key[0] === "hooks");
+  assert.equal(m.length, 1);
+  assert.equal(m[0].createdKey, true);
+});
+test("installed.json deleted: found entries of ours are recorded again", () => {
+  const r = repo();
+  cli(r, ["install"]);
+  rmSync(join(r, ".xworkflows/installed.json"));
+  cli(r, ["install"]);
+  const m = readJson(r, ".xworkflows/installed.json").merged;
+  assert.equal(m.length, 1);
+  assert.deepEqual(m[0].key, ["hooks", "PreToolUse"]);
+  assert.equal(m[0].createdKey, false);
+});

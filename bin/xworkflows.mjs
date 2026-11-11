@@ -106,7 +106,7 @@ const START = "<!-- xworkflows:start -->";
 const END = "<!-- xworkflows:end -->";
 
 // Each merge: { path, text (null when nothing changes), rec: new record entries }.
-function mergeSettings(root, manifest) {
+function mergeSettings(root, manifest, record) {
   const path = ".claude/settings.json";
   const old = read(root, path);
   let s = {};
@@ -124,6 +124,7 @@ function mergeSettings(root, manifest) {
   }
   if (want.length) want.push({ key: ["permissions", "allow"], entry: MARK, ours: () => false });
   const merged = [];
+  let changed = false;
   for (const { key, entry, ours } of want) {
     let o = s, createdKey = false;
     for (const k of key.slice(0, -1)) {
@@ -134,17 +135,28 @@ function mergeSettings(root, manifest) {
     const last = key.at(-1);
     if (!(last in o)) { o[last] = []; createdKey = true; }
     if (!Array.isArray(o[last])) die(1, `${path}: ${key.join(".")} is not an array`);
-    if (o[last].some((e) => isDeepStrictEqual(e, entry) || ours(e))) continue;
+    const found = o[last].find((e) => isDeepStrictEqual(e, entry) || ours(e));
+    if (found) {
+      // ours but unrecorded (installed.json lost): record it so uninstall can remove it
+      const known = record.merged.some((m) => m.file === path && isDeepStrictEqual(m.key, key) && (isDeepStrictEqual(m.entry, found) || ours(m.entry)));
+      if (ours(found) && !known) merged.push({ file: path, key, entry: found, createdKey: false });
+      continue;
+    }
     o[last].push(entry);
+    changed = true;
     merged.push({ file: path, key, entry, createdKey });
   }
-  return { path, text: merged.length ? json(s) : null, rec: { merged, created: old === null && merged.length ? [path] : [] } };
+  return { path, text: changed ? json(s) : null, rec: { merged, created: old === null && changed ? [path] : [] } };
+}
+
+export function agentsBlock() {
+  return `${START}\n${readFileSync(join(PKG, "templates/AGENTS.md"), "utf8").replace(/\n+$/, "")}\n${END}\n`;
 }
 
 function mergeAgents(root) {
   const path = "AGENTS.md";
   const old = read(root, path);
-  const block = `${START}\n${readFileSync(join(PKG, "templates/AGENTS.md"), "utf8").replace(/\n+$/, "")}\n${END}\n`;
+  const block = agentsBlock();
   let text;
   const a = old?.indexOf(START) ?? -1;
   if (a >= 0) {
@@ -172,7 +184,7 @@ export function plan(manifest, root, record) {
       writes.push({ path: t, text, piece: p.id });
     }
   }
-  const merges = [mergeSettings(root, manifest), mergeAgents(root)];
+  const merges = [mergeSettings(root, manifest, record), mergeAgents(root)];
   if (read(root, "CLAUDE.md") === null) {
     merges.push({ path: "CLAUDE.md", text: "@AGENTS.md\n", rec: { imports: [{ file: "CLAUDE.md", line: "@AGENTS.md" }], created: ["CLAUDE.md"] } });
   }
@@ -193,7 +205,7 @@ export function apply(pl, root, manifest, record) {
     if (m.text !== null) { put(root, m.path, m.text); out.push(m.path); }
     for (const [k, list] of Object.entries(m.rec)) {
       next[k] = [...next[k]];
-      for (const x of list) if (!next[k].some((y) => isDeepStrictEqual(x, y))) next[k].push(x);
+      for (const x of list) if (!next[k].some((y) => (k === "merged" ? x.file === y.file && isDeepStrictEqual(x.key, y.key) && isDeepStrictEqual(x.entry, y.entry) : isDeepStrictEqual(x, y)))) next[k].push(x);
     }
   }
   for (const p of manifest.pieces) next.pieces[p.id] = { version: p.version, sha256: p.sha256 };
