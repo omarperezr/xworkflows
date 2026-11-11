@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { appendFileSync, cpSync, existsSync, mkdtempSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { appendFileSync, cpSync, existsSync, mkdtempSync, mkdirSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -24,9 +24,10 @@ function repo(setup = {}) {
 const git = (cwd, args) => spawnSync("git", args.split(" "), { cwd, encoding: "utf8" }).stdout.trim();
 
 function cli(cwd, args, opts = {}) {
-  const env = { ...process.env, ...opts.env };
-  delete env.XWORKFLOWS_FREE;
-  delete env.XWORKFLOWS_RECORD;
+  const base = { ...process.env };
+  delete base.XWORKFLOWS_FREE;
+  delete base.XWORKFLOWS_RECORD;
+  const env = { ...base, ...opts.env };
   const r = spawnSync("node", [BIN, ...args], { cwd, env, input: opts.input ?? "", encoding: "utf8" });
   return { status: r.status, stdout: r.stdout, stderr: r.stderr };
 }
@@ -439,4 +440,54 @@ test("uninstall refuses record paths outside the repo", () => {
   assert.match(out.stdout, /kept \(not ours\): \.\.\/outside-/);
   assert.equal(readFileSync(outside, "utf8"), "x\n");
   rmSync(outside);
+});
+
+test("uninstall refuses --dry-run and --yes and removes nothing", () => {
+  const r = repo(); cli(r, ["install"]);
+  for (const f of ["--dry-run", "--yes"]) {
+    const out = cli(r, ["uninstall", f]);
+    assert.equal(out.status, 2);
+    assert.match(out.stderr, /--dry-run and --yes are for install only/);
+  }
+  assert.ok(existsSync(join(r, ".xworkflows/installed.json")));
+  assert.ok(existsSync(join(r, ".claude/agents/explore.md")));
+});
+test("uninstall does not follow a symlink out of the repo", () => {
+  const r = repo(); cli(r, ["install"]);
+  const outside = mkdtempSync(join(tmpdir(), "xwf-out-"));
+  writeFileSync(join(outside, "rc"), "x\nkeep\n");
+  writeFileSync(join(outside, "f.txt"), "f\n");
+  symlinkSync(outside, join(r, "link"));
+  const rec = readJson(r, ".xworkflows/installed.json");
+  rec.files["link/f.txt"] = { piece: "x", sha256: createHash("sha256").update("f\n").digest("hex") };
+  rec.imports.push({ file: "link/rc", line: "x" });
+  writeJson(r, ".xworkflows/installed.json", rec);
+  const out = cli(r, ["uninstall"]);
+  assert.match(out.stdout, /kept \(not ours\): link\/f\.txt/);
+  assert.match(out.stdout, /kept \(not ours\): link\/rc/);
+  assert.equal(readFileSync(join(outside, "rc"), "utf8"), "x\nkeep\n");
+  assert.equal(readFileSync(join(outside, "f.txt"), "utf8"), "f\n");
+});
+test("uninstall is byte-identical when AGENTS.md and CLAUDE.md had no trailing newline", () => {
+  const files = { "AGENTS.md": "# Mine\nkeep", "CLAUDE.md": "# R\nlast" };
+  const r = repo(files);
+  cli(r, ["install", "--yes"]);
+  cli(r, ["install", "--yes"]);
+  const rec = readJson(r, ".xworkflows/installed.json");
+  assert.equal(rec.blocks.length, 1);
+  assert.equal(rec.imports.length, 1);
+  assert.equal(cli(r, ["uninstall"]).status, 0);
+  for (const [p, c] of Object.entries(files)) assert.equal(readFileSync(join(r, p), "utf8"), c, p);
+});
+test("doctor fails when a kept grill never marks itself, warns when it does", () => {
+  const bad = repo({ ".claude/skills/grill/SKILL.md": "---\nname: grill\n---\nmine\n" });
+  cli(bad, ["install"]);
+  const out = cli(bad, ["doctor"]);
+  assert.equal(out.status, 1);
+  assert.match(out.stdout, /^fail kept grill never marks itself: spec writes will be denied\./m);
+  const good = repo({ ".claude/skills/grill/SKILL.md": "---\nname: grill\n---\nnode .xworkflows/mark.mjs grill\n" });
+  cli(good, ["install"]);
+  const o2 = cli(good, ["doctor"]);
+  assert.match(o2.stdout, /^warn kept theirs: \.claude\/skills\/grill/m);
+  assert.doesNotMatch(o2.stdout, /never marks itself/);
 });

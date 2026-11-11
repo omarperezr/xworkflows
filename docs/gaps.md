@@ -12,3 +12,4 @@
 - Windows: the installer is not tested there (not tested; proof at publish). Source: phase 1.1, 2026-11-11.
 - Installer: the readline question path (existing `CLAUDE.md`) is covered only by a manual check (not tested in automation). Source: phase 1.1, 2026-11-11.
 - Installer: `npx github:` is not tested until publish (not tested). Source: phase 1.1, 2026-11-11.
+- Design-first: with a renamed `xwf-grill`, the deny message still says "Run the grill skill" (wording left to the owner). Source: phase 1.1 final review, 2026-11-11.

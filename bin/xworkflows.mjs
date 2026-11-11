@@ -2,7 +2,7 @@
 import { execFileSync, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { createInterface } from "node:readline/promises";
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, rmdirSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, rmdirSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, dirname, join, resolve, sep } from "node:path";
 import { isDeepStrictEqual } from "node:util";
@@ -78,6 +78,7 @@ export function main(argv) {
   const [cmd, ...rest] = argv;
   if (!COMMANDS.includes(cmd)) die(2, `usage: xworkflows <${COMMANDS.join("|")}> [--tool claude] [--yes] [--dry-run]`);
   const flags = parse(rest);
+  if ((flags["dry-run"] || flags.yes) && cmd !== "install") die(2, "--dry-run and --yes are for install only");
   if (flags.check && cmd !== "pack") die(2, "--check is for pack only");
   if (flags.tool && flags.tool !== "claude") die(2, `not yet: ${flags.tool} comes in a later phase`);
   if (cmd === "pack") return pack(flags.check);
@@ -170,7 +171,8 @@ function mergeAgents(root) {
     text = old.slice(0, a) + block + old.slice(e);
   } else if (!old) text = block;
   else text = old + (old.endsWith("\n") ? "" : "\n") + "\n" + block;
-  return { path, text: text === old ? null : text, rec: { blocks: [{ file: path }], created: old === null ? [path] : [] } };
+  const nl = !!old && a < 0 && !old.endsWith("\n");
+  return { path, text: text === old ? null : text, rec: { blocks: [nl ? { file: path, addedNewline: true } : { file: path }], created: old === null ? [path] : [] } };
 }
 
 const UNIT = /^\.claude\/(skills|agents)\/[^/]+/;
@@ -231,7 +233,7 @@ export function plan(manifest, root, record, ans = {}) {
     merges.push({ path: "CLAUDE.md", text: "@AGENTS.md\n", rec: { imports: [{ file: "CLAUDE.md", line: "@AGENTS.md" }], created: ["CLAUDE.md"] } });
   } else if (!/^@AGENTS\.md\s*$/m.test(claude) && !record.declined.some((d) => d.file === "CLAUDE.md" && d.what === "import")) {
     if (ask("import", IMPORT, ["no", "yes"]) === "yes") {
-      merges.push({ path: "CLAUDE.md", text: claude + (claude.endsWith("\n") ? "" : "\n") + "@AGENTS.md\n", rec: { imports: [{ file: "CLAUDE.md", line: "@AGENTS.md" }] } });
+      merges.push({ path: "CLAUDE.md", text: claude + (claude.endsWith("\n") ? "" : "\n") + "@AGENTS.md\n", rec: { imports: [claude.endsWith("\n") ? { file: "CLAUDE.md", line: "@AGENTS.md" } : { file: "CLAUDE.md", line: "@AGENTS.md", addedNewline: true }] } });
     } else merges.push({ path: "CLAUDE.md", text: null, rec: { declined: [{ file: "CLAUDE.md", what: "import" }] } });
   }
   return { writes, merges, questions, kept, renamed, notes };
@@ -251,7 +253,7 @@ export function apply(pl, root, manifest, record) {
     if (m.text !== null) { put(root, m.path, m.text); out.push(m.path); }
     for (const [k, list] of Object.entries(m.rec)) {
       next[k] = [...next[k]];
-      for (const x of list) if (!next[k].some((y) => (k === "merged" ? x.file === y.file && isDeepStrictEqual(x.key, y.key) && isDeepStrictEqual(x.entry, y.entry) : isDeepStrictEqual(x, y)))) next[k].push(x);
+      for (const x of list) if (!next[k].some((y) => (k === "merged" ? x.file === y.file && isDeepStrictEqual(x.key, y.key) && isDeepStrictEqual(x.entry, y.entry) : (k === "blocks" || k === "imports" ? x.file === y.file && x.line === y.line : isDeepStrictEqual(x, y))))) next[k].push(x);
     }
   }
   for (const p of manifest.pieces) next.pieces[p.id] = { version: p.version, sha256: p.sha256 };
@@ -284,8 +286,8 @@ async function install(flags) {
   for (const q of pl.questions) {
     if (flags.yes) ans[q.id] = q.labels[1];
     else if (rl) {
-      const r = (await rl.question(`${q.text} (${q.labels.join(" / ")}) `)).trim();
-      ans[q.id] = r && q.labels[1].startsWith(r) ? q.labels[1] : q.labels[0];
+      const r = (await rl.question(`${q.text} (${q.labels.join(" / ")}) `)).trim().toLowerCase();
+      ans[q.id] = r && q.labels[1].toLowerCase().startsWith(r) ? q.labels[1] : q.labels[0];
     } else { ans[q.id] = q.labels[0]; auto.push(`answered for you: ${q.text} -> ${q.labels[0]}`); }
   }
   rl?.close();
@@ -325,7 +327,11 @@ function doctor() {
     try { t = readFileSync(join(ROOT, f), "utf8"); } catch { say("fail", `missing or unreadable: ${f}`); continue; }
     say(hash(t) === sha256 ? "ok" : "warn", hash(t) === sha256 ? f : `changed locally: ${f}`);
   }
-  for (const k of rec.kept) say("warn", `kept theirs: ${k}`);
+  for (const k of rec.kept) {
+    const gs = k === ".claude/skills/grill" && rec.pieces["design-first"] ? read(ROOT, `${k}/SKILL.md`) : null;
+    if (gs !== null && !gs.includes("node .xworkflows/mark.mjs grill")) say("fail", 'kept grill never marks itself: spec writes will be denied. Add the line "node .xworkflows/mark.mjs grill" to its first step, or reinstall with --yes to install ours as xwf-grill');
+    else say("warn", `kept theirs: ${k}`);
+  }
   // 3
   for (const m of rec.merged) {
     let arr;
@@ -394,7 +400,16 @@ function uninstall() {
   catch (e) { die(1, e.code === "ENOENT" ? "not installed" : ".xworkflows/installed.json does not parse; fix or remove it"); }
   const out = [], gone = [];
   // installed.json is committed, so its paths are untrusted: stay inside the repo, never config.json
-  const inside = (p) => { const f = resolve(ROOT, p); return f.startsWith(resolve(ROOT) + sep) && f !== resolve(ROOT, ".xworkflows/config.json"); };
+  const realRoot = realpathSync(ROOT);
+  const inside = (p) => {
+    const f = resolve(ROOT, p);
+    if (!f.startsWith(resolve(ROOT) + sep) || f === resolve(ROOT, ".xworkflows/config.json")) return false;
+    let a = f; // nearest existing ancestor, symlinks resolved; a dangling link counts as outside
+    for (;;) {
+      try { lstatSync(a); break; } catch { a = dirname(a); }
+    }
+    try { return (realpathSync(a) + sep).startsWith(realRoot + sep); } catch { return false; }
+  };
   const bad = new Set();
   for (const p of [...Object.keys(rec.files), ...rec.merged.map((m) => m.file), ...rec.blocks.map((b) => b.file), ...rec.imports.map((i) => i.file), ...rec.created])
     if (!inside(p) && !bad.has(p)) { bad.add(p); out.push(`kept (not ours): ${p}`); }
@@ -442,13 +457,16 @@ function uninstall() {
     if (e < 0) continue;
     let from = a;
     if (t.slice(0, a).endsWith("\n\n")) from--; // the blank line install added
-    write(b.file, t.slice(0, from) + t.slice(e + END.length + (t[e + END.length] === "\n" ? 1 : 0)));
+    let head = t.slice(0, from);
+    if (b.addedNewline && head.endsWith("\n")) head = head.slice(0, -1);
+    write(b.file, head + t.slice(e + END.length + (t[e + END.length] === "\n" ? 1 : 0)));
   }
-  for (const { file, line } of rec.imports) {
+  for (const { file, line, addedNewline } of rec.imports) {
     const t = read(ROOT, file), ls = t?.split("\n") ?? [], i = ls.lastIndexOf(line);
     if (i < 0) continue;
     ls.splice(i, 1);
-    write(file, ls.join("\n"));
+    const out2 = ls.join("\n");
+    write(file, addedNewline && out2.endsWith("\n") ? out2.slice(0, -1) : out2);
   }
   for (const p of rec.created) {
     const t = read(ROOT, p);
