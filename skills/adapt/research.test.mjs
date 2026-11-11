@@ -90,3 +90,147 @@ test("schemas use plain enums and topic 4 omits areas without zeroHits", async (
   const w = await run({ root: ".", zeroHits: ["conc"] });
   assert.match(w.calls.find((c) => c.opts.label === "t4").prompt, /areas/);
 });
+
+// ---- research.mjs: run file, verify, render ----
+import { execFileSync, spawnSync } from "node:child_process";
+import { mkdtempSync, mkdirSync, writeFileSync, existsSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { sum, verifyCitation, renderResearch } from "./research.mjs";
+
+const MJS = new URL("./research.mjs", import.meta.url).pathname;
+const G = ["-c", "user.name=test", "-c", "user.email=test@example.invalid"];
+function repo() {
+  const d = mkdtempSync(join(tmpdir(), "res-"));
+  execFileSync("git", ["init", "-q"], { cwd: d });
+  writeFileSync(join(d, "a.js"), "line1\nconst  total =   round(x);\nline3\n");
+  execFileSync("git", ["add", "a.js"], { cwd: d });
+  execFileSync("git", [...G, "commit", "-qm", "init"], { cwd: d });
+  mkdirSync(join(d, ".xworkflows"));
+  return d;
+}
+const cli = (d, cmd) => spawnSync("node", [MJS, cmd], { cwd: d, encoding: "utf8" });
+const rj = (d, f) => JSON.parse(readFileSync(join(d, ".xworkflows", f), "utf8"));
+const X = (d, f) => join(d, ".xworkflows", f);
+
+function sample(over = {}) {
+  const kinds = {};
+  for (const k of KINDS) kinds[k] = { kind: k, status: "absent", rules: [], notChecked: [] };
+  kinds.values = { kind: "values", status: "found", rules: [{ rule: "round once", file: "a.js", line: 2, quote: "const total = round(x);" }], notChecked: [] };
+  kinds.conc = { kind: "conc", status: "not-present", rules: [], notChecked: [] };
+  const topics = { t1: { lines: [{ heading: "1", text: "a tool", tag: "code" }, { heading: "config", key: "tests.run", text: "node --test", tag: "code" }] }, t6: { lines: [{ heading: "written", text: "todo", tag: "git" }] } };
+  const r = { topics, kinds, skipped: { conc: "no hits" }, ...over };
+  r.sum = sum(JSON.stringify({ topics: r.topics, kinds: r.kinds, skipped: r.skipped }));
+  return r;
+}
+const SCAN = { commit: "abc", kinds: { values: { hits: [{ file: "a.js", line: 2, text: "x" }], total: 1 } }, sql: { triggers: [{ name: "t", file: "db.sql", line: 1 }] }, checks: ["npm test"] };
+function put(d, r, scan = SCAN) {
+  writeFileSync(X(d, "research.json"), JSON.stringify(r));
+  writeFileSync(X(d, "scan.json"), JSON.stringify(scan));
+}
+
+test("script sum equals research.mjs sum", () => {
+  const fn = new Function(body.match(/const sum = [\s\S]*?\n\};/)[0] + "\nreturn sum;")();
+  for (const s of ["", "abc", '{"a":[1,"é"]}']) assert.equal(sum(s), fn(s));
+});
+
+test("start and done manage the run file", () => {
+  const d = repo();
+  cli(d, "start");
+  const a = rj(d, "adapt-run.json");
+  assert.equal(a.commit, execFileSync("git", ["rev-parse", "HEAD"], { cwd: d, encoding: "utf8" }).trim());
+  assert.equal(a.mismatches, 0);
+  writeFileSync(X(d, "summary.md"), "---\nstatus: draft\n---\n");
+  cli(d, "start");
+  const b = rj(d, "adapt-run.json");
+  assert.equal(b.run, a.run);
+  assert.ok(b.startedAt >= a.startedAt);
+  writeFileSync(X(d, "research.prev.json"), "{}");
+  rmSync(X(d, "summary.md"));
+  cli(d, "start");
+  assert.ok(!existsSync(X(d, "research.prev.json")));
+  writeFileSync(X(d, "research.json"), '{"x":1}');
+  writeFileSync(X(d, "summary.md"), "---\nstatus: approved\n---\n");
+  cli(d, "start");
+  assert.equal(readFileSync(X(d, "research.prev.json"), "utf8"), '{"x":1}');
+  cli(d, "done");
+  assert.ok(!existsSync(X(d, "adapt-run.json")));
+});
+
+test("hash mismatch twice stops", () => {
+  const d = repo();
+  cli(d, "start");
+  put(d, { ...sample(), sum: "bad" });
+  const one = cli(d, "render");
+  assert.equal(one.status, 1);
+  assert.match(one.stderr, /rerun the Workflow and write its result unchanged/);
+  const two = cli(d, "render");
+  assert.equal(two.status, 1);
+  assert.match(two.stderr, /Research could not be copied unchanged twice: stop and tell the owner\./);
+  assert.equal(rj(d, "adapt-run.json").mismatches, 2);
+});
+
+test("citation kept, fake dropped and listed", () => {
+  const d = repo();
+  assert.ok(verifyCitation(d, { file: "a.js", line: 3, quote: "const total = round(x);" }));
+  assert.ok(!verifyCitation(d, { file: "a.js", line: 2, quote: "nope" }));
+  assert.ok(!verifyCitation(d, { file: "../x", line: 2, quote: "x" }));
+  const r = sample();
+  r.kinds.values.rules.push({ rule: "fake", file: "a.js", line: 2, quote: "absent text" });
+  const out = renderResearch(d, r, SCAN);
+  assert.equal(out.errors.length, 0);
+  assert.equal(out.dropped.length, 1);
+  assert.match(out.md, /## Dropped citations[\s\S]*absent text/);
+  assert.doesNotMatch(out.md, /fake \(code\)/);
+});
+
+test("render failure conditions", () => {
+  const d = repo();
+  const bad = (mut, re) => {
+    const r = sample();
+    mut(r);
+    const out = renderResearch(d, r, SCAN);
+    assert.match(out.errors.join("\n"), re);
+  };
+  bad((r) => { r.kinds.snap = null; }, /snap/);
+  bad((r) => { r.kinds.txn.status = "maybe"; }, /txn/);
+  bad((r) => { r.kinds.values.rules[0].quote = "zzz"; }, /values/);
+  bad((r) => { r.kinds.idem.notChecked = ["a.js"]; }, /idem/);
+  bad((r) => { r.kinds.idem.notChecked = ["db.sql"]; }, /idem/);
+  const r = sample();
+  r.kinds.idem.notChecked = ["other/x.js"];
+  assert.equal(renderResearch(d, r, SCAN).errors.length, 0);
+  put(d, { ...sample(), kinds: { ...sample().kinds, snap: null } });
+  assert.equal(cli(d, "render").status, 1);
+});
+
+test("render exits 1 on a hash mismatch", () => {
+  const d = repo();
+  put(d, sample());
+  assert.equal(cli(d, "render").status, 0);
+  writeFileSync(X(d, "research.json"), readFileSync(X(d, "research.json"), "utf8").replace("a tool", "a tooL"));
+  const r = cli(d, "render");
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /rerun the Workflow/);
+});
+
+test("render layout", () => {
+  const d = repo();
+  put(d, sample());
+  assert.equal(cli(d, "render").status, 0);
+  const md = readFileSync(X(d, "research.md"), "utf8");
+  assert.match(md, /^---\ncommit: abc\n---/);
+  const idx = [1, 2, 3, 4, 5, 6, 7, 8].map((n) => md.indexOf(`## ${n}. `));
+  assert.deepEqual(idx, [...idx].sort((a, b) => a - b));
+  assert.ok(idx.every((i) => i >= 0));
+  assert.match(md, /- round once \(code\) a\.js:2/);
+  assert.match(md, /- no rule found: snap/);
+  assert.match(md, /- conc: not-present \(skipped: no hits\)/);
+  assert.ok(md.indexOf("round once") < md.indexOf("no rule found: snap") && md.indexOf("no rule found: snap") < md.indexOf("no rule found: input"));
+  assert.match(md, /## Existing checks\n\n- npm test/);
+  assert.match(md, /## Config\n\n- `tests\.run`: node --test \(code\)/);
+  assert.match(md, /## Written down\n\n- todo \(git\)/);
+  const again = readFileSync(X(d, "research.md"), "utf8");
+  cli(d, "render");
+  assert.equal(readFileSync(X(d, "research.md"), "utf8"), again);
+});
