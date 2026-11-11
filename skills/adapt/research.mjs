@@ -76,6 +76,9 @@ export function renderResearch(root, research, scan) {
 }
 
 const CONFIG_KEYS = ["paths.code", "paths.risk", "paths.heavyRead", "paths.codeAnyway", "tests.files", "tests.run", "tests.notRunnable", "checks.project", "checks.patterns", "checks.ratchets"];
+const GLOSS = { "paths.code": "code folders", "paths.risk": "paths where a mistake is costly", "paths.heavyRead": "big or generated paths not to read whole", "paths.codeAnyway": "paths that look like non-code but are code", "tests.files": "test file patterns", "tests.run": "the command that runs the tests", "tests.notRunnable": "test folders that need a service such as a database", "checks.project": "the project's own check commands", "checks.patterns": "text patterns that must never appear", "checks.ratchets": "counts that must not grow" };
+const SPEC_Q = "How does the code prevent this today, and what rule must every change follow?";
+const KIND_Q = { values: "Which currency or unit is the source of truth, how are other values worked out from it, and how and where is rounding done?", snap: "Which values of a record stay as they were when written, and which are worked out again later?", srvw: "Which data is written by server functions, and which can be written from elsewhere?", delta: "Which data may change only by adding or subtracting, never by setting a new value?", idem: "What happens when the same write arrives twice (offline, retried, a double click)?", txn: "When one user action changes several rows, how many requests and transactions does it take?", access: "Where is access checked, and can the screens be bypassed?", batch: "Is work over many rows or items done once for all of them, or once per item?", domain: "Which domain, legal or tax rules must the code follow, and where are they written down?", compat: "What must not break for those who use it (public API, file formats, schemas)?", conc: "What happens when two changes to the same data happen at the same time?", input: "Where is outside input checked before the code trusts it?" };
 const OPEN = ["I don't know", "Skip: not relevant here"];
 const FIXED = ["Right", "Wrong", "Missing something"];
 
@@ -86,9 +89,9 @@ export function buildQueue(research, scan, prev) {
   const confirm = (id, h, text) => item(id, h, "confirm", text, ["Yes", "No", "I don't know"]);
   const choice = (id, h, text) => item(id, h, "choice", text);
   const have = new Set(Object.values(research.topics || {}).flatMap((t) => (t.lines || []).filter((l) => l.heading === "config" && l.key).map((l) => l.key)));
-  const config = CONFIG_KEYS.map((k, i) => (have.has(k) ? null : open(`C${i + 1}`, "config", `What is the value of ${k}?`))).filter(Boolean);
+  const config = CONFIG_KEYS.map((k, i) => (have.has(k) ? null : open(`C${i + 1}`, "config", `What is the value of ${k} (${GLOSS[k]})?`))).filter(Boolean);
   const mech = KINDS.filter((k) => research.kinds?.[k]?.status === "absent" && (!prev || prev.kinds?.[k]?.status !== "absent"))
-    .map((k) => item(`H5-${k}`, "5", "mechanism", "How does the code prevent this today, and what rule must every change follow?", ["Nothing does today", "I don't know"]));
+    .map((k) => item(`H5-${k}`, "5", "mechanism", `${KIND_Q[k]} ${SPEC_Q}`, ["Nothing does today", "I don't know"]));
   if (prev) return [...mech, ...config];
   return [
     confirm("H1-what", "1", "Is this what the project is?"),
@@ -125,7 +128,7 @@ export function missing(queue, log, run, approved = false) {
   const out = [];
   for (const { id } of queue) {
     if (!(id in last)) out.push(id);
-    else if (/^H5-/.test(id) && last[id] === "Nothing does today" && !(`${id}-r` in last)) out.push(`${id}-r`);
+    else if (/^H5-/.test(id) && KINDS.includes(id.slice(3)) && last[id] === "Nothing does today" && !(`${id}-r` in last)) out.push(`${id}-r`);
   }
   if (approved) for (let n = 1; n <= 7; n++) if (last[`P-H${n}`] !== FIXED[0]) out.push(`P-H${n}`);
   return out;
@@ -166,15 +169,20 @@ function cli(cmd, root) {
     const { md, errors } = renderResearch(root, research, scan);
     if (errors.length) { console.error(errors.join("\n")); process.exit(1); }
     writeFileSync(join(dir, "research.md"), md);
-  } else if (cmd === "queue") {
-    const q = buildQueue(readJson(join(dir, "research.json")), readJson(join(dir, "scan.json")), existsSync(prev) ? readJson(prev) : null);
-    writeFileSync(join(dir, "interview.json"), JSON.stringify(q, null, 2) + "\n");
-  } else if (cmd === "check") {
-    const { run } = readJson(runFile);
-    const logFile = join(dir, "interview.log.jsonl");
-    const log = existsSync(logFile) ? readFileSync(logFile, "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l)) : [];
-    const ids = missing(readJson(join(dir, "interview.json")), log, run, process.argv.includes("--approved"));
-    if (ids.length) { console.log(ids.join("\n")); process.exit(1); }
+  } else if (cmd === "queue" || cmd === "check") {
+    const need = (f) => { try { return readJson(join(dir, f)); } catch { console.error(`adapt: ${f} is missing or unreadable`); process.exit(1); } };
+    if (cmd === "queue") {
+      const q = buildQueue(need("research.json"), need("scan.json"), existsSync(prev) ? need("research.prev.json") : null);
+      writeFileSync(join(dir, "interview.json"), JSON.stringify(q, null, 2) + "\n");
+    } else {
+      const { run } = need("adapt-run.json");
+      const logFile = join(dir, "interview.log.jsonl");
+      const log = [];
+      // a truncated line (killed mid-write) is skipped
+      if (existsSync(logFile)) for (const l of readFileSync(logFile, "utf8").split("\n")) try { log.push(JSON.parse(l)); } catch {}
+      const ids = missing(need("interview.json"), log, run, process.argv.includes("--approved"));
+      if (ids.length) { console.log(ids.join("\n")); process.exit(1); }
+    }
   } else {
     console.error("usage: research.mjs start|done|render|queue|check [--approved]");
     process.exit(2);

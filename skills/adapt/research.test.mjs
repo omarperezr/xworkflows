@@ -289,7 +289,7 @@ test("queue order and styles", () => {
   for (const i of ["H6-zones", "H7-depth", "H7-push", "H3-3m", "H8-reply", "H8-budget"]) assert.equal(st[i], "choice", i);
   assert.equal(q.find((i) => i.id === "H6-r1").text, "Does a mistake in api risk money, data or access?");
   assert.equal(q.find((i) => i.id === "H4-incident").text, "Tell me about one real time something went wrong here: what broke, and what did it cost?");
-  assert.equal(q.find((i) => i.id === "H5-idem").text, "How does the code prevent this today, and what rule must every change follow?");
+  assert.ok(q.find((i) => i.id === "H5-idem").text.endsWith(" How does the code prevent this today, and what rule must every change follow?"));
 });
 
 test("one H5 item per absent kind", () => {
@@ -385,4 +385,48 @@ test("approved check needs every heading Right", () => {
   assert.equal(r.stdout, "P-H3\n");
   w([...lines, L("P-H3", "Right", run)]);
   assert.equal(spawnSync("node", [MJS, "check", "--approved"], { cwd: d, encoding: "utf8" }).status, 0);
+});
+
+test("H5 texts are kind-specific and end with the spec sentence", () => {
+  const t = buildQueue(allAbsent(), ZSCAN).filter((i) => i.style === "mechanism").map((i) => i.text);
+  assert.equal(t.length, 12);
+  assert.equal(new Set(t).size, 12);
+  for (const x of t) {
+    assert.ok(x.endsWith(" How does the code prevent this today, and what rule must every change follow?"), x);
+    assert.doesNotMatch(x, /only through|for every row|client untrusted/);
+  }
+});
+
+test("follow-up only for H5 kinds", () => {
+  const q = buildQueue(allFound(), ZSCAN);
+  assert.deepEqual(missing(q, fullLog(q).map((l) => (l.id === "H5-keep" ? { ...l, answer: "Nothing does today" } : l)), "r1"), []);
+});
+
+test("C texts carry a gloss and the key", () => {
+  const c = buildQueue(allFound(), ZSCAN).filter((i) => /^C\d+$/.test(i.id));
+  assert.equal(c.length, 10);
+  assert.ok(c.every((i, n) => i.text.includes(CFG[n]) && /\(.+\)/.test(i.text)));
+  assert.match(c[4].text, /test file patterns/);
+});
+
+test("a kind absent in prev and now is not re-asked; full order with C ids", () => {
+  const prev = withStatus(allFound(), { idem: "absent" });
+  assert.deepEqual(ids(buildQueue(withStatus(allFound(), { idem: "absent" }), ZSCAN, prev)).filter((i) => i.startsWith("H5-")), []);
+  assert.deepEqual(ids(buildQueue(allFound(), ZSCAN)).slice(-12), ["H8-reply", "H8-budget", ...CFG.map((_, i) => `C${i + 1}`)]);
+});
+
+test("check and queue fail with one line, not a stack, and skip a truncated log line", () => {
+  const d = repo();
+  for (const c of ["queue", "check"]) {
+    const r = cli(d, c);
+    assert.equal(r.status, 1);
+    assert.match(r.stderr, /^adapt: .* is missing or unreadable\n$/);
+  }
+  put(d, sample(), { ...SCAN, ...ZSCAN });
+  cli(d, "start");
+  cli(d, "queue");
+  const run = rj(d, "adapt-run.json").run;
+  const q = rj(d, "interview.json");
+  writeFileSync(X(d, "interview.log.jsonl"), fullLog(q, run).map((l) => JSON.stringify(l)).join("\n") + '\n{"run":"x","id":');
+  assert.equal(cli(d, "check").status, 0);
 });
