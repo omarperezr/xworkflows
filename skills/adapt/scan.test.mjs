@@ -291,3 +291,22 @@ test("triggers are keyed by name and table; a definer clause stays with its stat
   assert.deepEqual(r.triggers.map((t) => t.name), ["set_updated_at on a", "set_updated_at on b"]);
   assert.deepEqual(r.definers.map((t) => t.name), ["g"]);
 });
+
+test("multi-line triggers are keyed per table; a definer after a body with a drop line is kept", () => {
+  const sql = [
+    "create trigger touch",
+    "  before update on a",
+    "  for each row execute function f();",
+    "create trigger touch",
+    "  before update on b",
+    "  for each row execute function f();",
+    "create function h() returns void as $fn$",
+    "begin",
+    "drop trigger if exists x on a;",
+    "end $fn$ language plpgsql",
+    "  security definer;",
+  ].join("\n");
+  const r = sqlInventory([{ path: "m.sql", text: sql }]);
+  assert.deepEqual(r.triggers.map((t) => [t.name, t.line]), [["touch on a", 1], ["touch on b", 4]]);
+  assert.deepEqual(r.definers.map((t) => [t.name, t.line]), [["h", 7]]);
+});

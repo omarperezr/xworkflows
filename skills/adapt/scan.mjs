@@ -100,25 +100,48 @@ export function proposeZones(layout) {
   }).sort((a, b) => (a.key < b.key ? -1 : 1));
 }
 
-// Last definition wins by name. Regex, not a SQL parser.
+// Statements split on ";" outside comments, quotes and dollar-quoted bodies; each keeps the line it starts on.
+function statements(text) {
+  const out = [], n = text.length;
+  let cur = "", start = 1, line = 1, i = 0;
+  const take = (piece) => {
+    const nl = (piece.match(/\n/g) || []).length;
+    if (!cur && !/\S/.test(piece)) { line += nl; return; }
+    if (!cur) start = line;
+    cur += piece; line += nl;
+  };
+  while (i < n) {
+    const c = text[i];
+    let end = i + 1;
+    if (text.startsWith("--", i)) { const e = text.indexOf("\n", i); i = e < 0 ? n : e; continue; }
+    if (text.startsWith("/*", i)) { const e = text.indexOf("*/", i + 2); end = e < 0 ? n : e + 2; take(cur ? "\n".repeat((text.slice(i, end).match(/\n/g) || []).length) + " " : ""); if (!cur) line += (text.slice(i, end).match(/\n/g) || []).length; i = end; continue; }
+    if (c === "'" || c === '"') { let j = i + 1; while (j < n) { if (text[j] === c) { if (text[j + 1] === c) { j += 2; continue; } break; } j++; } end = Math.min(j + 1, n); }
+    else if (c === "$") { const re = /\$(?:[A-Za-z_]\w*)?\$/y; re.lastIndex = i; const m = re.exec(text); if (m) { const e = text.indexOf(m[0], i + m[0].length); end = e < 0 ? n : e + m[0].length; } }
+    take(text.slice(i, end));
+    i = end;
+    if (c === ";") { out.push({ text: cur, line: start }); cur = ""; }
+  }
+  if (cur.trim()) out.push({ text: cur, line: start });
+  return out;
+}
+
+// Last definition wins by name. Regex over whole statements, not a SQL parser.
 export function sqlInventory(files) {
   const m = { triggers: new Map(), policies: new Map(), definers: new Map(), uniques: new Map(), checks: new Map() };
   const strip = (n) => n.replace(/^"|"$/g, "");
   const set = (k, name, file, line) => m[k].set(name, { name, file, line });
+  const on = (name, table) => strip(name) + (table ? ` on ${strip(table)}` : "");
   for (const { path, text } of [...files].sort((a, b) => (a.path < b.path ? -1 : 1))) {
     if (!/migration|\.sql$/i.test(path)) continue;
-    let fn = null;
-    text.split("\n").forEach((l, i) => {
+    for (const { text: st, line } of statements(text)) {
       let x;
-      if (/^\s*(create|alter|drop)\b/i.test(l)) fn = null; // a definer clause belongs to the statement it is in
-      if ((x = /create\s+(?:or\s+replace\s+)?(?:constraint\s+)?trigger\s+("[^"]+"|[\w.]+)(?:[^;]*?\s+on\s+([\w."]+))?/i.exec(l))) set("triggers", strip(x[1]) + (x[2] ? ` on ${strip(x[2])}` : ""), path, i + 1);
-      if ((x = /create\s+policy\s+("[^"]+"|[\w.]+)(?:\s+on\s+([\w."]+))?/i.exec(l))) set("policies", strip(x[1]) + (x[2] ? ` on ${strip(x[2])}` : ""), path, i + 1);
-      if ((x = /create\s+(?:or\s+replace\s+)?function\s+([\w."]+)/i.exec(l))) { fn = { name: strip(x[1]), line: i + 1 }; m.definers.delete(fn.name); }
-      if ((x = /alter\s+function\s+([\w."]+)/i.exec(l))) fn = { name: strip(x[1]), line: i + 1 };
-      if (fn && /security\s+definer/i.test(l)) set("definers", fn.name, path, fn.line);
-      if ((x = /create\s+unique\s+index\s+(?:concurrently\s+)?(?:if\s+not\s+exists\s+)?([\w."]+)/i.exec(l)) || (x = /constraint\s+([\w."]+)\s+unique\b/i.exec(l))) set("uniques", strip(x[1]), path, i + 1);
-      if ((x = /constraint\s+([\w."]+)\s+check\s*\(/i.exec(l))) set("checks", strip(x[1]), path, i + 1);
-    });
+      if ((x = /^create\s+(?:or\s+replace\s+)?(?:constraint\s+)?trigger\s+("[^"]+"|[\w.]+)(?:[\s\S]*?\s+on\s+([\w."]+))?/i.exec(st))) set("triggers", on(x[1], x[2]), path, line);
+      else if ((x = /^create\s+policy\s+("[^"]+"|[\w.]+)(?:\s+on\s+([\w."]+))?/i.exec(st))) set("policies", on(x[1], x[2]), path, line);
+      else if ((x = /^create\s+(?:or\s+replace\s+)?function\s+([\w."]+)/i.exec(st))) { const name = strip(x[1]); m.definers.delete(name); if (/security\s+definer/i.test(st)) set("definers", name, path, line); }
+      else if ((x = /^alter\s+function\s+([\w."]+)[\s\S]*security\s+definer/i.exec(st))) set("definers", strip(x[1]), path, line);
+      else if ((x = /^create\s+unique\s+index\s+(?:concurrently\s+)?(?:if\s+not\s+exists\s+)?([\w."]+)/i.exec(st))) set("uniques", strip(x[1]), path, line);
+      for (const c of st.matchAll(/constraint\s+([\w."]+)\s+(unique\b|check\s*\()/gi)) set(c[2][0].toLowerCase() === "u" ? "uniques" : "checks", strip(c[1]), path, line + (st.slice(0, c.index).match(/\n/g) || []).length);
+    }
   }
   return Object.fromEntries(Object.entries(m).map(([k, v]) => [k, [...v.values()].sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))]));
 }
