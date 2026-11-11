@@ -7,7 +7,13 @@ Before anything else, run `node .xworkflows/mark.mjs adapt` in the shell.
 
 Talk to the owner in the owner's language. Headings, config keys and file contents stay in English. Ask the fixed questions below with exactly their meaning; in English, use the exact words.
 
-Questions go through `AskUserQuestion`: at most 4 per call, research's guess first and marked `(Recommended)`, except where a step says no option is recommended.
+Questions go through `AskUserQuestion`, at most 4 per call. You do not know this project yet: research's options are guesses, never a forced choice.
+
+- Set `multiSelect: true` whenever more than one option can be true at once: who pays, what is refused, risks, what must not change, what is free to change, which zones hold risks, how the code protects something. Single choice only where the options exclude each other: yes or no, keep or change a default, the playback, the question after it, review depth.
+- End every question that is not yes or no with one short note, in the owner's language. With `multiSelect`: `You can pick several. If none fits, or it is something else, write it in Other.` Otherwise: `If none fits, or it is something else, write it in Other.`
+- Research's guess goes first, marked `(Recommended)` only when research found it in the code or git. A guess without that evidence is not recommended, and neither is any option where a step says so.
+- An answer typed in Other wins over research; research's guess is dropped.
+- Each picked option of a multi-select answer becomes its own line under its heading, never one merged line.
 
 ## Step 1: Resume
 
@@ -58,7 +64,7 @@ The summary has these eight headings, verbatim, in this order:
 
 Rules:
 
-- Start from `research.md`. Ask only what research left empty or unsure. Research's guess is the first option, marked `(Recommended)`.
+- Start from `research.md`. Ask only what research left empty or unsure. Research's guess is the first option; the question rules above say when it is `(Recommended)`.
 - `topics.md` holds the questions research cannot answer, per heading. Ask one only when research did not settle it.
 - Heading 3: rough aspirations, no dates. One per period.
 - Headings 4 and 5: mechanisms research found go straight under heading 5, tagged `(code)`, and are confirmed in the playback. Only for a risk or "must not change" item where research found no mechanism, ask `How does the code prevent this today, and what rule must every change follow?` Options `Nothing does today` and `I don't know`, neither recommended (research has no guess); the owner may type the mechanism instead.

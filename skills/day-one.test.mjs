@@ -181,3 +181,12 @@ test("adapt asks how the code prevents each risk; research looks for mechanisms;
   assert.doesNotMatch(zq, /bytes/);
   assert.doesNotMatch(s.split("## Step 3")[1].split("### Zones")[0], /bytes/);
 });
+test("adapt never forces a pick: several answers where more than one can be true, and Other is always offered", () => {
+  const s = read("skills/adapt/SKILL.md");
+  const rules = s.split("## Step 1")[0];
+  has(rules, ["`multiSelect: true` whenever more than one option can be true at once", "Single choice only where the options exclude each other",
+    "`You can pick several. If none fits, or it is something else, write it in Other.`", "`If none fits, or it is something else, write it in Other.`",
+    "`(Recommended)` only when research found it in the code or git", "An answer typed in Other wins over research",
+    "Each picked option of a multi-select answer becomes its own line"]);
+  assert.doesNotMatch(s.split("## Step 3")[1].split("### Zones")[0], /marked `\(Recommended\)`\./);
+});
