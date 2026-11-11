@@ -23,15 +23,28 @@ Each invariant the interview proof misses adds one line under its heading.
 
 - What is the costliest mistake an agent could make here: lost data, lost money, a leak, a broken promise to users?
 - Has something like it happened before? What broke, and what stops it now?
+- For each risk: How does the code prevent this today, and what rule must every change follow?
 
 ## 5. What must not change; what is free to change
 
 - What must stay as it is: a format, an API, a schema, a number, a name users see?
 - What is free to change or delete without asking?
 
+How the code enforces it, one question per mechanism; each answer is a rule line:
+
+- Which currency or unit is the source of truth, and which values are only derived from it?
+- Which values are frozen on a record when it is written (a rate, a cost, the amount charged), so a later change never restates a past row?
+- How is rounding done: are stored values exact and rounded once, only when shown?
+- Which data changes only through server functions, and do they change it by deltas rather than by setting absolute values?
+- Where is access enforced: in the database for every row, with the client untrusted and UI gating never counted as security?
+- Can a write arrive twice (offline, retried, a double click), and how does it replay without taking effect twice?
+- When one user action touches several rows, is it one request and one transaction?
+- Is any work done per row that could be done once: a query per loop iteration, a server call per item?
+- Which domain, legal or tax rules must the code follow, and where are they written down?
+
 ## 6. Zones and which paths are risk paths
 
-- Do these zones match how you think of the code? Merge, split or rename any?
+- Does this split match how you think about the code? Merge, split or rename any?
 - Which paths are risk paths: a change there needs the risk reviewer every time?
 
 ## 7. How the owner works

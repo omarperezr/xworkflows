@@ -23,20 +23,22 @@ No questions in this step.
 1. Write `.graphifyignore` (same syntax as `.gitignore`) with the generated and vendored paths: dependencies, build output, generated code, vendored code. Keep any lines already there.
 2. Run `graphify update .`. If `graphify` is missing, stop: tell the owner graphify is required and must be installed first.
 3. Read `graphify-out/GRAPH_REPORT.md`. Then run one `graphify query "<what are the main parts of this project?>"` yourself; the lookup rule wants a recent query before any `explore` agent.
-4. Launch one `explore` agent per topic below, all six in one Workflow. Without the Workflow tool, use at most 2 Agent calls of three topics each. Every prompt says:
+4. Launch one `explore` agent per topic below, all seven in one Workflow. Without the Workflow tool, use at most 2 Agent calls: topics 1 to 4, then 5 to 7. Every prompt says:
    - Ask `graphify query` before opening files. Verify each path still exists.
    - Read history as commit messages and file stats only (`git log --oneline`, `--stat`, `--name-only`). Never read past versions of files or content diffs: no `git show <sha>:<path>`, no `git log -p`; `git diff` and `git stash show` only with `--stat` or `--name-only`.
-   - Answer in 10 lines or fewer.
-5. The six topics:
+   - Answer in 10 lines or fewer; topic 7 in 20 or fewer.
+5. The seven topics:
    1. Stack, build files, linters.
-   2. Layout: top folders, size in bytes per folder (`git ls-files` with `wc -c`), what each holds. Propose 3 to 5 zones, sized in bytes. Leave out generated and vendored code.
+   2. Layout: top folders, size in bytes per folder (`git ls-files` with `wc -c`), what each holds. Propose 3 to 5 zones, each with an everyday name (`the screens`, `the database`), sized in bytes. Leave out generated and vendored code.
    3. Tests: file patterns, run command, folders that need a service such as a database (fills `tests.files`, `tests.run`, `tests.notRunnable`).
    4. Where data and money move: database, payments, auth, outside calls.
    5. History of the last 12 months: files changed most, reverts, fix commits.
    6. Next steps already written down. Paste into this prompt the list under `## Research topic 6` of `.claude/skills/adapt/topics.md`; the agent searches in that order.
+   7. Mechanisms: what the code itself enforces. Database triggers, constraints, guards and access policies; data written only through server functions, and by deltas rather than absolute values; idempotency keys on retried or offline writes; snapshot or frozen columns set once when a record is written; transactions around actions that touch several rows; money, unit and rounding helpers, and which value is the source of truth; batched queries instead of one per item; domain, legal or tax rules and where they are written. One line per mechanism: the rule every change must follow, then the path that shows it.
 6. Write `.xworkflows/research.md`:
    - Front matter `commit: <HEAD sha>`.
    - A first draft of the summary under the eight headings of step 3. Each line ends `(code)` or `(git)`. Leave a line empty rather than guess wildly.
+   - Under heading 5, each topic 7 mechanism as a candidate rule line, worded as how the code must do something, tagged `(code)`.
    - `## Config`: a guess for each required key of step 3, marked the same way.
    - `## Written down`: the topic 6 list, one line each: what, source, path.
 7. With the argument `research-only`, stop here. Tell the owner the path of `research.md`.
@@ -59,7 +61,10 @@ Rules:
 - Start from `research.md`. Ask only what research left empty or unsure. Research's guess is the first option, marked `(Recommended)`.
 - `topics.md` holds the questions research cannot answer, per heading. Ask one only when research did not settle it.
 - Heading 3: rough aspirations, no dates. One per period.
-- Heading 6: zones as in "Zones" below, each with its size in bytes, so the owner sees the review cost.
+- Headings 4 and 5: after the risks, for every risk and every "must not change" item, ask `How does the code prevent this today, and what rule must every change follow?` Research's candidate mechanism is the first option, `(Recommended)`, when there is one; also offer `Nothing does today`, then ask in plain text what rule every change must follow.
+- Each answer becomes a rule line under heading 5, worded as how the code must do something (`stored values stay exact; round once, only when shown`), not only as the outcome to avoid (`never miscalculate money`).
+- Before the first playback, ask each mechanism question under heading 5 of `topics.md` whose area research found no mechanism for. The owner will not volunteer these.
+- Heading 6: the zones question below.
 - Heading 7: confirm each default git rule one by one: one branch per batch, merged with `--no-ff`, never rebased after review; push only when the owner says so; files added by explicit path, never `git add .` or `-A`; no commit, PR or comment names an AI as author or co-author. Also review depth and who may push.
 - Heading 8: reply preferences and model budget. It never goes into the repository.
 - A heading is done when no line on it is still a guess. The first playback comes only when all eight are done.
@@ -79,9 +84,15 @@ Rules:
 - `note`: optional, one line.
 - Generated and vendored code stays out unless the owner adds it.
 
+The zones question, in plain words:
+
+1. First say what zones are for: each area of the code gets its own rules, and the full review checks each area separately, so a bigger area costs more to review.
+2. Name each proposed zone in everyday words (`the screens`, `the database`) with a rounded size (`about 5 MB`). No exact sizes, no paths: paths go in the playback's `## Config` block.
+3. Ask `Does this split match how you think about the code?`, your proposal first, `(Recommended)`.
+
 ### Playback
 
-1. Write the whole summary: the eight headings, plain words, one line per item, as short as it can be without dropping a detail. No line cap. Each line ends `(code)`, `(git)` or `(you)`. After heading 8, a `## Config` block lists each required key and its value. If `docs/BUSINESS.md`, a `.claude/rules/<key>.md` or a `## Project rules` section already exists, then add `## Changes to existing files`: per file, the lines step 4 adds or changes.
+1. Write the whole summary: the eight headings, plain words, one line per item, as short as it can be without dropping a detail. No line cap. Heading 5 lists every mechanism rule, one per line, so the owner can confirm or correct each. Each line ends `(code)`, `(git)` or `(you)`. After heading 8, a `## Config` block lists each required key and its value. If `docs/BUSINESS.md`, a `.claude/rules/<key>.md` or a `## Project rules` section already exists, then add `## Changes to existing files`: per file, the lines step 4 adds or changes.
 2. Save it to `.xworkflows/summary.md` with front matter `status: draft` and `commit: <sha research read>`. The saved draft leaves heading 8 empty; on resume, ask heading 8 again.
 3. Ask one question: `Did I understand correctly?` with two options, `Yes, you understood` and `No`. Neither is marked recommended. No other options.
 4. On `No`: ask the open question `What did I miss or get wrong?` and wait for the answer. Then ask questions only about that. Then play back the whole summary again, each changed line marked `(changed)`, save the draft, and ask `Did I understand correctly?` again. No cap on playbacks.
@@ -95,8 +106,8 @@ Only after `Yes, you understood`. Before that answer, write nothing but `.graphi
 |---|---|
 | `.xworkflows/summary.md` | Headings 1 to 7 as approved. Front matter `status: approved`, `date: YYYY-MM-DD`, `commit: <sha research read>`. |
 | `docs/BUSINESS.md` | Headings 1 to 3, then `## Goals` (below). |
-| `AGENTS.md` | Headings 4 and 5 as unbreakable rules, one line each, under `## Project rules`. Put it after the `<!-- xworkflows:end -->` line, outside the `<!-- xworkflows:start -->` block. Never edit inside the block; the installer owns it. If `## Project rules` exists, merge into only that section. |
-| `.claude/rules/<zone key>.md` | One file per zone that has a rule. Front matter `paths:` lists the zone's paths as globs (`src/` becomes `src/**`). Then the rules, one line each. |
+| `AGENTS.md` | Headings 4 and 5 as unbreakable rules, one line each, under `## Project rules`: each risk, then the mechanism rules that prevent it, worded as how the code must do something. Put it after the `<!-- xworkflows:end -->` line, outside the `<!-- xworkflows:start -->` block. Never edit inside the block; the installer owns it. If `## Project rules` exists, merge into only that section. |
+| `.claude/rules/<zone key>.md` | One file per zone that has a rule. Front matter `paths:` lists the zone's paths as globs (`src/` becomes `src/**`). Then the rules, one line each, including every heading 5 mechanism rule that applies to the zone's paths. |
 | `.claude/agents/risk-review.md` | The risk reviewer (below). |
 | `.xworkflows/config.json` | Merged key by key (below). |
 | `~/.xworkflows/owner.md` | Heading 8 only. User scope, outside every repository. Create `~/.xworkflows/` if missing. Keep what is already there; update only what the owner changed. |
@@ -112,7 +123,7 @@ Goals in `docs/BUSINESS.md`, one line per aspiration, no dates. G1 is the 3-mont
 
 - Front matter: `name: risk-review`; a one-line `description`; `model:` set to the `top` entry of `claude` in `.xworkflows/tiers.json`; `tools: Read, Grep, Glob, Bash`.
 - What it guards: heading 4, the costliest mistake first.
-- A checklist: one line per check, each one a reviewer can check against a diff.
+- A checklist: one line per check, each one a reviewer can check against a diff, with one line per heading 5 mechanism rule (for example: `no query or server call inside a loop over rows`).
 - The paths it covers: `paths.risk`.
 - Read-only: Bash only for `git log`, `diff`, `show`, `ls-files`, `blame`, `status`, `grep`, `wc`, `graphify query`. No redirects. Never writes or edits.
 - Report keys: `reviewed:` (what it checked) and `not checked:` (what it could not). When every check passes, the last line is `risk-review ok at <sha>`, with the reviewed `HEAD`.

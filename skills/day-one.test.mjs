@@ -161,3 +161,16 @@ test("README names graphify, superpowers brainstorming and the cursor/plugins cr
   has(r, ["`/adapt` needs the `graphify` command installed", "`brainstorming` skill of the [superpowers]"]);
   assert.match(r.split("## License")[1], /\[cursor\/plugins\]\(https:\/\/github\.com\/cursor\/plugins\) \(MIT\)/);
 });
+test("adapt asks how the code prevents each risk; research looks for mechanisms; zones question is plain", () => {
+  const s = read("skills/adapt/SKILL.md"), t = read("skills/adapt/topics.md");
+  const Q = "How does the code prevent this today, and what rule must every change follow?";
+  has(s, [Q, "7. Mechanisms: what the code itself enforces.", "each topic 7 mechanism as a candidate rule line", "Heading 5 lists every mechanism rule",
+    "each risk, then the mechanism rules that prevent it", "every heading 5 mechanism rule that applies to the zone's paths", "one line per heading 5 mechanism rule"]);
+  assert.ok(t.includes(Q));
+  const mech = t.split("How the code enforces it, one question per mechanism")[1].split(/^## /m)[0];
+  assert.ok(mech.split("\n").filter((l) => /^- .+\?$/.test(l)).length >= 8);
+  const zq = s.split("The zones question, in plain words:")[1].split(/^#{2,3} /m)[0];
+  has(zq, ["so a bigger area costs more to review", "everyday words", "about 5 MB", "Does this split match how you think about the code?", "`(Recommended)`"]);
+  assert.doesNotMatch(zq, /bytes/);
+  assert.doesNotMatch(s.split("## Step 3")[1].split("### Zones")[0], /bytes/);
+});
