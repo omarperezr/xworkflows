@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { appendFileSync, cpSync, existsSync, mkdtempSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -394,6 +395,7 @@ test("uninstall keeps changed files and config.json", () => {
   const out = cli(r, ["uninstall"]);
   assert.match(out.stdout, /kept \(changed locally\): \.claude\/agents\/explore\.md/);
   assert.ok(existsSync(join(r, ".xworkflows/config.json")));
+  assert.match(readFileSync(join(r, ".claude/agents/explore.md"), "utf8"), /mine\n$/);
   assert.ok(!existsSync(join(r, ".xworkflows/installed.json")));
 });
 test("uninstall without a record exits 1", () => {
@@ -411,4 +413,30 @@ test("uninstall keeps an edited merged entry and a settings file that does not p
   writeFileSync(join(r2, ".claude/settings.json"), "{ nope");
   assert.equal(cli(r2, ["uninstall"]).status, 0);
   assert.equal(readFileSync(join(r2, ".claude/settings.json"), "utf8"), "{ nope");
+});
+test("uninstall prunes a created key whichever record entry carries createdKey", () => {
+  const r = repo(); cli(r, ["install"]);
+  const rec = readJson(r, ".xworkflows/installed.json");
+  const first = rec.merged.find((m) => m.createdKey && m.key[0] === "hooks");
+  const extra = { hooks: [{ type: "command", command: first.entry.hooks[0].command.replace(/claude \S+$/, "claude other-id") }] };
+  const s = readJson(r, ".claude/settings.json");
+  s.hooks[first.key[1]].push(extra);
+  writeJson(r, ".claude/settings.json", s);
+  rec.merged.push({ file: first.file, key: first.key, entry: extra, createdKey: false });
+  writeJson(r, ".xworkflows/installed.json", rec);
+  assert.equal(cli(r, ["uninstall"]).status, 0);
+  assert.ok(!existsSync(join(r, ".claude/settings.json")));
+  assert.ok(!existsSync(join(r, ".claude")));
+});
+test("uninstall refuses record paths outside the repo", () => {
+  const r = repo(); cli(r, ["install"]);
+  const outside = join(r, "..", "outside-" + Date.now() + ".txt");
+  writeFileSync(outside, "x\n");
+  const rec = readJson(r, ".xworkflows/installed.json");
+  rec.files["../" + outside.split("/").pop()] = { piece: "x", sha256: createHash("sha256").update("x\n").digest("hex") };
+  writeJson(r, ".xworkflows/installed.json", rec);
+  const out = cli(r, ["uninstall"]);
+  assert.match(out.stdout, /kept \(not ours\): \.\.\/outside-/);
+  assert.equal(readFileSync(outside, "utf8"), "x\n");
+  rmSync(outside);
 });

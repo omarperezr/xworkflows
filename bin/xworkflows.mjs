@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 import { createInterface } from "node:readline/promises";
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, rmdirSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { basename, dirname, join, resolve } from "node:path";
+import { basename, dirname, join, resolve, sep } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import { fileURLToPath } from "node:url";
 
@@ -393,6 +393,16 @@ function uninstall() {
   try { rec = { ...EMPTY, ...JSON.parse(readFileSync(join(ROOT, ".xworkflows/installed.json"), "utf8")) }; }
   catch (e) { die(1, e.code === "ENOENT" ? "not installed" : ".xworkflows/installed.json does not parse; fix or remove it"); }
   const out = [], gone = [];
+  // installed.json is committed, so its paths are untrusted: stay inside the repo, never config.json
+  const inside = (p) => { const f = resolve(ROOT, p); return f.startsWith(resolve(ROOT) + sep) && f !== resolve(ROOT, ".xworkflows/config.json"); };
+  const bad = new Set();
+  for (const p of [...Object.keys(rec.files), ...rec.merged.map((m) => m.file), ...rec.blocks.map((b) => b.file), ...rec.imports.map((i) => i.file), ...rec.created])
+    if (!inside(p) && !bad.has(p)) { bad.add(p); out.push(`kept (not ours): ${p}`); }
+  rec.files = Object.fromEntries(Object.entries(rec.files).filter(([p]) => !bad.has(p)));
+  rec.merged = rec.merged.filter((m) => !bad.has(m.file));
+  rec.blocks = rec.blocks.filter((b) => !bad.has(b.file));
+  rec.imports = rec.imports.filter((i) => !bad.has(i.file));
+  rec.created = rec.created.filter((p) => !bad.has(p));
   const rm = (p) => { rmSync(join(ROOT, p)); gone.push(p); };
   const write = (p, text) => { writeFileSync(join(ROOT, p), text); out.push(`changed ${p}`); };
   for (const [p, { sha256 }] of Object.entries(rec.files)) {
@@ -416,9 +426,13 @@ function uninstall() {
         const id = m.entry?.hooks?.[0]?.command?.match(/run\.mjs" claude (\S+)/)?.[1];
         if (i >= 0) { arr.splice(i, 1); changed = true; }
         else if (id && arr.some((e) => isOurs(e, id))) { out.push(`kept (changed locally): ${sp} ${m.key.join(".")}`); continue; }
-        if (m.createdKey) {
-          for (let d = m.key.length; d > 0 && Object.keys(parents[d] ?? {}).length === 0; d--) delete parents[d - 1][m.key[d - 1]];
-        }
+      }
+      // prune per key path once every entry is gone, whichever record entry carried createdKey
+      for (const m of merged) {
+        if (!merged.some((x) => x.createdKey && isDeepStrictEqual(x.key, m.key))) continue;
+        const parents = [s];
+        for (const k of m.key) parents.push(parents.at(-1)?.[k]);
+        for (let d = m.key.length; d > 0 && parents[d] && Object.keys(parents[d]).length === 0; d--) { delete parents[d - 1][m.key[d - 1]]; changed = true; }
       }
       if (changed) write(sp, json(s));
     }
