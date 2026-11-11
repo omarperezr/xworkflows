@@ -62,11 +62,11 @@ test("zone-review bash is read-only", () => {
 test("adapt pins its questions, headings, keys and outputs", () => {
   const s = read("skills/adapt/SKILL.md");
   assert.ok(firstBodyLine(s).includes("node .xworkflows/mark.mjs adapt"));
-  for (const t of ["Did I understand correctly?", "Yes, you understood", "What did I miss or get wrong?",
-    "status: draft", "status: approved", "research-only", ".xworkflows/research.md", "graphify update .",
-    "git show <sha>:<path>", "~/.xworkflows/owner.md", "chore: adapt xworkflows to this project",
+  for (const t of ["status: draft", "status: approved", "research-only", ".xworkflows/research.md", "graphify update .",
+    "~/.xworkflows/owner.md", "chore: adapt xworkflows to this project",
     "## Project rules", "- G<n> (about <N> months):", "Run a full review first, or start on the next step?",
     "from one past run, not measured here"]) assert.ok(s.includes(t), t);
+  assert.ok(read("skills/adapt/research.workflow.js").includes("git show <sha>:<path>"));
   for (const k of ["paths.code", "paths.risk", "paths.heavyRead", "paths.codeAnyway", "tests.files", "tests.run", "tests.notRunnable", "checks", "zones"]) assert.ok(s.includes(k), k);
   for (const h of ["What it is", "Who pays, what is sold, what is not done", "Aspirations at about 3, 12 and 36 months",
     "Risks, the costliest mistake first", "What must not change; what is free to change", "Zones and which paths are risk paths",
@@ -114,13 +114,13 @@ const WIP_SKIP = "uncommitted changes, skipping paths under `.xworkflows/`, `gra
 
 test("day one leaves the repo clean: gitignore and WIP skip list", () => {
   const s = read("skills/adapt/SKILL.md");
-  has(s, ["Append `graphify-out/` and `.xworkflows/research.md` to `.gitignore` (create it if missing), only the lines not already there.",
-    "plus `.graphifyignore` and `.gitignore`", "write nothing but `.graphifyignore`, `graphify-out/`, `research.md` and the draft."]);
+  has(s, ["to `.gitignore` (create it if missing), only the lines not already there.",
+    "plus `.graphifyignore` and `.gitignore`", "write nothing but `.graphifyignore`, `graphify-out/`, the `.xworkflows/` files of steps 2 and 3 and the draft."]);
   assert.ok(read("skills/adapt/research.workflow.js").includes(WIP_SKIP.replaceAll("`", "\\`"))); // the script keeps backticks escaped
   assert.ok(read("skills/next-step/SKILL.md").includes(WIP_SKIP));
 });
 test("adapt research reads no content diffs; the proof copy commits its removal", () => {
-  has(read("skills/adapt/SKILL.md"), ["no `git log -p`; `git diff` and `git stash show` only with `--stat` or `--name-only`."]);
+  has(read("skills/adapt/research.workflow.js"), ["no `git log -p`; `git diff` and `git stash show` only with `--stat` or `--name-only`.".replaceAll("`", "\\`")]);
   const t7 = read("docs/superpowers/plans/2026-11-11-phase-1-2-day-one.md").split("### Task 7")[1];
   assert.match(t7, /with `git rm -r` and commit the removal in the copy/);
   assert.doesNotMatch(t7, /from the working tree only/);
@@ -152,7 +152,7 @@ test("full-review resolves renamed review skills; restructuring question has no 
 test("adapt: installer files stay uncommitted, existing files are merged, topic 6 list reaches explore", () => {
   const s = read("skills/adapt/SKILL.md");
   has(s, ["If an installer file (the `files` keys and `created` list in `.xworkflows/installed.json`) is still uncommitted, tell the owner which ones. Do not commit them.",
-    "is merged, never overwritten", "`## Changes to existing files`", "merge into only that section", "`.claude/skills/adapt/topics.md`"]);
+    "is merged, never overwritten", "`## Changes to existing files`", "merge into only that section"]);
   assert.doesNotMatch(s, /replace only that section/);
   assert.ok(s.split("\n").length < 200);
 });
@@ -164,15 +164,15 @@ test("README names graphify, superpowers brainstorming and the cursor/plugins cr
 test("adapt asks how the code prevents each risk; research looks for mechanisms; zones question is plain", () => {
   const s = read("skills/adapt/SKILL.md");
   const Q = "How does the code prevent this today, and what rule must every change follow?";
-  has(s, [Q, "7. Mechanisms: what the code itself enforces.", "each topic 7 mechanism as a candidate rule line", "with its path, tagged `(code)`",
-    "Only for a risk or \"must not change\" item where research found no mechanism, ask", "mechanisms research found go straight under heading 5",
-    "only for an area research found present but found no rule for", "Up to 4 questions per call.",
-    "Options `Nothing does today` and `I don't know`", "`no rule needed` and `I don't know` are accepted answers", "`unprotected: <risk>`", "That line is settled, not a guess",
+  has(s, ["mechanisms research found go straight under heading 5", "up to 4 per call",
+    "`no rule needed` and `I don't know` are accepted answers", "`unprotected: <risk>`", "That line is settled, not a guess",
     "Heading 5 groups its rule lines under the risk they prevent, costliest risk first, then `rules tied to no risk`.", "grouped under the risk it prevents",
     "in heading 5's order: each risk, then the rules that prevent it", "whose path in `research.md` is in the zone's paths", "one line per heading 5 mechanism rule"]);
   assert.equal(read("skills/adapt/research.mjs").split(Q).length, 2);
   const zq = s.split("The zones question, in plain words:")[1].split(/^#{2,3} /m)[0];
-  has(zq, ["so a bigger area costs more to review, and so does each extra zone", "everyday words", "about 5 MB", "Does this split match how you think about the code?", "`(Recommended)`"]);
+  has(zq, ["so a bigger area costs more to review, and so does each extra zone", "everyday words", "about 5 MB", "`H6-zones`", "`(Recommended)`"]);
+  has(s.split("### Zones")[1], ["`.xworkflows/scan.json`", "`dir/*`", "`*`"]);
+  has(s.split("## Step 4")[1], ["becomes `src/**`; `dir/*` and `*` stay as written"]);
   assert.doesNotMatch(zq, /bytes/);
   assert.doesNotMatch(s.split("## Step 3")[1].split("### Zones")[0], /bytes/);
 });
@@ -191,4 +191,58 @@ test("fixed labels stay English", () => {
   const rules = read("skills/adapt/SKILL.md").split("## Step 1")[0];
   has(rules, ["`Yes`", "`No`", "`I don't know`", "`Skip: not relevant here`", "`Nothing does today`", "`Right`", "`Wrong`", "`Missing something`",
     "Send them verbatim in English", "translation in the option `description`"]);
+});
+
+const step = (n) => read("skills/adapt/SKILL.md").split(`## Step ${n}:`)[1].split(/^## Step /m)[0];
+const inOrder = (s, ts) => { let at = -1; for (const t of ts) { const i = s.indexOf(t, at + 1); assert.ok(i > at, `${t} after ${at}`); at = i; } };
+test("adapt names no installed path", () => {
+  const s = read("skills/adapt/SKILL.md");
+  assert.ok(!s.includes(".claude/skills/adapt/"));
+  has(s, ["`node <base>/scan.mjs`", "`node <base>/research.mjs start`", "<base>/research.workflow.js"]);
+  assert.equal(s.split("this skill's base directory, shown when the skill loads").length, 2);
+});
+test("adapt research steps in order", () => {
+  const s = step(2);
+  inOrder(s, ["research.mjs start", "scan.mjs", "graphify update .", "`Workflow`", "scriptPath", "zeroHits", "`.xworkflows/research.json`", "research.mjs render", "research.mjs queue"]);
+  has(s, ["Without the Workflow tool, stop", "`kinds.<key>.total` is 0", "wait for its result", "unchanged", "stop and tell the owner"]);
+  assert.ok(!/script:/.test(s));
+});
+test("adapt interview follows the queue", () => {
+  const s = step(3);
+  has(s, ["Ask the items of `.xworkflows/interview.json` in file order", "header = the item's `id`", "`style`", "question rules", "`H5-<kind>-r`"]);
+  inOrder(s, ["research.mjs check", "status: draft"]);
+  assert.ok(!s.includes("topics.md"));
+});
+test("playback by section", () => {
+  const s = step(3);
+  inOrder(s, ["`Hotspots`", "`P-H1`", "`Right`", "`Wrong`", "`Missing something`", "`P-H<n>-fix`"]);
+  has(read("skills/adapt/SKILL.md"), ["research.mjs check --approved"]);
+  assert.ok(!read("skills/adapt/SKILL.md").includes("Did I understand correctly?"));
+});
+test("heading 5 names absent kinds", () => {
+  has(step(3), ["`<kind>: <rule | unprotected: <risk> | not applicable>`", "For each kind marked `no rule found: <kind>`"]);
+});
+test("step 5 question id", () => has(step(5), ["header `S5-next`"]));
+test("resume runs start", () => {
+  const l = step(1).split("\n").find((x) => x.includes("`status: draft`"));
+  inOrder(l, ["research.mjs start", "step 3"]);
+});
+test("research-only stops after render", () => {
+  const s = step(2);
+  inOrder(s, ["research.mjs render", "`research-only`", "No `queue`, no `done`", "research.mjs queue"]);
+});
+test("re-adapt reruns research", () => {
+  const l = step(1).split("\n").find((x) => x.includes("`status: approved`"));
+  inOrder(l, ["step 2 in full", "research.mjs queue", "only what changed"]);
+});
+test("rule without a path goes to AGENTS.md", () => {
+  const l = step(4).split("\n").find((x) => x.startsWith("| `AGENTS.md`"));
+  has(l, ["An owner-added rule with no path goes to `AGENTS.md` `## Project rules` only"]);
+});
+test("gitignore lines", () => {
+  const s = step(4);
+  const l = s.split("\n").find((x) => x.includes("to `.gitignore`"));
+  has(l, ["`graphify-out/`", "`.xworkflows/research.md`", "`.xworkflows/research.json`", "`.xworkflows/research.prev.json`", "`.xworkflows/scan.json`",
+    "`.xworkflows/interview.json`", "`.xworkflows/interview.log.jsonl`", "`.xworkflows/adapt-run.json`"]);
+  inOrder(s, ["git commit -m", "research.mjs done"]);
 });
