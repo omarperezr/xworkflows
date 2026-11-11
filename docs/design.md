@@ -11,7 +11,7 @@ are **read, not tested** unless a line says otherwise.
 
 A working method for AI coding agents that installs into any repository and
 adapts to it. It carries the method proven in one production project
-(xinventory, the reference) to any other system.
+(the reference project) to any other system.
 
 The goal, in the author's words (2026-11-10): make the work with any AI as
 efficient as possible in every sense, with the highest quality possible.
@@ -45,7 +45,7 @@ Claude Code, Codex, Cursor, Gemini CLI.
 ### Out of scope
 
 - Marketing skills and any skill that is not part of the flow.
-- Changes to xinventory. It does not migrate; it stays as the model.
+- Changes to the reference project. It does not migrate; it stays as the model.
 - Indexing past chat sessions.
 - Reading anything but code and its git history at startup (first version).
 - Stack skills (database, framework) in the core. See 7.3.
@@ -698,7 +698,7 @@ Not shipped (reference-project domain): `dia-caracas`, `reloj-telefono`,
 1. Clean install on macOS and on Windows, per tool: `xworkflows doctor` exits 0.
 2. Every installed file's hash equals the manifest's.
 3. `node --test hooks/ checks/` passes.
-4. Pilot in a second real project (xfinance), measured: minutes from
+4. Pilot in a second real project (the pilot), measured: minutes from
    `install` to the first reviewed batch, and the count of manual steps.
 5. A person other than the author installs it from the written guide. To be
    found.
@@ -776,7 +776,7 @@ pass the check, or the docs show a tool cannot deny a write, its column in
 Then:
 
 1. Claude Code: manifest, installer, `doctor`, the five hooks, the seven
-   stages. Pilot in xfinance.
+   stages. Pilot in the second project.
 2. Codex.
 3. Cursor.
 4. Gemini CLI.
