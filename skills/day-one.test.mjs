@@ -96,3 +96,15 @@ test("full-review's Workflow script compiles as an async body", () => {
   assert.match(body, /\breturn\b/);
   assert.doesNotMatch(body, /Date\.now|Math\.random/);
 });
+
+test("next-step pins sources, GitHub skip and the hand-off section", () => {
+  const s = read("skills/next-step/SKILL.md");
+  assert.ok(firstBodyLine(s).includes("node .xworkflows/mark.mjs next-step"));
+  for (const t of ["docs/PENDING.md", "TODO.md", "ROADMAP.md", "NEXT.md", "gh issue list", "gh auth status",
+    "GitHub issues skipped: gh is not set up.", "(Recommended)", "verify-finding", "superpowers:brainstorming",
+    "Status: scheduled."]) assert.ok(s.includes(t), t);
+  assert.match(s, /^## Hand-off$/m);
+  const order = ["docs/PENDING.md", "TODO.md", "gh issue list", "git grep"].map((t) => s.indexOf(t));
+  assert.deepEqual([...order].sort((a, b) => a - b), order);
+  assert.ok(s.split("\n").length < 120);
+});

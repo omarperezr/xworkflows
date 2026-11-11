@@ -517,3 +517,10 @@ test("install maps tiers of zone-review and verify-finding", () => {
   assert.match(readFileSync(join(r, ".claude/agents/zone-review.md"), "utf8"), /^model: opus$/m);
   assert.match(readFileSync(join(r, ".claude/agents/verify-finding.md"), "utf8"), /^model: sonnet$/m);
 });
+test("fresh install writes the day-one skills and doctor passes", () => {
+  const r = repo();
+  assert.equal(cli(r, ["install"]).status, 0);
+  for (const s of ["adapt", "full-review", "next-step", "thermo-nuclear-review", "thermo-nuclear-code-quality-review"])
+    assert.ok(existsSync(join(r, `.claude/skills/${s}/SKILL.md`)), s);
+  assert.equal(cli(r, ["doctor"]).status, 0);
+});

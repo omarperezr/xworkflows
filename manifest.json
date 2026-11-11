@@ -206,6 +206,24 @@
         "skills/full-review/SKILL.md": "97766fb0e34e5e84a96777f34539015eb59676c5cec145622ac3ab32868b6d42"
       },
       "sha256": "baa14073716caece880aa436262cd0c1161d6b839b2040ca59e3cdbcb2ec5053"
+    },
+    {
+      "id": "next-step",
+      "kind": "skill",
+      "origin": "own",
+      "version": "0.1.0",
+      "license": "MIT",
+      "scope": "project",
+      "tools": [
+        "claude",
+        "codex",
+        "cursor",
+        "gemini"
+      ],
+      "files": {
+        "skills/next-step/SKILL.md": "fd0e05feac1fbb98bf14a13c9c54a73290629f6308c8a6d722cea4977db0d45e"
+      },
+      "sha256": "b6d401f7b78107d31f55e4c37b12a6ee8e8e89977adf543c980ed4e6df55d1fb"
     }
   ]
 }
