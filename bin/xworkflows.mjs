@@ -1,9 +1,10 @@
 #!/usr/bin/env node
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { createInterface } from "node:readline/promises";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { basename, dirname, join } from "node:path";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { basename, dirname, join, resolve } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import { fileURLToPath } from "node:url";
 
@@ -86,6 +87,7 @@ export function main(argv) {
     die(1, "not inside a git repository");
   }
   if (cmd === "install") return install(flags);
+  if (cmd === "doctor") return doctor();
   die(1, "not built yet");
 }
 
@@ -102,6 +104,7 @@ function target(f) {
 
 const read = (root, p) => (existsSync(join(root, p)) ? readFileSync(join(root, p), "utf8") : null);
 const hookCmd = (id) => `node "$(git rev-parse --show-toplevel)/.xworkflows/hooks/run.mjs" claude ${id}`;
+const isOurs = (e, id) => e?.hooks?.some((h) => `${h.command} `.includes(`/.xworkflows/hooks/run.mjs" claude ${id} `));
 const MARK = "Bash(node .xworkflows/mark.mjs:*)";
 const START = "<!-- xworkflows:start -->";
 const END = "<!-- xworkflows:end -->";
@@ -119,7 +122,7 @@ function mergeSettings(root, manifest, record) {
   for (const p of manifest.pieces) {
     for (const c of p.claude ?? []) {
       const entry = { ...(c.matcher && { matcher: c.matcher }), hooks: [{ type: "command", command: hookCmd(p.id) }] };
-      const ours = (e) => e?.hooks?.some((h) => `${h.command} `.includes(`/.xworkflows/hooks/run.mjs" claude ${p.id} `));
+      const ours = (e) => isOurs(e, p.id);
       want.push({ key: ["hooks", c.event], entry, ours });
     }
   }
@@ -297,6 +300,90 @@ async function install(flags) {
     console.log("Next: open Claude Code and type /adapt");
   }
   for (const a of auto) console.log(a);
+}
+
+function doctor() {
+  const out = [];
+  let nf = 0, nw = 0;
+  const say = (lvl, t) => { out.push(`${lvl === "ok" ? "ok  " : lvl} ${t}`); if (lvl === "fail") nf++; if (lvl === "warn") nw++; };
+  const finish = () => {
+    console.log(out.join("\n") + `\ndoctor: ${nf} fail, ${nw} warn`);
+    process.exit(nf ? 1 : 0);
+  };
+  say("ok", "git repository");
+  let rec;
+  try { rec = { ...EMPTY, ...JSON.parse(readFileSync(join(ROOT, ".xworkflows/installed.json"), "utf8")) }; }
+  catch (e) { say("fail", e.code === "ENOENT" ? "not installed" : "installed.json does not parse"); return finish(); }
+  say("ok", "installed.json parses");
+  const major = Number(process.versions.node.split(".")[0]);
+  say(major >= 22 ? "ok" : "fail", `node ${process.versions.node}`);
+  const g = spawnSync("git", ["--version"], { encoding: "utf8" });
+  say(g.status === 0 ? "ok" : "fail", g.status === 0 ? g.stdout.trim() : "git does not answer");
+  // 2
+  for (const [f, { sha256 }] of Object.entries(rec.files)) {
+    let t;
+    try { t = readFileSync(join(ROOT, f), "utf8"); } catch { say("fail", `missing or unreadable: ${f}`); continue; }
+    say(hash(t) === sha256 ? "ok" : "warn", hash(t) === sha256 ? f : `changed locally: ${f}`);
+  }
+  for (const k of rec.kept) say("warn", `kept theirs: ${k}`);
+  // 3
+  for (const m of rec.merged) {
+    let arr;
+    try { arr = m.key.reduce((o, k) => o[k], JSON.parse(readFileSync(join(ROOT, m.file), "utf8"))); } catch { arr = null; }
+    arr = Array.isArray(arr) ? arr : [];
+    const id = m.entry?.hooks?.[0]?.command?.match(/run\.mjs" claude (\S+)/)?.[1];
+    const lbl = `${m.file} ${m.key.join(".")}`;
+    if (arr.some((e) => isDeepStrictEqual(e, m.entry))) say("ok", `merged: ${lbl}`);
+    else if (id && arr.some((e) => isOurs(e, id))) say("warn", `changed locally: ${lbl}`);
+    else say("fail", `merged entry missing: ${lbl}`);
+  }
+  // 4
+  if (!rec.blocks.length) say("fail", "AGENTS.md block was never written");
+  else say((read(ROOT, "AGENTS.md") ?? "").includes(agentsBlock()) ? "ok" : "fail", "AGENTS.md block matches the template");
+  if (/^@AGENTS\.md\s*$/m.test(read(ROOT, "CLAUDE.md") ?? "")) say("ok", "CLAUDE.md imports AGENTS.md");
+  else if (rec.declined.some((d) => d.file === "CLAUDE.md" && d.what === "import")) say("warn", "CLAUDE.md does not import AGENTS.md: add the line @AGENTS.md");
+  else say("fail", "CLAUDE.md does not import AGENTS.md");
+  // config
+  let cfg = {};
+  try { cfg = JSON.parse(readFileSync(join(ROOT, ".xworkflows/config.json"), "utf8")); } catch {}
+  const specs = cfg.paths?.specs ?? "docs/superpowers/specs";
+  const memDir = cfg.memory?.dir ?? "docs/memory";
+  const budget = cfg.tokens?.alwaysLoadedBytes ?? 24000;
+  // 5
+  let command;
+  try {
+    const s = JSON.parse(readFileSync(join(ROOT, ".claude/settings.json"), "utf8"));
+    command = Object.values(s.hooks ?? {}).flat().find((e) => isOurs(e, "design-first"))?.hooks.find((h) => `${h.command} `.includes('claude design-first '))?.command;
+  } catch {}
+  if (!command) say("fail", "probe: no design-first hook entry");
+  else {
+    const state = mkdtempSync(join(tmpdir(), "xwf-doctor-"));
+    const env = { ...process.env, CLAUDE_PROJECT_DIR: ROOT, XWORKFLOWS_STATE_DIR: state };
+    delete env.XWORKFLOWS_FREE; delete env.XWORKFLOWS_RECORD;
+    const event = { session_id: `doctor-${process.pid}`, cwd: ROOT, hook_event_name: "PreToolUse", tool_name: "Write", tool_input: { file_path: join(ROOT, specs, "xwf-doctor-probe.md"), content: "# probe\n" } };
+    const r = spawnSync(command, { shell: true, cwd: ROOT, env, input: JSON.stringify(event), encoding: "utf8" });
+    rmSync(state, { recursive: true, force: true });
+    let d; try { d = JSON.parse(r.stdout).hookSpecificOutput?.permissionDecision; } catch {}
+    say(d === "deny" ? "ok" : "fail", d === "deny" ? "probe: design-first denies a spec write" : `probe: expected deny, got ${d ?? "no valid output"}`);
+  }
+  // 6
+  const seen = new Set();
+  let bytes = 0;
+  const load = (p) => {
+    if (seen.has(p) || !existsSync(p)) return;
+    seen.add(p);
+    bytes += statSync(p).size;
+    for (const l of readFileSync(p, "utf8").split("\n")) {
+      const m = l.trim().match(/^@(\S+)/);
+      if (m) load(resolve(dirname(p), m[1]));
+    }
+  };
+  load(join(ROOT, "CLAUDE.md"));
+  const mem = join(ROOT, memDir, "MEMORY.md");
+  if (existsSync(mem) && !seen.has(mem)) { seen.add(mem); bytes += statSync(mem).size; }
+  say(bytes > budget ? "fail" : "ok", `always-loaded: ${bytes} bytes of ${budget}`);
+  say("ok", "Claude Code: tested");
+  finish();
 }
 
 main(process.argv.slice(2));

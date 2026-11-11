@@ -317,3 +317,38 @@ test("a recorded file changed locally is kept", () => {
   assert.match(out.stdout, /kept \(changed locally\): \.claude\/agents\/explore\.md {2}new: agents\/explore\.md/);
   assert.match(readFileSync(join(r, ".claude/agents/explore.md"), "utf8"), /local note/);
 });
+
+test("doctor passes on a fresh install, in a path with a space, inside a Claude session", () => {
+  const r = repo();
+  const spaced = join(r, "my project"); mkdirSync(spaced); git(spaced, "init -q -b main");
+  cli(spaced, ["install"]);
+  const out = cli(spaced, ["doctor"], { env: { CLAUDE_PROJECT_DIR: "/elsewhere", XWORKFLOWS_FREE: "1" } });
+  assert.equal(out.status, 0, out.stdout);
+  assert.match(out.stdout, /^ok +probe/m);
+  assert.match(out.stdout, /always-loaded: \d+ bytes of 24000/);
+  assert.match(out.stdout, /Claude Code: tested/);
+});
+test("doctor warns on a local change and still exits 0", () => {
+  const r = repo(); cli(r, ["install"]);
+  appendFileSync(join(r, ".claude/agents/explore.md"), "x\n");
+  const out = cli(r, ["doctor"]);
+  assert.equal(out.status, 0);
+  assert.match(out.stdout, /^warn changed locally: \.claude\/agents\/explore\.md/m);
+});
+test("doctor warns on a declined import", () => {
+  const r = repo({ "CLAUDE.md": "# x\n" }); cli(r, ["install"]);
+  const out = cli(r, ["doctor"]);
+  assert.equal(out.status, 0);
+  assert.match(out.stdout, /^warn CLAUDE\.md does not import AGENTS\.md/m);
+});
+for (const [name, breakIt] of [
+  ["missing file", (r) => rmSync(join(r, ".xworkflows/hooks/run.mjs"))],
+  ["removed hook entry", (r) => writeJson(r, ".claude/settings.json", { permissions: { allow: ["Bash(node .xworkflows/mark.mjs:*)"] } })],
+  ["missing import", (r) => writeFileSync(join(r, "CLAUDE.md"), "")],
+  ["size over budget", (r) => writeFileSync(join(r, "AGENTS.md"), readFileSync(join(r, "AGENTS.md"), "utf8") + "x".repeat(30000))],
+  ["probe allows", (r) => writeFileSync(join(r, ".xworkflows/hooks/core/design-first.mjs"), "export const SKILL='grill'; export const decide=()=>({decision:'allow'});\n")],
+  ["corrupt record", (r) => writeFileSync(join(r, ".xworkflows/installed.json"), "{")],
+]) test(`doctor fails: ${name}`, () => {
+  const r = repo(); cli(r, ["install"]); breakIt(r);
+  assert.equal(cli(r, ["doctor"]).status, 1);
+});
