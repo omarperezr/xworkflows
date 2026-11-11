@@ -134,7 +134,7 @@ invariant (section 8).
 `skills/adapt/research.workflow.js` (a Workflow script, shipped). The skill
 runs it with `Workflow({ scriptPath: ".claude/skills/adapt/research.workflow.js" })`
 and no inline script. Its prompts are fixed text; the agent passes nothing
-but the run's `args` (`{ root }`).
+but the run's `args` (`{ root, zeroHits }`: `zeroHits` lists the kinds with scan `total` 0; a Workflow script cannot read files, and the gate of 4.5 checks the value against `scan.json`; ruling 2026-11-11).
 
 It runs in two steps:
 1. The six topic agents (`explore`), in one `parallel` call: topics 1 to 6 of
@@ -237,14 +237,14 @@ last):
    follow?" After `Nothing does today`, `H5-<kind>-r` asks what rule every
    change must follow.
 6. `H5-keep`, `H5-free`: open: what must not change, what is free to change.
-7. `H6-zones`, `H6-risk-<zone>`: the zones proposal; one yes/no item per zone:
+7. `H6-zones`, `H6-r<n>` (n from 1 in zone order; ids stay within the 12-character header limit, ruling 2026-11-11): the zones proposal; one yes/no item per zone:
    "Does a mistake here risk money, data or access?"
-8. `H7-git-<n>`, `H7-depth`, `H7-push`: each default git rule, review depth,
+8. `H7-g<n>`, `H7-depth`, `H7-push`: each default git rule, review depth,
    who may push.
 9. `H3-3m`, `H3-12m`, `H3-36m`: aspirations, last; options drawn from what
    the owner said before (next steps named, planned moves, risks).
 10. `H8-*`: reply preferences and model budget.
-11. `C-<key>`: each required config key still without a value.
+11. `C<n>`: each required config key still without a value (n from 1 in the fixed key order).
 
 ### 5.2 Question styles
 
@@ -298,9 +298,15 @@ Playback ids are `P-H<n>`, and the follow-up after Wrong or Missing is
 
 ### 5.6 What stays from 1.2
 
-Step 1 (resume), step 4 (what gets written) and step 5 (the question after the
-interview) are unchanged, except that `research.json`, `scan.json`,
-`interview.json` and `interview.log.jsonl` join `research.md` in `.gitignore`.
+Step 4 (what gets written) and step 5 (the question after the interview) are
+unchanged, except that `research.json`, `research.prev.json`, `scan.json`,
+`interview.json`, `interview.log.jsonl` and `adapt-run.json` join `research.md`
+in `.gitignore`, and step 5's question carries the header `S5-next`. Step 1
+changes (ruling 2026-11-11): a draft resume runs `research.mjs start` first
+(keeping the run, refreshing its clock); a re-adapt reruns the whole fixed
+research (a partial scan of new commits cannot be made fixed), keeps the
+previous result as `research.prev.json`, and asks only the `H5-<kind>` items
+whose kind changed to `absent`, plus missing config keys.
 
 ## 6. Acceptance tests (no LLM)
 

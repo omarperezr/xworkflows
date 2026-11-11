@@ -1,0 +1,26 @@
+{
+  "label": "recorded",
+  "input": {
+    "session_id": "3de72083-649b-4491-bc75-8384016a1f82",
+    "transcript_path": "/home/user/.claude/projects/-private-tmp-claude-501--home-user-xsingularity-xworkflows-aa2efc01-b9d7-4fe4-be14-668d8375c06e-scratchpad-spike-t0/3de72083-649b-4491-bc75-8384016a1f82.jsonl",
+    "cwd": "/private/tmp/claude-501/-home-user-xsingularity-xworkflows/aa2efc01-b9d7-4fe4-be14-668d8375c06e/scratchpad/spike-t0",
+    "prompt_id": "c1c66958-369c-4c50-acee-d061235951bd",
+    "permission_mode": "default",
+    "effort": {
+      "level": "medium"
+    },
+    "hook_event_name": "PreToolUse",
+    "tool_name": "Workflow",
+    "tool_input": {
+      "args": {
+        "x": "hello"
+      },
+      "scriptPath": "/private/tmp/claude-501/-home-user-xsingularity-xworkflows/aa2efc01-b9d7-4fe4-be14-668d8375c06e/scratchpad/spike-t0/probe.workflow.js"
+    },
+    "tool_use_id": "toolu_01PyWkGV4Smke2LL4QGzJJiv"
+  },
+  "output": {
+    "stdout": "",
+    "exitCode": 0
+  }
+}
