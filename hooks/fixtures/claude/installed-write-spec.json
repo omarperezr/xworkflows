@@ -1,0 +1,25 @@
+{
+  "label": "recorded",
+  "input": {
+    "session_id": "225af876-1585-48ca-bf82-14ad049b19fe",
+    "transcript_path": "/home/user/.claude/projects/-home-user-project/225af876-1585-48ca-bf82-14ad049b19fe.jsonl",
+    "cwd": "/home/user/project",
+    "prompt_id": "1795cc2c-7e25-41ee-9094-a4910396c6b5",
+    "permission_mode": "auto",
+    "effort": {
+      "level": "high"
+    },
+    "hook_event_name": "PreToolUse",
+    "tool_name": "Write",
+    "tool_input": {
+      "file_path": "/home/user/project/docs/superpowers/specs/demo.md",
+      "content": "# Demo\n"
+    },
+    "tool_use_id": "toolu_01BzXL3wdkhifpTZmVR1WAo9"
+  },
+  "output": {
+    "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Run the grill skill and settle the design questions with the owner before writing docs/superpowers/specs/demo.md.\"}}",
+    "exitCode": 0
+  },
+  "source": "Claude Code 2.1.322, real session, 2026-11-11; installed layout; home folder and project path replaced by /home/user"
+}
