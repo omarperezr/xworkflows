@@ -91,7 +91,7 @@ Output keys:
 - `commit`: `HEAD`.
 - `layout`: bytes per folder at depth 1 and 2.
 - `zones`: the proposal of 4.4.
-- `kinds`: for each of the nine kinds below, `{ hits: [{ file, line, text }],
+- `kinds`: for each of the twelve kinds below, `{ hits: [{ file, line, text }],
   total }`. At most 30 hits per kind, the most-changed files first (by
   `git log --since=12.months --name-only` count), then by path. `text` is the
   matched line, trimmed to 160 characters.
@@ -99,16 +99,16 @@ Output keys:
   function marked `security definer`, unique constraint and check constraint
   (`{ name, file, line }`). Regex, not a SQL parser.
 - `checks`: project check scripts and linter configs (`scripts/check-*`,
-  `.semgrep*`, lint configs, CI files). Kept apart from the nine kinds so they
+  `.semgrep*`, lint configs, CI files). Kept apart from the twelve kinds so they
   never use a kind's line budget.
 
-The nine kinds, each with its signal catalog (regex over code and SQL; the
+The twelve kinds, each with its signal catalog (regex over code and SQL; the
 catalog is data at the top of the file, one entry per signal, with a test
 case each):
 
 | Key | Mechanism | Example signals |
 |---|---|---|
-| `money` | source of truth and rounding for money and units | money or rounding helpers, `round(`, `toFixed(`, decimal types, currency fields |
+| `values` | source of truth, units and precision: money, time and time zones, measures, rounding | money, unit or rounding helpers, `round(`, `toFixed(`, decimal types, currency or unit fields, UTC conversions |
 | `snap` | values frozen when a record is written | insert triggers that set columns, `*_at_sale`, copied price or rate columns |
 | `srvw` | data written only through server functions | `.rpc(`, server function definitions, direct table writes from client code |
 | `delta` | changes as deltas, never absolute values | `set x = x +`, `x = x -`, increment helpers |
@@ -117,6 +117,13 @@ case each):
 | `access` | access checked by the database or server, not only screens | policies, `enable row level security`, guard triggers that raise, auth checks on the server |
 | `batch` | work over many rows done once, not once per item | `await` or a query inside a loop or `.map(` |
 | `domain` | legal, tax or domain rules and where they are written | rate or tax constants, docs about law, regulation or tax |
+| `compat` | what must not break for those who use it: public API, file formats, schemas, wire protocols | exported API lists, version or deprecation markers, schema or format version fields, changelog policy |
+| `conc` | concurrency and order: locks, queues, event order, races | locks and mutexes, `for update`, advisory locks, queue consumers, sequence or version columns |
+| `input` | validation of outside input at trust boundaries | schema validators, request parsing, sanitizers, auth checks on handlers |
+
+The kinds are generic on purpose: the first proofs ran on projects that
+handle money, and the list must also fit a library, a CLI or a game (section 8
+checks one).
 
 shortcut: regex signals miss mechanisms spelled differently; the per-kind agent
 of 4.2 still searches beyond the hits, and the catalog grows with each missed
@@ -129,17 +136,23 @@ runs it with `Workflow({ scriptPath: ".claude/skills/adapt/research.workflow.js"
 and no inline script. Its prompts are fixed text; the agent passes nothing
 but the run's `args` (`{ root }`).
 
-It starts 15 `explore` agents in one `parallel` call:
-- Topics 1 to 6 of the 1.2 spec (stack, layout, tests, where data and money
-  move, history, written-down next steps), prompts unchanged in meaning.
-- One agent per kind of 4.1. It reads its kind's hits and the `sql` entries
+It runs in two steps:
+1. The six topic agents (`explore`), in one `parallel` call: topics 1 to 6 of
+   the 1.2 spec (stack, layout, tests, where data and money move, history,
+   written-down next steps), prompts unchanged in meaning. Topic 4 also
+   returns, through a schema, `areas: { <kind>: "present" | "absent" |
+   "unsure" }` for each kind with 0 scan hits.
+2. The kind agents, in one `parallel` call. A kind is skipped only when the
+   scan has 0 hits for it and topic 4 says `absent`; it is recorded as
+   `not-present` with that reason. Every other kind gets one agent.
+   Each kind agent: It reads its kind's hits and the `sql` entries
   from `.xworkflows/scan.json`, opens the cited files, searches beyond the
   hits with `graphify query` and `grep`, and returns, through a schema:
   `{ kind, status, rules: [{ rule, file, line, quote }], notChecked: [path] }`,
   where `status` is `found` (at least one rule), `absent` (the kind's area
   exists, no mechanism found) or `not-present` (the project has no such
   area). At most 5 rules. `rule` is worded as how the code must do something.
-  `quote` is the exact source line. These nine agents run on the `medium`
+  `quote` is the exact source line. These kind agents run on the `medium`
   tier (`sonnet` for Claude), not `explore`'s cheap tier: they do the
   judgment work.
 
@@ -295,7 +308,7 @@ interview) are unchanged, except that `research.json`, `scan.json`,
 - A fixture repository `test/fixtures/mechanisms/` (outside `skills/`, so it
   is never packed or installed) with one planted
   mechanism per kind (JavaScript, Python and SQL), plus one look-alike that
-  must not match per kind. `scan.mjs` finds 9 of 9 and no look-alike.
+  must not match per kind. `scan.mjs` finds 12 of 12 and no look-alike.
 - Running `scan.mjs` twice gives byte-identical `scan.json`.
 - `render` keeps a correct citation, drops a fake one and lists it, and exits
   1 on a kind with no decision.
@@ -338,8 +351,12 @@ The rubric, the answers file and the results stay in git-ignored
 ## 8. Proof and order of work
 
 1. Parts A and B, with section 6's tests.
-2. Smoke trial of the harness on the fixture repository: research finds 9 of
-   9 kinds in 3 of 3 trials.
+2. Smoke trial of the harness on the fixture repository: research finds 12
+   of 12 kinds in 3 of 3 trials.
+2b. `/adapt research-only` on a well-known public open-source repository that
+   handles no money (picked in the plan). Pass: no kind marked `not-present`
+   carries a rule, `values` has no money rule, and at least one mechanism of
+   `compat`, `conc` or `input` is found with a verified citation.
 3. One live `/adapt` with the owner on the reference copy, at the commit runs 2 and 3 used. It
    records the answers file and counts as a trial.
 4. Three replay trials with those answers. Pass: R minimum at least 6 and
@@ -359,8 +376,8 @@ pattern syntax; whether topics 1 to 6 share agents.
    reported apart.
 2. The harness uses `@anthropic-ai/claude-agent-sdk` as a devDependency, never
    installed into a project.
-3. About 7 trials on the owner's Claude account (3 on the fixture, 1 live, 3
-   replays); each prints its cost.
+3. About 8 trials on the owner's Claude account (3 on the fixture, 1 on a
+   public repository without money, 1 live, 3 replays); each prints its cost.
 
 ## 11. Amendments
 
