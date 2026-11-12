@@ -51,6 +51,8 @@ The profile agent runs first. Then, at once: the readers of the docs, the reader
 - An area's general rule also comes in a short form, `general.short`: the same claim in one plain sentence of 14 words at most, no wider than the rule (owner's order to fix and measure, second tuning round, 2026-11-12: with ideas alone the screen held local facts and lost the rules that matter, 1 invariant of 8 against 3).
 - The `plain` agent reads the areas' short general rules and ideas and nothing else. It merges the items that say the same thing and writes each in the owner's language. It never splits an item and never widens one. Each sentence names the items it comes from. The general rules come first, by risk; the ideas fill the places that are left. Sentences beyond 12 are returned in a second list, never dropped.
 - The six topic agents of the prototype stay, under `topics`: three of them propose the values of the config keys, and their lines feed `H2-pays` and the questions of screen 3. Their cost is judged in the measure.
+- Before an area agent writes its general rule it looks for the case that contradicts it: the same operation done without the guard. When it finds one it narrows the rule to where it holds, or keeps the rule and returns that case under `exceptions`, which becomes a question of screen 2. The short form says the thing protected and the constraint, with the rule's own key words, and carries no "all", "always", "never" or "every" unless one place enforces it for every case (owner, 2026-11-12: "Y si hacemos ambas?", the second page and a third round on the instructions).
+- With `research-only` nobody is interviewed: the sentences are written in English.
 - Agents judge. Scripts verify, cap and order; they judge nothing.
 
 ### Render
@@ -66,6 +68,9 @@ The profile agent runs first. Then, at once: the readers of the docs, the reader
 ### Interview
 
 - Screen 1: one question per sentence, four per dialog call: `Right`, `Real, but a bad rule`, `Not how it works`, `I don't know`.
+- A second page: when sentences were left out of screen 1, the item `S1-more` says how many and asks whether to see them: `Yes, show them`, `No, skip them`. On yes, up to 12 of them are asked the same way, as `S1-13` and on; the ones beyond those 12 are counted in one line. On no, none of them is asked and none is written.
+- `Right` writes only the items the sentence names. A general rule the owner did not see is never written: in the detail file it is listed under the rules no sentence shows, not under a sentence of its area.
+- A sentence that names an area whose general rule did not verify is dropped; that area's verified ideas stay in the detail.
 - Screens 2 and 3: the questions as rendered; the dialog's free text takes the owner's own answer.
 - What an answer writes: `Right` writes the full rule from the detail. `Real, but a bad rule` and `You are right` write a card with the `pending` skill and no rule. `Keep it, because ...` writes the rule with the reason. `Not how it works` writes nothing and is logged.
 - What a screen 2 answer writes: `The written rule` writes that rule and a card to change the code; `The code` writes the code's rule and a card to change the doc; `Mistake: fix it` writes the rule and one card per place; `Exception: keep it` writes the rule with its exceptions named; `Not on purpose: protect it` writes a card; `On purpose` and `I don't know` write nothing and are logged. `Keep it, because ...` with no reason asks for the reason once.
@@ -101,7 +106,8 @@ The queue built from topics and kinds, and the questions about mechanism kinds. 
 - Reference copy, research only, 3 runs (the first one before the ideas carried their own citation): screen 1 within its caps in every run; a judge outside `/adapt` opens each sentence's citation: a sentence from an idea must be shown by its line, a sentence from a general rule must have its example and its other places as true cases of it, and at most one sentence in a run fails that; of the 8 invariants the code proves, 6 or more counting the detail in every run (shipped version: 6, 7, 6) and 3 or more on the screen (both versions: 3 to 5); 2.50 USD per run was the target; the first run cost 2.73 and the owner went on at that price (2026-11-12). A later run above 3.00 is reported before the next one.
 - Exam project C, 3 runs, once: the owner marks the short sentences blind; the target is none invented. A key of its written rules, made by an agent from the instruction files removed from the copy, splits the missed rules into "in the code" and "only in the owner's head".
 - The interview is measured afterwards, on the owner's word: one live interview and three replays.
-- Tuning uses the reference only, two rounds at most. Exam project C is run once.
+- Tuning uses the reference only. Two rounds were the limit; on 2026-11-12 the owner raised the spend cap to 190 USD "para tus pruebas y ajustes" and asked for a third round. Exam project C is run once.
+- Third round, 3 runs of one version on the reference: the same judge counts the invariants whole on the two pages together and in the detail, and the sentences that say more than their places show.
 - The suite passes and `pack --check` prints nothing.
 
 ## Limits

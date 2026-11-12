@@ -7,6 +7,7 @@ Spec: `docs/superpowers/specs/2026-11-12-adapt-general-design.md`
 ## Global Constraints
 
 - "Arreglar y medir": after the first run on the reference, each sentence carries the citation of its own idea before the measure goes on.
+- "Y si hacemos ambas? No sería mejor eso?": the second page and a third round on the instructions, both.
 - "Sí, la nueva": built with three fixes, short sentences on the screen, the detail the shipped version has, and the question "this rule may be wrong".
 - "32 are way too many, and the language that you're using is not easy to understand and it's not concise."
 - "Aparte, si lo pides": the detail is not on the screen.
@@ -89,6 +90,30 @@ About 40 code lines for T7, and about 150 for T9 and T10, added on 2026-11-12 af
 - Files: none with tracking; the numbers go in the private ledger.
 - Role: main session
 - Done: the ledger holds, for 3 runs on the reference copy and 3 on exam project C: the sentences on screen 1, the invariants found with and without the detail, the owner's marks and the cost per run; the spend stays under its cap.
+
+### Batch 3: `adapt-general-3`
+
+About 200 code lines. The reviewer is `risk-review`: the commits of this plan not yet pushed touch risk paths, and the brake then takes only that seal.
+
+**T13: the second page; `Right` writes only what the sentence names; the dropped and the count are honest** (spec "Interview", "Render"; cards P-83 to P-87)
+- Files: `skills/adapt/screens.mjs`, `skills/adapt/screens.test.mjs`, `skills/adapt/research.mjs`, `skills/adapt/research.test.mjs`
+- Role: implement
+- Done: `node --test skills/adapt/screens.test.mjs skills/adapt/research.test.mjs` passes.
+
+**T14: an area agent looks for the contradicting case before it writes its rule; the short form keeps the rule's key words** (spec "Research")
+- Files: `skills/adapt/research.workflow.js`, `skills/adapt/workflow.test.mjs`
+- Role: implement
+- Done: `node --test skills/adapt/workflow.test.mjs` passes.
+
+**T15: the skill's text: the second page, what `Right` writes, the label that stays in English, the language without an interview** (spec "Interview", "Research"; cards P-77, P-78, P-82)
+- Files: `skills/adapt/SKILL.md`, `skills/day-one.test.mjs`
+- Role: implement
+- Done: `node --test skills/day-one.test.mjs` passes.
+
+**T16: the third round's measure** (spec "Measure")
+- Files: none with tracking; the numbers go in the private ledger.
+- Role: main session
+- Done: the ledger holds, for 3 runs of this version on the reference copy, the invariants whole on the two pages and in the detail, the sentences that say more than their places show, and the cost.
 
 ## Review Focus
 
