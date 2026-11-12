@@ -246,14 +246,14 @@
         "gemini"
       ],
       "files": {
-        "skills/adapt/SKILL.md": "e104474cf5681c8fa9ea8d00febba855a1732ce1f308a3a1d3288cfc648c8782",
+        "skills/adapt/SKILL.md": "530a09b0bff7b6f2dba25aa621834d3f36a3b7eb7b6c935355355d472d98c09a",
         "skills/adapt/scan.mjs": "710c3445855b7a23d54c5b1b6ce0bf3a4ae102afe9bcdc9360704dc15bfad898",
         "skills/adapt/rules.mjs": "99766272105524b96372b0ef34ff8a2960d68d674a47de5f4da9e32ba9223a94",
         "skills/adapt/research.workflow.js": "00188a8354f0b6d44b57894acf6b71ab0e31c7c4666380344c768c8d892c5222",
-        "skills/adapt/research.mjs": "dbe5b5e52b19a50c6501f9e68ce6f776b5ab4d293edaf96ab57ddd52d9f0ae7e",
-        "skills/adapt/screens.mjs": "e4e57be688696791b89784e582b993fd5bdc7e2eb52dba9fe75d096b4785d285"
+        "skills/adapt/research.mjs": "b72933319f2f9dbf197d6a0f233ef72db9156869c2c7d145410a01cc840884f4",
+        "skills/adapt/screens.mjs": "c31d18e4f5fe58ea51c2758e456bca2e996c0dbd251ff15a35f2630a3d1af502"
       },
-      "sha256": "cedf0d2f8db1fa5b126667d24f61c103034726381cce035963524201e51e3a86"
+      "sha256": "875fae04f7397f7e1074f8a574b443075fad3f27792f69537e85cbbce60f63e0"
     },
     {
       "id": "full-review",

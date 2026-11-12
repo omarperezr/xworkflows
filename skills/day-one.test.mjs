@@ -169,7 +169,7 @@ test("adapt asks how the code prevents each risk; research looks for mechanisms;
   const s = read("skills/adapt/SKILL.md");
   has(s, ["Mechanism rules are read from `details.md` only when the owner asks for detail", "up to 4 per call", "Screen 1 (`S1-<n>`)", "`Real, but a bad rule`", "`Not how it works`", "`G-interim`",
     "Heading 5 groups its rule lines under the risk they prevent, costliest risk first, then `rules tied to no risk`.", "grouped under the risk it prevents",
-    "in heading 5's order: each risk, then the rules that prevent it", "whose path in `research.md` is in the zone's paths", "one line per heading 5 mechanism rule"]);
+    "in heading 5's order: each risk, then the rules that prevent it", "each with its path from `details.md`", "one line per rule the owner confirmed", "the `contradicted` lines of `## Written rules and their verdicts` in `details.md`", "`X<n>-why`"]);
   // the per-kind question is gone: a screen 1 sentence is judged with four options, written in one place
   assert.equal((read("skills/adapt/research.mjs") + read("skills/adapt/screens.mjs")).split('"Real, but a bad rule"').length, 2);
   const zq = s.split("The zones question, in plain words:")[1].split(/^#{2,3} /m)[0];
@@ -253,7 +253,7 @@ test("gitignore lines", () => {
   const s = step(4);
   const l = s.split("\n").find((x) => x.includes("to `.gitignore`"));
   has(l, ["`graphify-out/`", "`.xworkflows/research.md`", "`.xworkflows/research.json`", "`.xworkflows/research.prev.json`", "`.xworkflows/scan.json`",
-    "`.xworkflows/interview.json`", "`.xworkflows/interview.log.jsonl`", "`.xworkflows/adapt-run.json`", "`.xworkflows/rules.json`", "`.xworkflows/kinds.json`"]);
+    "`.xworkflows/interview.json`", "`.xworkflows/interview.log.jsonl`", "`.xworkflows/adapt-run.json`", "`.xworkflows/rules.json`", "`.xworkflows/kinds.json`", "`.xworkflows/screens.json`", "`.xworkflows/details.md`"]);
   inOrder(s, ["git commit -m", "research.mjs done"]);
 });
 

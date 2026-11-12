@@ -291,6 +291,13 @@ test("H1-what-fix required after a No on H1-what", () => {
   assert.deepEqual(missing(q, [L("H1-what", "No"), L("H1-what-fix", "a shop")], "r1"), []);
 });
 
+test("a last answer of the bare label Keep it, because ... asks for <id>-why until it is answered", () => {
+  const q = [{ id: "X1", style: "choice" }, { id: "X2", style: "choice" }];
+  assert.deepEqual(missing(q, [L("X1", "Keep it, because ..."), L("X2", "x")], "r1"), ["X1-why"]);
+  assert.deepEqual(missing(q, [L("X1", "Keep it, because ..."), L("X2", "x"), L("X1-why", "it is on purpose")], "r1"), []);
+  assert.deepEqual(missing(q, [L("X1", "Keep it, because ..."), L("X1", "Keep it, because it is old"), L("X2", "x")], "r1"), []);
+});
+
 test("C<n>-fix required after a No on a config confirm", () => {
   const q = [{ id: "C5", style: "confirm" }, { id: "C6", style: "open" }];
   assert.deepEqual(missing(q, [L("C5", "No"), L("C6", "No")], "r1"), ["C5-fix"]);
@@ -357,11 +364,13 @@ test("start git-ignores the run's private files from the first question", async 
   g(r2, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "a");
   mkdirSync(join(r2, ".xworkflows")); writeFileSync(join(r2, ".xworkflows", ".gitignore"), "mine\n");
   start(r2);
-  const own = readFileSync(join(r2, ".xworkflows", ".gitignore"), "utf8");
-  assert.match(own, /^mine\n/);
-  for (const f of ["screens.json", "details.md", "kinds.json", "adapt-run.json"]) assert.ok(own.split("\n").includes(f), f);
-  start(r2);
-  assert.equal(readFileSync(join(r2, ".xworkflows", ".gitignore"), "utf8"), own);
+  assert.equal(readFileSync(join(r2, ".xworkflows", ".gitignore"), "utf8"), "mine\n");
+  const ro = join(mkdtempSync(join(tmpdir(), "adapt-ign-")), "ro");
+  mkdirSync(ro); g(ro, "init", "-q"); writeFileSync(join(ro, "a.txt"), "a"); g(ro, "add", "a.txt");
+  g(ro, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "a");
+  mkdirSync(join(ro, ".xworkflows")); writeFileSync(join(ro, ".xworkflows", ".gitignore"), "mine\n", { mode: 0o444 });
+  start(ro);
+  assert.ok(existsSync(join(ro, ".xworkflows", "adapt-run.json")));
 });
 
 test("a tracked symlink under .xworkflows is never written through, and render writes nothing when any output is a link", () => {

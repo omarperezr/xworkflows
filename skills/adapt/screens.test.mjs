@@ -160,6 +160,8 @@ test("a verdict turned into no-evidence gets a dropped line; one that verifies, 
     { id: "W3", verdict: "no-evidence", ...c(2, "zzz") },
   ] } } }));
   assert.deepEqual(m.dropped.map((d) => [d.area, d.what]), [["values", "verdict W2 contradicted"]]);
+  const a = mechanism(root, research({}, undefined, { kinds: { idem: { status: "absent", verdicts: [{ id: "W2", verdict: "contradicted", ...c(2, "zzz") }] } } }));
+  assert.deepEqual(a.dropped.map((d) => [d.area, d.what]), [["idem", "verdict W2 contradicted"]]);
 });
 
 test("render stops when the plain agent, the questions agent or a config agent returned nothing", () => {
@@ -190,6 +192,16 @@ test("verified sentences of plain.rest fill the free places of screen 1; the lef
   assert.deepEqual(s.drawer1.map((x) => x.text), ["Good one.", "Spare verified."]);
   assert.equal(s.drawer1LeftOut.length, 0);
   assert.equal(s.dropped.filter((d) => d.area === "plain").length, 2);
+});
+
+test("a verified sentence of plain.rest never pushes out one the plain agent chose", () => {
+  const r = research({ lo: area({ general: general("r", "low", c(1, "days(loan)")) }), hi: area({ general: general("h", "high", c(2, "late(loan)")) }) }, {
+    claims: Array.from({ length: MAX_RULES }, (_, i) => claim(`Chosen ${i}.`, "lo")),
+    rest: [claim("Spare high.", "hi")],
+  });
+  const s = screens(root, r);
+  assert.deepEqual(s.drawer1.map((x) => x.text), Array.from({ length: MAX_RULES }, (_, i) => `Chosen ${i}.`));
+  assert.deepEqual(s.drawer1LeftOut.map((x) => x.text), ["Spare high."]);
 });
 
 test("the left-out line of screen 2 says the cut is by kind, then by risk", () => {

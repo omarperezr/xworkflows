@@ -76,7 +76,7 @@ export function buildQueue(s, research = {}, scan = {}, prev = null, cfg = {}) {
   ];
 }
 
-// Ids with no answer in `run`; `H1-what-fix` after a `No` on `H1-what`, `C<n>-fix` after a `No` on a config confirm; with `approved`, P-H1..P-H7 last answer must be `Right`.
+// Ids with no answer in `run`; `H1-what-fix` after a `No` on `H1-what`, `C<n>-fix` after a `No` on a config confirm, `<id>-why` after the bare `Keep it, because ...`; with `approved`, P-H1..P-H7 last answer must be `Right`.
 export function missing(queue, log, run, approved = false) {
   const last = {};
   for (const l of log) if (l.run === run && l.answer !== undefined && l.answer !== "") last[l.id] = l.answer;
@@ -84,6 +84,7 @@ export function missing(queue, log, run, approved = false) {
   for (const { id, style } of queue) {
     if (!(id in last)) out.push(id);
     else if (id === "H1-what" && last[id] === "No" && !("H1-what-fix" in last)) out.push("H1-what-fix");
+    else if (last[id] === "Keep it, because ..." && !(`${id}-why` in last)) out.push(`${id}-why`);
     else if (/^C\d+$/.test(id) && style === "confirm" && last[id] === "No" && !(`${id}-fix` in last)) out.push(`${id}-fix`);
   }
   if (approved) for (let n = 1; n <= 7; n++) if (last[`P-H${n}`] !== FIXED[0]) out.push(`P-H${n}`);
@@ -110,12 +111,7 @@ function cli(cmd, root) {
     for (const f of [dir, join(dir, "interview.log.jsonl")]) if (isLink(f)) refuse(f);
     mkdirSync(dir, { recursive: true });
     // The owner's answers land here from the first question; ignore them now, not at step 4.
-    // An ignore file that exists (the shipped one, or the owner's) gets the run files it lacks.
-    const ign = join(dir, ".gitignore");
-    let have = "";
-    try { have = readFileSync(ign, "utf8"); } catch {}
-    const lack = [".gitignore", "research.md", "research.json", "research.prev.json", "scan.json", "interview.json", "interview.log.jsonl", "adapt-run.json", "rules.json", "kinds.json", "screens.json", "details.md"].filter((f) => !have.split("\n").includes(f));
-    if (lack.length && !isLink(ign)) writeFileSync(ign, have + (have && !have.endsWith("\n") ? "\n" : "") + lack.join("\n") + "\n");
+    try { writeFileSync(join(dir, ".gitignore"), [".gitignore", "research.md", "research.json", "research.prev.json", "scan.json", "interview.json", "interview.log.jsonl", "adapt-run.json", "rules.json", "kinds.json", "screens.json", "details.md"].join("\n") + "\n", { flag: "wx" }); } catch {}
     const commit = git(root, ["rev-parse", "HEAD"]);
     const status = statusOf(summary);
     let old = null;
