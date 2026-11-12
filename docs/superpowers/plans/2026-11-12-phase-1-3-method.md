@@ -60,7 +60,7 @@ Branch `phase-1-3-shared`. Three owners:
 3. In `sandbox/`: a toy change goes deepen to seal; a push to a local bare
    remote exits non-zero before the seal line and 0 after. Output saved.
 4. On a copy of the reference, last 60 merges: each ported brake gives the
-   verdict of its `review.sh` mode (design 9.1). Each difference is explained
+   verdict of its review script mode (design 9.1). Each difference is explained
    by configuration or fixed. A mode that cannot run on the copy is named.
 5. The recorded Claude Code fixtures of spec section 13.
 6. xworkflows installed in itself: `doctor` exits 0, the next batch carries a
