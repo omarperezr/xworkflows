@@ -4,14 +4,16 @@ import { join } from "node:path";
 import { lastRun } from "./answers.mjs";
 
 const read = (p) => (existsSync(p) ? readFileSync(p, "utf8") : "");
+// A harness trial folder has research files at its root; a live copy has them in .xworkflows/.
+export const art = (dir, f) => (existsSync(join(dir, f)) ? join(dir, f) : join(dir, ".xworkflows", f));
 const ls = (d) => (existsSync(d) ? readdirSync(d).filter((f) => f.endsWith(".md")).sort().map((f) => read(join(d, f))) : []);
 
-const research = (dir) => { try { return JSON.parse(read(join(dir, "research.json"))); } catch { return null; } };
+const research = (dir) => { try { return JSON.parse(read(art(dir, "research.json"))); } catch { return null; } };
 // "file:line" of each citation render dropped (## Dropped citations in research.md)
 const dropped = (md) => new Set([...(md.split(/^## Dropped citations[^\n]*\n/m)[1]?.split(/^## /m)[0] ?? "").matchAll(/^- \w+: (\S+:\d+)/gm)].map((m) => m[1]));
 // kinds with their dropped rules removed; none at all when research.md is missing
 function kindsOf(dir) {
-  const md = read(join(dir, "research.md"));
+  const md = read(art(dir, "research.md"));
   if (!md) return [];
   const d = dropped(md);
   return kindList(research(dir)).map((k) => ({ ...k, rules: (k.rules ?? []).filter((r) => !d.has(`${r.file}:${r.line}`)) }));
@@ -25,7 +27,7 @@ function heading5(md) {
 }
 
 export function grade(dir, rubric) {
-  const R = heading5(read(join(dir, "research.md")));
+  const R = heading5(read(art(dir, "research.md")));
   const I = [read(join(dir, "AGENTS.md")).split(/^## Project rules[^\n]*\n/m)[1]?.split(/^## /m)[0] ?? "",
     ...ls(join(dir, ".claude/rules")), read(join(dir, ".claude/agents/risk-review.md"))].join("\n");
   const has = (text, inv) => inv.patterns.every((p) => new RegExp(p, "i").test(text));
@@ -77,6 +79,7 @@ export function recommendedReport(logText, r, researchMd = "") {
 if (import.meta.url === `file://${process.argv[1]}`) {
   const [flag, ...rest] = process.argv.slice(2);
   const show = (o) => console.log(JSON.stringify(o, null, 2));
+  for (const t of flag === "--rubric" ? rest.slice(1) : rest) if (!existsSync(art(t, "research.md"))) console.error(`warning: ${t}: no research.md at the root or in .xworkflows/; R counts 0`);
   if (flag === "--rubric") {
     const rubric = JSON.parse(read(rest[0]));
     const trials = rest.slice(1);
@@ -89,6 +92,6 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     });
   } else if (flag === "--kinds") for (const t of rest) console.log(t, kindsFound(t).length);
   else if (flag === "--no-money") for (const t of rest) console.log(t, JSON.stringify(noMoneyCheck(t)));
-  else if (flag === "--log") for (const t of rest) show(recommendedReport(read(join(t, "interview.log.jsonl")), research(t), read(join(t, "research.md"))));
+  else if (flag === "--log") for (const t of rest) show(recommendedReport(read(art(t, "interview.log.jsonl")), research(t), read(art(t, "research.md"))));
   else { console.error("usage: grade.mjs --rubric <file> <trialDir...> | --kinds|--no-money|--log <trialDir...>"); process.exit(2); }
 }

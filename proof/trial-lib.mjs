@@ -1,5 +1,5 @@
 // Pure-ish trial helpers (no SDK import): the tests load this file with a stubbed exec.
-import { existsSync, renameSync, rmSync } from "node:fs";
+import { existsSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { stripLeft, stripPlan } from "./answers.mjs";
 
@@ -68,6 +68,25 @@ export async function withOwnerBackup(home, fn) {
 }
 
 // Amount counted toward the total cap: the recorded cost only for a clean end, else at least the per-trial cap.
+// A stream that ended with no result message counts as unclean: its cost was never reported.
 export function countedCost(r, perTrial) {
-  return r.failed || r.error || !["S5-next", "S5-skip", null].includes(r.stoppedAt) ? Math.max(r.costUsd, perTrial) : r.costUsd;
+  return r.failed || r.error || r.noResult || !["S5-next", "S5-skip", null].includes(r.stoppedAt) ? Math.max(r.costUsd, perTrial) : r.costUsd;
+}
+
+// Spending kept across harness runs, so the total cap holds over every invocation. A missing file is 0 spent;
+// a file that is not a ledger throws (never reset silently).
+export function readLedger(file) {
+  if (!existsSync(file)) return { totalUsd: 0, trials: [] };
+  const l = JSON.parse(readFileSync(file, "utf8"));
+  if (typeof l?.totalUsd !== "number" || !Array.isArray(l.trials)) throw new Error(`${file} is not a spend ledger`);
+  return l;
+}
+
+// Adds one trial's counted cost to the ledger file and returns the new total.
+export function addSpend(file, entry) {
+  const l = readLedger(file);
+  l.trials.push(entry);
+  l.totalUsd = Math.round((l.totalUsd + entry.countedUsd) * 1e6) / 1e6;
+  writeFileSync(file, JSON.stringify(l, null, 2) + "\n");
+  return l.totalUsd;
 }

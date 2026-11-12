@@ -1,6 +1,7 @@
 // Development-only: runs /adapt in fresh repo copies through the Claude Agent SDK.
-// usage: node proof/harness.mjs --source <dir> --commit <sha> [--init] [--strip a,b] --answers <file|none> --trials <n> --mode full|research-only --out <dir>
-import { apiKeyGuard, budgetStop, countedCost, prepareCopy, restoreOwner, stopFor, withOwnerBackup } from "./trial-lib.mjs";
+// usage: node proof/harness.mjs --source <dir> --commit <sha> [--init] [--strip a,b] --answers <file|none> --trials <n> --mode full|research-only --out <dir> [--spend-file <file>]
+// Spending is summed across runs in --spend-file (default <out>/../proof-spend.json); --max-usd-total caps that sum.
+import { addSpend, apiKeyGuard, budgetStop, countedCost, prepareCopy, readLedger, restoreOwner, stopFor, withOwnerBackup } from "./trial-lib.mjs";
 import { answerFor, loadAnswers } from "./answers.mjs";
 import { execFileSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -19,6 +20,7 @@ const { values: o } = parseArgs({ options: {
   source: { type: "string" }, commit: { type: "string" }, init: { type: "boolean" }, strip: { type: "string" },
   answers: { type: "string" }, trials: { type: "string", default: "1" }, mode: { type: "string", default: "full" }, out: { type: "string" },
   "api-credits": { type: "boolean" }, "max-usd-per-trial": { type: "string", default: "15" }, "max-usd-total": { type: "string", default: "60" },
+  "spend-file": { type: "string" },
 } });
 const guard = apiKeyGuard(process.env, o["api-credits"]);
 if (guard) { console.error(guard); process.exit(1); }
@@ -44,7 +46,7 @@ async function trial(n) {
     return { cwd, commit: null, stoppedAt: "prepare", misses: 0, costUsd: 0, cliVersion: "unknown", error: String(e), failed: true, durationMs: 0 };
   }
   const ac = new AbortController();
-  let stoppedAt = null, misses = 0, costUsd = 0, cliVersion = "unknown", error = null, fallback = null, failed = false;
+  let stoppedAt = null, misses = 0, costUsd = 0, cliVersion = "unknown", error = null, fallback = null, failed = false, gotResult = false;
   const stop = (why) => { stoppedAt = why; fallback ??= setTimeout(() => { failed = true; ac.abort(); }, 60_000); };
   const timer = setTimeout(() => { stoppedAt = "timeout"; failed = true; ac.abort(); }, TIMEOUT_MS);
   const canUseTool = async (name, input) => {
@@ -68,6 +70,7 @@ async function trial(n) {
       options: { cwd, model: MODEL, settingSources: ["project"], permissionMode: "default", systemPrompt: { type: "preset", preset: "claude_code" }, canUseTool, abortController: ac, maxBudgetUsd: perTrial } })) {
       if (m.type === "system" && m.subtype === "init" && m.claude_code_version) cliVersion = m.claude_code_version;
       if (m.type === "result") {
+        gotResult = true;
         if (typeof m.total_cost_usd === "number") costUsd = m.total_cost_usd;
         if (String(m.subtype).startsWith("error_")) { failed = true; stoppedAt ??= m.subtype === "error_max_budget_usd" ? "budget" : m.subtype; break; }
         if (stoppedAt === "S5-next" || stoppedAt === "S5-skip") break;
@@ -76,7 +79,7 @@ async function trial(n) {
   } catch (e) { if (!ac.signal.aborted) { error = String(e); console.error(`trial ${n}: ${e}`); } }
   clearTimeout(timer); clearTimeout(fallback);
   ac.abort();
-  return { cwd, commit, stoppedAt, misses, costUsd, cliVersion, error, failed: failed || !!error, durationMs: Date.now() - t0 };
+  return { cwd, commit, stoppedAt, misses, costUsd, cliVersion, error, failed: failed || !!error, noResult: !gotResult, durationMs: Date.now() - t0 };
 }
 
 function save(n, r) {
@@ -102,14 +105,18 @@ function save(n, r) {
 
 if (restoreOwner(homedir())) console.log("restored ~/.xworkflows/owner.md from a backup left by an earlier killed run");
 for (const sig of ["SIGINT", "SIGTERM"]) process.on(sig, () => { restoreOwner(homedir()); process.exit(1); });
-let spent = 0;
+const spendFile = o["spend-file"] || join(resolve(o.out), "..", "proof-spend.json");
+let spent;
+try { spent = readLedger(spendFile).totalUsd; } catch (e) { die(`spend ledger ${spendFile}: ${e.message}`); }
+console.log(`spend ledger ${spendFile}: ${spent.toFixed(2)} USD spent before this run`);
 for (let n = 1; n <= Number(o.trials); n++) {
   const why = budgetStop(spent, perTrial, totalCap);
   if (why) { console.log(`not starting trial ${n}: ${why}`); break; }
   const r = await withOwnerBackup(homedir(), () => trial(n));
   const counted = countedCost(r, perTrial);
-  spent += counted;
-  console.log(`trial ${n}: recorded ${r.costUsd.toFixed(2)} USD, counted ${counted.toFixed(2)} USD, total so far ${spent.toFixed(2)} USD of ${totalCap} cap`);
   try { save(n, r); } catch (e) { console.error(`trial ${n}: save failed: ${e}`); }
   rmSync(r.cwd, { recursive: true, force: true });
+  try { spent = addSpend(spendFile, { out: o.out, trial: n, at: new Date().toISOString(), recordedUsd: r.costUsd, countedUsd: counted }); }
+  catch (e) { die(`trial ${n}: could not add ${counted.toFixed(2)} USD to the spend ledger ${spendFile}: ${e.message}; stopping`); }
+  console.log(`trial ${n}: recorded ${r.costUsd.toFixed(2)} USD, counted ${counted.toFixed(2)} USD, ledger total ${spent.toFixed(2)} USD of ${totalCap} cap`);
 }

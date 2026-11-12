@@ -4,8 +4,9 @@ import { readFileSync, mkdtempSync, writeFileSync, cpSync, mkdirSync, existsSync
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { grade, stats, kindsFound, noMoneyCheck, recommendedReport } from "./grade.mjs";
+import { spawnSync } from "node:child_process";
 import { answerFor, toAnswers, stripPlan, stripLeft, loadAnswers } from "./answers.mjs";
-import { prepareCopy, stopFor, withOwnerBackup, apiKeyGuard, budgetStop, countedCost, restoreOwner } from "./trial-lib.mjs";
+import { prepareCopy, stopFor, withOwnerBackup, apiKeyGuard, budgetStop, countedCost, restoreOwner, readLedger, addSpend } from "./trial-lib.mjs";
 
 const FX = new URL("../test/fixtures/proof/", import.meta.url).pathname;
 const TRIAL = FX + "trial";
@@ -149,6 +150,23 @@ test("countedCost is conservative unless the end was clean", () => {
   assert.equal(countedCost({ ...ok, stoppedAt: "S5-skip" }, 15), 2);
   for (const bad of [{ stoppedAt: "timeout" }, { stoppedAt: "budget" }, { error: "x" }, { failed: true }, { stoppedAt: "error_during_execution" }]) assert.equal(countedCost({ ...ok, ...bad }, 15), 15);
   assert.equal(countedCost({ ...ok, failed: true, costUsd: 20 }, 15), 20);
+  assert.equal(countedCost({ ...ok, noResult: true }, 15), 15);
+  assert.equal(countedCost({ ...ok, stoppedAt: null, noResult: true }, 15), 15);
+});
+
+test("spend ledger sums counted costs across runs and the total cap applies to it", () => {
+  const f = tmp() + "/proof-spend.json";
+  assert.deepEqual(readLedger(f), { totalUsd: 0, trials: [] });
+  assert.equal(addSpend(f, { trial: 1, countedUsd: 15 }), 15);
+  assert.equal(addSpend(f, { trial: 2, countedUsd: 2.1 }), 17.1);
+  // a second harness run starts from the file
+  const l = readLedger(f);
+  assert.equal(l.totalUsd, 17.1);
+  assert.equal(l.trials.length, 2);
+  assert.equal(addSpend(f, { trial: 1, countedUsd: 30 }), 47.1);
+  assert.match(budgetStop(readLedger(f).totalUsd, 15, 60), /exceed/);
+  writeFileSync(f, "{}");
+  assert.throws(() => readLedger(f), /not a spend ledger/);
 });
 
 test("budgetStop keeps spent plus one trial cap within the total", () => {
@@ -168,6 +186,22 @@ test("grade and report ignore dropped citations; empty stats; missing research.m
   unlinkSync(d + "/research.md");
   assert.equal(kindsFound(d).length, 0);
   assert.equal(noMoneyCheck(d).ok, false);
+});
+
+test("grade reads a live copy's .xworkflows/ and warns when research.md is missing", () => {
+  const d = copy();
+  mkdirSync(d + "/.xworkflows");
+  for (const f of ["research.md", "research.json"]) renameSync(`${d}/${f}`, `${d}/.xworkflows/${f}`);
+  writeFileSync(d + "/.xworkflows/interview.log.jsonl", LOG);
+  assert.deepEqual(grade(d, RUBRIC), grade(TRIAL, RUBRIC));
+  assert.deepEqual(kindsFound(d), kindsFound(TRIAL));
+  const G = new URL("./grade.mjs", import.meta.url).pathname;
+  const log = spawnSync("node", [G, "--log", d], { encoding: "utf8" });
+  assert.equal(log.stderr, "");
+  assert.ok(JSON.parse(log.stdout).length > 0);
+  rmSync(d + "/.xworkflows/research.md");
+  const r = spawnSync("node", [G, "--kinds", d], { encoding: "utf8" });
+  assert.match(r.stderr, /warning: .*no research\.md/);
 });
 
 test("strip removes paths and fails if any remains", () => {
