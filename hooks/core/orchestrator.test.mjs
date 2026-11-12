@@ -9,7 +9,7 @@ import { load } from "./config.mjs";
 
 const T0 = 1_000_000_000_000;
 const base = load("/nonexistent", () => null);
-const cfg = { ...base, owner: "Ana", paths: { ...base.paths, code: ["src/"], heavyRead: ["src/", "supabase/"] } };
+const cfg = { ...base, owner: "Ana", paths: { ...base.paths, code: ["src/"], heavyRead: ["src/", "db/"] } };
 const ev = (kind, extra = {}) => ({ event: "preTool", tool: "t", kind, session: "s", root: "/r", isSubagent: false, ...extra });
 const agent = (type, extra = {}) => ev("agent", { agent: type, ...extra });
 const read = (path, limit) => ev("read", { path, limit });
@@ -67,7 +67,7 @@ test("read under heavyRead: no limit or above 40 denies, 40 passes; elsewhere pa
   assert.ok(denied(decide(read("/r/src/a.ts"), mk()), /40/));
   assert.ok(denied(decide(read("src/a.ts", 41), mk())));
   assert.ok(allowed(decide(read("src/a.ts", 40), mk())));
-  assert.ok(denied(decide(read("/r/supabase/m.sql"), mk())));
+  assert.ok(denied(decide(read("/r/db/m.sql"), mk())));
   assert.ok(allowed(decide(read("/r/docs/a.md"), mk())));
   assert.ok(allowed(decide(read("/elsewhere/src/a.ts"), mk())));
 });
@@ -81,7 +81,7 @@ test("heavyRead unset or limit from config", () => {
 
 test("shell: cat of heavyRead denies, git/wc/grep -c pass", () => {
   assert.ok(denied(decide(sh("cat src/a.ts"), mk())));
-  assert.ok(denied(decide(sh("sed -n 1,5p supabase/x.sql"), mk())));
+  assert.ok(denied(decide(sh("sed -n 1,5p db/x.sql"), mk())));
   assert.ok(allowed(decide(sh("git diff src/a.ts"), mk())));
   assert.ok(allowed(decide(sh("wc -l src/a.ts; grep -c x src/a.ts"), mk())));
 });
