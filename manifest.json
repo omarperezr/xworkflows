@@ -130,9 +130,9 @@
         "gemini"
       ],
       "files": {
-        "agents/explore.md": "89119f837ce821157e23b09fb4b79b7a73e1e0339ebb6794f9b038808fc84da7"
+        "agents/explore.md": "21c13b82207fbfd11b4006514c6ba4d0a827c98d30ed47324de2f289d4517a54"
       },
-      "sha256": "ff390adc15018a443716d8abb3e8c01412bfde1d7ea33b925b4f4e747655e0dc"
+      "sha256": "f65f16b993bd1103b38ce9fecf5aea063b1da6e6cce52f6d08b071cba224d8e8"
     },
     {
       "id": "mechanism",
@@ -286,9 +286,9 @@
         "gemini"
       ],
       "files": {
-        "skills/next-step/SKILL.md": "d85fc8030eb6a0265ae45c59f1bc2831f0c2d7a1d90b2b36fc00490403bb4c35"
+        "skills/next-step/SKILL.md": "2ce979fcfe60b9f5350d7fec8fd0f3954a7db523afdf867dfaa5e52e75c62d08"
       },
-      "sha256": "20c1ba9df7e0c643ac4c30b053fc70dcc9535b4a8d5b83f8e3db62e471404797"
+      "sha256": "2f9038a0e25e197e358a418ca2b2e7fd5fa92d4684778a2642765a97d6163567"
     },
     {
       "id": "orchestrator",
@@ -430,6 +430,125 @@
         "agents/review.md": "cc664745c387c9b0fd4f6041bfb17e2a2ac5832c559ffaa418c22cd177646ba8"
       },
       "sha256": "244c129220da386ae3c84d1670d20d2226b0490ac18db984e6c88a59e74cff06"
+    },
+    {
+      "id": "deepen",
+      "kind": "skill",
+      "origin": "own",
+      "version": "0.1.0",
+      "license": "MIT",
+      "scope": "project",
+      "tools": [
+        "claude"
+      ],
+      "files": {
+        "skills/deepen/SKILL.md": "a8a8ff83c0755e86879e027661d96c57b8ad74781105fef19a29c22b94f5948b"
+      },
+      "sha256": "711d371798811c619f773c2597113a442632d7d60ef51453bfd175564a57d77f"
+    },
+    {
+      "id": "plan",
+      "kind": "skill",
+      "origin": "own",
+      "version": "0.1.0",
+      "license": "MIT",
+      "scope": "project",
+      "tools": [
+        "claude"
+      ],
+      "files": {
+        "skills/plan/SKILL.md": "60f777f6649c4be4f0ea6f4c3438db30f2b9832e3672bcf914487a0c51e27edb"
+      },
+      "sha256": "404bf77570fab0804b04d6c2fb8ea4f7ce64f52157488b648dd0d2d559f54b9b"
+    },
+    {
+      "id": "orchestrate",
+      "kind": "skill",
+      "origin": "own",
+      "version": "0.1.0",
+      "license": "MIT",
+      "scope": "project",
+      "tools": [
+        "claude"
+      ],
+      "files": {
+        "skills/orchestrate/SKILL.md": "2f11bb6c15b5d837a31fca75b9ba189e71ca1e05be26d30f896f1f4183296f2a"
+      },
+      "sha256": "9ee349860b39a140454c44b0bf268e24599a6915498d633b901fa9c9eaaae944"
+    },
+    {
+      "id": "pending",
+      "kind": "skill",
+      "origin": "own",
+      "version": "0.1.0",
+      "license": "MIT",
+      "scope": "project",
+      "tools": [
+        "claude"
+      ],
+      "files": {
+        "skills/pending/SKILL.md": "db3f46432734f0cdc6ec008db5385fba2f43f9517019ef89f43d92a5b49eb0b8",
+        "templates/PENDING.md": "024be763b231bbc39ea583635fe25413985745180345c5e731119a5f4259551f"
+      },
+      "sha256": "b2265bae9b950268b6ec4ad43c1eae4b58374f1091c292dd640f58695c20c429"
+    },
+    {
+      "id": "tdd",
+      "kind": "skill",
+      "origin": "vendored",
+      "source": "https://github.com/obra/superpowers",
+      "version": "bb92a77741419a4ab5f06e711a283343f1ada0c3",
+      "license": "MIT",
+      "modified": true,
+      "scope": "project",
+      "tools": [
+        "claude"
+      ],
+      "files": {
+        "skills/tdd/SKILL.md": "6b0e52fbfc2021228af506c29bcc9893048fa84a2ab9b289eff6ce34bd0e90a6",
+        "skills/tdd/writing-good-tests.md": "51471c853306ff92ca8bb41dcaea05f31c0e46b03651f8f3c99754b7172f4ae1",
+        "skills/tdd/LICENSE": "a37e0e9697144819e1d965176ac4ae5bc3fa02d11e7812036bbcadf6dafe2400",
+        "skills/tdd/SOURCE.md": "cefc788202cd3fc2b769faf3484798cc53c7bd670a6d17f8d5f8348bd36eba2c"
+      },
+      "sha256": "44a1ce7ee421f5cfa1779f8b77d2136cfd31ae475e66dc3ab7dba24edaef2f7a"
+    },
+    {
+      "id": "ponytail",
+      "kind": "skill",
+      "origin": "vendored",
+      "source": "https://github.com/DietrichGebert/ponytail",
+      "version": "09c434ab73ca43761c5d8b0c5d341926c2fba710",
+      "license": "MIT",
+      "modified": false,
+      "scope": "project",
+      "tools": [
+        "claude"
+      ],
+      "files": {
+        "skills/ponytail/SKILL.md": "9badd22a32e19cb884e46dfa8d3aae82bb81dfa5484105b8b4f0262df823a509",
+        "skills/ponytail/LICENSE": "fb1bc6909ac3ef82d5c22106e32ef682b0cff66788fa915fb9b53b15c9d2f3ab",
+        "skills/ponytail/SOURCE.md": "23eb81d19afa1af53cd7b4df2483552f2cc87c59f68bffc681c63956107347d6"
+      },
+      "sha256": "fdad32cdae79cc21420796df3eb8c55c6c61150f265d452c736daf39ba598025"
+    },
+    {
+      "id": "ponytail-review",
+      "kind": "skill",
+      "origin": "vendored",
+      "source": "https://github.com/DietrichGebert/ponytail",
+      "version": "09c434ab73ca43761c5d8b0c5d341926c2fba710",
+      "license": "MIT",
+      "modified": false,
+      "scope": "project",
+      "tools": [
+        "claude"
+      ],
+      "files": {
+        "skills/ponytail-review/SKILL.md": "33fe4ebe22a460924e5d4a261e223df22e409cc94ab76182bee9fb91a3ef022e",
+        "skills/ponytail-review/LICENSE": "fb1bc6909ac3ef82d5c22106e32ef682b0cff66788fa915fb9b53b15c9d2f3ab",
+        "skills/ponytail-review/SOURCE.md": "efc2bad9ff85270a0ea9f55890b4ad7b63680bf66fa07ba1b41bb9e044388f7c"
+      },
+      "sha256": "668b7e9812764f990234ac58cf21e2d816e16cb8584e8130234da5e23fc7e4ff"
     }
   ]
 }
