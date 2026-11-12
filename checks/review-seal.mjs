@@ -12,11 +12,11 @@ export function run(range, ctx) {
   const unsealed = [];
   let risk = false;
   for (const c of range.commits) {
-    const files = ctx.git("diff-tree", "--cc", "--root", "--no-commit-id", "--name-only", "-r", c).split("\n").filter(Boolean);
+    const files = ctx.git("diff-tree", "--cc", "--root", "--no-commit-id", "--name-only", "-r", "-z", c).split("\0").filter(Boolean);
     const isCode = files.some((f) => !inPaths(f, paths.nonCode) || inPaths(f, paths.codeAnyway));
     if (!isCode) continue;
     const touchesRisk = files.some((f) => inPaths(f, paths.risk) && !f.endsWith(".md"));
-    const escaped = ctx.git("log", "-1", "--format=%b", c).split("\n").some((l) => l.startsWith("no-review: "));
+    const escaped = ctx.git("log", "-1", "--format=%b", c).split("\n").some((l) => /^no-review: \S/.test(l));
     if (escaped && !touchesRisk) continue;
     if (commentOnly(ctx, c)) continue;
     risk ||= touchesRisk;
@@ -25,8 +25,8 @@ export function run(range, ctx) {
   if (!unsealed.length) return { ok: true, lines: [] };
 
   const role = risk ? esc(roles.riskReviewer) : `${esc(roles.reviewer)}|${esc(roles.riskReviewer)}`;
-  const re = new RegExp(`(?<![\\w-])(?:${role}) ok at ([0-9a-f]{7,40})(?![\\w])`, "g");
-  const docs = ctx.git("ls-tree", "-r", "--name-only", range.head).split("\n")
+  const re = new RegExp(`^\\s*(?:[-*>]\\s*)?\`?(?:${role}) ok at ([0-9a-f]{7,40})\`?\\.?\\s*$`, "gm");
+  const docs = ctx.git("ls-tree", "-r", "--name-only", "-z", range.head).split("\0")
     .filter((f) => inPaths(f, [paths.plans, paths.specs]));
   for (const f of docs) {
     for (const [, sha] of (ctx.show(range.head, f) ?? "").matchAll(re)) {

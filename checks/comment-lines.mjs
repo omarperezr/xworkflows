@@ -16,7 +16,7 @@ export function commentOnly(ctx, sha) {
     const file = raw[i + 1], ext = /\.([^./]+)$/.exec(file)?.[1];
     // a new, deleted or chmod-ed file changes what the file does, whatever its lines say
     if (status !== "M" || oldMode !== newMode || !ctx.config.comments.marks[ext]) return false;
-    const diff = ctx.git("diff", "--no-renames", "-U0", "--no-color", `${sha}^`, sha, "--", file);
+    const diff = ctx.git("diff", "-a", "--no-ext-diff", "--no-textconv", "--no-renames", "-U0", "--no-color", `${sha}^`, sha, "--", file);
     const body = diff.slice(diff.indexOf("\n@@") + 1).split("\n");
     for (const l of body) {
       if (l[0] !== "+" && l[0] !== "-") continue;

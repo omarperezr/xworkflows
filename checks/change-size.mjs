@@ -11,6 +11,14 @@ function ignored(file, ignoreText) {
     .some((l) => (l.startsWith("*.") ? file.endsWith(l.slice(1)) : file.startsWith(l)));
 }
 
+// numstat prints "-" for -diff attributes too: recount as text, 0 only when the blob holds a NUL byte
+function textLines(ctx, from, to, file) {
+  const d = ctx.git("diff", "-a", "--no-ext-diff", "--no-textconv", "--no-renames", "-U0", from, to, "--", `:(literal)${file}`);
+  if (d.includes("\0")) return 0;
+  const ls = d.split("\n"), at = ls.findIndex((l) => l.startsWith("@@"));
+  return at < 0 ? 0 : ls.slice(at).filter((l) => /^[+-]/.test(l)).length;
+}
+
 function measure(ctx, from, to, range) {
   const { config } = ctx;
   const ignoreText = ctx.show(range.head, ".graphifyignore");
@@ -22,13 +30,14 @@ function measure(ctx, from, to, range) {
     const base = file.split("/").at(-1);
     if (inPaths(file, config.tests.files) || inPaths(file, config.paths.nonCode) || file.split("/").includes("fixtures")
       || file.endsWith(".json") || LOCKS.includes(base) || ignored(file, ignoreText)) continue;
-    files.push({ file, n: add === "-" ? 0 : Number(add) + Number(del) });
+    files.push({ file, n: add === "-" ? textLines(ctx, from, to, file) : Number(add) + Number(del) });
   }
   return { total: files.reduce((s, f) => s + f.n, 0), files };
 }
 
 export function run(range, ctx) {
   const { warn, max } = ctx.config.brakes.changeSize;
+  if (!Number.isFinite(warn) || !Number.isFinite(max)) return { ok: false, cannotRun: true, lines: ["brakes.changeSize.warn and .max must be numbers"] };
   const empty = ctx.git("hash-object", "-t", "tree", "/dev/null");
   let batches; // { label, total, files, messages }
   if (range.mainPush) {

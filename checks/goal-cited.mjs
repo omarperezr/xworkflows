@@ -1,8 +1,8 @@
 import { inPaths } from "../hooks/core/config.mjs";
 
 export function run(range, ctx) {
-  const added = ctx.git("diff", "--name-only", "--no-renames", "--diff-filter=A", range.diffBase, range.head)
-    .split("\n").filter((f) => f.endsWith(".md") && inPaths(f, [ctx.config.paths.plans]));
+  const added = ctx.git("diff", "--name-only", "-z", "--no-renames", "--diff-filter=A", range.diffBase, range.head)
+    .split("\0").filter((f) => f.endsWith(".md") && inPaths(f, [ctx.config.paths.plans]));
   if (!added.length) return { ok: true, lines: [] };
   const biz = ctx.show(range.head, "docs/BUSINESS.md");
   if (biz === null) return { ok: false, lines: ["docs/BUSINESS.md is missing, so no plan can cite a goal", `Add docs/BUSINESS.md with goal lines like "G1 (about 3 months): ...", then cite one in ${added[0]}`] };

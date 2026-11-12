@@ -1,6 +1,7 @@
 import { mkdtempSync, existsSync, symlinkSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { spawn } from "node:child_process";
 import { inPaths } from "../hooks/core/config.mjs";
 
 export const needs = ["paths.code", "tests.files", "tests.run", "tests.notRunnable"];
@@ -11,31 +12,42 @@ export const setLimitMs = (ms) => { limitMs = ms; };
 
 const quote = (s) => `'${s.replace(/'/g, `'\\''`)}'`;
 
-export function run(range, ctx) {
+export async function run(range, ctx) {
   const { paths: { code }, tests } = ctx.config;
   const isTest = (f) => inPaths(f, tests.files) || inPaths(f, tests.notRunnable);
   const bad = [], notes = [];
-  let wt = null, cannot = null;
+  let wt = null, cannot = null, signal = null;
 
   // exit: 0 pass, 1 red, null could not run
-  const runTests = (files) => {
+  const runTests = async (files) => {
     const list = files.map(quote).join(" ");
     const cmd = tests.run.includes("<files>") ? tests.run.split("<files>").join(list) : `${tests.run} ${list}`;
     const env = { ...process.env };
     delete env.NODE_TEST_CONTEXT; // a nested `node --test` would report to the outer run and always pass
-    const r = ctx.exec("sh", ["-c", cmd], { cwd: wt, env, stdio: "ignore", timeout: limitMs, killSignal: "SIGKILL" });
-    return r.code === null || r.code === 127 ? null : r.code === 0 ? 0 : 1;
+    for (const k of ["GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE"]) delete env[k];
+    // own process group, so a timeout kills the tests the shell started too
+    const child = spawn("sh", ["-c", cmd], { cwd: wt, env, stdio: "ignore", detached: true });
+    let timedOut = false;
+    const timer = setTimeout(() => { timedOut = true; try { process.kill(-child.pid, "SIGKILL"); } catch {} }, limitMs);
+    // Ctrl-C reaches only the foreground group, not ours: kill the tests, then re-raise after cleanup
+    const sigs = ["SIGINT", "SIGTERM", "SIGHUP"];
+    const onSig = (s) => { signal ??= s; try { process.kill(-child.pid, "SIGKILL"); } catch {} };
+    for (const s of sigs) process.once(s, onSig);
+    const code = await new Promise((res) => { child.on("error", () => res(null)); child.on("close", (c) => res(c)); });
+    for (const s of sigs) process.removeListener(s, onSig);
+    clearTimeout(timer);
+    return signal || timedOut || code === null || code === 127 ? null : code === 0 ? 0 : 1;
   };
 
   try {
-    range.commits.forEach((c, i) => {
+    for (const [i, c] of range.commits.entries()) await (async () => {
       if (cannot) return;
       const [subject, ...rest] = ctx.git("log", "-1", "--format=%s%n%b", c).split("\n");
       const body = rest.join("\n");
       if (!/^fix[(:]/.test(subject)) return;
       const parents = ctx.git("show", "-s", "--format=%P", c).split(" ").filter(Boolean);
       if (parents.length !== 1) return; // a merge is not a fix; a root commit has no parent to fail on
-      const changed = ctx.git("diff-tree", "--no-commit-id", "--name-only", "-r", c).split("\n").filter(Boolean);
+      const changed = ctx.git("diff-tree", "-z", "--no-commit-id", "--name-only", "-r", c).split("\0").filter(Boolean);
       if (!changed.some((f) => inPaths(f, code) && !isTest(f))) return;
       if (/^no-test: \S/m.test(body)) return;
       const later = range.commits.slice(i + 1).map((l) => ctx.git("log", "-1", "--format=%b", l)).join("\n");
@@ -56,14 +68,14 @@ export function run(range, ctx) {
       wtGit("checkout", "-q", "--detach", "-f", `${c}^`);
       wtGit("clean", "-fdq", "-e", "node_modules", "-e", ".venv");
       wtGit("checkout", "-q", c, "--", ...runnable);
-      const atParent = runTests(runnable);
+      const atParent = await runTests(runnable);
       if (atParent === null) { cannot = `${label}: its tests did not end within ${limitMs / 1000}s or could not start at the parent`; return; }
       if (atParent === 0) { bad.push(`${label}: its tests also pass at the parent, so they prove nothing; make them fail without the fix`); return; }
       wtGit("checkout", "-q", "--detach", "-f", c);
-      const atFix = runTests(runnable);
+      const atFix = await runTests(runnable);
       if (atFix === null) { cannot = `${label}: its tests did not end within ${limitMs / 1000}s or could not start at the fix`; return; }
       if (atFix !== 0) bad.push(`${label}: its tests still fail at the fix commit`);
-    });
+    })();
   } finally {
     if (wt) {
       ctx.tryGit("worktree", "remove", "--force", wt);
@@ -71,6 +83,7 @@ export function run(range, ctx) {
       ctx.tryGit("worktree", "prune");
     }
   }
+  if (signal) process.kill(process.pid, signal);
   if (cannot) return { ok: false, cannotRun: true, lines: [cannot] };
   if (bad.length) {
     return { ok: false, lines: ["a fix needs a test that fails before it and passes after it", ...bad,

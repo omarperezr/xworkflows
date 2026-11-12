@@ -57,7 +57,7 @@ export function run(range, ctx) {
   const bad = [];
   for (const c of range.commits) {
     if (git("rev-list", "--parents", "-n1", c).split(" ").length > 2) continue;
-    const files = git("diff-tree", "--root", "--no-commit-id", "--name-only", "-r", c).split("\n");
+    const files = git("diff-tree", "--root", "--no-commit-id", "--name-only", "-z", "-r", c).split("\0");
     const plans = files.filter((f) => inPaths(f, [paths.plans]));
     if (!plans.length || files.includes(paths.pending)) continue;
     if (sealOnly(git("diff-tree", "--root", "-p", "-U0", "--no-renames", "--no-commit-id", "-r", c, "--", ...plans))) continue;

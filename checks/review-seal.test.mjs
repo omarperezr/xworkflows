@@ -150,3 +150,47 @@ test("commentOnly: comments and blanks yes; code, unknown extension, chmod, new 
   repo.git("commit", "-q", "-m", "chmod");
   assert.equal(commentOnly(ctx(), repo.git("rev-parse", "HEAD")), false);
 }));
+
+test("a risk path with an accented name and a space is still a risk path", () => withRepo(async (repo) => {
+  const c = repo.commit("db", { files: { "db/migración 1.sql": "drop table x;\n" }, body: "no-review: trivial" });
+  assert.equal((await repo.run(mod)).ok, false);
+  seal(repo, `review ok at ${c}`);
+  assert.equal((await repo.run(mod)).ok, false);
+  seal(repo, `risk-review ok at ${c}`, "docs/superpowers/plans/q.md");
+  assert.equal((await repo.run(mod)).ok, true);
+}));
+
+test("commentOnly sees real hunks under -diff attributes and diff.external", () => withRepo(async (repo) => {
+  const ctx = () => makeCtx(repo.root, load(repo.root));
+  repo.write(".git/info/attributes", "* -diff\n");
+  const a = repo.commit("feat", { files: { "src/a.js": "const a = 2; evil();\n" } });
+  assert.equal(commentOnly(ctx(), a), false);
+  repo.write(".git/info/attributes", "");
+  repo.git("config", "diff.external", "true");
+  const b = repo.commit("feat2", { files: { "src/a.js": "const a = 3; evil();\n" } });
+  assert.equal(commentOnly(ctx(), b), false);
+}));
+
+test("a seal must be a line of its own and the escape needs a reason", () => withRepo(async (repo) => {
+  const c = repo.commit("feat: one", { files: { "src/a.js": "const a = 2;\n" } });
+  seal(repo, `Later we will write review ok at ${c} once done`);
+  assert.equal((await repo.run(mod)).ok, false);
+  repo.commit("feat: two", { files: { "src/b.js": "export {};\n" }, body: "no-review: " });
+  assert.equal((await repo.run(mod)).ok, false);
+}));
+
+test("a seal as a list item or in backticks counts; a sentence still does not", () => withRepo(async (repo) => {
+  const c = repo.commit("feat: one", { files: { "src/a.js": "const a = 2;\n" } });
+  for (const l of [`- review ok at ${c}`, `* \`review ok at ${c}\``, `> review ok at ${c}.`]) {
+    seal(repo, l);
+    assert.equal((await repo.run(mod)).ok, true, l);
+  }
+}));
+
+test("a list-item seal keeps its role: risk needs risk-review", () => withRepo(async (repo) => {
+  const c = repo.commit("db change", { files: { "db/m.sql": "select 1;\n" } });
+  seal(repo, `- review ok at ${c}`);
+  assert.equal((await repo.run(mod)).ok, false);
+  seal(repo, `- risk-review ok at ${c}`);
+  assert.equal((await repo.run(mod)).ok, true);
+}));

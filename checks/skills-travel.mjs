@@ -10,7 +10,7 @@ function skillNames(text) {
   let list = false;
   for (const l of lines.slice(open + 1, close)) {
     const key = /^skills:(.*)$/.exec(l);
-    const item = list && /^[ \t]+-(.*)$/.exec(l);
+    const item = list && /^[ \t]*-(.*)$/.exec(l);
     if (key) {
       const inline = key[1].trim().replace(/^\[(.*)\]$/, "$1");
       list = inline === "";
@@ -22,7 +22,7 @@ function skillNames(text) {
 }
 
 export function run(range, ctx) {
-  const tree = ctx.git("ls-tree", "-r", "--name-only", range.head).split("\n");
+  const tree = ctx.git("ls-tree", "-r", "-z", "--name-only", range.head).split("\0").filter(Boolean);
   const inTree = new Set(tree);
   const bad = [];
   for (const f of tree.filter((p) => /^\.claude\/agents\/[^/]+\.md$/.test(p))) {

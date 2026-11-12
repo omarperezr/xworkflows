@@ -3,17 +3,22 @@ const NAMES = ["claude", "anthropic", "openai", "chatgpt", "codex", "copilot", "
 const DOMAINS = ["anthropic.com", "openai.com", "cursor.com", "cursor.sh", "codeium.com", "windsurf.com", "aider.chat", "cognition.ai", "tabnine.com", "sourcegraph.com"];
 
 const nameRe = new RegExp(`(?<!\\w)(${NAMES.join("|")})(?!\\w)`, "i");
-const trailerRe = /^\s*(co-authored-by|signed-off-by):|generated with/i;
+const trailerRe = /^\s*(co-authored-by|signed-off-by):|^\W*generated with/i;
 const domainOf = (s) => (s.match(/@([^\s>@]+)/)?.[1] ?? "").toLowerCase();
+// GitHub bot emails: judge the part after "+" (a bare tool name, or any name ending in [bot])
+const botEmail = (e) => {
+  const l = (e.match(/([^\s<>@]+)@users\.noreply\.github\.com/i)?.[1] ?? "").split("+").pop();
+  return /\[bot\]$/i.test(l) ? nameRe.test(l) : new RegExp(`^(${NAMES.join("|")})$`, "i").test(l);
+};
 const vendorDomain = (d) => DOMAINS.some((v) => d === v || d.endsWith(`.${v}`));
 
 export function run(range, ctx) {
   const bad = [];
   for (const sha of range.commits) {
-    const [head, ae, ce, body] = ctx.git("show", "-s", "--format=%h %s%x00%ae%x00%ce%x00%b", sha).split("\0");
+    const [head, ae, ce, body] = ctx.git("show", "-s", "--format=%h %s%x00%ae%x00%ce%x00%B", sha).split("\0");
     const why = [];
-    if (vendorDomain(domainOf(ae))) why.push(`author email ${ae}`);
-    if (vendorDomain(domainOf(ce))) why.push(`committer email ${ce}`);
+    if (vendorDomain(domainOf(ae)) || botEmail(ae)) why.push(`author email ${ae}`);
+    if (vendorDomain(domainOf(ce)) || botEmail(ce)) why.push(`committer email ${ce}`);
     for (const line of body.split("\n")) {
       if (trailerRe.test(line) && (nameRe.test(line) || vendorDomain(domainOf(line)))) why.push(`line "${line.trim()}"`);
     }

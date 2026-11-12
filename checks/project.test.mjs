@@ -65,3 +65,14 @@ test("an untracked file does not", () =>
     repo.write("new.txt", "x");
     assert.equal((await repo.run(brake)).ok, true);
   }));
+
+test("a checks.project that is not a list of { name, run } cannot run", async () => {
+  for (const bad of [{ name: "t", run: "exit 1" }, [{ name: "t" }], ["exit 1"], [null]]) {
+    await withRepo(bad, async (repo) => {
+      const r = await repo.run(brake);
+      assert.equal(r.ok, false);
+      assert.equal(r.cannotRun, true);
+      assert.deepEqual(r.lines, ["checks.project is not a list of { name, run }"]);
+    });
+  }
+});

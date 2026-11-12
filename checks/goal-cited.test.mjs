@@ -43,6 +43,16 @@ test("G1 does not match a line for G10", async () => {
     async (r) => assert.equal((await r.run(mod)).ok, false));
 });
 
+test("accented and spaced plan names are checked", async () => {
+  const p = "docs/superpowers/plans/plán uno.md";
+  await withRepo({ "docs/BUSINESS.md": BIZ }, (r) => r.commit("plan", { files: { [p]: "# P\n" } }),
+    async (r) => {
+      const res = await r.run(mod);
+      assert.equal(res.ok, false);
+      assert.ok(res.lines.join("\n").includes(p));
+    });
+});
+
 test("plan only changed is not checked", async () => {
   await withRepo({ "docs/BUSINESS.md": BIZ, [PLAN]: "old\n" }, (r) => r.commit("edit", { files: { [PLAN]: "new\n" } }),
     async (r) => assert.equal((await r.run(mod)).ok, true));

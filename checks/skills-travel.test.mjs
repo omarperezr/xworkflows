@@ -63,3 +63,17 @@ test("skills: in the body is ignored", async () => {
   const r = await check({ ".claude/agents/a.md": agent("tools: x\n", "skills:\n  - gone\nskills: gone\n") });
   assert.equal(r.ok, true);
 });
+
+test("list at the key's own indentation is read", async () => {
+  const r = await check({ ".claude/agents/a.md": agent("skills:\n- one\n- gone\n"), ...skill("one") });
+  assert.equal(r.ok, false);
+  assert.match(r.lines.join("\n"), /gone/);
+});
+
+test("agent files with accented letters or spaces are read", async () => {
+  for (const name of ["revisión", "my agent"]) {
+    const r = await check({ [`.claude/agents/${name}.md`]: agent("skills:\n  - gone\n") });
+    assert.equal(r.ok, false, name);
+    assert.match(r.lines.join("\n"), /gone/);
+  }
+});

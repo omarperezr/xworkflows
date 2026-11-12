@@ -63,3 +63,28 @@ test("two bad commits are both listed", async () => {
   assert.match(t, /first bad/);
   assert.match(t, /second bad/);
 });
+
+test("trailer with no blank line, and a subject-only Generated with, fail", async () => {
+  let r = await check((repo) => repo.commit("feat: x\nCo-Authored-By: Claude <noreply@example.org>"));
+  assert.equal(r.ok, false);
+  r = await check((repo) => repo.commit("Generated with Claude Code"));
+  assert.equal(r.ok, false);
+});
+
+test("GitHub bot identities at users.noreply.github.com fail; a human there passes", async () => {
+  const by = (author) => check((repo) => {
+    repo.write("a.txt", "a");
+    repo.git("add", "-A");
+    repo.git("-c", "user.email=ok@example.org", "commit", "-q", "-m", "by bot", `--author=${author}`);
+  });
+  assert.equal((await by("claude[bot] <209825114+claude[bot]@users.noreply.github.com>")).ok, false);
+  assert.equal((await by("Copilot <198982749+Copilot@users.noreply.github.com>")).ok, false);
+  assert.equal((await by("Ana <1234+ana-lopez@users.noreply.github.com>")).ok, true);
+});
+
+test("prose with 'generated with' mid-line passes; emoji-prefixed line fails", async () => {
+  let r = await check((repo) => repo.commit("fix rows", { body: "The rows are generated with the cursor at the end." }));
+  assert.equal(r.ok, true);
+  r = await check((repo) => repo.commit("x", { body: "🤖 Generated with [Claude Code](https://claude.com/claude-code)" }));
+  assert.equal(r.ok, false);
+});

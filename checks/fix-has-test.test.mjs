@@ -1,6 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
+import { readFileSync, writeFileSync, mkdtempSync, rmSync, existsSync } from "node:fs";
+import { spawn } from "node:child_process";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import * as brake from "./fix-has-test.mjs";
 import { makeRepo } from "../test/helpers/repo.mjs";
 
@@ -103,6 +107,68 @@ test("a run that does not end in time: cannotRun", withRepo({ config: { ...confi
     assert.equal(r.ok, false);
     assert.equal(r.cannotRun, true);
   } finally { brake.setLimitMs(120000); }
+}));
+
+test("non-ASCII and spaced file names: a code path is seen, a test path is seen", withRepo({ config: { ...config, paths: { code: ["src/"] } } }, async (repo) => {
+  repo.commit("fix: x", { files: { "src/configuración.mjs": "export {};\n" } });
+  assert.equal((await repo.run(brake)).ok, false);
+  repo.commit("fix: y", { files: { "src/a b.mjs": "export {};\n", "test/xó y.test.mjs": NODE_TEST["test/x.test.mjs"].replace("../src/x.mjs", "../src/x.mjs") } });
+  const r = await repo.run(brake);
+  assert.doesNotMatch(r.lines.join("\n"), /fix: y: it changes code and adds no test file/);
+}));
+
+test("a timed-out run leaves no process behind", withRepo({}, async (repo) => {
+  const pidf = join(tmpdir(), `xwf-pid-${process.pid}`);
+  const cfg = { ...config, tests: { ...config.tests, run: `node -e "require('fs').writeFileSync('${pidf}',String(process.pid));setInterval(()=>{},1000)" ; true` } };
+  const r2 = makeRepo({ config: cfg, files: BUG });
+  brake.setLimitMs(1500);
+  try {
+    r2.commit("fix: x returns 2", { files: { ...FIXED, ...NODE_TEST } });
+    assert.equal((await r2.run(brake)).cannotRun, true);
+    const pid = Number(readFileSync(pidf, "utf8"));
+    await new Promise((r) => setTimeout(r, 300));
+    assert.throws(() => process.kill(pid, 0), /ESRCH/);
+  } finally { brake.setLimitMs(120000); r2.cleanup(); rmSync(pidf, { force: true }); }
+}));
+
+test("SIGINT to the process group kills the test command, removes the worktree, ends non-zero", async () => {
+  const tmp = mkdtempSync(join(tmpdir(), "xwf-sig-"));
+  const pidf = join(tmp, "pid");
+  const cfg = { ...config, tests: { ...config.tests, run: `node -e "require('fs').writeFileSync('${pidf}',String(process.pid));setInterval(()=>{},1000)"` } };
+  const repo = makeRepo({ config: cfg, files: BUG });
+  let child;
+  try {
+    repo.commit("fix: x returns 2", { files: { ...FIXED, ...NODE_TEST } });
+    const script = join(tmp, "child.mjs");
+    writeFileSync(script, `import * as brake from ${JSON.stringify(new URL("./fix-has-test.mjs", import.meta.url).href)};
+import { makeRepo } from ${JSON.stringify(new URL("../test/helpers/repo.mjs", import.meta.url).href)};
+import { load } from ${JSON.stringify(new URL("../hooks/core/config.mjs", import.meta.url).href)};
+import { makeCtx, rangeFor } from ${JSON.stringify(new URL("./run.mjs", import.meta.url).href)};
+const ctx = makeCtx(${JSON.stringify(repo.root)}, load(${JSON.stringify(repo.root)}));
+const first = ${JSON.stringify(repo.git("rev-parse", "HEAD~1"))}, head = ${JSON.stringify(repo.git("rev-parse", "HEAD"))};
+await brake.run(rangeFor(ctx, { base: first, head }), ctx);
+`);
+    child = spawn(process.execPath, [script], { detached: true, stdio: "ignore" });
+    const exited = new Promise((res) => child.on("exit", (code, sig) => res({ code, sig })));
+    for (let i = 0; i < 100 && !existsSync(pidf); i++) await new Promise((r) => setTimeout(r, 100));
+    await new Promise((r) => setTimeout(r, 200));
+    const pid = Number(readFileSync(pidf, "utf8"));
+    process.kill(-child.pid, "SIGINT");
+    const { code, sig } = await exited;
+    assert.ok(sig || code !== 0, "child must not end as if nothing happened");
+    assert.throws(() => process.kill(pid, 0), /ESRCH/);
+    assert.equal(repo.git("worktree", "list").split("\n").length, 1, "worktree left behind");
+  } finally {
+    try { process.kill(-child.pid, "SIGKILL"); } catch {}
+    repo.cleanup(); rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test("the test command does not inherit GIT_DIR", withRepo({}, async (repo) => {
+  const t = { "test/x.test.mjs": `import { test } from "node:test";\nimport assert from "node:assert/strict";\nimport { x } from "../src/x.mjs";\ntest("x", () => { assert.equal(process.env.GIT_DIR, undefined); assert.equal(x(), 2); });\n` };
+  repo.commit("fix: x returns 2", { files: { ...FIXED, ...t } });
+  process.env.GIT_DIR = "/nonexistent";
+  try { assert.deepEqual(await repo.run(brake), { ok: true, lines: [] }); } finally { delete process.env.GIT_DIR; }
 }));
 
 test("needs names the four keys", () => {

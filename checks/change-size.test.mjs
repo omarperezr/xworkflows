@@ -82,3 +82,26 @@ test("main push: two batches each under max pass though the sum is over", withRe
   }
   assert.equal((await repo.run(mod, { ref: "refs/heads/main" })).ok, true);
 }));
+
+test("a file marked -diff by attributes still counts its lines", withRepo(async (repo) => {
+  repo.write(".git/info/attributes", "* -diff\n");
+  repo.commit("big", { files: { "src/b ñ.js": lines(30) } });
+  const r = await repo.run(mod);
+  assert.equal(r.ok, false);
+  assert.match(r.lines[0], /30/);
+}));
+
+test("a file that really holds a NUL byte counts 0", withRepo(async (repo) => {
+  repo.commit("bin", { files: { "src/b.bin": `${lines(30)}\0\n` } });
+  assert.deepEqual(await repo.run(mod), { ok: true, lines: [] });
+}));
+
+test("non-numeric warn or max cannot run", async () => {
+  const bad = { ...cfg, brakes: { changeSize: { warn: 10, max: "eight hundred" } } };
+  await withRepo(async (repo) => {
+    repo.commit("big", { files: { "src/b.js": lines(30) } });
+    const r = await repo.run(mod);
+    assert.equal(r.ok, false);
+    assert.equal(r.cannotRun, true);
+  }, bad)();
+});
