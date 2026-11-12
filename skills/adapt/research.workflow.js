@@ -138,8 +138,8 @@ const KIND_SCHEMA = {
     // required when status is found; render shows a found kind without it as "general rule missing"
     general: {
       type: "object",
-      properties: { rule: { type: "string" }, basis: { type: "string", enum: ["written", "code", "both"] }, ...CITE },
-      required: ["rule", "basis", "file", "line", "quote"],
+      properties: { rule: { type: "string" }, short: { type: "string" }, basis: { type: "string", enum: ["written", "code", "both"] }, ...CITE },
+      required: ["rule", "short", "basis", "file", "line", "quote"],
     },
     rules: {
       type: "array",
@@ -157,6 +157,8 @@ const KIND_SCHEMA = {
 
 const GLOSS = { values: "money, time, units, rounding", snap: "values frozen at write", srvw: "writes through server functions", delta: "changes as deltas", idem: "retried or offline writes", txn: "multi-row actions", access: "database or server access control", batch: "work over many rows", domain: "legal, tax or domain rules", compat: "public API, file formats, schemas", conc: "locks, queues, order", input: "validation of outside input" };
 
+const WORDS = "Say the thing protected and the constraint in the words of the business (what the people who use the product call the thing), never a code name: no name of a function, table, column, constant or file; those belong in the detail.";
+
 const KIND_PROMPT = (kind) => `Mechanism kind \`${kind}\` (${GLOSS[kind]}). The rules are about the application, never about its tests: do not use or cite test files (folders \`test\`, \`tests\`, \`__tests__\`, \`spec\`, \`e2e\`; files \`*.test.*\`, \`*.spec.*\`, \`test_*.py\`, \`*_test.*\`, \`conftest.py\`), and never state a rule about how tests are written or run. Work in this order.
 
 1. Written rules. Read \`.xworkflows/rules.json\` (\`{ rules: [{ id, text, file, line, kinds }] }\`) and take the first 15 rules, in rules.json order (lowest W id first), whose \`kinds\` includes \`${kind}\` (at most 15; leave the rest). These are what the project says it does; check each against the code. A rule whose \`file\` is code (not a doc) is a comment about the code right below it: read that file from the rule's \`line\` on, and if the next lines do what it says, the verdict is \`enforced\` with one of those lines cited.
@@ -170,7 +172,7 @@ const KIND_PROMPT = (kind) => `Mechanism kind \`${kind}\` (${GLOSS[kind]}). The 
    (b) None is enforced, but the code follows one consistent pattern for this kind across files: state that pattern. \`basis\` \`code\`. Anchor it on the pattern applied across files; cite one line where it is applied.
    (c) Otherwise: no general rule, status \`absent\`.
    A \`contradicted\` written rule never becomes the general rule.
-   State the rule at project level, in your own words if needed: one sentence, how every change of this kind must behave across the project. It must not name a function, file, table or column. For example: "Every label a user sees comes from the translation files."
+   State the rule at project level, in your own words if needed: one sentence, how every change of this kind must behave across the project. It must not name a function, file, table or column. For example: "Every label a user sees comes from the translation files." \`short\`: the same claim as \`rule\` in one plain sentence of 14 words at most, never wider than the rule. ${WORDS} It has no "all", "always", "never" or "every" unless one cited place enforces it for every case.
 5. rules: at most 3 details, each narrower than the general rule and not repeating it, worded as how the code must do something, with file, line and \`quote\`.
 6. status: \`found\` (case a or b: you state a general rule), \`absent\` (case c: the area for this kind exists, no general rule), \`not-present\` (the project has no such area). Give verdicts whatever the status.
 
@@ -185,17 +187,16 @@ const PLAIN_SCHEMA = { type: "object", properties: { claims: PLAIN_ITEMS, rest: 
 
 const PLAIN = (language, items) => `You merge and translate the items below into short plain sentences for the owner of the project, who is not a programmer. Write in ${language}.
 
-The items, of two kinds and nothing else. A general rule has an id that is an area key, a short \`rule\` and its \`risk\`. An idea has the id <area key>.<n>. Each was proven by its own line of code; you do not see the line:
+The items, of two kinds and nothing else. A general rule has a short \`rule\`: an area's has an id that is an area key and its \`risk\`; a mechanism kind's has the id \`kind:<kind>\` and no risk. An idea has the id <area key>.<n>. Each was proven by its own line of code; you do not see the line:
 ${JSON.stringify(items)}
 
-Return \`claims\`: sentences that each say ONE item the owner can answer "yes" or "no" to.
-- 14 words at most. Everyday words: no function, file or table names, no jargon. One subject, active voice.
-- Keep the key words of the item (the name of its mechanism or value) when you translate; never replace a specific word with a vaguer one.
+Return sentences that each say ONE item the owner can answer "yes" or "no" to.
+- 14 words at most. Everyday words, no jargon. One subject, active voice.
+- ${WORDS} A specific business word is never replaced by a vaguer one.
 - \`from\`: the ids of the items the sentence comes from, at least one. Use only ids from the list.
-- Merge items that say the same thing into one sentence naming all their ids. An idea that only repeats its own area's general rule is merged into that rule's sentence. Never split an item into several sentences, each would borrow a line that proves only the whole.
+- Merge items that say the same thing into one sentence naming all their ids. An idea that only repeats its own area's general rule is merged into that rule's sentence. Merge a kind's rule with an area's rule only when they say the same thing. Never split an item into several sentences, each would borrow a line that proves only the whole.
 - A sentence says what its items say, no more: never widen an item to more cases, more places or more strength than it states (no "all", "always" or "never" the item did not have), and never add a reason it does not give. A short sentence that says more than its item is worse than a long one that does not. For example, from the idea "A loan period is counted in whole days" write "A loan lasts whole days.", never "Nothing is ever counted in hours."
-- At most 12 in \`claims\`. The sentences that come from a general rule go first, by risk (high, medium, low). The sentences that come only from ideas fill the places that are left.
-- The other sentences go in \`rest\`, in the same form, never dropped.
+- Return every sentence in \`claims\`, in any order, and leave \`rest\` an empty list: the script orders them and picks the first page, so do not count, rank or choose.
 - Leave out an item you cannot say in 14 words without widening it.`;
 
 // Same function as research.mjs `sum` (a test checks they agree).
@@ -291,7 +292,7 @@ ${written.length ? JSON.stringify(written) : "(none found)"}
 The rules are about the system, never about its tests: do not cite test files, and state no rule about how tests are written or run. Work in this order.
 
 1. Find how the code handles this area. Run the patterns, open the files they point at, and search beyond them with \`graphify query\` and \`grep\`. Read the comments and docstrings around what you find: rules live there too.
-2. \`general\`: the area's ONE project-level rule. First list for yourself the candidates (the written and checked rules above, and the patterns you saw in the code); the general rule is the one whose breaking would cost the most and that the most code depends on. It is a pattern the code follows in more than one place, or a written rule the code really follows. State it as how every change in this area must behave, in one sentence, at the level where it is true: if it holds for every such value in the project, do not state it for one function. It names no function, file, table or column. For example, in a system that lends books: "A loan period is always counted in whole days in the library's own time zone." Before you settle on it, look for the case that contradicts it: the same operation done without the guard (use \`graphify query\` and a search for the operation's other call sites). When you find one, either narrow the rule to where it holds, or keep the rule and return that case under \`exceptions\` with its citation and how it differs. Cite one line where it is applied. \`short\`: the same claim as \`rule\` in one plain sentence of 14 words at most, never wider than the rule. It says the thing protected and the constraint, with the rule's own key words (the name of the mechanism or of the value): "a loan is counted in whole days in the library's time zone", not "dates are handled with care". It has no "all", "always", "never" or "every" unless one cited place enforces it for every case. \`basis\`: \`both\` when the docs say it and the code does it, \`code\` when only the code shows it. A rule that only the docs state, with no code behind it, is not the general rule. \`risk\`: how bad a mistake here is, \`high\`, \`medium\` or \`low\`; \`cost\`: what such a mistake costs, in a few words.
+2. \`general\`: the area's ONE project-level rule. First list for yourself the candidates (the written and checked rules above, and the patterns you saw in the code); the general rule is the one whose breaking would cost the most and that the most code depends on. It is a pattern the code follows in more than one place, or a written rule the code really follows. State it as how every change in this area must behave, in one sentence, at the level where it is true: if it holds for every such value in the project, do not state it for one function. It names no function, file, table or column. For example, in a system that lends books: "A loan period is always counted in whole days in the library's own time zone." Before you settle on it, look for the case that contradicts it: the same operation done without the guard (use \`graphify query\` and a search for the operation's other call sites). When you find one, either narrow the rule to where it holds, or keep the rule and return that case under \`exceptions\` with its citation and how it differs. Cite one line where it is applied. \`short\`: the same claim as \`rule\` in one plain sentence of 14 words at most, never wider than the rule. ${WORDS} A specific business word is never replaced by a vaguer one: "a loan is counted in whole days in the library's time zone", not "dates are handled with care". It has no "all", "always", "never" or "every" unless one cited place enforces it for every case. \`basis\`: \`both\` when the docs say it and the code does it, \`code\` when only the code shows it. A rule that only the docs state, with no code behind it, is not the general rule. \`risk\`: how bad a mistake here is, \`high\`, \`medium\` or \`low\`; \`cost\`: what such a mistake costs, in a few words.
    \`ideas\`: up to 4 things this code does in this area, each one sentence of 14 words at most, in plain words, with the citation of the line that proves it. An idea says no more than its cited line and the few lines around it show. One idea is one thing the code does: never split one rule into several ideas that share its citation. An idea about every case ("all", "always", "never" or "every") must cite the one place that enforces it for all cases (a check, a constraint, a single entry point); when there is no such place, the idea says where it holds, or is left out.
    \`second\`, optional: ONE more project-level rule of this area, in the same form with its own citation, only when the area holds a second rule that is independent of the general one (breaking one does not break the other) and about as costly to break. Most areas have none; never split one rule in two to fill it.
 3. \`support\`: up to 3 more citations, in other files, where the same pattern is applied. A rule seen in one place only is weak: say so by giving none.
@@ -394,9 +395,10 @@ const generals = keys.filter((k) => areas[k] && areas[k].general).map((k) => ({ 
 const asked = await agent(at(ASK(profile.what, lines, written.notes, generals)), { agentType: "mechanism", model: "sonnet", schema: QUESTION_SCHEMA, label: "questions", phase: "Questions" });
 const questions = (asked && asked.questions) || null;
 
-// Last: it reads each area's short general rule (id: the area key) and its ideas (id: <area key>.<n>, n from 1), nothing else.
+// Last: it reads the short general rule of each found kind (id: kind:<kind>), each area's short general rule (id: the area key) and its ideas (id: <area key>.<n>, n from 1), nothing else.
 phase("Plain");
 const items = [];
+for (const k of KINDS) { const g = kinds[k] && kinds[k].status === "found" && kinds[k].general; if (g) items.push({ id: `kind:${k}`, rule: g.short }); }
 for (const k of keys) {
   const g = areas[k] && areas[k].general;
   if (g) items.push({ id: k, rule: g.short, risk: g.risk });

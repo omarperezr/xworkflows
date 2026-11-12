@@ -109,7 +109,7 @@ test("an area answer can carry one doubted rule with a citation", async () => {
   assert.match(a.prompt, /`doubted`[\s\S]*reason to doubt/);
 });
 
-test("the plain agent: language, rule ids, 14 words, 12 claims, nothing widened", async () => {
+test("the plain agent: language, rule ids, 14 words, every sentence returned, nothing widened", async () => {
   const en = await run({ root: ".", zeroHits: [] });
   const p = en.calls.find((c) => c.opts.label === "plain");
   assert.match(p.prompt, /Write in English\./);
@@ -117,12 +117,12 @@ test("the plain agent: language, rule ids, 14 words, 12 claims, nothing widened"
   assert.ok(p.prompt.includes("idea of a:truth") && p.prompt.includes("other of a:truth"));
   assert.ok(!p.prompt.includes("rule of a:truth") && !p.prompt.includes("truth#2"));
   assert.ok(p.prompt.includes('{"id":"truth","rule":"short of a:truth","risk":"high"}'));
-  assert.match(p.prompt, /general rules? first|from a general rule go first/i);
-  assert.match(p.prompt, /high, medium, low/);
+  assert.match(p.prompt, /the script orders them and picks the first page/);
+  assert.doesNotMatch(p.prompt, /go first|At most 12|high, medium, low/);
+  assert.equal(p.prompt.split("no function, file or table names").length, 1);
   assert.match(p.prompt, /only repeats its own area's general rule/);
   assert.match(p.prompt, /never split/i);
   assert.match(p.prompt, /14 words/);
-  assert.match(p.prompt, /12/);
   assert.match(p.prompt, /never widen/i);
   assert.deepEqual(p.opts.schema.required, ["claims", "rest"]);
   assert.deepEqual(p.opts.schema.properties.claims.items.required, ["text", "from"]);
@@ -196,24 +196,53 @@ test("the six topic agents run as t1 to t6, only t1 to t3 name config keys", asy
   for (const c of t) assert.equal(/Also return one line per key with heading "config"/.test(c.prompt), ["t1", "t2", "t3"].includes(c.opts.label), c.opts.label);
 });
 
-test("the area prompt looks for the contradicting case and keeps the rule's key words in short", async () => {
+test("the area prompt looks for the contradicting case and asks short in the words of the business", async () => {
   const { calls } = await run({ root: ".", zeroHits: [] });
   const p = calls.find((c) => c.opts.label === "a:truth").prompt;
   assert.ok(p.includes("look for the case that contradicts it"));
   assert.match(p, /without the guard/);
   assert.ok(p.includes("return that case under `exceptions`"));
-  assert.match(p, /key words/);
+  assert.doesNotMatch(p, /key words/);
   assert.ok(p.includes('It has no "all", "always", "never" or "every" unless'));
   assert.ok(p.includes('An idea about every case ("all", "always", "never" or "every")'));
   assert.match(p, /a loan is counted in whole days in the library's time zone/);
 });
 
-test("the plain agent keeps key words and the default language is English", async () => {
+test("the plain agent writes in the words of the business and the default language is English", async () => {
   const { calls } = await run({ root: ".", zeroHits: [] });
   const p = calls.find((c) => c.opts.label === "plain").prompt;
   assert.match(p, /Write in English\./);
-  assert.match(p, /key words/);
+  assert.doesNotMatch(p, /key words/);
   assert.match(p, /vaguer/);
+  assert.match(p, /words of the business/);
+  assert.match(p, /no name of a function, table, column, constant or file/);
   const es = await run({ root: ".", zeroHits: [], language: "Spanish" });
   assert.match(es.calls.find((c) => c.opts.label === "plain").prompt, /Write in Spanish\./);
+});
+
+const BUSINESS = /words of the business[^\n]*no name of a function, table, column, constant or file/;
+
+test("a kind's general rule gains a short form, asked in one line with the area's two limits", async () => {
+  const { calls } = await run({ root: ".", zeroHits: [] });
+  const k = calls.find((c) => c.opts.label === "k:values");
+  const g = k.opts.schema.properties.general;
+  assert.equal(g.properties.short.type, "string");
+  assert.deepEqual(g.required, ["rule", "short", "basis", "file", "line", "quote"]);
+  assert.match(k.prompt, /`short`[^\n]*14 words at most[^\n]*never wider than the rule/);
+  assert.ok(k.prompt.includes('no "all", "always", "never" or "every" unless one cited place enforces it for every case'));
+  assert.match(k.prompt, BUSINESS);
+  assert.match(calls.find((c) => c.opts.label === "a:truth").prompt, BUSINESS);
+});
+
+test("the plain agent also reads the short rule of each found kind as kind:<kind>, and merges only what says the same", async () => {
+  const kind = (label) => ({ kind: label.slice(2), status: "found", verdicts: [], rules: [], notChecked: [], general: { rule: `long ${label}`, short: `short ${label}`, basis: "code", ...cite } });
+  const over = { "k:values": async (p, o) => kind(o.label), "k:txn": async (p, o) => ({ ...kind(o.label), status: "absent" }), "k:input": async (p, o) => ({ ...kind(o.label), general: undefined }) };
+  const { calls } = await run({ root: ".", zeroHits: ["conc"] }, over);
+  const p = calls.find((c) => c.opts.label === "plain").prompt;
+  assert.ok(p.includes('{"id":"kind:values","rule":"short k:values"}'));
+  assert.ok(!p.includes("kind:txn") && !p.includes("kind:input") && !p.includes("kind:conc") && !p.includes("long k:values"));
+  assert.ok(p.indexOf('"id":"kind:values"') < p.indexOf('"id":"truth.1"'));
+  assert.match(p, /id `kind:<kind>`/);
+  assert.match(p, /merge[^\n]*only when they say the same thing/i);
+  assert.match(p, BUSINESS);
 });

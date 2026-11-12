@@ -167,7 +167,7 @@ test("README names graphify, the hand-off to deepen and the cursor/plugins credi
 });
 test("adapt asks how the code prevents each risk; research looks for mechanisms; zones question is plain", () => {
   const s = read("skills/adapt/SKILL.md");
-  has(s, ["Mechanism rules are read from `details.md` only when the owner asks for detail", "up to 4 per call", "Screen 1 (`S1-<n>`)", "`Real, but a bad rule`", "`Not how it works`", "`G-interim`",
+  has(s, ["Mechanism rules are read from `details.md` only when the owner asks for detail", "up to 4 per call", "Screen 1 (`S1-<n>`)", "`Real, but a bad rule`", "`Not how it works`", "`G-interim`", "A kind's general rule can be a screen 1 sentence", "its other rules stay in the detail with no question",
     "Heading 5 groups its rule lines under the risk they prevent, costliest risk first, then `rules tied to no risk`.", "grouped under the risk it prevents",
     "in heading 5's order: each risk, then the rules that prevent it", "each with its path as in `What each answer writes`", "one line per rule the owner confirmed", "the `contradicted` lines of `## Written rules and their verdicts` in `details.md`", "`X<n>-why`"]);
   // the per-kind question is gone: a screen 1 sentence is judged with four options, written in one place
