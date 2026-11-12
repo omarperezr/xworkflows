@@ -45,6 +45,8 @@ function ruleIndex(root, r) {
     }
     (a.ideas || []).forEach((i, n) => { if (i?.text && ok(i)) ideas.set(`${key}.${n + 1}`, { area: key, text: i.text, at: at(i) }); });
   }
+  // A found kind's verified general rule is the item `kind:<kind>`, with its own citation only: its other rules are not other places of it.
+  for (const [k, x] of Object.entries(r.kinds || {})) if (x?.status === "found" && x.general?.rule && ok(x.general)) rules.set(`kind:${k}`, { rule: x.general.rule, basis: x.general.basis, risk: x.general.risk, cost: x.general.cost, at: [at(x.general)] });
   return { rules, seconds, ideas };
 }
 
@@ -77,23 +79,29 @@ export function screens(root, r) {
     if (g && ok(g) && exceptions.length) gaps.push({ kind: "exceptions", area: key, risk, text: `Rule: "${g.rule}". Done differently in ${exceptions.length} place${exceptions.length > 1 ? "s" : ""}: ${exceptions.map((e) => `${at(e)} (${e.how})`).join("; ")}. Mistake or exception?`, options: ["Mistake: fix it", "Exception: keep it", "I don't know"] });
     for (const u of keep(a.unprotected, "unprotected")) gaps.push({ kind: "unprotected", area: key, risk, text: `Nothing protects this: ${u.risk} (${at(u)}). Is that on purpose?`, options: ["On purpose", "Not on purpose: protect it", "I don't know"] });
   }
-  // A sentence shows only when an item it names has a verified citation: a general rule (id `<key>`) or an idea (id `<key>.<n>`).
-  // A verified general rule gives the example (its own citation) and `also`, the count of its verified support; else the first verified idea's citation. Its risk is the highest of the rules it names or whose area its ideas belong to.
+  // A sentence shows when a general rule it names (id `<key>` of an area, `kind:<kind>`) verified, or, naming none, an idea (id `<key>.<n>`) did; the first verified rule gives the example (its own citation) and `also`, the count of its verified support; else the first verified idea's citation.
+  // Its risk is the highest of the rules it names or whose area its ideas belong to. A rule it names that did not verify gets its own Dropped line.
   const { rules, ideas } = ruleIndex(root, r);
-  const byRisk = (x, y) => (RISK[x.risk] ?? 3) - (RISK[y.risk] ?? 3); // stable: the agent's order within a risk; no risk sorts last
-  const lists = [[], []];
-  [r.plain?.claims || [], r.plain?.rest || []].forEach((list, k) => { const sentences = lists[k];
-  for (const c of list) {
-    const named = (c.from || []).filter((id) => rules.has(id) || ideas.has(id));
+  // After risk (none sorts last) the script's own order breaks ties, never the agent's: kinds' keys, then areaOrder, then the idea's number; the text last.
+  const pos = (id) => id.startsWith("kind:") ? Object.keys(r.kinds || {}).indexOf(id.slice(5)) : (r.areaOrder || []).indexOf(id.split(".")[0]) * 1000 + (Number(id.split(".")[1]) || 0);
+  const byOrder = (x, y) => (x.id.startsWith("kind:") ? 0 : 1) - (y.id.startsWith("kind:") ? 0 : 1) || pos(x.id) - pos(y.id);
+  const byRisk = (x, y) => (RISK[x.risk] ?? 3) - (RISK[y.risk] ?? 3) || byOrder(x.first, y.first) || (x.text < y.text ? -1 : x.text > y.text ? 1 : 0);
+  const verified = [];
+  for (const c of [...(r.plain?.claims || []), ...(r.plain?.rest || [])]) { // `rest`: a research.json written before the plain agent returned only `claims`
+    const named = (c.from || []).filter((id) => rules.has(id) || ideas.has(id)).map((id) => ({ id })).sort(byOrder).map((x) => x.id);
     const rule = named.find((id) => rules.has(id));
+    const failed = (c.from || []).filter((id) => ((r.areaOrder || []).includes(id) || id.startsWith("kind:")) && !rules.has(id));
     const n = words(c.text);
-    const why = (c.from || []).some((id) => (r.areaOrder || []).includes(id) && !rules.has(id)) ? "its general rule did not verify" : !named.length ? "names no item with a verified citation" : n > MAX_WORDS ? `${n} words, more than ${MAX_WORDS}` : null;
+    const why = failed.length && !rule ? "its general rule did not verify" : !named.length ? "names no item with a verified citation" : n > MAX_WORDS ? `${n} words, more than ${MAX_WORDS}` : null;
     if (why) dropped.push({ area: "plain", what: `sentence: ${c.text}`, reason: why });
-    else sentences.push({ text: c.text, from: c.from, at: rule ? rules.get(rule).at[0] : ideas.get(named[0]).at, ...(rule && { also: rules.get(rule).at.length - 1 }), risk: named.map((id) => (rules.get(id) ?? rules.get(ideas.get(id).area))?.risk).filter((k) => k in RISK).sort((x, y) => RISK[x] - RISK[y])[0] });
+    for (const id of failed) dropped.push({ area: "plain", what: `rule ${id}, named by: ${c.text}`, reason: "did not verify" });
+    if (!why) verified.push({ text: c.text, from: c.from, at: rule ? rules.get(rule).at[0] : ideas.get(named[0]).at, ...(rule && !rule.startsWith("kind:") && { also: rules.get(rule).at.length - 1 }), general: Boolean(rule), first: { id: rule ?? named[0] }, kind: named.some((id) => id.startsWith("kind:")), risk: named.map((id) => (rules.get(id) ?? rules.get(ideas.get(id).area))?.risk).filter((k) => k in RISK).sort((x, y) => RISK[x] - RISK[y])[0] });
   }
-  sentences.sort((x, y) => ("also" in y) - ("also" in x) || byRisk(x, y)); });
-  // The verified sentences of `rest` only fill the places the claims leave free.
-  const sentences = [...lists[0], ...lists[1]];
+  // The script picks the page: sentences from general rules first, one that names a kind in turn with one that names only an area, each list by risk; then the ones from ideas by risk.
+  const by = (f) => verified.filter(f).sort(byRisk);
+  const [kindList, areaList] = [by((x) => x.general && x.kind), by((x) => x.general && !x.kind)];
+  const mixed = Array.from({ length: Math.max(kindList.length, areaList.length) }, (_, i) => [kindList[i], areaList[i]].filter(Boolean)).flat();
+  const sentences = [...mixed, ...by((x) => !x.general)].map(({ kind, general, first, ...x }) => x);
   // Screen 2: contradictions first, then a doubted rule, exceptions, unprotected places.
   const order = { contradicted: 0, doubted: 1, exceptions: 2, unprotected: 3 };
   gaps.sort((x, y) => order[x.kind] - order[y.kind] || x.risk - y.risk);
@@ -110,7 +118,7 @@ export function screens(root, r) {
 // The mechanism agents' answers: kinds.json (hooks read it), and the lines of the detail file. A kind the Workflow did not run is skipped.
 export function mechanism(root, r) {
   const { ok, at } = checker(root);
-  const errors = [], lines = [], dropped = [], state = {};
+  const errors = [], parts = [], dropped = [], state = {};
   for (const k of Object.keys(r.kinds || {}).sort()) {
     const x = r.kinds[k];
     if (!x) { errors.push(`${k}: agent returned nothing`); continue; }
@@ -122,15 +130,21 @@ export function mechanism(root, r) {
     if (x.general?.rule && !g) dropped.push({ area: k, what: `general rule: ${x.general.rule}`, at: at(x.general), quote: x.general.quote });
     state[k] = { general: g ? g.rule : null, status: g ? "found" : "absent" };
     const rules = (x.rules || []).filter((y) => ok(y) || (dropped.push({ area: k, what: `rule: ${y.rule}`, at: at(y), quote: y.quote }), false));
-    if (g || rules.length) lines.push(`### ${k}`, "", ...(g && ok(g) ? [`- general: ${g.rule} (${g.basis}) ${at(g)}`] : []), ...rules.map((y) => `- ${y.rule} (code) ${at(y)}`), "");
+    if (g || rules.length) parts.push({ k, general: g ? `- general: ${g.rule} (${g.basis}) ${at(g)}` : null, rules: rules.map((y) => `- ${y.rule} (code) ${at(y)}`) });
   }
-  return { state: JSON.stringify(state, null, 2) + "\n", lines, errors, dropped };
+  return { state: JSON.stringify(state, null, 2) + "\n", parts, errors, dropped };
 }
+
+// The detail's mechanism lines; a kind whose general rule a shown sentence lists is left out of its own section.
+const mechLines = (parts, shown = new Set()) => parts.flatMap(({ k, general, rules }) => {
+  const own = [...(general && !shown.has(`kind:${k}`) ? [general] : []), ...rules];
+  return own.length ? [`### ${k}`, "", ...own, ""] : [];
+});
 
 const norm = (p) => posix.normalize(String(p).replace(/^(\.\/)+/, "")).replace(/\/$/, "");
 const dropLine = (d) => `- ${d.area}: ${d.what} ${d.reason ?? `${d.at} ${JSON.stringify(d.quote)}`}`;
 
-// The words that say in how many more places a general rule was seen; an idea sentence has no `also`.
+// The words that say in how many more places an area's general rule was seen; an idea or kind sentence has no `also`.
 export const seen = (x) => ("also" in x ? ` seen in ${x.also} more place(s).` : "");
 
 export function render(r, s, commit) {
@@ -169,7 +183,7 @@ export function details(r, s, m, root, written = []) {
   asked.forEach((x, i) => {
     out.push(`### ${i + 1}. ${x.text}`, "");
     const mine = x.from.filter((id) => ideas.has(id) || rules.has(id));
-    const line = (y) => `- ${y.rule} (${y.basis}; risk ${y.risk}: ${y.cost}) ${y.at.join(", ")}`;
+    const line = (y) => `- ${y.rule} (${y.basis}${y.risk ? `; risk ${y.risk}: ${y.cost}` : ""}) ${y.at.join(", ")}`;
     for (const id of mine) out.push(rules.has(id) ? line(rules.get(id)) : `- ${ideas.get(id).text} ${ideas.get(id).at}`);
     out.push("");
   });
@@ -177,11 +191,11 @@ export function details(r, s, m, root, written = []) {
   const unnamed = [...ideas].filter(([id]) => !shown.has(id));
   const lost = [
     ...unnamed.map(([id, y]) => `- [${id}] ${y.text} ${y.at}`),
-    ...[...rules].filter(([k]) => !shown.has(k)).map(([k, y]) => `- [${k}] ${y.rule} (${y.basis}; risk ${y.risk}: ${y.cost}) ${y.at.join(", ")}`),
+    ...[...rules].filter(([k]) => !shown.has(k) && !k.startsWith("kind:")).map(([k, y]) => `- [${k}] ${y.rule} (${y.basis}; risk ${y.risk}: ${y.cost}) ${y.at.join(", ")}`),
     ...[...seconds].map(([k, y]) => `- [${k}] ${y.rule} (risk ${y.risk}: ${y.cost}) ${y.at}`),
   ];
   if (lost.length) out.push("## Rules no sentence shows", "", ...lost, "");
-  out.push("## Mechanism rules", "", ...(m.lines.length ? m.lines : ["(none)", ""]));
+  out.push("## Mechanism rules", "", ...((lines) => (lines.length ? lines : ["(none)", ""]))(mechLines(m.parts, shown)));
   // Each written rule with the verdict a mechanism agent gave it; a verdict stands only with a verified citation, else no-evidence.
   const wtext = new Map(written.map((w) => [w.id, collapse(w.text)]));
   const verdicts = Object.keys(r.kinds || {}).sort().flatMap((k) => {
