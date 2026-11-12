@@ -152,7 +152,7 @@ test("commentOnly: comments and blanks yes; code, unknown extension, chmod, new 
 }));
 
 test("a risk path with an accented name and a space is still a risk path", () => withRepo(async (repo) => {
-  const c = repo.commit("db", { files: { "db/migración 1.sql": "drop table x;\n" }, body: "no-review: trivial" });
+  const c = repo.commit("db", { files: { "db/mïgration 1.sql": "drop table x;\n" }, body: "no-review: trivial" });
   assert.equal((await repo.run(mod)).ok, false);
   seal(repo, `review ok at ${c}`);
   assert.equal((await repo.run(mod)).ok, false);

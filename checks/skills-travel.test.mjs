@@ -71,7 +71,7 @@ test("list at the key's own indentation is read", async () => {
 });
 
 test("agent files with accented letters or spaces are read", async () => {
-  for (const name of ["revisión", "my agent"]) {
+  for (const name of ["revïew", "my agent"]) {
     const r = await check({ [`.claude/agents/${name}.md`]: agent("skills:\n  - gone\n") });
     assert.equal(r.ok, false, name);
     assert.match(r.lines.join("\n"), /gone/);

@@ -1,0 +1,25 @@
+{
+  "label": "recorded",
+  "note": "Claude Code 2.1.322, claude -p, 2026-11-12; the project path was replaced by /home/user/sandbox",
+  "input": {
+    "session_id": "a0f63557-4c14-4a94-9e10-f119383ce500",
+    "transcript_path": "/home/user/.claude/projects/-home-user-sandbox/a0f63557-4c14-4a94-9e10-f119383ce500.jsonl",
+    "cwd": "/home/user/sandbox",
+    "prompt_id": "3da4e77f-89ae-4011-8bb7-da9ce35f5c85",
+    "permission_mode": "default",
+    "effort": {
+      "level": "medium"
+    },
+    "hook_event_name": "PreToolUse",
+    "tool_name": "Write",
+    "tool_input": {
+      "file_path": "/home/user/sandbox/docs/memory/note-feedback.md",
+      "content": "---\nname: note-feedback\ndescription: A test note of type feedback\nmetadata:\n  type: feedback\n---\n\nThe owner prefers short answers.\n"
+    },
+    "tool_use_id": "toolu_01NN3iCgpHvhnF8NTxjQw9Xf"
+  },
+  "output": {
+    "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Facts about the owner and the owner's feedback go to ~/.xworkflows/owner.md, not into the repository.\"}}",
+    "exitCode": 0
+  }
+}

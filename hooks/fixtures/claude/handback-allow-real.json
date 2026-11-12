@@ -1,0 +1,26 @@
+{
+  "label": "recorded",
+  "note": "Claude Code 2.1.322, claude -p, 2026-11-12; the project path was replaced by /home/user/sandbox",
+  "input": {
+    "session_id": "4661c0a2-6f14-40a6-9f4b-740fd0274f08",
+    "transcript_path": "/home/user/.claude/projects/-home-user-sandbox/4661c0a2-6f14-40a6-9f4b-740fd0274f08.jsonl",
+    "cwd": "/home/user/sandbox",
+    "prompt_id": "08427c80-bdf8-4e63-ab7b-ab7fa66c0c5b",
+    "permission_mode": "auto",
+    "agent_id": "adcce7b0783308ffe",
+    "agent_type": "implement",
+    "effort": {
+      "level": "medium"
+    },
+    "hook_event_name": "PreToolUse",
+    "tool_name": "SubagentHandback",
+    "tool_input": {
+      "message": "no-test: no change made, task was to reply with one word and not touch any file\nskipped: nothing\nsha: not committed\ndone"
+    },
+    "tool_use_id": "toolu_017k3q9X8CgwCpfsmgR15nwm"
+  },
+  "output": {
+    "stdout": "",
+    "exitCode": 0
+  }
+}

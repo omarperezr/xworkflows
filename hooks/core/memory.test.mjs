@@ -10,7 +10,7 @@ const run = join(import.meta.dirname, "..", "run.mjs");
 const DAY = 86400000;
 const NOW = Date.UTC(2026, 10, 12);
 const base = { owner: "Ana", memory: { dir: "docs/memory" }, paths: {}, lookup: { index: { command: "graphify query", folder: "graphify-out", minutes: 30 } } };
-const turn = (n) => JSON.stringify({ type: "user", message: { content: `mensaje-${n}` } });
+const turn = (n) => JSON.stringify({ type: "user", message: { content: `message-${n}` } });
 const transcript = [1, 2, 3, 4, 5].map(turn).join("\n") + "\n";
 
 function fake({ files = {}, config = base, git = null, mtimes = {}, qmd = { code: 0, out: "x".repeat(9000) } } = {}) {
@@ -65,9 +65,9 @@ test("sessionStart compact: query from the last 3 things typed, output cut to 30
   const { ctx, calls } = fake({ files: { "/t.jsonl": transcript } });
   const d = decide(ev("sessionStart", { source: "compact", transcript: "/t.jsonl" }), ctx);
   const q = calls.exec[0].args.find((a) => a.startsWith("lex:"));
-  for (const n of [3, 4, 5]) assert.ok(q.includes(`mensaje ${n}`));
-  for (const n of [1, 2]) assert.ok(!q.includes(`mensaje ${n}`));
-  assert.equal(q, "lex: mensaje 3 mensaje 4 mensaje 5\nvec: mensaje 3 mensaje 4 mensaje 5");
+  for (const n of [3, 4, 5]) assert.ok(q.includes(`message ${n}`));
+  for (const n of [1, 2]) assert.ok(!q.includes(`message ${n}`));
+  assert.equal(q, "lex: message 3 message 4 message 5\nvec: message 3 message 4 message 5");
   assert.deepEqual(calls.exec[0].args.slice(-3), ["-n", "5", "--no-rerank"]);
   assert.equal(calls.exec[0].o.timeout, 8000);
   assert.match(d.context, /^Memory notes on the current topic:\n/);
@@ -96,11 +96,11 @@ test("typed text only: tool results, reports and meta entries are not the owner'
     JSON.stringify({ type: "user", isMeta: true, message: { content: "meta" } }),
     JSON.stringify({ type: "assistant", message: { content: "claude" } }),
     "not json",
-    JSON.stringify({ type: "user", message: { content: [{ type: "text", text: "¿qué-pasa? a_b" }] } }),
+    JSON.stringify({ type: "user", message: { content: [{ type: "text", text: "¿whät-now? a_b" }] } }),
   ].join("\n");
   const { ctx, calls } = fake({ files: { "/t.jsonl": t } });
   decide(ev("sessionStart", { source: "compact", transcript: "/t.jsonl" }), ctx);
-  assert.equal(calls.exec[0].args.find((a) => a.startsWith("lex:")).split("\n")[0], "lex: mensaje 1 qué pasa a b");
+  assert.equal(calls.exec[0].args.find((a) => a.startsWith("lex:")).split("\n")[0], "lex: message 1 whät now a b");
 });
 
 test("the query keeps the last 300 characters", () => {

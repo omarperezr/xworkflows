@@ -110,9 +110,9 @@ test("a run that does not end in time: cannotRun", withRepo({ config: { ...confi
 }));
 
 test("non-ASCII and spaced file names: a code path is seen, a test path is seen", withRepo({ config: { ...config, paths: { code: ["src/"] } } }, async (repo) => {
-  repo.commit("fix: x", { files: { "src/configuración.mjs": "export {};\n" } });
+  repo.commit("fix: x", { files: { "src/cönfig.mjs": "export {};\n" } });
   assert.equal((await repo.run(brake)).ok, false);
-  repo.commit("fix: y", { files: { "src/a b.mjs": "export {};\n", "test/xó y.test.mjs": NODE_TEST["test/x.test.mjs"].replace("../src/x.mjs", "../src/x.mjs") } });
+  repo.commit("fix: y", { files: { "src/a b.mjs": "export {};\n", "test/xö y.test.mjs": NODE_TEST["test/x.test.mjs"].replace("../src/x.mjs", "../src/x.mjs") } });
   const r = await repo.run(brake);
   assert.doesNotMatch(r.lines.join("\n"), /fix: y: it changes code and adds no test file/);
 }));
