@@ -1,8 +1,21 @@
 # Phase 1.2b: Adapt, reproducible
 
-Status: draft for the owner's review, 2026-11-11. Amends the 1.2 spec
-(`2026-11-11-phase1-2-day-one-design.md`) sections 5.1, 5.2, 5.4 and 8.
-Sub-project 1.3 waits for this one.
+Status: closed by the owner, 2026-11-12, without its live proof. Amends the
+1.2 spec (`2026-11-11-phase1-2-day-one-design.md`) sections 5.1, 5.2, 5.4
+and 8.
+
+What closing means (owner, 2026-11-12):
+- Section 8 steps 3 and 4 and section 12.3's live run and replays were not
+  run. The mark `I >= 8` does not gate phase 1; it is measured later, on
+  several projects (design 10.1).
+- No more accuracy tuning lands on this branch. Research was tuned and scored
+  on the same project, three rounds, so its last scores (R 6, 7, 6) say
+  nothing about another project.
+- Sub-project 1.3 no longer waits for the interview proof.
+- What replaces the tuning is an experiment on other projects: the split of
+  design 8.2, tested as design 10.1 says, and built for real only when the
+  owner says yes. Until then the shipped `adapt` is the one this spec
+  describes.
 
 ## 1. Intent
 
@@ -469,7 +482,6 @@ following.
 
 - Before the next live run: 3 research-only trials on the reference copy.
   Pass: R ≥ 6 in 3 of 3 (rubric v2).
-- Rubric v2 (private) widens patterns that missed meaning in run 4 (for
-  example idempotent replay written as "claimed once"); every earlier run is
-  re-graded with v2 and both versions are kept.
+- Rubric v2 (private) widens patterns that missed meaning in run 4; every
+  earlier run is re-graded with v2 and both versions are kept.
 - Then one live run with the owner and 3 replays, as in section 8.

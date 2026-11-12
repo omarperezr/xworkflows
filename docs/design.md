@@ -628,6 +628,30 @@ in `~/.xworkflows/owner.md`, outside the repository:
 5. Way of working: git rules, review depth, who may push.
 6. Reply preferences and model budget.
 
+What is asked is split in three (owner, 2026-11-12):
+
+1. What the code and the project's files show, and is coherent. Research
+   writes it as a rule marked «from the code»; the owner is not asked rule by
+   rule. All of it is shown once, on one short screen ordered by risk: one
+   general rule per area, about 12 at most. The owner strikes what is habit
+   and not rule, and corrects the level («not this function: all money»).
+   Nothing from this group reaches `AGENTS.md` without passing that screen.
+2. Where the code contradicts itself or leaves a gap. Few questions, about 6
+   at most, each with its evidence (file and line): a written rule the code
+   contradicts; a pattern with exceptions («done differently in these 2
+   places: mistake or exception?»); a risk area with nothing protecting it
+   («on purpose?»).
+3. What is in no file. This is the centre of the interview: business rules,
+   what the project does not do, the costliest mistake, one real incident,
+   what is free to change, the goals at 3, 12 and 36 months, and which part
+   of today's code is provisional because of those goals. Each question
+   leans on what research found.
+
+When the screen of group 1 would pass about 12 rules, or group 2 about 6
+questions, nothing is cut in silence: the owner is told how many were left
+out and why. The split is under test (10.1). Until the owner approves the new
+version, the shipped `adapt` follows the 1.2b spec.
+
 Claude Code asks through its question dialog and Gemini CLI through
 `ask_user` (read, not tested). For Codex and Cursor no dialog with options
 was found; the fallback is numbered questions in the chat with the
@@ -775,6 +799,39 @@ proof. The reference project states 10 invariants in its instructions
 
 R tells how much the code says by itself; I − R is what the questions add.
 An interview that adds nothing is not worth 30 minutes.
+
+Changed by the owner on 2026-11-12. `adapt` had been tuned and scored on the
+reference alone, three rounds, so that score no longer says anything:
+
+- The mark I ≥ 8 does not gate phase 1. It is measured afterwards, on several
+  projects.
+- The reference is used only to tune. The exam is two other projects of the
+  owner's, never used to tune: exam project A (Python) and exam project B
+  (Go). Each version of `adapt` goes through the exam once.
+- The owner writes no answer key. Per exam project, before any run, a clone
+  (`git clone --no-hardlinks`) loses its agent instruction files
+  (`CLAUDE.md`, `AGENTS.md`, `.claude/`). The README and `docs/` stay: they
+  are the project's files and `adapt` must read them. An agent that is not
+  part of `adapt` takes from the removed files the rules already written
+  there, each with its citation: the written key. A project with none of
+  those files has an empty written key, and the report says so. The key is
+  never used to tune.
+- The owner judges blind, once per project. The rules of every version and
+  every run are grouped by meaning and shown mixed, with no version named.
+  The owner marks each one correct or invented, then adds, one line each,
+  any important rule that is missing.
+- For each rule of the key (the written one plus the owner's additions) an
+  agent outside `adapt` looks for the proof in the code. «In the code» needs
+  a file-and-line citation that a script verifies; without it the rule is
+  «only in the owner's head». The reference's 10 invariants get the same
+  treatment.
+- Reported per project and per version, 3 runs each, with cost: correct;
+  invented; escaped, split into «in the code» (research failed) and «only in
+  the owner's head» (the interview's job); and, when an interview is
+  measured, how many «only in the owner's head» rules reached the final
+  rules, and the owner's minutes.
+
+The names of the exam projects never enter a tracked file.
 
 ## 11. Build order
 

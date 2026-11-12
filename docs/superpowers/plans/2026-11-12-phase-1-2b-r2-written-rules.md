@@ -71,6 +71,6 @@ Same as plan `2026-11-11-phase-1-2b-adapt-reproducible.md` (Global Constraints),
 
 ### Task R6: Rubric v2 and measuring (controller)
 
-- [ ] Write `docs/proof/private/rubric-v2.json` before any new trial (widen patterns that miss meaning, e.g. invariant 7 as `outbox` plus `idempot|replay|claimed once|op_id`); record its sha; re-grade runs 2, 3 and 4 with v2 in `results-1.2b.md`.
-- [ ] 3 research-only trials on the reference copy (`--source <run-2/3 proof copy> --commit 69ae4341`, `--api-credits`); pass R >= 6 in 3 of 3. Report cost to the owner.
+- [ ] Write `docs/proof/private/rubric-v2.json` before any new trial (widen patterns that miss meaning; the examples stay in the private rubric); record its sha; re-grade runs 2, 3 and 4 with v2 in `results-1.2b.md`.
+- [ ] 3 research-only trials on the reference copy (`--source <run-2/3 proof copy> --commit <its strip commit, in the private results>`, `--api-credits`); pass R >= 6 in 3 of 3. Report cost to the owner.
 - [ ] If pass: owner live run, then 3 replays (section 8). If fail: stop and report.
