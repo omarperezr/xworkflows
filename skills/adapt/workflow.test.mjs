@@ -25,7 +25,7 @@ async function run(args, over = {}) {
     if (over[opts.label]) return over[opts.label](prompt, opts);
     if (opts.label === "profile") return PROFILE;
     if (opts.agentType === "mechanism" && opts.label.startsWith("k:")) return { kind: opts.label.slice(2), status: "found", verdicts: [], rules: [], notChecked: [] };
-    if (opts.label.startsWith("a:")) return { area: opts.label.slice(2), status: "found", general: { rule: `rule of ${opts.label}`, basis: "code", risk: "high", cost: "c", ...cite }, second: { rule: "second", risk: "low", cost: "c", ...cite }, ideas: [{ text: `idea of ${opts.label}`, ...cite }, { text: `other of ${opts.label}`, ...cite }], support: [], exceptions: [], contradicted: [], unprotected: [], commentRules: [], details: [], doubted: [], notChecked: [] };
+    if (opts.label.startsWith("a:")) return { area: opts.label.slice(2), status: "found", general: { rule: `rule of ${opts.label}`, short: `short of ${opts.label}`, basis: "code", risk: "high", cost: "c", ...cite }, second: { rule: "second", risk: "low", cost: "c", ...cite }, ideas: [{ text: `idea of ${opts.label}`, ...cite }, { text: `other of ${opts.label}`, ...cite }], support: [], exceptions: [], contradicted: [], unprotected: [], commentRules: [], details: [], doubted: [], notChecked: [] };
     if (opts.label === "plain") return { claims: [{ text: "One idea.", from: ["truth"] }], rest: [] };
     if (opts.label === "questions") return { questions: [] };
     if (opts.label.startsWith("docs") || opts.label === "checks") return { rules: [], notes: [], notRead: [] };
@@ -116,6 +116,10 @@ test("the plain agent: language, rule ids, 14 words, 12 claims, nothing widened"
   assert.ok(p.prompt.includes('"id":"truth.1"') && p.prompt.includes('"id":"truth.2"') && !p.prompt.includes('"id":"truth.3"'));
   assert.ok(p.prompt.includes("idea of a:truth") && p.prompt.includes("other of a:truth"));
   assert.ok(!p.prompt.includes("rule of a:truth") && !p.prompt.includes("truth#2"));
+  assert.ok(p.prompt.includes('{"id":"truth","rule":"short of a:truth","risk":"high"}'));
+  assert.match(p.prompt, /general rules? first|from a general rule go first/i);
+  assert.match(p.prompt, /high, medium, low/);
+  assert.match(p.prompt, /only repeats its own area's general rule/);
   assert.match(p.prompt, /never split/i);
   assert.match(p.prompt, /14 words/);
   assert.match(p.prompt, /12/);
@@ -137,6 +141,18 @@ test("an area answer carries at most four ideas, each cited, and the prompt says
   assert.match(a.prompt, /14 words/);
   assert.match(a.prompt, /no more than its cited line/);
   assert.match(a.prompt, /"all", "always" or "never"[\s\S]*enforces it for all cases/);
+});
+
+test("an area's general rule gains a short form, asked in one line, and the plain agent skips areas without a rule", async () => {
+  const { calls } = await run({ root: ".", zeroHits: [] }, { "a:state": async () => ({ area: "state", status: "absent", support: [], exceptions: [], contradicted: [], unprotected: [], commentRules: [], doubted: [], details: [], ideas: [{ text: "only idea", ...cite }], notChecked: [] }) });
+  const a = calls.find((c) => c.opts.label === "a:truth");
+  const g = a.opts.schema.properties.general;
+  assert.equal(g.properties.short.type, "string");
+  assert.ok(g.required.includes("short"));
+  assert.match(a.prompt, /`short`[^\n]*14 words at most/);
+  const p = calls.find((c) => c.opts.label === "plain").prompt;
+  assert.ok(!p.includes('"id":"state"') && p.includes('"id":"state.1"'));
+  assert.ok(p.indexOf('"id":"truth"') < p.indexOf('"id":"truth.1"'));
 });
 
 test("a failed plain agent leaves plain null", async () => {

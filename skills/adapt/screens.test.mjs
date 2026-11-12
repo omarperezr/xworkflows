@@ -21,13 +21,13 @@ test("a sentence is shown only when an idea it names has a verified citation; it
   const s = screens(root, research({
     truth: area({ general: general("Loans count whole days.", "medium", c(1, "days(loan)")), ideas: [{ text: "a", ...c(2, "late(loan)") }, { text: "b", ...c(3, "old(loan)") }, { text: "c", ...c(4, "not in the file") }] }),
     state: area({ general: general("Made up.", "high", c(1, "days(loan)")), ideas: [{ text: "d", ...c(1, "not in the file") }] }),
-  }, { claims: [claim("Loans count whole days.", "truth.1"), claim("Made up.", "state.1"), claim("Nothing names an idea.", "nowhere.1"), claim("Names a rule id.", "truth"), claim("Late old loans.", "truth.3", "truth.2", "truth.1")], rest: [] }));
+  }, { claims: [claim("Loans count whole days.", "truth.1"), claim("Made up.", "state.1"), claim("Nothing names an idea.", "nowhere.1"), claim("Late old loans.", "truth.3", "truth.2", "truth.1")], rest: [] }));
   assert.deepEqual(s.drawer1.map((x) => [x.text, x.at, x.risk]), [
     ["Loans count whole days.", "src/a.js:2", "medium"],
     ["Late old loans.", "src/a.js:3", "medium"],
   ]);
   assert.deepEqual(s.drawer1.map((x) => x.from), [["truth.1"], ["truth.3", "truth.2", "truth.1"]]);
-  assert.deepEqual(s.dropped.filter((d) => d.area === "plain").map((d) => d.what), ["sentence: Made up.", "sentence: Nothing names an idea.", "sentence: Names a rule id."]);
+  assert.deepEqual(s.dropped.filter((d) => d.area === "plain").map((d) => d.what), ["sentence: Made up.", "sentence: Nothing names an idea."]);
   assert.ok(s.dropped.filter((d) => d.area === "plain").every((d) => d.reason));
 });
 
@@ -260,4 +260,33 @@ test("screen 1 is ordered by risk, and a merged sentence takes its highest risk"
     hi: area({ general: general("h", "high", c(2, "late(loan)")) }),
   }, { claims: [claim("Medium.", "med.1"), claim("Low.", "lo.1"), claim("Merged.", "lo.1", "hi.1"), claim("High.", "hi.1")], rest: [] });
   assert.deepEqual(screens(root, r).drawer1.map((x) => [x.text, x.risk]), [["Merged.", "high"], ["High.", "high"], ["Medium.", "medium"], ["Low.", "low"]]);
+});
+
+test("a sentence from a verified general rule shows that rule's citation as an example and counts its verified support; it goes before idea-only sentences", () => {
+  const r = research({
+    truth: area({ general: general("Loans count whole days.", "low", c(1, "days(loan)")), support: [c(2, "late(loan)"), c(3, "old(loan)"), c(9, "nope")], ideas: [{ text: "Days are whole.", ...c(4, "") }, { text: "i2", ...c(2, "late(loan)") }] }),
+    bad: area({ general: general("Made up.", "high", c(1, "not in the file")), ideas: [{ text: "x", ...c(1, "not in the file") }] }),
+    pay: area({ general: general("Fees in days.", "high", c(2, "late(loan)")), support: [] }),
+  }, { claims: [claim("Idea only.", "pay.1"), claim("From a rule.", "truth", "truth.2"), claim("Unverified rule.", "bad"), claim("Rule with no support.", "pay")], rest: [] });
+  const s = screens(root, r);
+  assert.deepEqual(s.drawer1.map((x) => [x.text, x.at, x.also]), [
+    ["Rule with no support.", "src/a.js:2", 0],
+    ["From a rule.", "src/a.js:1", 2],
+    ["Idea only.", "src/a.js:1", undefined],
+  ]);
+  assert.ok(s.dropped.some((d) => d.what === "sentence: Unverified rule."));
+  const md = render(r, s, "abc");
+  assert.match(md, /From a rule\. \(src\/a\.js:1\) seen in 2 more place\(s\)\./);
+  assert.doesNotMatch(md, /Rule with no support\. .*seen in/);
+  assert.doesNotMatch(md, /Idea only\. .*seen in/);
+});
+
+test("details.md lists a named general rule in full with its example and every verified support; a rule a shown sentence names is not in the lost list", () => {
+  const r = research({
+    truth: area({ general: general("Loans count whole days.", "high", c(1, "days(loan)")), support: [c(2, "late(loan)"), c(9, "nope")], ideas: [{ text: "Unnamed idea.", ...c(3, "old(loan)") }] }),
+  }, { claims: [claim("Loans count whole days.", "truth")], rest: [] });
+  const d = details(r, screens(root, r), mechanism(root, r), root);
+  assert.match(d, /### 1\. Loans count whole days\.\n\n- Loans count whole days\. \(code; risk high: wrong due dates\) src\/a\.js:1, src\/a\.js:2\n/);
+  assert.ok(!d.includes("src/a.js:9"));
+  assert.doesNotMatch(d, /## Rules no sentence shows[\s\S]*\[truth\] Loans count/);
 });
