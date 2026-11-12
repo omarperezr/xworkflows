@@ -128,29 +128,52 @@ const KIND_Q = { values: "Which currency or unit is the source of truth, how are
 const OPEN = ["I don't know", "Skip: not relevant here"];
 const FIXED = ["Right", "Wrong", "Missing something"];
 
-// The fixed-id interview queue (spec 5.1). `prev` is research.prev.json on a re-adapt; `cfg` is .xworkflows/config.json.
-export function buildQueue(research, scan, prev, cfg) {
+const NEG = /\b(not|never|nunca|refuses?|won't|doesn't|don't)\b|\bno\s/i; // heading 2: what is not done
+const FREE = /\b(free|freely|libre)\b|without asking/i; // heading 5: what is free to change
+const KEEP = /\b(never|nunca)\b|must not/i; // written rules that say what must not change
+// An option label fits 60 characters, cut at a word; the description keeps the whole text.
+const label = (t) => { if (t.length <= 60) return t; const i = t.slice(0, 60).lastIndexOf(" "); return (i > 0 ? t.slice(0, i) : t.slice(0, 59)) + "…"; };
+
+// The fixed-id interview queue (spec 5.1, 12.2). `prev` is research.prev.json on a re-adapt; `cfg` is .xworkflows/config.json;
+// `kinds` is .xworkflows/kinds.json (null: research.json statuses); `written` is the `rules` list of .xworkflows/rules.json.
+export function buildQueue(research, scan, prev, cfg, kinds = null, written = []) {
   const item = (id, heading, style, text, options) => ({ id, heading, style, text, ...(options ? { options } : {}) });
   const open = (id, h, text) => item(id, h, "open", text, OPEN);
   const confirm = (id, h, text) => item(id, h, "confirm", text, ["Yes", "No", "I don't know"]);
   const choice = (id, h, text) => item(id, h, "choice", text);
-  const have = new Set(Object.values(research.topics || {}).flatMap((t) => (t.lines || []).filter((l) => l.heading === "config" && l.key).map((l) => l.key)));
-  if (prev) for (const k of CONFIG_KEYS) if (k.split(".").reduce((o, p) => o?.[p], cfg) !== undefined) have.add(k); // a re-adapt asks only keys still without a value
-  const config = CONFIG_KEYS.map((k, i) => (have.has(k) ? null : open(`C${i + 1}`, "config", `What is the value of ${k} (${GLOSS[k]})?`))).filter(Boolean);
-  const mech = KINDS.filter((k) => research.kinds?.[k]?.status === "absent" && (!prev || prev.kinds?.[k]?.status !== "absent"))
-    .map((k) => item(`H5-${k}`, "5", "mechanism", `${KIND_Q[k]} ${SPEC_Q}`, ["Nothing does today", "I don't know"]));
+  const lines = Object.keys(research.topics || {}).sort().flatMap((t) => research.topics[t].lines || []);
+  const at = (h, fit = () => true) => lines.filter((l) => l.heading === h && fit(collapse(l.text || ""))).map((l) => l.text);
+  // Up to 3 research texts, first in topic order, as { label, description }, then `I don't know`; none: the open options.
+  const pick = (id, h, text, texts) => {
+    const o = [];
+    for (const t of texts.map((x) => collapse(x || ""))) if (t && o.length < 3 && !o.some((x) => x.label === label(t))) o.push({ label: label(t), description: t });
+    return item(id, h, "choice", text, o.length ? [...o, OPEN[0]] : OPEN);
+  };
+  const val = {};
+  for (const l of lines) if (l.heading === "config" && l.key && !(l.key in val)) val[l.key] = collapse(l.text || "");
+  const skip = new Set();
+  if (prev) for (const k of CONFIG_KEYS) if (k.split(".").reduce((o, p) => o?.[p], cfg) !== undefined) skip.add(k); // a re-adapt asks only keys still without a value
+  const config = CONFIG_KEYS.map((k, i) => (skip.has(k) ? null : val[k]
+    ? confirm(`C${i + 1}`, "config", `Is this right for ${GLOSS[k]}: ${val[k] === "[]" ? "none" : val[k]}?`)
+    : open(`C${i + 1}`, "config", `What should I write for ${GLOSS[k]}?`))).filter(Boolean);
+  const ks = kinds || Object.fromEntries(Object.entries(research.kinds || {}).map(([k, v]) => [k, { status: v?.status, general: v?.general?.rule || null }]));
+  const mech = KINDS.filter((k) => ["found", "absent"].includes(ks[k]?.status) && (!prev || prev.kinds?.[k]?.status !== research.kinds?.[k]?.status))
+    .map((k) => (ks[k].status === "found" && ks[k].general
+      ? confirm(`H5-${k}`, "5", `Is this the rule every change must follow here: ${collapse(ks[k].general).replace(/[.?!]+$/, "")}?`)
+      : item(`H5-${k}`, "5", "mechanism", `${KIND_Q[k]} ${SPEC_Q}`, ["Nothing does today", "I don't know"])));
   if (prev) return [...mech, ...config];
   return [
     confirm("H1-what", "1", "Is this what the project is?"),
-    open("H2-pays", "2", "Who pays for this, and what is sold?"),
-    open("H2-refused", "2", "What does this project refuse to do?"),
+    pick("H2-pays", "2", "Who pays for this, and what is sold?", at("2", (t) => !NEG.test(t))),
+    pick("H2-refused", "2", "What does this project refuse to do?", at("2", (t) => NEG.test(t))),
     open("H4-incident", "4", "Tell me about one real time something went wrong here: what broke, and what did it cost?"),
-    open("H4-risks", "4", "Which mistakes would cost the most here, in your words?"),
+    pick("H4-risks", "4", "Which mistakes would cost the most here, in your words?", at("4")),
     ...mech,
-    open("H5-keep", "5", "What must not change?"),
-    open("H5-free", "5", "What is free to change?"),
+    pick("H5-keep", "5", "What must not change here (a format, an API, a schema, a number, a name users see)?",
+      [...at("5", (t) => !FREE.test(t)), ...written.map((w) => w.text).filter((t) => KEEP.test(t || ""))]),
+    pick("H5-free", "5", "What can an agent change or delete without asking you?", at("5", (t) => FREE.test(t))),
     choice("H6-zones", "6", "Does this split of the code into zones match how you think about it?"),
-    ...(scan.zones || []).map((z, i) => confirm(`H6-r${i + 1}`, "6", `Does a mistake in ${z.key} risk money, data or access?`)),
+    ...(scan.zones || []).map((z, i) => item(`H6-r${i + 1}`, "6", "choice", `What does a mistake in ${z.key} risk? If more than one applies, type them all in Type something.`, ["Money", "Data", "Access", "No risk"])),
     ...[
       "Keep one branch per batch, merged with --no-ff and never rebased after review?",
       "Push only when you say so?",
@@ -168,14 +191,14 @@ export function buildQueue(research, scan, prev, cfg) {
   ];
 }
 
-// Ids with no answer in `run`; `-r` follow-ups after `Nothing does today`, `H1-what-fix` after a `No` on `H1-what`; with `approved`, P-H1..P-H7 last answer must be `Right`.
+// Ids with no answer in `run`; `-r` follow-ups after `Nothing does today` or a `No` on a general rule, `H1-what-fix` after a `No` on `H1-what`; with `approved`, P-H1..P-H7 last answer must be `Right`.
 export function missing(queue, log, run, approved = false) {
   const last = {};
   for (const l of log) if (l.run === run && l.answer !== undefined && l.answer !== "") last[l.id] = l.answer;
   const out = [];
   for (const { id } of queue) {
     if (!(id in last)) out.push(id);
-    else if (/^H5-/.test(id) && KINDS.includes(id.slice(3)) && last[id] === "Nothing does today" && !(`${id}-r` in last)) out.push(`${id}-r`);
+    else if (/^H5-/.test(id) && KINDS.includes(id.slice(3)) && ["Nothing does today", "No"].includes(last[id]) && !(`${id}-r` in last)) out.push(`${id}-r`);
     else if (id === "H1-what" && last[id] === "No" && !("H1-what-fix" in last)) out.push("H1-what-fix");
   }
   if (approved) for (let n = 1; n <= 7; n++) if (last[`P-H${n}`] !== FIXED[0]) out.push(`P-H${n}`);
@@ -234,7 +257,8 @@ function cli(cmd, root) {
   } else if (cmd === "queue" || cmd === "check") {
     const need = (f) => { try { return readJson(join(dir, f)); } catch { console.error(`adapt: ${f} is missing or unreadable`); process.exit(1); } };
     if (cmd === "queue") {
-      const q = buildQueue(need("research.json"), need("scan.json"), existsSync(prev) ? need("research.prev.json") : null, existsSync(join(dir, "config.json")) ? need("config.json") : null);
+      const opt = (f) => (existsSync(join(dir, f)) ? need(f) : null);
+      const q = buildQueue(need("research.json"), need("scan.json"), opt("research.prev.json"), opt("config.json"), opt("kinds.json"), opt("rules.json")?.rules || []);
       writeFileSync(join(dir, "interview.json"), JSON.stringify(q, null, 2) + "\n");
     } else {
       const { run } = need("adapt-run.json");

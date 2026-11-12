@@ -474,30 +474,106 @@ test("re-adapt skips config keys already in config.json", () => {
   assert.ok(ids(buildQueue(allFound(), ZSCAN, null, config)).includes("C1")); // a first adapt asks every key research left empty
 });
 
+// kinds.json: every kind found with a general rule, then the given statuses (general null).
+const KJ = (o = {}) => Object.fromEntries(KINDS.map((k) => [k, k in o ? { status: o[k], general: null, unverified: false } : { status: "found", general: `rule ${k}.`, unverified: false }]));
+
 test("queue order and styles", () => {
-  const q = buildQueue(withStatus(allFound(), { idem: "absent" }), ZSCAN);
-  assert.deepEqual(ids(q).slice(0, 22), ["H1-what", "H2-pays", "H2-refused", "H4-incident", "H4-risks", "H5-idem", "H5-keep", "H5-free", "H6-zones", "H6-r1", "H6-r2",
+  const q = buildQueue(withStatus(allFound(), { idem: "absent" }), ZSCAN, null, null, KJ({ idem: "absent" }));
+  assert.deepEqual(ids(q).slice(0, 33), ["H1-what", "H2-pays", "H2-refused", "H4-incident", "H4-risks", ...KINDS.map((k) => `H5-${k}`), "H5-keep", "H5-free", "H6-zones", "H6-r1", "H6-r2",
     "H7-g1", "H7-g2", "H7-g3", "H7-g4", "H7-depth", "H7-push", "H3-3m", "H3-12m", "H3-36m", "H8-reply", "H8-budget"]);
   const st = Object.fromEntries(q.map((i) => [i.id, i.style]));
-  for (const i of ["H2-pays", "H2-refused", "H4-incident", "H4-risks", "H5-keep", "H5-free", "C1"]) assert.equal(st[i], "open", i);
-  for (const i of ["H1-what", "H6-r1", "H6-r2", "H7-g1", "H7-g4"]) assert.equal(st[i], "confirm", i);
+  for (const i of ["H4-incident", "C1"]) assert.equal(st[i], "open", i);
+  for (const i of ["H1-what", "H5-values", "H7-g1", "H7-g4"]) assert.equal(st[i], "confirm", i);
   for (const i of ["H5-idem"]) assert.equal(st[i], "mechanism");
-  for (const i of ["H6-zones", "H7-depth", "H7-push", "H3-3m", "H8-reply", "H8-budget"]) assert.equal(st[i], "choice", i);
-  assert.equal(q.find((i) => i.id === "H6-r1").text, "Does a mistake in api risk money, data or access?");
+  for (const i of ["H2-pays", "H2-refused", "H4-risks", "H5-keep", "H5-free", "H6-zones", "H6-r1", "H6-r2", "H7-depth", "H7-push", "H3-3m", "H8-reply", "H8-budget"]) assert.equal(st[i], "choice", i);
   assert.equal(q.find((i) => i.id === "H4-incident").text, "Tell me about one real time something went wrong here: what broke, and what did it cost?");
   assert.ok(q.find((i) => i.id === "H5-idem").text.endsWith(" How does the code prevent this today, and what rule must every change follow?"));
 });
 
-test("one H5 item per absent kind", () => {
-  const q = buildQueue(withStatus(allFound(), { idem: "absent", txn: "absent", conc: "not-present" }), ZSCAN);
-  assert.deepEqual(ids(q).filter((i) => /^H5-/.test(i) && !["H5-keep", "H5-free"].includes(i)), ["H5-idem", "H5-txn"]);
+test("H5: a found general rule is confirmed; found without one or absent asks the mechanism; not-present asks nothing", () => {
+  const kj = { ...KJ({ idem: "found", txn: "absent", conc: "not-present" }), values: { status: "found", general: "Round once, only when shown.", unverified: true } };
+  const q = buildQueue(allFound(), ZSCAN, null, null, kj);
+  const by = Object.fromEntries(q.map((i) => [i.id, i]));
+  assert.deepEqual(by["H5-values"], { id: "H5-values", heading: "5", style: "confirm", text: "Is this the rule every change must follow here: Round once, only when shown?", options: ["Yes", "No", "I don't know"] });
+  assert.equal(by["H5-snap"].text, "Is this the rule every change must follow here: rule snap?");
+  for (const k of ["idem", "txn"]) assert.equal(by[`H5-${k}`].style, "mechanism", k);
+  assert.ok(!by["H5-conc"]);
 });
 
-test("a config line removes its C item", () => {
+test("kinds.json wins over research.json; research.json is the fallback", () => {
+  const r = withStatus(allFound(), { conc: "not-present" });
+  r.kinds.values.general = { rule: "Money in cents", file: "a.js", line: 1, quote: "x" };
+  const st = (q) => Object.fromEntries(q.filter((i) => /^H5-/.test(i.id)).map((i) => [i.id, i.style]));
+  const fb = st(buildQueue(r, ZSCAN));
+  assert.equal(fb["H5-values"], "confirm");
+  assert.equal(fb["H5-idem"], "mechanism"); // found in research.json without a general rule
+  assert.ok(!("H5-conc" in fb));
+  const kj = st(buildQueue(r, ZSCAN, null, null, KJ({ values: "absent" })));
+  assert.equal(kj["H5-values"], "mechanism");
+  assert.equal(kj["H5-idem"], "confirm");
+  assert.equal(kj["H5-conc"], "confirm");
+});
+
+test("check requires H5-<kind>-r after a No on a found kind's confirm", () => {
+  const q = buildQueue(allFound(), ZSCAN, null, null, KJ());
+  const log = fullLog(q).map((l) => (l.id === "H5-values" ? { ...l, answer: "No" } : l));
+  assert.deepEqual(missing(q, log, "r1"), ["H5-values-r"]);
+  assert.deepEqual(missing(q, [...log, L("H5-values-r", "round at the end")], "r1"), []);
+});
+
+test("choice items draft up to 3 options from research, then written rules, plus I don't know", () => {
   const r = allFound();
-  r.topics.t1.lines.push({ heading: "config", key: "tests.run", text: "x", tag: "code" });
-  assert.ok(!ids(buildQueue(r, ZSCAN)).includes("C6"));
-  assert.ok(ids(buildQueue(r, ZSCAN)).includes("C5"));
+  const long = "A wrong tax rate on an invoice sent to a customer in another country, found months later";
+  r.topics.t1.lines.push({ heading: "2", text: "Sold to small shops by monthly subscription", tag: "code" }, { heading: "4", text: "Charging a card twice", tag: "git" });
+  r.topics.t4.lines.push({ heading: "2", text: "It does not sell to large companies", tag: "code" }, { heading: "4", text: "Losing an order", tag: "code" },
+    { heading: "4", text: long, tag: "code" }, { heading: "4", text: "A fourth risk", tag: "code" },
+    { heading: "5", text: "The public API must not change", tag: "code" }, { heading: "5", text: "Internal scripts are free to change", tag: "code" });
+  const written = [{ id: "W1", text: "Always run the tests", file: "README.md", line: 1, kinds: [] }, { id: "W2", text: "Never edit a  shipped migration", file: "docs/a.md", line: 2, kinds: ["compat"] }];
+  const by = Object.fromEntries(buildQueue(r, ZSCAN, null, null, KJ(), written).map((i) => [i.id, i]));
+  const o = (t) => ({ label: t, description: t });
+  assert.deepEqual(by["H2-pays"].options, [o("Sold to small shops by monthly subscription"), "I don't know"]);
+  assert.deepEqual(by["H2-refused"].options, [o("It does not sell to large companies"), "I don't know"]);
+  assert.deepEqual(by["H4-risks"].options, [o("Charging a card twice"), o("Losing an order"), { label: "A wrong tax rate on an invoice sent to a customer in…", description: long }, "I don't know"]);
+  assert.deepEqual(by["H5-keep"].options, [o("The public API must not change"), o("Never edit a shipped migration"), "I don't know"]);
+  assert.deepEqual(by["H5-free"].options, [o("Internal scripts are free to change"), "I don't know"]);
+  for (const id of ["H2-pays", "H2-refused", "H4-risks", "H5-keep", "H5-free"]) {
+    assert.equal(by[id].style, "choice", id);
+    for (const x of by[id].options) assert.ok((x.label ?? x).length <= 60, x.label);
+  }
+  assert.equal(by["H5-keep"].text, "What must not change here (a format, an API, a schema, a number, a name users see)?");
+  assert.equal(by["H5-free"].text, "What can an agent change or delete without asking you?");
+  const none = Object.fromEntries(buildQueue(allFound(), ZSCAN).map((i) => [i.id, i]));
+  for (const id of ["H2-pays", "H2-refused", "H4-risks", "H5-keep", "H5-free"]) {
+    assert.equal(none[id].style, "choice", id);
+    assert.deepEqual(none[id].options, ["I don't know", "Skip: not relevant here"], id);
+  }
+});
+
+test("H6-r<n> is a choice of fixed risk labels; several are typed in Type something", () => {
+  const q = buildQueue(allFound(), ZSCAN).filter((i) => /^H6-r\d+$/.test(i.id));
+  assert.deepEqual(ids(q), ["H6-r1", "H6-r2"]);
+  for (const i of q) {
+    assert.equal(i.style, "choice");
+    assert.deepEqual(i.options, ["Money", "Data", "Access", "No risk"]);
+    assert.match(i.text, /Type something/);
+  }
+  assert.match(q[0].text, /\bapi\b/);
+});
+
+test("C items confirm a researched value in plain words, else ask with the gloss; no raw key", () => {
+  const r = allFound();
+  r.topics.t1.lines.push({ heading: "config", key: "tests.run", text: "npm test", tag: "code" }, { heading: "config", key: "tests.run", text: "later", tag: "code" },
+    { heading: "config", key: "tests.notRunnable", text: "[]", tag: "code" });
+  const by = Object.fromEntries(buildQueue(r, ZSCAN).map((i) => [i.id, i]));
+  assert.deepEqual(by.C6, { id: "C6", heading: "config", style: "confirm", text: "Is this right for the command that runs the tests: npm test?", options: ["Yes", "No", "I don't know"] });
+  assert.equal(by.C7.text, "Is this right for test folders that need a service such as a database: none?");
+  assert.equal(by.C5.style, "open");
+  assert.match(by.C5.text, /test file patterns/);
+  for (const [n, k] of CFG.entries()) assert.ok(!by[`C${n + 1}`].text.includes(k), k);
+});
+
+test("no queue text names Other", () => {
+  for (const i of buildQueue(allAbsent(), ZSCAN)) assert.doesNotMatch(i.text, /\bOther\b/, i.id);
 });
 
 test("ids are unique and at most 12 characters", () => {
@@ -515,16 +591,24 @@ test("styles define I don't know", () => {
   }
 });
 
-test("same research gives byte-identical interview.json", () => {
+test("same research gives byte-identical interview.json; queue reads kinds.json and rules.json", () => {
   const out = [];
   for (let n = 0; n < 2; n++) {
     const d = repo();
-    put(d, sample(), { ...SCAN, ...ZSCAN });
+    const r = sample();
+    r.topics.t2.lines.push({ heading: "5", text: "The file format must not change", tag: "code" });
+    put(d, r, { ...SCAN, ...ZSCAN });
+    writeFileSync(X(d, "kinds.json"), JSON.stringify(KJ({ conc: "not-present", idem: "absent" })));
+    writeFileSync(X(d, "rules.json"), JSON.stringify({ rules: [{ id: "W1", text: "Never break the API", file: "README.md", line: 1, kinds: [] }] }));
     assert.equal(cli(d, "queue").status, 0);
     out.push(readFileSync(X(d, "interview.json"), "utf8"));
   }
   assert.equal(out[0], out[1]);
-  assert.ok(JSON.parse(out[0]).some((i) => i.id === "H1-what"));
+  const q = JSON.parse(out[0]);
+  assert.ok(q.some((i) => i.id === "H1-what"));
+  assert.equal(q.find((i) => i.id === "H5-values").style, "confirm");
+  assert.equal(q.find((i) => i.id === "H5-idem").style, "mechanism");
+  assert.deepEqual(q.find((i) => i.id === "H5-keep").options.map((o) => o.label ?? o), ["The file format must not change", "Never break the API", "I don't know"]);
 });
 
 const L = (id, answer, run = "r1") => ({ run, id, question: "q", options: [], answer });
@@ -606,10 +690,9 @@ test("follow-up only for H5 kinds", () => {
   assert.deepEqual(missing(q, fullLog(q).map((l) => (l.id === "H5-keep" ? { ...l, answer: "Nothing does today" } : l)), "r1"), []);
 });
 
-test("C texts carry a gloss and the key", () => {
+test("C texts carry a gloss", () => {
   const c = buildQueue(allFound(), ZSCAN).filter((i) => /^C\d+$/.test(i.id));
   assert.equal(c.length, 10);
-  assert.ok(c.every((i, n) => i.text.includes(CFG[n]) && /\(.+\)/.test(i.text)));
   assert.match(c[4].text, /test file patterns/);
 });
 

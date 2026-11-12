@@ -67,9 +67,9 @@
         }
       ],
       "files": {
-        "hooks/core/adapt-gates.mjs": "a48e4d94a7f0868b185115f0c107b6f22679cf753ada5e6cfbcf16b5cb8ca84c"
+        "hooks/core/adapt-gates.mjs": "a279edd8f351ba11471d93920b2b0275d1d3d60ebd157a42e08bddb94cd297ef"
       },
-      "sha256": "c721f26b01d6db69440df516f3de403bddc8e20775b84973ae36d181bfbafeaf"
+      "sha256": "18b0f5994df7a21dcaf3701cef1e66daa3af76c32d616f45e5f8053ba0101c48"
     },
     {
       "id": "adapt-record",
@@ -248,9 +248,9 @@
         "skills/adapt/scan.mjs": "cff7acc757c1c1a8fd324aca159cbd4b0b9556f9508bbc985c4a5b27f921ddb4",
         "skills/adapt/rules.mjs": "ac69385ce07d93b2d154efdd03312d91cd66446f73da2480c128073ccb7d0d6b",
         "skills/adapt/research.workflow.js": "5fcbca04816cb33748f07e9ec97a7d33463eca240832bc3a5389af895d2d2079",
-        "skills/adapt/research.mjs": "9699ebcf4d420cee8bf130699b02ad8adddc1b00990b57227e94c2e4fc7a89f4"
+        "skills/adapt/research.mjs": "4a1dce22895c64e95ec44139ac97bec7b21fc3dde7bc96c03ac62e307cd45151"
       },
-      "sha256": "55bbef8f54556c8150ebf243fb50f61e4fabd73248ca2ae7281e1604ad49f3b6"
+      "sha256": "90163a329292b3028ca3774edfd0ac6a3ae5067a3ec5977c9ab5443359c2d7a3"
     },
     {
       "id": "full-review",
