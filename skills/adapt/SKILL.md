@@ -5,49 +5,45 @@ description: Day one. Learn this project from its code and history, check a summ
 
 Before anything else, run `node .xworkflows/mark.mjs adapt` in the shell.
 
-Talk to the owner in the owner's language. Headings, config keys and file contents stay in English. Ask the fixed questions below with exactly their meaning; in English, use the exact words.
+`<base>` is this skill's base directory, shown when the skill loads. Run its scripts with `node` from the repository root; quote the path if it holds a space.
 
-Questions go through `AskUserQuestion`, at most 4 per call. You do not know this project yet: research's options are guesses, never a forced choice.
+Talk to the owner in the owner's language. Headings in files, config keys and file contents stay in English. Ask the fixed questions below with exactly their meaning; in English, use the exact words.
 
-- Set `multiSelect: true` whenever more than one option can be true at once, for example: who pays, what is refused, which parts are live, kinds of costly mistake, risks, what must not change, what is free to change, which zones hold risks, where or how a rule is enforced. Single choice only where the options exclude each other: yes or no, keep or change a default, the zones split, `Did I understand correctly?`, `Run a full review first, or start on the next step?`, review depth, who may push.
-- End every other question with one short note, in the owner's language; `Did I understand correctly?` and `Run a full review first, or start on the next step?` get none. With `multiSelect`: `You can pick several. If none fits, or it is something else, write it in Other.` Otherwise: `If none fits, or it is something else, write it in Other.`
-- Research's guess goes first, marked `(Recommended)` only when its line in `research.md` ends `(code)` or `(git)`. A guess without that tag is not recommended, and neither is any option where a step says so. `AskUserQuestion` needs 2 to 4 options: with one guess, add the most plausible alternative, not recommended; with more than 4, split the question in two.
-- An answer typed in Other wins over research's guess, which is dropped; options the owner picked are kept with it.
-- Each picked option of a multi-select answer becomes its own line under its heading, never one merged line.
+All questions go through `AskUserQuestion`; the `header` is the item id. You do not know this project yet: research's options are guesses, never a forced choice. The owner can always type a free answer in the line Claude Code shows below the options (in English it reads "Type something"); name it as Claude Code shows it to the owner. `Type something` below means that line. Five styles:
+
+- `open`: options `I don't know` and `Skip: not relevant here`. The question says: `Type your answer in Type something.`
+- `confirm`: One item per question: Yes, No, I don't know. Options `Yes`, `No`, `I don't know`; up to 4 questions per call. Never a multi-select list. Text typed in `Type something` corrects what the question shows.
+- `mechanism`: options `Nothing does today` and `I don't know`. The question says: `Type the mechanism in Type something.`
+- `choice`: the item's `options` when it has them (a drafted option is `{label, description}`: send both), otherwise 2 to 4 options drafted from research or earlier answers.
+- Playback (`Right`, `Wrong`, `Missing something`) is asked where a step says so.
+
+- Every question that is not `confirm` ends with one short note, in the owner's language: `If none fits, or it is something else, type it in Type something.` This includes `choice`, except `H6-r<n>`, whose text already says it: one free-text note per question.
+- Drafted options are suggestions from research, not answers: present them as suggestions, translated into the owner's language, label and description. `(Recommended)` only on an option backed by a verified `file:line` citation in `research.md`, on any style. A guess is never recommended.
+- What the owner types in `Type something` wins over research and over every drafted option. `I don't know` settles the item; so does `Skip: not relevant here`. `I don't know` on a mechanism writes `unprotected: <risk>`.
+- The fixed labels are `Yes`, `No`, `I don't know`, `Skip: not relevant here`, `Nothing does today`, `Right`, `Wrong`, `Missing something`, and the `H6-r<n>` labels `Money`, `Data`, `Access`, `No risk`. Only these stay in English: send them verbatim, with the translation in the option `description`.
 
 ## Step 1: Resume
 
-- `.xworkflows/summary.md` has `status: draft`: resume the interview from it. Skip research; read `.xworkflows/research.md` and go to step 3.
-- `.xworkflows/summary.md` has `status: approved`: re-adapt. Run step 2 only on the commits after its `commit:` line (`git log <commit>..HEAD --stat`). If research changes no line of the approved summary, say so and stop before any playback: no draft, no write, no commit; leave `summary.md` as it is. Otherwise play back the approved summary with each changed line marked `(changed)`. Same stop rule. In step 4, rewrite only the files whose content changes.
-- No `summary.md`, but `.xworkflows/research.md` has `commit:` equal to `HEAD` (as after `/adapt research-only`): reuse it. With `research-only`, give its path and stop; otherwise go to step 3.
+- `.xworkflows/summary.md` has `status: draft`: run `node <base>/research.mjs start` first (it keeps the run), then `node <base>/research.mjs check`. Resume from the draft: skip research, read `.xworkflows/research.md` and `.xworkflows/interview.json`, ask only the ids `check` lists, then heading 8 (`H8-*`) again, then go to step 3's playback.
+- `.xworkflows/summary.md` has `status: approved`: re-adapt. Run step 2 in full (`research.prev.json` holds the research of the last approved summary; `research.mjs done` saved it when that summary was written); `research.mjs queue` then asks only what changed: the `H5-<kind>` items whose kind changed status, and missing config keys. Ask them as in step 3. If research changes no line of the approved summary, say so and stop before any playback: no draft, no write, no commit; leave `summary.md` as it is; run `node <base>/research.mjs done`. Otherwise ask heading 8 (`H8-*`) again, as on a first adapt, and write a draft from the approved summary with all eight headings, each changed line marked `(changed)`; play it back as in step 3. In step 4, rewrite only the files whose content changes.
+- No `summary.md`, but `.xworkflows/research.md` has `commit:` equal to `HEAD` (as after `/adapt research-only`): reuse it. With `research-only`, give its path and stop; otherwise run `node <base>/research.mjs start` (it keeps the run of an interrupted first adapt, so its answers count), then `node <base>/research.mjs queue`, then `node <base>/research.mjs check`, and go to step 3: ask only the ids `check` lists.
 - Otherwise: start at step 2.
 
 ## Step 2: Research
 
 No questions in this step.
 
-1. Write `.graphifyignore` (same syntax as `.gitignore`) with the generated and vendored paths: dependencies, build output, generated code, vendored code. Keep any lines already there.
-2. Run `graphify update .`. If `graphify` is missing, stop: tell the owner graphify is required and must be installed first.
-3. Read `graphify-out/GRAPH_REPORT.md`. Then run one `graphify query "<what are the main parts of this project?>"` yourself; the lookup rule wants a recent query before any `explore` agent.
-4. Launch one `explore` agent per topic below, all seven in one Workflow. Without the Workflow tool, use at most 2 Agent calls: topics 1 to 4, then 5 to 7. Every prompt says:
-   - Ask `graphify query` before opening files. Verify each path still exists.
-   - Read history as commit messages and file stats only (`git log --oneline`, `--stat`, `--name-only`). Never read past versions of files or content diffs: no `git show <sha>:<path>`, no `git log -p`; `git diff` and `git stash show` only with `--stat` or `--name-only`.
-   - Answer in 10 lines or fewer; topic 7 in 20 or fewer.
-5. The seven topics:
-   1. Stack, build files, linters.
-   2. Layout: top folders, size in bytes per folder (`git ls-files` with `wc -c`), what each holds. Propose 3 to 5 zones, each with an everyday name (`the screens`, `the database`), sized in bytes. Leave out generated and vendored code.
-   3. Tests: file patterns, run command, folders that need a service such as a database (fills `tests.files`, `tests.run`, `tests.notRunnable`).
-   4. Where data and money move: database, payments, auth, outside calls.
-   5. History of the last 12 months: files changed most, reverts, fix commits.
-   6. Next steps already written down. Paste into this prompt the list under `## Research topic 6` of `.claude/skills/adapt/topics.md`; the agent searches in that order.
-   7. Mechanisms: what the code itself enforces. Database triggers, constraints, guards and access policies; data written only through server functions, and by deltas rather than absolute values; idempotency keys on retried or offline writes; snapshot or frozen columns set once when a record is written; transactions around actions that touch several rows; money, unit and rounding helpers, and which value is the source of truth; batched queries instead of one per item; domain, legal or tax rules and where they are written. One line per mechanism: the rule every change must follow, then the path that shows it. Then each area present (money, a database, offline or retried writes, multi-row actions, a regulated domain) where no mechanism was found.
-6. Write `.xworkflows/research.md`:
-   - Front matter `commit: <HEAD sha>`.
-   - A first draft of the summary under the eight headings of step 3. Each line ends `(code)` or `(git)`. Leave a line empty rather than guess wildly.
-   - Under heading 5, each topic 7 mechanism as a candidate rule line, worded as how the code must do something, with its path, tagged `(code)`; then `no rule found: <area>` for each area present without one.
-   - `## Config`: a guess for each required key of step 3, marked the same way.
-   - `## Written down`: the topic 6 list, one line each: what, source, path.
-7. With the argument `research-only`, stop here. Tell the owner the path of `research.md`.
+1. Run `node <base>/research.mjs start`. It marks the adapt run: until step 4 ends, hooks record every answer and deny steps out of order; each denial names the fix. Never run `research.mjs done` while the interview is in progress, even when a step is denied: fix what the denial names.
+2. Run `node <base>/rules.mjs` first: it writes `.xworkflows/rules.json`, the rules the project wrote down (docs, plans, ADRs, code comments), which research checks against the code. Then run `node <base>/scan.mjs`, which reads it. It writes `.xworkflows/scan.json` (zones, mechanism hits) and adds generated and vendored paths to `.graphifyignore`.
+3. Run `graphify update .`. If `graphify` is missing, run `node <base>/research.mjs done` and stop: tell the owner graphify is required and must be installed first.
+4. Read `graphify-out/GRAPH_REPORT.md`. Then run one `graphify query "<what are the main parts of this project?>"` yourself; the lookup rule wants a recent query before any `explore` agent.
+5. Call the `Workflow` tool with `scriptPath: "<base>/research.workflow.js"` and `args: { root: "<absolute repository root>", zeroHits: [...] }`, never an inline script. `zeroHits` is exactly the kind keys whose `kinds.<key>.total` is 0 in `.xworkflows/scan.json` (`[]` if none). Without the Workflow tool, stop: run `node <base>/research.mjs done` and tell the owner adapt needs it.
+6. The Workflow runs in the background: wait for its result, which arrives in a later turn. Run `rm -f .xworkflows/research.json` (the Write tool refuses to overwrite a file it has not read), then write the result unchanged (no field added, dropped or reordered) to `.xworkflows/research.json` with the Write tool.
+7. Run `node <base>/research.mjs render`. It verifies each citation and writes `.xworkflows/research.md` and `.xworkflows/kinds.json`. Never write those, `rules.json` or `scan.json` yourself; only their scripts do. On exit 1, read its message:
+   - `research.json was altered`: run `rm -f .xworkflows/research.json`, write the Workflow result already in context to it again, unchanged, with the Write tool, and run `render` again. Rerun the Workflow (5 and 6) only if its result is no longer in context. At a second mismatch it prints `stop and tell the owner`: run `node <base>/research.mjs done`, stop and tell the owner.
+   - Anything else (an agent returned nothing, a citation that did not hold): rerun the Workflow once. If `render` fails again, run `node <base>/research.mjs done`, stop and tell the owner what it printed.
+8. With the argument `research-only`, run `node <base>/research.mjs done` and stop here: tell the owner the path of `research.md`. No `queue`.
+9. Run `node <base>/research.mjs queue`. It writes `.xworkflows/interview.json`, the questions of step 3.
 
 ## Step 3: Interview
 
@@ -62,60 +58,66 @@ The summary has these eight headings, verbatim, in this order:
 7. How the owner works
 8. About you
 
-Rules:
+Questions:
 
-- Start from `research.md`. Ask only what research left empty or unsure. Research's guess is the first option; the question rules above say when it is `(Recommended)`.
-- `topics.md` holds the questions research cannot answer, per heading. Ask one only when research did not settle it.
-- Heading 3: rough aspirations, no dates. One per period.
-- Headings 4 and 5: mechanisms research found go straight under heading 5, tagged `(code)`, and are confirmed in the playback. Only for a risk or "must not change" item where research found no mechanism, ask `How does the code prevent this today, and what rule must every change follow?` Options `Nothing does today` and `I don't know`, neither recommended (research has no guess); the owner may type the mechanism instead.
-- On `Nothing does today`, ask in plain text what rule every change must follow; `no rule needed` and `I don't know` are accepted answers. After `no rule needed` or `I don't know`, write `unprotected: <risk>` under heading 5. That line is settled, not a guess; do not ask again.
+- Ask the items of `.xworkflows/interview.json` in file order, up to 4 per call: header = the item's `id`; the item's `style`, per the question rules above; its `text` in the owner's language with the same meaning; its `options` when it has them. Ask nothing else but the follow-ups named here, and no id twice in a run (playback ids and heading 8 aside).
+- `choice` items: send the item's `options` when it has them (`H2-pays`, `H2-refused`, `H4-risks`, `H5-keep`, `H5-free`, `H6-r<n>`); otherwise draft 2 to 4 options from research and earlier answers, research's answer first. `H5-keep` and `H5-free` keep their examples: what must not change (a format, an API, a schema, a number, a name users see); what an agent may change or delete without asking. `H3-*` (rough aspirations, no dates, one per period) take their options from what the owner already said: next steps named, planned moves, risks.
+- `H1-what`: show research's heading 1 lines, then ask; the question says that if it is not right, type what it is in `Type something`. On a bare `No`, ask the follow-up `H1-what-fix`, `open`: `What is the project?`, and list heading 1 under `Hotspots` until `P-H1` is `Right`.
+- `(code)` and `(git)` only say where a line came from. `(Recommended)`, as in the question rules: only on an option backed by a verified `file:line` citation in `research.md`.
+- `H5-<kind>` of a found kind is a `confirm` showing research's general rule. `Yes`: the general rule becomes the kind's line `<kind>: <general rule>`. A correction typed in `Type something` becomes `<kind>: <rule>`. `No`: ask the follow-up `H5-<kind>-r`, `open`: `What rule must every change follow?` `I don't know`: `<kind>: unconfirmed: <general rule>`, tagged `(code)`, listed in `Hotspots`. A question that ends `(its code citation could not be verified)` says research's citation did not hold; ask it as written. `H5-<kind>` of an absent kind is a `mechanism`: a typed mechanism becomes `<kind>: <rule>`; `I don't know` becomes `<kind>: unprotected: <risk>`; on `Nothing does today`, ask the follow-up `H5-<kind>-r`. The `H5-<kind>-r` answer maps to one line under heading 5: a typed rule becomes `<kind>: <rule>`; `I don't know` becomes `<kind>: unprotected: <risk>`; `Skip: not relevant here` becomes `<kind>: not applicable`. That line is settled, not a guess; do not ask again.
+- `H6-zones` is the zones question below, asked once, in a call of its own. Then ask `H6-r<n>` about zone n of `scan.json`, named in the owner's words after any merge, rename or split typed in `Type something`. Its options are `Money`, `Data`, `Access`, `No risk`, with several risks typed in `Type something` when more than one applies. Any answer but `No risk` adds that scan zone's paths to `paths.risk`. If the owner split a zone, ask the follow-up `H6-split` once, `open`: `What does a mistake in each new part risk: money, data or access?`, naming the parts; write its answer under heading 6.
+- `H7-*`: the default git rules one by one, then review depth and who may push.
+- `H8-*`: reply preferences and model budget (heading 8). It never goes into the repository.
+- `C<n>`: a required config key. When research proposed a value, a `confirm` that shows it in plain words (`Your test command looks like npm test. Correct?`); a typed value replaces it; on a bare `No`, ask the follow-up `C<n>-fix`, `open`: `What should it be?`, naming the key in plain words. Its answer is the key's value. With no proposed value, an `open` item with the key's plain gloss. Every required key needs a value: `paths.code`, `paths.risk`, `paths.heavyRead`, `paths.codeAnyway`, `tests.files`, `tests.run`, `tests.notRunnable`, `checks` (`checks.project`, `checks.patterns`, `checks.ratchets`), `zones`. `[]` written on purpose counts as a value; a key nobody filled does not.
+- When the queue is done, run `node <base>/research.mjs check`. It exits 1 and lists the ids with no answer in this run: ask those, then run it again. The draft comes only after it exits 0.
+
+Heading 5:
+
+- The mechanisms research found go straight under heading 5, tagged `(code)` with their `file:line`, and are confirmed in the playback.
 - Each answer becomes a rule line under heading 5, worded as how the code must do something (`stored values stay exact; round once, only when shown`), not only as the outcome to avoid (`never miscalculate money`).
-- Heading 5 groups its rule lines under the risk they prevent, costliest risk first, then `rules tied to no risk`.
-- Before the first playback, ask a heading 5 mechanism question of `topics.md` only for an area research found present but found no rule for (a `no rule found:` line). Up to 4 questions per call. The owner will not volunteer these.
-- Heading 6: the zones question below.
-- Heading 7: confirm each default git rule one by one: one branch per batch, merged with `--no-ff`, never rebased after review; push only when the owner says so; files added by explicit path, never `git add .` or `-A`; no commit, PR or comment names an AI as author or co-author. Also review depth and who may push.
-- Heading 8: reply preferences and model budget. It never goes into the repository.
-- A heading is done when no line on it is still a guess. The first playback comes only when all eight are done.
-- Before any playback, every required key has a value: `paths.code`, `paths.risk`, `paths.heavyRead`, `paths.codeAnyway`, `tests.files`, `tests.run`, `tests.notRunnable`, `checks` (`checks.project`, `checks.patterns`, `checks.ratchets`), `zones`. `[]` written on purpose counts as a value; a key nobody filled does not. Ask for each missing one. The interview does not end while one is missing.
+- Heading 5 groups its rule lines under the risk they prevent, costliest risk first, then `rules tied to no risk`. A risk may be a `###` sub-heading; no `#` or `##` heading inside heading 5.
+- For each found kind, heading 5 has one line `<kind>: <confirmed general rule>`, or what its `H5-<kind>` answers gave.
+- For each kind `absent` in `.xworkflows/kinds.json` (`no rule found` or `general rule missing` in `research.md`), heading 5 has one line `<kind>: <rule | unprotected: <risk> | not applicable>`. The draft write is denied without it.
 
 ### Zones
 
 ```json
 "zones": [
   { "key": "app", "paths": ["src/"], "note": "the web app" },
-  { "key": "db", "paths": ["db/", "migrations/"] }
+  { "key": "db", "paths": ["db/", "migrations/*"] }
 ]
 ```
 
 - `key`: lowercase letters, digits and `-`; unique; also the rule file name.
-- `paths`: relative to the repository root; a path is in one zone at most.
+- `paths`: from `zones` in `.xworkflows/scan.json`, relative to the repository root, in three forms: a folder (`src` or `src/`), `dir/*` (the files directly in `dir`), `*` (the files at the root). A path is in one zone at most.
 - `note`: optional, one line.
 - Generated and vendored code stays out unless the owner adds it.
 
 The zones question, in plain words:
 
 1. First say what zones are for: each area of the code gets its own rules, and the full review checks each area separately, so a bigger area costs more to review, and so does each extra zone.
-2. Name each proposed zone in everyday words (`the screens`, `the database`) with a rounded size (`about 5 MB`). No exact sizes, no paths: paths go in the playback's `## Config` block.
-3. Ask `Does this split match how you think about the code?`, your proposal first, `(Recommended)` per the question rules, with the Other note: the owner types merges, splits and renames there.
+2. Name each zone of `scan.json` in everyday words (`the screens`, `the database`) with a rounded size (`about 5 MB`). No exact sizes, no paths: paths go in the playback's `## Config` block.
+3. Ask `H6-zones` in a call of its own, with that proposal first, never `(Recommended)` (a proposal is not a citation), with the `Type something` note: the owner types merges, splits and renames there.
 
 ### Playback
 
-1. Write the whole summary: the eight headings, plain words, one line per item, as short as it can be without dropping a detail. No line cap. Heading 5 lists every rule, one per line, grouped under the risk it prevents, so the owner can confirm or correct each. Each line ends `(code)`, `(git)` or `(you)`. After heading 8, a `## Config` block lists each required key and its value. If `docs/BUSINESS.md`, a `.claude/rules/<key>.md` or a `## Project rules` section already exists, then add `## Changes to existing files`: per file, the lines step 4 adds or changes.
-2. Save it to `.xworkflows/summary.md` with front matter `status: draft` and `commit: <sha research read>`. The saved draft leaves heading 8 empty; on resume, ask heading 8 again.
-3. Ask one question: `Did I understand correctly?` with two options, `Yes, you understood` and `No`. Neither is marked recommended. No other options, and no Other note.
-4. On `No`: ask the open question `What did I miss or get wrong?` and wait for the answer. Then ask questions only about that. Then play back the whole summary again, each changed line marked `(changed)`, save the draft, and ask `Did I understand correctly?` again. No cap on playbacks.
-5. On `Yes, you understood`: the interview ends. Go to step 4.
+1. Write the whole summary: the eight headings as `## <n>. <heading>`, plain words, one line per item, as short as it can be without dropping a detail. No line cap. Heading 5 lists every rule, one per line, grouped under the risk it prevents, so the owner can confirm or correct each. Each line ends `(code)`, `(git)` or `(you)`. Heading 6 says, for each zone, why it is or is not a risk path: the `H6-r<n>` answer (`Money`, `Data`, `Access` or `No risk`). After heading 8, a `## Config` block lists each required key and its value. If `docs/BUSINESS.md`, a `.claude/rules/<key>.md` or a `## Project rules` section already exists, then add `## Changes to existing files`: per file, the lines step 4 adds or changes.
+2. Save it to `.xworkflows/summary.md` with front matter `status: draft` and `commit: <sha research read>`. The saved draft leaves heading 8 empty; on resume, ask heading 8 again. A denied write names what is missing: fix that and save again.
+3. Show the owner the summary with a `Hotspots` list first: open doubts, `unprotected:` lines, `unconfirmed:` lines, research's `## Contradicted written rules` (each contradicted rule: the written rule and the code that contradicts it), research's `## Dropped citations` and research's `## Not checked` (one line per kind: the count and the first paths).
+4. Ask `P-H1` to `P-H7`, one per heading 1 to 7, 4 per call: header = the id, question `<heading>: right, wrong, or missing something?`, options `Right`, `Wrong`, `Missing something`, none recommended. The playback asks each heading in the owner's language; the canonical English heading stays in `summary.md`. No other options, and no `Type something` note. `P-H6` also covers the zones, the risk paths and the `## Config` block.
+5. On `Wrong`, `Missing something` or text typed in `Type something`: ask `P-H<n>-fix`, `open`: `What should change under <heading>?`. Fix the heading from that answer, save the draft, show that heading again with each changed line marked `(changed)`, and ask `P-H<n>` again. No cap.
+6. When the last answer of each of `P-H1` to `P-H7` is `Right`, run `node <base>/research.mjs check --approved`. If it lists ids, ask them and run it again. When it exits 0, the interview ends. Go to step 4.
 
 ## Step 4: Write
 
-Only after `Yes, you understood`. Before that answer, write nothing but `.graphifyignore`, `graphify-out/`, `research.md` and the draft. An existing `docs/BUSINESS.md`, `.claude/rules/<key>.md` or `## Project rules` section is merged, never overwritten: keep its lines, add or change only what the playback showed. The main session writes all of these in one step:
+Only after `P-H1` to `P-H7` are all `Right`. Before that, write nothing but `.graphifyignore`, `graphify-out/`, the `.xworkflows/` files of steps 2 and 3 and the draft. An existing `docs/BUSINESS.md`, `.claude/rules/<key>.md` or `## Project rules` section is merged, never overwritten: keep its lines, add or change only what the playback showed. The main session writes all of these in one step, `.xworkflows/summary.md` first (a denied write names what to ask; ask it, then write again), then the others:
 
 | File | Content |
 |---|---|
 | `.xworkflows/summary.md` | Headings 1 to 7 as approved. Front matter `status: approved`, `date: YYYY-MM-DD`, `commit: <sha research read>`. |
 | `docs/BUSINESS.md` | Headings 1 to 3, then `## Goals` (below). |
-| `AGENTS.md` | Headings 4 and 5 as unbreakable rules, one line each, under `## Project rules`, in heading 5's order: each risk, then the rules that prevent it, worded as how the code must do something, then the rules tied to no risk. Put it after the `<!-- xworkflows:end -->` line, outside the `<!-- xworkflows:start -->` block. Never edit inside the block; the installer owns it. If `## Project rules` exists, merge into only that section. |
-| `.claude/rules/<zone key>.md` | One file per zone that has a rule. Front matter `paths:` lists the zone's paths as globs (`src/` becomes `src/**`). Then the rules, one line each, including every heading 5 mechanism rule whose path in `research.md` is in the zone's paths. |
+| `AGENTS.md` | Headings 4 and 5 as unbreakable rules, one line each, under `## Project rules`, in heading 5's order: each risk, then the rules that prevent it, worded as how the code must do something, then the rules tied to no risk. An owner-added rule with no path goes to `AGENTS.md` `## Project rules` only, in no rule file. Put it after the `<!-- xworkflows:end -->` line, outside the `<!-- xworkflows:start -->` block. Never edit inside the block; the installer owns it. If `## Project rules` exists, merge into only that section. |
+| `.claude/rules/<zone key>.md` | One file per zone that has a rule. Front matter `paths:` lists the zone's paths as globs: a folder `src` or `src/` becomes `src/**`; `dir/*` and `*` stay as written. Then the rules, one line each, including every heading 5 mechanism rule whose path in `research.md` is in the zone's paths, and every owner rule that names a path in them. |
 | `.claude/agents/risk-review.md` | The risk reviewer (below). |
 | `.xworkflows/config.json` | Merged key by key (below). |
 | `~/.xworkflows/owner.md` | Heading 8 only. User scope, outside every repository. Create `~/.xworkflows/` if missing. Keep what is already there; update only what the owner changed. |
@@ -144,17 +146,18 @@ Goals in `docs/BUSINESS.md`, one line per aspiration, no dates. G1 is the 3-mont
 
 Then commit, without asking (the owner already approved the content):
 
-1. Append `graphify-out/` and `.xworkflows/research.md` to `.gitignore` (create it if missing), only the lines not already there.
-2. `git add` each repository file written above by explicit path, plus `.graphifyignore` and `.gitignore`. Never `git add .` or `-A`. Never `~/.xworkflows/owner.md` or `research.md`.
+1. Append `graphify-out/`, `.xworkflows/research.md`, `.xworkflows/research.json`, `.xworkflows/research.prev.json`, `.xworkflows/scan.json`, `.xworkflows/interview.json`, `.xworkflows/interview.log.jsonl`, `.xworkflows/adapt-run.json`, `.xworkflows/rules.json` and `.xworkflows/kinds.json` to `.gitignore` (create it if missing), only the lines not already there.
+2. `git add` each repository file written above by explicit path, plus `.graphifyignore` and `.gitignore`. Never `git add .` or `-A`. Never `~/.xworkflows/owner.md` or a path just appended to `.gitignore`.
 3. `git commit -m "chore: adapt xworkflows to this project" -- <the same paths>`, so files the owner staged before stay out. No AI author or co-author line. No push.
 4. Show the owner the commit's short sha and its file list.
 5. If an installer file (the `files` keys and `created` list in `.xworkflows/installed.json`) is still uncommitted, tell the owner which ones. Do not commit them.
+6. Run `node <base>/research.mjs done`. It ends the adapt run.
 
 ## Step 5: Next
 
 With `zones` empty, skip the question: say there is nothing to review and run `/next-step`.
 
-Ask one question: `Run a full review first, or start on the next step?` Two options side by side, neither marked recommended:
+Ask one question, header `S5-next`: `Run a full review first, or start on the next step?` Two options side by side, neither marked recommended:
 
 - Full review: its description is `about X to Y million tokens, from one past run, not measured here`, where zones is the number of zones: X = zones × 2 × 0.17 and Y = zones × 2 × 0.25, rounded to one decimal.
 - Next step.

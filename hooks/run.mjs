@@ -1,6 +1,7 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
 import { tmpdir, homedir } from "node:os";
 import { join } from "node:path";
+import { spawnSync } from "node:child_process";
 import { markFrom, markFile } from "./core/marks.mjs";
 
 const [tool, hook] = process.argv.slice(2);
@@ -28,7 +29,11 @@ try {
     const skillName = (id) => { // the installed name: a renamed skill (xwf-grill) differs from its id
       try { const k = Object.entries(JSON.parse(read(join(ev.root, ".xworkflows", "installed.json"))).renamed ?? {}).find(([, v]) => v === id); return k ? k[0].split("/").pop() : id; } catch { return id; }
     };
-    const ctx = { config, readFile: read, skillName, marked: (skill) => existsSync(markFile(stateDir, skill, ev.session)) };
+    const runCheck = (args) => { // the gate decides what a failed check means
+      const r = spawnSync(process.execPath, [join(ev.root, ".claude", "skills", skillName("adapt"), "research.mjs"), "check", ...args], { cwd: ev.root, encoding: "utf8", timeout: 10000 });
+      return { code: r.error ? null : r.status, out: r.stdout ?? "", err: r.stderr ?? "" };
+    };
+    const ctx = { config, runCheck, readFile: read, skillName, marked: (skill) => existsSync(markFile(stateDir, skill, ev.session)) };
     out = adapter.answer(core.decide(ev, ctx));
   }
 } catch (e) {

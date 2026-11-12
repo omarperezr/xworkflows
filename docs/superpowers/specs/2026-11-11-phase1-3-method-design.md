@@ -155,7 +155,10 @@ not ship (design 5).
 plus `UserPromptSubmit`. In the main session it denies:
 0. `Agent` or `Workflow` while `.xworkflows/summary.md` is missing or not
    `status: approved`, except under a mark of `adapt`: no planning or
-   implementing before the interview (owner, 2026-11-11).
+   implementing before the interview (owner, 2026-11-11). A project summary
+   written by hand and approved by the owner counts as well (owner,
+   2026-11-12): it is the same file, with `status: approved` and a `date:`
+   line. The rule reads the status, not who wrote the file (Claude's call).
 1. `Agent` or `Workflow` before a mark of `orchestrate`, `adapt`,
    `full-review` or `next-step`.
 2. An agent type with no `.claude/agents/<type>.md`, not in `roles.builtIn`.

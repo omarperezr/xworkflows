@@ -1,0 +1,10 @@
+{"run":"r1","id":"H1-a","question":"Old?","options":["Yes","No"],"answer":"No"}
+{"run":"r2","id":"H1-a","question":"What?","options":["Yes","No"],"answer":"first"}
+{"run":"r2","id":"H5-idem","question":"Idem?","options":["src/idem.js:10 keys (Recommended)","Nothing does today"],"answer":"Nothing does today"}
+{"run":"r2","id":"H5-idem-r","question":"Rule?","options":[],"answer":"use keys"}
+{"run":"r2","id":"H1-a","question":"What?","options":["Yes","No"],"answer":"Yes"}
+{"run":"r2","id":"H6-r1","question":"Risk?","options":["Plain thing (Recommended)","Other"],"answer":"Other"}
+{"run":"r2","id":"H4-x","question":"Which?","options":["src/values.js:10 round (Recommended)","No"],"answer":"No"}
+{"run":"r2","id":"H5-snap","question":"Snap?","options":["Whatever (Recommended)"],"answer":"x"}
+{"run":"r2","id":"H5-conc","question":"Conc?","options":["Whatever (Recommended)"],"answer":"x"}
+{"run":"r2","id":"H1-b","qu
