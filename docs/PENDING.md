@@ -19,6 +19,7 @@ One living list. The `pending` brake checks these rules:
 - **P-29** — `skills/adapt/scan.mjs` `projectFiles`: a folder with no repository of its own that sits under an unrelated parent repository is scanned through the parent's file list, so its untracked files give an empty scan with no warning. Origin: review of the 1.2b safety fixes, 2026-11-12. Status: unscheduled.
 - **P-62** — `skills/adapt/`: build the new `/adapt`, research by general areas and three screens with short sentences, the detail apart and the doubted rule, batch 1 of the plan. Origin: docs/superpowers/plans/2026-11-12-adapt-general.md. Status: in progress on adapt-general-1.
 - **P-63** — `proof/`: measure the new `/adapt` on the reference copy and on exam project C, batch 2 of the plan. Origin: docs/superpowers/plans/2026-11-12-adapt-general.md. Status: scheduled.
+- **P-73** — `skills/adapt/research.mjs` `verifyCitation` and `skills/adapt/screens.mjs` `checker`: a citation whose absolute path is spelled through a symlink of the project root does not verify, so paid research is dropped (on macOS, any project under a linked temp folder). Compare real paths on both sides. The same defect had a card closed by mistake when its function was renamed. Origin: review of adapt-general-1, 2026-11-12. Status: unscheduled.
 
 ## Adapt: render, queue, run
 
@@ -28,6 +29,7 @@ One living list. The `pending` brake checks these rules:
 - **P-13** — `skills/adapt/research.mjs` `start`: a repository with no commit yet gets a stack trace, not a message. Origin: review of branch 1.2b, 2026-11-12. Status: unscheduled.
 - **P-69** — `skills/adapt/research.mjs` `buildQueue`: a re-adaptation asks the three screens again and skips only the config keys that already have a value, while design 8.4 says it asks only what changed. Skip a sentence whose rules and citations did not change and that was answered. Origin: review of adapt-general-1, 2026-11-12. Status: unscheduled.
 - **P-71** — `skills/adapt/screens.mjs`: a screen 2 item passes with a blank `how` or `risk` from the agent, so its text can read empty. Drop it with a line under "Dropped", like the blank reason of a doubted rule. Origin: review of adapt-general-1, 2026-11-12. Status: unscheduled.
+- **P-74** — `skills/adapt/screens.mjs`, `skills/adapt/research.mjs`: `kinds.json` is still built and written, and since the gate asks no line per mechanism kind no code reads it. Remove it, or say who reads it. Origin: review of adapt-general-1, 2026-11-12. Status: unscheduled.
 
 ## Adapt: hooks
 
@@ -67,6 +69,8 @@ One living list. The `pending` brake checks these rules:
 - **P-55** — `bin/xworkflows.mjs` `ownHooks`: the dangling-link test looks only at the hooks folder itself; with `core.hooksPath` set to a folder under a dangling link, install writes its package files and then stops with no record. Walk up to the first entry that exists. Origin: review of the late fixes of batch A4, 2026-11-12. Status: unscheduled.
 - **P-56** — `bin/xworkflows.mjs` git hook text: it names `graphify` and `graphify-out/graph.json`, while the check and the session-start hook read `lookup.index` from the config; with another folder a docs-only commit still stops the push. Read both from `.xworkflows/config.json`, as `mainBranch` is read. Origin: review of the late fixes of batch A4, 2026-11-12. Status: unscheduled.
 - **P-57** — `bin/xworkflows.mjs`: a hook text of an earlier package version counts as ours only through this clone's own record hash, so a clone whose record came from a teammate's upgrade sees its old hooks as foreign. Keep the earlier hook texts in a list. No version with the earlier text was released. Origin: review of the late fixes of batch A4, 2026-11-12. Status: unscheduled.
+- **P-75** — `skills/next-step/SKILL.md` (around line 22): it reuses a section of research.md that `render` no longer writes, so the next steps written down in the project are not offered. Origin: review of adapt-general-1, 2026-11-12. Status: unscheduled.
+- **P-76** — `bin/xworkflows.mjs` `doctor`: in a linked worktree it reports the three git hooks missing, because the record names them under `.git/`, which is a file there. Origin: the method used in its own repository, 2026-11-12. Status: unscheduled.
 
 ## Check runner and brakes
 
