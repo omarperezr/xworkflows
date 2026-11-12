@@ -361,10 +361,10 @@
         }
       ],
       "files": {
-        "hooks/core/memory.mjs": "31d53c58d1eff8d87ed03106e4cb332429aef6477f4bb6b02cf2ecf8aa639e15",
+        "hooks/core/memory.mjs": "25c77804b88ad1ae1c5ee54fb4a699e094028fdeb004586f4493c6cfe3094b2b",
         "hooks/core/memory-index.mjs": "ed9d990262ae86bfb68b63b7c34e6594e3239460136907fbb376011990898006"
       },
-      "sha256": "8649dbe0a0db420f694571ca7545b79d3d9324d62c81909f6f3d97ff38affce7"
+      "sha256": "ab2560e9625deacc5e47965c3aa7e950a412c2a4329dbfb0e889923c0dde88a3"
     },
     {
       "id": "modes",
@@ -573,12 +573,12 @@
         "checks/skills-travel.mjs": "d6188c4677f6ddcaf7bbb6ba6a311976377b318c6d9ddb3612614dce6d7e89cd",
         "checks/patterns.mjs": "b76bd62236b34035c628147793d6d428959a91036f7700389bd6d7c443805e12",
         "checks/ratchet.mjs": "588ee64ef495668ef7c83c790bf825b211fbbcb753478ad8d21ea4394a81ef79",
-        "checks/graph-current.mjs": "99d13c7d68a50b06e2f35b6b593e685619aad3f9c91dc65c21514ed30dfaa19c",
+        "checks/graph-current.mjs": "128f4d871649d88b9fa2af0a3e8cc52535a197ea3f8df4da20dd4de5f652a019",
         "checks/stale-memory.mjs": "9a4e11507f800da3a472a7db4b48645d3fd5ff9fa5f8120006c0b6c6d425529d",
         "checks/index-current.mjs": "52b1d47da0e375d52d970e20b18cbc6e3269f117ab807545d8b73aa258d15bfe",
         "checks/project.mjs": "af3161760f0ac32a4f816a1cd6a4d5a17e848811d8dcdfd95c1b575568a11d87"
       },
-      "sha256": "06a6c17bba15e6c7a10c6bdcc740696b30513d5eef294623f59aa2a312d9729c"
+      "sha256": "8b08a3c2299ebdfafbeca5c523b5b402d5f8299df5e7398e1257ac8f46aeac44"
     },
     {
       "id": "lint",

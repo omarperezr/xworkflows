@@ -37,7 +37,7 @@ test("a graph older than the head commit fails with the fix", async () => {
     const r = await repo.run(mod);
     assert.equal(r.ok, false);
     assert.match(r.lines[0], /older/);
-    assert.match(r.lines.join("\n"), /run `graphify update \.`/);
+    assert.match(r.lines.join("\n"), /run `graphify update \. && touch -c graphify-out\/graph\.json`/);
   } finally { repo.cleanup(); }
 });
 
@@ -59,7 +59,7 @@ test("the folder and command come from config", async () => {
     const r = await repo.run(mod);
     assert.equal(r.ok, false);
     assert.match(r.lines.join("\n"), /maps\/graph\.json/);
-    assert.match(r.lines.join("\n"), /run `mapper update \.`/);
+    assert.match(r.lines.join("\n"), /run `mapper update \. && touch -c maps\/graph\.json`/);
     repo.write("maps/graph.json", "{}");
     at(repo, "maps/graph.json", "2026-06-01T00:00:00Z");
     assert.equal((await repo.run(mod)).ok, true);

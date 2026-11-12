@@ -128,7 +128,7 @@ test("code graph: older than HEAD or missing starts the update; current does not
   const head = Math.floor(NOW / 1000);
   const stale = fake({ config: cfg, git: String(head), mtimes: { "graphify-out/graph.json": NOW - DAY } });
   assert.match(decide(ev("sessionStart", {}), stale.ctx).context, /code graph/);
-  assert.deepEqual(stale.calls.bg, [["graphify", ["update", "."]]]);
+  assert.deepEqual(stale.calls.bg, [["sh", ["-c", '"$0" update . && touch -c "$1"', "graphify", "graphify-out/graph.json"]]]);
   const gone = fake({ config: cfg, git: String(head) });
   assert.match(decide(ev("sessionStart", {}), gone.ctx).context, /code graph/);
   const fresh = fake({ config: cfg, git: String(head), mtimes: { "graphify-out/graph.json": NOW } });

@@ -58,6 +58,8 @@ One living list. The `pending` brake checks these rules:
 - **P-48** — `bin/xworkflows.mjs` `doctor`: when `CLAUDE.md` is a symlink to `AGENTS.md`, doctor reports `CLAUDE.md does not import AGENTS.md`, though the two are one file. Origin: review of batch A4, 2026-11-12. Status: unscheduled.
 - **P-49** — `bin/xworkflows.mjs` `plan()`: the question about a skill or agent of the same name still runs for a unit under a linked `.claude/skills`; its answer is recorded though every write of that unit is dropped, so doctor warns about it and a later install keeps skipping the unit. Origin: review of batch A4, 2026-11-12. Status: unscheduled.
 - **P-50** — `bin/xworkflows.mjs`: no review ran the answers typed at a terminal (only `--yes` and the no-terminal path), a linked worktree by hand, or a symlink swapped in between `plan()` and `apply()`. Origin: review of batch A4, 2026-11-12. Status: unscheduled.
+- **P-52** — `checks/review-seal.mjs`: the commit that installs the method counts as code, because its own files under `.xworkflows/` and `.claude/` are not in `paths.nonCode`; in a project whose remote already has the branch, the first push after install stops until that commit carries a `no-review:` line. Decide: those files are not project code, or install prints the commit line to use. Origin: end-to-end proof in a throwaway project, 2026-11-12. Status: unscheduled.
+- **P-54** — `bin/xworkflows.mjs` `install`: graphify indexes the method's own installed files, so a project of two code files gets a graph of 380 nodes. Add `.xworkflows/` and the installed `.claude/` folders to `.graphifyignore`, or say why not. Origin: end-to-end proof in a throwaway project, 2026-11-12. Status: unscheduled.
 
 ## Check runner and brakes
 
@@ -71,6 +73,7 @@ One living list. The `pending` brake checks these rules:
 - **P-38** — `checks/ratchet.mjs`, `checks/project.mjs`: a project command that hangs has no time limit, so the push hangs with it. Origin: review of the last five brakes, 2026-11-12. Status: unscheduled.
 - **P-39** — `checks/stale-memory.mjs`, `checks/index-current.mjs`: not checked with a submodule entry under the memory folder, a file name holding a newline, or a memory folder name with glob characters. Origin: review of the last five brakes, 2026-11-12. Status: unscheduled.
 - **P-51** — `checks/fix-has-test.mjs`: the worktree where the test runs links only the root `node_modules`, so a fix in a package with its own `node_modules` cannot be judged. Origin: comparison with the original check over 60 merges, 2026-11-12. Status: unscheduled.
+- **P-53** — `checks/graph-current.mjs`: with `git commit && git push` in one line, the graph update the post-commit hook starts has not finished when the push is judged, so the push stops once. Origin: end-to-end proof in a throwaway project, 2026-11-12. Status: unscheduled.
 
 ## Hooks
 

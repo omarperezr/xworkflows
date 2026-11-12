@@ -1252,3 +1252,19 @@ test("a hooks folder that is a dangling symlink inside the repository counts as 
   assert.ok(existsSync(join(r, ".xworkflows/installed.json")));
   assert.ok(!existsSync(join(r, "myhooks")));
 });
+test("the graph hook sets the graph file's time after an update that rewrote nothing, not after a failed one", () => {
+  // graphify leaves graph.json untouched when the code's shape did not change, and graph-current judges that file's time
+  const r = repo();
+  const tool = (code) => { const d = mkdtempSync(join(tmpdir(), "xwf-bin-")); writeFileSync(join(d, "graphify"), `#!/bin/sh\nexit ${code}\n`); chmodSync(join(d, "graphify"), 0o755); return { PATH: `${d}:${process.env.PATH}` }; };
+  cli(r, ["install"]);
+  mkdirSync(join(r, "graphify-out"), { recursive: true });
+  const g = join(r, "graphify-out/graph.json"), old = new Date("2020-01-01T00:00:00Z");
+  const pause = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+  writeFileSync(g, "{}"); utimesSync(g, old, old);
+  assert.equal(commit(r, "a.txt", "x\n", tool(1)).status, 0);
+  pause(400);
+  assert.equal(statSync(g).mtimeMs, old.getTime(), "a failed update leaves the time alone");
+  assert.equal(commit(r, "b.txt", "x\n", tool(0)).status, 0);
+  for (let i = 0; i < 100 && statSync(g).mtimeMs === old.getTime(); i++) pause(50);
+  assert.ok(statSync(g).mtimeMs > old.getTime());
+});
