@@ -63,14 +63,16 @@ test("output is byte-identical twice and the CLI prints the count", () => {
 
 test("capped at 400 with docs first", () => {
   const d = tmp();
-  put(d, "docs/a.md", Array.from({ length: 300 }, (_, i) => `- Rule ${i} must hold.`).join("\n") + "\n");
-  put(d, "src.js", Array.from({ length: 300 }, (_, i) => `// code ${i} must hold\nconst v${i} = 1;`).join("\n") + "\n");
+  for (let f = 0; f < 10; f++) {
+    put(d, `docs/a${f}.md`, Array.from({ length: 30 }, (_, i) => `- Rule ${i} must hold.`).join("\n") + "\n");
+    put(d, `src${f}.js`, Array.from({ length: 30 }, (_, i) => `// code ${i} must hold\nconst v${i} = 1;`).join("\n") + "\n");
+  }
   commit(d);
-  const r = collectRules(d);
-  assert.equal(r.rules.length, 400);
-  assert.equal(r.rules.filter((x) => x.file === "docs/a.md").length, 300);
-  assert.equal(r.rules[299].file, "docs/a.md");
-  assert.equal(r.rules[300].file, "src.js");
+  const r = collectRules(d).rules;
+  assert.equal(r.length, 400);
+  assert.equal(r.filter((x) => x.file.startsWith("docs/")).length, 300);
+  assert.ok(r[299].file.startsWith("docs/"));
+  assert.ok(r[300].file.startsWith("src"));
 });
 
 test("generated, vendored and .xworkflows paths are skipped", () => {
@@ -166,4 +168,19 @@ test("realistic sentences get their kinds", () => {
   const r = collectRules(d).rules;
   for (const [t, k] of cases) assert.ok(r.find((x) => x.text === t)?.kinds.includes(k), t);
   assert.deepEqual(r.find((x) => /refresh rate/.test(x.text)).kinds, []);
+});
+
+test("per-file cap of 40 and file order put PRODUCT before a long README", () => {
+  const d = tmp();
+  put(d, "README.md", Array.from({ length: 60 }, (_, i) => `- Manual ${i} must hold.`).join("\n") + "\n");
+  put(d, "PRODUCT.md", "- Alpha must stay.\n- Beta never changes.\n- Gamma only here.\n");
+  put(d, "docs/z.md", "- Zed must stay.\n");
+  commit(d);
+  const r = collectRules(d).rules;
+  assert.deepEqual(r.slice(0, 3).map((x) => x.file), ["PRODUCT.md", "PRODUCT.md", "PRODUCT.md"]);
+  assert.equal(r[3].file, "docs/z.md");
+  const readme = r.filter((x) => x.file === "README.md");
+  assert.equal(readme.length, 40);
+  assert.equal(readme[0].text, "Manual 0 must hold.");
+  assert.equal(r.length, 44);
 });

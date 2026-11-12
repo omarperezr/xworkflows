@@ -6,7 +6,9 @@ import { join, extname } from "node:path";
 import { pathToFileURL } from "node:url";
 import { projectFiles } from "./scan.mjs";
 
-const MAX = 400, CUT = 300;
+const MAX = 400, CUT = 300, PER_FILE = 40;
+const RANK = ["PRODUCT", "DESIGN", "ARCHITECTURE", "CONTRIBUTING", "AGENTS|CLAUDE", "docs/", "README", ""];
+const rankOf = (p, isDoc) => (isDoc ? RANK.findIndex((r) => r && new RegExp(`^(${r})`, "i").test(p)) : RANK.length - 1);
 const L = (s) => new RegExp(`(?<![\\p{L}\\p{N}_])(?:${s})`, "iu"); // word start; stems run on
 const W = (s) => new RegExp(`(?<![\\p{L}\\p{N}_])(?:${s})(?![\\p{L}\\p{N}_])`, "iu"); // whole word
 const NORMATIVE = W("must|never|always|only|do not|don['’]t|required|forbidden|debe|debes|deben|nunca|siempre|solo|sólo|no se|prohibido");
@@ -25,7 +27,7 @@ const KIND_WORDS = [
   ["conc", L("lock|concurren|race|bloqueo|mutex")],
   ["input", L("validat|sanitiz|input|validar|entrada")],
 ];
-const DOCS = /^(README|PRODUCT|DESIGN|ARCHITECTURE|CONTRIBUTING)[^/]*$|^docs\//i;
+const DOCS = /^(README|PRODUCT|DESIGN|ARCHITECTURE|CONTRIBUTING|AGENTS|CLAUDE)[^/]*$|^docs\//i;
 const DOC_EXT = [".md", ".mdx", ".markdown", ".rst", ".txt", ""];
 const CODE_EXT = [".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs", ".mts", ".cts", ".py", ".sql", ".go", ".rs", ".java", ".kt", ".rb", ".php", ".cs", ".swift", ".vue", ".svelte", ".dart", ".ex", ".scala", ".c", ".cc", ".cpp", ".h", ".sh"];
 // shortcut: comments are line comments or block-comment lines only; a "#" or "--" inside a string counts as a comment. Upgrade with a tokenizer if noise shows.
@@ -92,13 +94,13 @@ function fromFile(path, text, isDoc) {
     const t = cut(s.text);
     out.push({ text: t, file: path, line: s.line, kinds: KIND_WORDS.filter(([, re]) => re.test(s.text)).map(([k]) => k) });
   }
-  return out;
+  return out.slice(0, PER_FILE); // the top of a doc holds the important rules
 }
 
 export function collectRules(root) {
   const { kept, dropped, churn } = projectFiles(root);
   const c = (f) => churn.get(f) || 0;
-  const docs = [], code = [];
+  const all = [];
   for (const p of [...kept].sort()) {
     if (dropped.has(p)) continue;
     const ext = extname(p).toLowerCase();
@@ -109,10 +111,11 @@ export function collectRules(root) {
     if (buf.subarray(0, 8000).includes(0) || buf.length > 1 << 20) continue;
     const text = buf.toString("utf8");
     if (/@generated|DO NOT EDIT/.test(text.slice(0, text.indexOf("\n") < 0 ? undefined : text.indexOf("\n")))) continue;
-    (isDoc ? docs : code).push(...fromFile(p, text, isDoc));
+    const rank = rankOf(p, isDoc);
+    all.push(...fromFile(p, text, isDoc).map((r) => ({ ...r, rank })));
   }
-  const order = (a, b) => c(b.file) - c(a.file) || (a.file < b.file ? -1 : a.file > b.file ? 1 : 0) || a.line - b.line;
-  const rules = [...docs.sort(order), ...code.sort(order)].slice(0, MAX).map((r, i) => ({ id: `W${i + 1}`, ...r }));
+  const order = (a, b) => a.rank - b.rank || c(b.file) - c(a.file) || (a.file < b.file ? -1 : a.file > b.file ? 1 : 0) || a.line - b.line;
+  const rules = all.sort(order).slice(0, MAX).map(({ rank, ...r }, i) => ({ id: `W${i + 1}`, ...r }));
   return { rules };
 }
 
