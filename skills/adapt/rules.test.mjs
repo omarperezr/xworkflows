@@ -244,3 +244,13 @@ test("rules refuses to write through a .xworkflows symlink", () => {
   assert.throws(() => execFileSync("node", [join(HERE, "rules.mjs"), d], { stdio: "pipe" }));
   assert.equal(existsSync(join(out, "rules.json")), false);
 });
+
+test("rules refuses to write through a rules.json symlink", () => {
+  const d = tmp(), out = tmp();
+  put(d, "docs/a.md", "Every write must run in one transaction.\n");
+  writeFileSync(join(out, "victim"), "keep\n");
+  mkdirSync(join(d, ".xworkflows"));
+  symlinkSync(join(out, "victim"), join(d, ".xworkflows/rules.json"));
+  assert.throws(() => execFileSync("node", [join(HERE, "rules.mjs"), d], { stdio: "pipe" }));
+  assert.equal(readFileSync(join(out, "victim"), "utf8"), "keep\n");
+});

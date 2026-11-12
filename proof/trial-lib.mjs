@@ -100,6 +100,7 @@ export function acquireLock(home) {
   for (let i = 0; i < 2; i++) {
     try { writeFileSync(lockOf(home), String(process.pid), { flag: "wx" }); return { ok: true }; } catch (e) { if (e.code !== "EEXIST") throw e; }
     const pid = Number(readFileSync(lockOf(home), "utf8"));
+    if (!Number.isInteger(pid) || pid <= 0) { rmSync(lockOf(home), { force: true }); continue; } // empty/0 lock: crash leftover, stale
     try { process.kill(pid, 0); return { ok: false, pid }; } catch (e) { if (e.code === "EPERM") return { ok: false, pid }; }
     rmSync(lockOf(home), { force: true });
   }

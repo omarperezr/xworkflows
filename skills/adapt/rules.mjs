@@ -134,7 +134,7 @@ export function collectRules(root) {
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const root = process.argv[2] || ".";
   const r = collectRules(root);
-  outDir(root);
+  outDir(root, "rules.json");
   writeFileSync(join(root, ".xworkflows/rules.json"), JSON.stringify(r, null, 2) + "\n");
   console.log(`rules: ${r.rules.length}`);
 }

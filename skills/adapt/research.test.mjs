@@ -134,7 +134,7 @@ test("schemas use plain enums and topic 4 omits areas without zeroHits", async (
 
 // ---- research.mjs: run file, verify, render ----
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, writeFileSync, existsSync, rmSync, utimesSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, existsSync, rmSync, utimesSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { sum, verifyCitation, renderResearch, buildQueue, missing } from "./research.mjs";
@@ -762,4 +762,37 @@ test("start git-ignores the run's private files from the first question", async 
   mkdirSync(join(r2, ".xworkflows")); writeFileSync(join(r2, ".xworkflows", ".gitignore"), "mine\n");
   start(r2);
   assert.equal(readFileSync(join(r2, ".xworkflows", ".gitignore"), "utf8"), "mine\n");
+});
+
+test("a tracked symlink under .xworkflows is never written through", () => {
+  const d = repo();
+  put(d, sample());
+  const out = join(mkdtempSync(join(tmpdir(), "res-out-")), "outside.txt");
+  writeFileSync(out, "keep");
+  symlinkSync(out, X(d, "research.md"));
+  const r = cli(d, "render");
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /research\.md is a symlink/);
+  assert.equal(readFileSync(out, "utf8"), "keep");
+});
+
+test("start refuses when interview.log.jsonl is a symlink, before creating anything", () => {
+  const d = repo();
+  const out = join(mkdtempSync(join(tmpdir(), "res-out-")), "outside.txt");
+  writeFileSync(out, "keep");
+  symlinkSync(out, X(d, "interview.log.jsonl"));
+  const r = cli(d, "start");
+  assert.equal(r.status, 1);
+  assert.ok(!existsSync(X(d, "adapt-run.json")));
+  assert.ok(!existsSync(X(d, ".gitignore")));
+  assert.equal(readFileSync(out, "utf8"), "keep");
+});
+
+test("start refuses when .xworkflows itself is a symlink", () => {
+  const d = repo();
+  const real = mkdtempSync(join(tmpdir(), "res-out-"));
+  rmSync(X(d, ""), { recursive: true });
+  symlinkSync(real, X(d, ""));
+  assert.equal(cli(d, "start").status, 1);
+  assert.ok(!existsSync(join(real, "adapt-run.json")));
 });

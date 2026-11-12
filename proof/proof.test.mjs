@@ -243,3 +243,13 @@ test("harness lock: second run refused, stale lock taken over, profile intact", 
   releaseLock(home);
   assert.equal(existsSync(join(x, "owner.md.proof-lock")), false);
 });
+
+test("harness lock: empty or zero lock file is stale and taken over", () => {
+  for (const body of ["", "0"]) {
+    const home = tmp(), x = join(home, ".xworkflows");
+    mkdirSync(x);
+    writeFileSync(join(x, "owner.md.proof-lock"), body);
+    assert.equal(acquireLock(home).ok, true, `lock holding ${JSON.stringify(body)}`);
+    releaseLock(home);
+  }
+});

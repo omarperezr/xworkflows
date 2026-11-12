@@ -2,7 +2,7 @@
 // Adapt run file, citation check and deterministic render of research.md.
 // Standalone: node: built-ins only (it is copied into projects).
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync, writeFileSync, mkdirSync, rmSync, copyFileSync, statSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync, mkdirSync, rmSync, copyFileSync, statSync, lstatSync } from "node:fs";
 import { join, resolve, sep, posix } from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -214,12 +214,19 @@ const readJson = (p) => JSON.parse(readFileSync(p, "utf8"));
 // Same match as the adapt-gates hook: quotes and any case accepted.
 const statusOf = (f) => (existsSync(f) ? (readFileSync(f, "utf8").match(/^status:\s*["']?(\w+)/mi) || [])[1]?.toLowerCase() : null) || null;
 
+// A tracked symlink under .xworkflows would send the write outside the project.
+const isLink = (f) => { try { return lstatSync(f).isSymbolicLink(); } catch { return false; } };
+const refuse = (f) => { console.error(`adapt: ${f} is a symlink; remove it, adapt will not write through it`); process.exit(1); };
+const put = (f, data) => { if (isLink(f)) refuse(f); writeFileSync(f, data); };
+const putCopy = (from, to) => { if (isLink(to)) refuse(to); copyFileSync(from, to); };
+
 function cli(cmd, root) {
   const dir = join(root, ".xworkflows");
   const runFile = join(dir, "adapt-run.json");
   const summary = join(dir, "summary.md");
   const prev = join(dir, "research.prev.json");
   if (cmd === "start") {
+    for (const f of [dir, join(dir, "interview.log.jsonl")]) if (isLink(f)) refuse(f);
     mkdirSync(dir, { recursive: true });
     // The owner's answers land here from the first question; ignore them now, not at step 4.
     try { writeFileSync(join(dir, ".gitignore"), [".gitignore", "research.md", "research.json", "research.prev.json", "scan.json", "interview.json", "interview.log.jsonl", "adapt-run.json", "rules.json", "kinds.json"].join("\n") + "\n", { flag: "wx" }); } catch {}
@@ -237,13 +244,13 @@ function cli(cmd, root) {
     const run = resume && old ? { ...old, commit, startedAt: Date.now() }
       : { run: `${commit.slice(0, 8)}-${Date.now().toString(36)}`, commit, startedAt: Date.now(), mismatches: 0 };
     if (!status) rmSync(prev, { force: true });
-    writeFileSync(runFile, JSON.stringify(run, null, 2) + "\n");
+    put(runFile, JSON.stringify(run, null, 2) + "\n");
     console.log(run.run);
   } else if (cmd === "done") {
     // The approved summary written in this run makes its research the base of the next re-adapt (2 s slack for coarse file times).
     let r = null;
     try { r = readJson(runFile); } catch {}
-    if (r && statusOf(summary) === "approved" && statSync(summary).mtimeMs + 2000 >= r.startedAt && existsSync(join(dir, "research.json"))) copyFileSync(join(dir, "research.json"), prev);
+    if (r && statusOf(summary) === "approved" && statSync(summary).mtimeMs + 2000 >= r.startedAt && existsSync(join(dir, "research.json"))) putCopy(join(dir, "research.json"), prev);
     rmSync(runFile, { force: true });
   } else if (cmd === "render") {
     const research = readJson(join(dir, "research.json"));
@@ -251,21 +258,21 @@ function cli(cmd, root) {
     const { topics, kinds, skipped } = research;
     if (research.sum !== sum(JSON.stringify({ topics, kinds, skipped }))) {
       let n = 1;
-      try { const r = readJson(runFile); n = (r.mismatches || 0) + 1; writeFileSync(runFile, JSON.stringify({ ...r, mismatches: n }, null, 2) + "\n"); } catch {}
+      try { const r = readJson(runFile); n = (r.mismatches || 0) + 1; put(runFile, JSON.stringify({ ...r, mismatches: n }, null, 2) + "\n"); } catch {}
       console.error(n >= 2 ? STOP : "research.json was altered after the Workflow returned it: rm -f it and write the Workflow result again, unchanged.");
       process.exit(1);
     }
     const rules = existsSync(join(dir, "rules.json")) ? readJson(join(dir, "rules.json")).rules || [] : [];
     const { md, errors, kinds: state } = renderResearch(root, research, scan, rules);
     if (errors.length) { console.error(errors.join("\n")); process.exit(1); }
-    writeFileSync(join(dir, "research.md"), md);
-    writeFileSync(join(dir, "kinds.json"), state);
+    put(join(dir, "research.md"), md);
+    put(join(dir, "kinds.json"), state);
   } else if (cmd === "queue" || cmd === "check") {
     const need = (f) => { try { return readJson(join(dir, f)); } catch { console.error(`adapt: ${f} is missing or unreadable`); process.exit(1); } };
     if (cmd === "queue") {
       const opt = (f) => (existsSync(join(dir, f)) ? need(f) : null);
       const q = buildQueue(need("research.json"), need("scan.json"), opt("research.prev.json"), opt("config.json"), opt("kinds.json"), opt("rules.json")?.rules || []);
-      writeFileSync(join(dir, "interview.json"), JSON.stringify(q, null, 2) + "\n");
+      put(join(dir, "interview.json"), JSON.stringify(q, null, 2) + "\n");
     } else {
       const { run } = need("adapt-run.json");
       const logFile = join(dir, "interview.log.jsonl");

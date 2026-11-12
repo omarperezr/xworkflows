@@ -442,3 +442,25 @@ test("a package folder inside a repository honors git ignore and stays relative"
   git(top, "init", "-q"); git(top, "add", "-A"); git(top, "commit", "-q", "-m", "x");
   assert.deepEqual(scan(d).kinds.values.hits.map((h) => h.file), ["a.js"]);
 });
+
+test("scan refuses to write through a scan.json symlink", () => {
+  const d = tmp(), out = tmp();
+  put(d, "a.js", "x.toFixed(2);\n");
+  put(out, "victim", "keep\n");
+  mkdirSync(join(d, ".xworkflows"));
+  symlinkSync(join(out, "victim"), join(d, ".xworkflows/scan.json"));
+  assert.equal(cli(d), 1);
+  assert.equal(readFileSync(join(out, "victim"), "utf8"), "keep\n");
+});
+
+test("a repository whose git fails is not walked: ignored secrets stay out", () => {
+  const d = tmp();
+  put(d, ".gitignore", "secret.js\n");
+  put(d, "secret.js", "const k = price.toFixed(2); // SECRETLINE\n");
+  put(d, "a.js", "x.toFixed(2);\n");
+  commit(d);
+  writeFileSync(join(d, ".git/config"), "[core]\n\tbogus line without section end [[\n", { flag: "a" });
+  assert.throws(() => scan(d));
+  assert.notEqual(cli(d), 0);
+  assert.equal(existsSync(join(d, ".xworkflows/scan.json")), false);
+});
