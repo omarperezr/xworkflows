@@ -46,13 +46,22 @@ test("CLI prints one line per kind", () => {
   assert.match(out[0], /^values: \d+$/);
 });
 
-test("hits capped at 30 with the true total", () => {
+test("hits capped at 30, 3 per file, with the true total and file count", () => {
   const d = tmp();
-  put(d, "many.js", "const o = ids.map(async (i) => q(i));\n".repeat(40));
+  put(d, "many.js", "const o = ids.map(async (i) => q(i));\n".repeat(50));
+  for (let n = 0; n < 10; n++) put(d, `f${n}.js`, "const o = ids.map(async (i) => q(i));\n".repeat(5));
   commit(d);
-  const b = scan(d).kinds.batch;
+  put(d, ".xworkflows/rules.json", JSON.stringify({ rules: [{ id: "R1", text: "x", file: "f9.js", line: 1, kinds: ["batch"] }] }));
+  const run = () => scan(d).kinds.batch;
+  const b = run();
   assert.equal(b.hits.length, 30);
-  assert.equal(b.total, 40);
+  assert.equal(b.total, 100);
+  assert.equal(b.files, 11);
+  const per = {};
+  for (const h of b.hits) per[h.file] = (per[h.file] || 0) + 1;
+  assert.ok(Object.values(per).every((n) => n <= 3));
+  assert.equal(b.hits[0].file, "f9.js");
+  assert.deepEqual(run(), b);
 });
 
 test("scan works without git history", () => {

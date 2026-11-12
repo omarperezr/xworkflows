@@ -56,7 +56,7 @@ const DIRS = ["node_modules", "dist", "build", "vendor"]; // also written to .gr
 const SILENT = ["graphify-out", ".xworkflows", ".git"];
 const LOCK = /(^|\/)(package-lock\.json|yarn\.lock|pnpm-lock\.yaml|Cargo\.lock|poetry\.lock|Gemfile\.lock|composer\.lock|go\.sum)$/;
 const CHECKS = /(^|\/)scripts\/check-|(^|\/)\.semgrep|(^|\/)(\.eslintrc[^/]*|eslint\.config\.[^/]*|ruff\.toml|\.flake8)$|^\.github\/workflows\/|^\.gitlab-ci\.yml$|^\.circleci\/|(^|\/)Jenkinsfile$|(^|\/)\.pre-commit-config\.yaml$/;
-const MAX_HITS = 30;
+const MAX_HITS = 30, PER_FILE = 3;
 
 const gitOut = (root, args) => execFileSync("git", args, { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], maxBuffer: 1 << 28 });
 
@@ -228,7 +228,13 @@ export function scan(root) {
   }
   const c = (f) => churn.get(f) || 0;
   for (const k of KINDS) kinds[k.key].ruleFiles = [...named[k.key]].sort();
-  for (const k of KINDS) kinds[k.key].hits = kinds[k.key].hits.sort((a, b) => named[k.key].has(b.file) - named[k.key].has(a.file) || c(b.file) - c(a.file) || (a.file < b.file ? -1 : a.file > b.file ? 1 : 0) || a.line - b.line).slice(0, MAX_HITS);
+  for (const k of KINDS) kinds[k.key].hits = kinds[k.key].hits.sort((a, b) => named[k.key].has(b.file) - named[k.key].has(a.file) || c(b.file) - c(a.file) || (a.file < b.file ? -1 : a.file > b.file ? 1 : 0) || a.line - b.line);
+  // At most PER_FILE hits per file so one file cannot fill the 30; hits are already in order.
+  for (const k of KINDS) {
+    const n = new Map(), all = kinds[k.key].hits;
+    kinds[k.key].files = new Set(all.map((h) => h.file)).size;
+    kinds[k.key].hits = all.filter((h) => { const m = (n.get(h.file) || 0) + 1; n.set(h.file, m); return m <= PER_FILE; }).slice(0, MAX_HITS);
+  }
 
   const lines = readLines(ignorePath);
   const next = [...new Set([...lines, ...[...dropped].sort()])];
