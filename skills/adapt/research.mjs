@@ -2,7 +2,7 @@
 // Adapt run file, citation check and deterministic render of research.md.
 // Standalone: node: built-ins only (it is copied into projects).
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync, writeFileSync, mkdirSync, rmSync, copyFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync, mkdirSync, rmSync, copyFileSync, statSync } from "node:fs";
 import { join, resolve, sep, posix } from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -122,7 +122,7 @@ export function buildQueue(research, scan, prev, cfg) {
   ];
 }
 
-// Ids with no answer in `run`; `-r` follow-ups after `Nothing does today`; with `approved`, P-H1..P-H7 last answer must be `Right`.
+// Ids with no answer in `run`; `-r` follow-ups after `Nothing does today`, `H1-what-fix` after a `No` on `H1-what`; with `approved`, P-H1..P-H7 last answer must be `Right`.
 export function missing(queue, log, run, approved = false) {
   const last = {};
   for (const l of log) if (l.run === run && l.answer !== undefined && l.answer !== "") last[l.id] = l.answer;
@@ -130,6 +130,7 @@ export function missing(queue, log, run, approved = false) {
   for (const { id } of queue) {
     if (!(id in last)) out.push(id);
     else if (/^H5-/.test(id) && KINDS.includes(id.slice(3)) && last[id] === "Nothing does today" && !(`${id}-r` in last)) out.push(`${id}-r`);
+    else if (id === "H1-what" && last[id] === "No" && !("H1-what-fix" in last)) out.push("H1-what-fix");
   }
   if (approved) for (let n = 1; n <= 7; n++) if (last[`P-H${n}`] !== FIXED[0]) out.push(`P-H${n}`);
   return out;
@@ -137,6 +138,8 @@ export function missing(queue, log, run, approved = false) {
 
 const git = (root, args) => execFileSync("git", args, { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
 const readJson = (p) => JSON.parse(readFileSync(p, "utf8"));
+// Same match as the adapt-gates hook: quotes and any case accepted.
+const statusOf = (f) => (existsSync(f) ? (readFileSync(f, "utf8").match(/^status:\s*["']?(\w+)/mi) || [])[1]?.toLowerCase() : null) || null;
 
 function cli(cmd, root) {
   const dir = join(root, ".xworkflows");
@@ -146,16 +149,26 @@ function cli(cmd, root) {
   if (cmd === "start") {
     mkdirSync(dir, { recursive: true });
     const commit = git(root, ["rev-parse", "HEAD"]);
-    const status = existsSync(summary) ? (readFileSync(summary, "utf8").match(/^status:\s*(\w+)/m) || [])[1] : null;
+    const status = statusOf(summary);
     let old = null;
     try { old = readJson(runFile); } catch {}
-    const run = status === "draft" && old ? { ...old, commit, startedAt: Date.now() }
+    // An interrupted draft or first adapt keeps its run, so its answers count; with the run file gone, the log's last run of it.
+    const resume = status === "draft" || (!status && (!old || old.commit === commit));
+    if (resume && !old) {
+      let last = null;
+      try { for (const l of readFileSync(join(dir, "interview.log.jsonl"), "utf8").split("\n")) try { last = JSON.parse(l).run || last; } catch {} } catch {}
+      if (last && (status === "draft" || last.startsWith(commit.slice(0, 8) + "-"))) old = { run: last, mismatches: 0 };
+    }
+    const run = resume && old ? { ...old, commit, startedAt: Date.now() }
       : { run: `${commit.slice(0, 8)}-${Date.now().toString(36)}`, commit, startedAt: Date.now(), mismatches: 0 };
-    if (status === "approved" && existsSync(join(dir, "research.json"))) copyFileSync(join(dir, "research.json"), prev);
     if (!status) rmSync(prev, { force: true });
     writeFileSync(runFile, JSON.stringify(run, null, 2) + "\n");
     console.log(run.run);
   } else if (cmd === "done") {
+    // The approved summary written in this run makes its research the base of the next re-adapt (2 s slack for coarse file times).
+    let r = null;
+    try { r = readJson(runFile); } catch {}
+    if (r && statusOf(summary) === "approved" && statSync(summary).mtimeMs + 2000 >= r.startedAt && existsSync(join(dir, "research.json"))) copyFileSync(join(dir, "research.json"), prev);
     rmSync(runFile, { force: true });
   } else if (cmd === "render") {
     const research = readJson(join(dir, "research.json"));
@@ -164,7 +177,7 @@ function cli(cmd, root) {
     if (research.sum !== sum(JSON.stringify({ topics, kinds, skipped }))) {
       let n = 1;
       try { const r = readJson(runFile); n = (r.mismatches || 0) + 1; writeFileSync(runFile, JSON.stringify({ ...r, mismatches: n }, null, 2) + "\n"); } catch {}
-      console.error(n >= 2 ? STOP : "research.json was altered after the Workflow returned it: rerun the Workflow and write its result unchanged.");
+      console.error(n >= 2 ? STOP : "research.json was altered after the Workflow returned it: rm -f it and write the Workflow result again, unchanged.");
       process.exit(1);
     }
     const { md, errors } = renderResearch(root, research, scan);

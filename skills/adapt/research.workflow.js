@@ -57,7 +57,9 @@ const RULES = `Rules:
 - Ask \`graphify query\` before opening files. Verify each path still exists.
 - Read history as commit messages and file stats only (\`git log --oneline\`, \`--stat\`, \`--name-only\`). Never read past versions of files or content diffs: no \`git show <sha>:<path>\`, no \`git log -p\`; \`git diff\` and \`git stash show\` only with \`--stat\` or \`--name-only\`.
 - Answer in 10 lines or fewer.
-- Return your answer through the schema: each line has a heading (the summary heading it belongs to, 1 to 8), text, and tag \`code\` (read from the code) or \`git\` (read from history). Leave a line out rather than guess wildly.`;
+- Return your answer through the schema: each line has a heading, text, and tag \`code\` (read from the code) or \`git\` (read from history). Leave a line out rather than guess wildly.
+- Put each line under the summary heading it belongs to, whatever your topic. \`heading\` is one of the strings '1' to '8', 'config' or 'written':
+  '1' what the project is; '2' who pays, what is sold, what is not done; '3' aspirations at about 3, 12 and 36 months; '4' risks, the costliest mistake first; '5' what must not change and what is free to change; '6' zones and which paths are risk paths; '7' how the owner works; '8' about the owner. Use 'config' and 'written' only where your topic asks for them.`;
 
 const TOPIC6 = `Next steps already written down, searched in this order:
 1. Pending list (\`paths.pending\`, default \`docs/PENDING.md\`): cards "in progress", then "scheduled".
@@ -72,11 +74,11 @@ Return one line per item under heading "written": what, source, path.`;
 const CFG = (keys) => ` Also return one line per key with heading "config" and \`key\` set: ${keys.map((k) => `\`${k}\``).join(", ")}. A guess goes in \`text\`; a value empty on purpose is written as \`[]\`.`;
 
 const topics = (zero) => [
-  "Stack, build files, linters. Heading 1." + CFG(["checks.project", "checks.patterns", "checks.ratchets"]) + " checks.project = the project's own check commands; checks.patterns = pattern checks; checks.ratchets = counts that must not grow.",
-  "Layout: top folders, size in bytes per folder (`git ls-files` with `wc -c`), what each holds. Propose 3 to 5 zones, each with an everyday name (`the screens`, `the database`), sized in bytes. Leave out generated and vendored code. Heading 2." + CFG(["paths.code", "paths.risk", "paths.heavyRead", "paths.codeAnyway"]) + " paths.code = code folders; paths.risk = risk paths; paths.heavyRead = big or generated paths not to read whole; paths.codeAnyway = paths that look like non-code but are code.",
-  "Tests: file patterns, run command, folders that need a service such as a database. Heading 3." + CFG(["tests.files", "tests.run", "tests.notRunnable"]) + " tests.files = test file globs; tests.run = the test command; tests.notRunnable = test folders that need a service.",
-  `Where data and money move: database, payments, auth, outside calls. Heading 4.${zero.length ? ` Also return \`areas\`: for each of these kinds, ${JSON.stringify(zero)}, say whether the project has that area: "present", "absent" or "unsure". Kinds: values (money, time, units, rounding), snap (values frozen at write), srvw (writes through server functions), delta (changes as deltas), idem (retried or offline writes), txn (multi-row actions), access (database or server access control), batch (work over many rows), domain (legal, tax or domain rules), compat (public API, file formats, schemas), conc (locks, queues, order), input (validation of outside input).` : ""}`,
-  "History of the last 12 months: files changed most, reverts, fix commits. Heading 5.",
+  "Stack, build files, linters." + CFG(["checks.project", "checks.patterns", "checks.ratchets"]) + " checks.project = the project's own check commands; checks.patterns = pattern checks; checks.ratchets = counts that must not grow.",
+  "Layout: top folders, size in bytes per folder (`git ls-files` with `wc -c`), what each holds. Leave out generated and vendored code. Do not propose zones: they come from the scan." + CFG(["paths.code", "paths.risk", "paths.heavyRead", "paths.codeAnyway"]) + " paths.code = code folders; paths.risk = risk paths; paths.heavyRead = big or generated paths not to read whole; paths.codeAnyway = paths that look like non-code but are code.",
+  "Tests: file patterns, run command, folders that need a service such as a database." + CFG(["tests.files", "tests.run", "tests.notRunnable"]) + " tests.files = test file globs; tests.run = the test command; tests.notRunnable = test folders that need a service.",
+  `Where data and money move: database, payments, auth, outside calls.${zero.length ? ` Also return \`areas\`: for each of these kinds, ${JSON.stringify(zero)}, say whether the project has that area: "present", "absent" or "unsure". Kinds: values (money, time, units, rounding), snap (values frozen at write), srvw (writes through server functions), delta (changes as deltas), idem (retried or offline writes), txn (multi-row actions), access (database or server access control), batch (work over many rows), domain (legal, tax or domain rules), compat (public API, file formats, schemas), conc (locks, queues, order), input (validation of outside input).` : ""}`,
+  "History of the last 12 months: files changed most, reverts, fix commits.",
   TOPIC6,
 ];
 

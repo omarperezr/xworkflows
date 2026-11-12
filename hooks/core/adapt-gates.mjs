@@ -12,7 +12,7 @@ export function decide(ev, ctx) {
   if (!run || !(Date.now() - run.startedAt < 12 * 3600 * 1000)) return { decision: "allow" };
   const name = ctx.skillName?.("adapt") ?? "adapt";
   const script = `.claude/skills/${name}/research.workflow.js`;
-  const deny = (why) => ({ decision: "deny", reason: `${why} No adapt running? Run node .claude/skills/${name}/research.mjs done. To bypass in an emergency: XWORKFLOWS_FREE=1.` });
+  const deny = (why) => ({ decision: "deny", reason: `${why} If no /adapt is in progress (a stale run file), run node .claude/skills/${name}/research.mjs done. To bypass in an emergency: XWORKFLOWS_FREE=1.` });
   const check = (...a) => {
     const r = ctx.runCheck(a);
     if (r.code === 0) return null;

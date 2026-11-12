@@ -63,12 +63,27 @@ test("scan works without git history", () => {
   assert.deepEqual(s.kinds.values.hits.map((h) => h.file), ["a.js", "b.js"]);
 });
 
-test("unknown language gives zero hits, valid output", () => {
+test("unknown language gives zero hits, but a zone", () => {
   const d = tmp();
-  put(d, "main.go", "x.toFixed(2)\n");
+  put(d, "api/main.go", "x.toFixed(2)\n");
   execFileSync("node", [join(HERE, "scan.mjs"), d]);
   const j = JSON.parse(readFileSync(join(d, ".xworkflows/scan.json"), "utf8"));
   for (const k of KEYS) assert.equal(j.kinds[k].total, 0);
+  assert.equal(j.zones.filter((q) => inZone(q, "api/main.go")).length, 1);
+});
+
+test("tsx screens land in a zone and their hits are found", () => {
+  const d = tmp();
+  const screen = "await db.from(\"orders\").insert({});\nids.map(async (i) => q(i));\n";
+  for (const n of ["a", "b", "c"]) put(d, `src/screens/${n}.tsx`, screen.repeat(50));
+  put(d, "src/lib/money.ts", "x.toFixed(2);\n");
+  put(d, "api/main.go", "package main\n".repeat(100));
+  commit(d);
+  const s = scan(d);
+  assert.ok(s.kinds.srvw.hits.some((h) => h.file === "src/screens/a.tsx"));
+  assert.ok(s.kinds.batch.hits.some((h) => h.file === "src/screens/a.tsx"));
+  for (const f of ["src/screens/a.tsx", "api/main.go"]) assert.equal(s.zones.filter((q) => inZone(q, f)).length, 1, f);
+  for (const e of [".jsx", ".cjs", ".mts", ".cts"]) { const x = tmp(); put(x, `a${e}`, "x.toFixed(2);\n"); assert.equal(scan(x).kinds.values.total, 1, e); }
 });
 
 test("binary files skipped", () => {

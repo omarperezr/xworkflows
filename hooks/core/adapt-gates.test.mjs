@@ -18,7 +18,7 @@ const ctx = (f = files(), check = () => ({ code: 0, out: "" }), skill = "adapt")
 const wf = (extra = {}) => ({ event: "preTool", tool: "Workflow", kind: "workflow", session: "s", root: "/r", inline: false, scriptPath: "/r/.claude/skills/adapt/research.workflow.js", args: { root: "/r", zeroHits: ["conc", "snap"] }, ...extra });
 const wr = (writes) => ({ event: "preTool", tool: "Write", kind: "write", session: "s", root: "/r", writes });
 const sw = (content) => wr([{ path: "/r/.xworkflows/summary.md", content }]);
-const deny = (d, re) => { assert.equal(d.decision, "deny"); assert.match(d.reason, re); assert.match(d.reason, /No adapt running\? Run node \.claude\/skills\/adapt\/research\.mjs done\./); assert.match(d.reason, /To bypass in an emergency: XWORKFLOWS_FREE=1\.$/); };
+const deny = (d, re) => { assert.equal(d.decision, "deny"); assert.match(d.reason, re); assert.match(d.reason, /If no \/adapt is in progress \(a stale run file\), run node \.claude\/skills\/adapt\/research\.mjs done\./); assert.doesNotMatch(d.reason, /No adapt running/); assert.match(d.reason, /To bypass in an emergency: XWORKFLOWS_FREE=1\.$/); };
 const ok = (d) => assert.equal(d.decision, "allow");
 const missing = (out) => () => ({ code: 1, out });
 const FIVE = "- snap: not applicable (you)\n";

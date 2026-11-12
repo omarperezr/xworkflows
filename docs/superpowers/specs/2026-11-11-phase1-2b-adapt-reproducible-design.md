@@ -308,6 +308,20 @@ research (a partial scan of new commits cannot be made fixed), keeps the
 previous result as `research.prev.json`, and asks only the `H5-<kind>` items
 whose kind changed to `absent`, plus missing config keys.
 
+Final review fixes (2026-11-11): `research.mjs done` saves
+`research.prev.json` only when the approved summary was written in that run,
+so a re-adapt that stops early keeps the old base. `start` also keeps the run
+of an interrupted first adapt (no summary, same commit), or finds it again by
+the last run of `interview.log.jsonl` when the run file is gone; step 1 then
+asks only the ids `check` lists. The two follow-ups are queue-style
+`AskUserQuestion` items with fixed ids: `H1-what-fix` after a `No` on
+`H1-what` (`check` requires it) and `H6-split` (the risk of each part of a
+zone the owner split). Zones count the bytes of any common source language;
+the JS-family signals also run on `.jsx`, `.tsx`, `.cjs`, `.mts` and `.cts`.
+Topic agents put each line under the heading it belongs to, and topic 2
+proposes no zones. The harness sums spending across runs in a ledger file,
+and the total cap applies to that sum.
+
 ## 6. Acceptance tests (no LLM)
 
 `node --test` with:

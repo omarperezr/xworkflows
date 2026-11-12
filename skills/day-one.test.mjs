@@ -255,11 +255,20 @@ test("fix round 1: every stop in step 2 ends the run", () => {
 test("fix round 1: zones, H1 and H5 follow-ups are mapped", () => {
   const s = step(3);
   has(s, ["`H6-zones` is the zones question below, asked once, in a call of its own.", "after any merge, rename or split given in Other",
-    "`Yes` adds that scan zone's paths to `paths.risk`", "ask the risk of each new part in plain text and write it under heading 6",
-    "On a bare `No`, ask in plain text what it is, and list heading 1 under `Hotspots` until `P-H1` is `Right`.",
+    "`Yes` adds that scan zone's paths to `paths.risk`", "ask the follow-up `H6-split` once, `open`", "write its answer under heading 6",
+    "On a bare `No`, ask the follow-up `H1-what-fix`, `open`", "list heading 1 under `Hotspots` until `P-H1` is `Right`.",
     "a rule in Other becomes `<kind>: <rule>`; `I don't know` becomes `<kind>: unprotected: <risk>`; `Skip: not relevant here` becomes `<kind>: not applicable`.",
     "`P-H6` also covers the zones, the risk paths and the `## Config` block"]);
   assert.ok(!read("skills/adapt/SKILL.md").includes("no rule needed"));
+  assert.ok(!read("skills/adapt/SKILL.md").includes("in plain text"));
+});
+test("final fixes: resume of an interrupted first adapt, render mismatch, done never mid-interview", () => {
+  const l = step(1).split("\n").find((x) => x.includes("No `summary.md`"));
+  inOrder(l, ["research.mjs start", "research.mjs queue", "research.mjs check", "ask only the ids `check` lists"]);
+  const m = step(2).split("\n").find((x) => x.includes("`research.json was altered`"));
+  inOrder(m, ["rm -f .xworkflows/research.json", "already in context", "Rerun the Workflow (5 and 6) only if", "stop and tell the owner"]);
+  has(step(2), ["Never run `research.mjs done` while the interview is in progress"]);
+  has(step(1), ["`research.mjs done` saved it"]);
 });
 test("fix round 1: approved check before step 4, summary written first", () => {
   inOrder(step(3), ["`Right`, run `node <base>/research.mjs check --approved`", "When it exits 0, the interview ends. Go to step 4."]);

@@ -6,7 +6,9 @@ import { existsSync, readFileSync, readdirSync, statSync, writeFileSync, mkdirSy
 import { join, extname, dirname } from "node:path";
 import { pathToFileURL } from "node:url";
 
-const CODE = [".js", ".ts", ".mjs", ".py", ".sql"];
+const CODE = [".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs", ".mts", ".cts", ".py", ".sql"];
+// Zones count the bytes of any common source language; signals run on CODE only.
+const SRC = [...CODE, ".go", ".rs", ".java", ".kt", ".rb", ".php", ".cs", ".swift", ".vue", ".svelte", ".dart", ".ex", ".scala", ".c", ".cc", ".cpp", ".h"];
 const E = (re, example, counter, ext = CODE) => ({ re, ext, example, counter });
 // shortcut: regex signals are single-line (a loop and its query on two lines are missed), upgrade when a kind needs multi-line evidence.
 export const KINDS = [
@@ -187,7 +189,7 @@ export function scan(root) {
     if (/@generated|DO NOT EDIT/.test(first)) { dropped.add(p); continue; }
     live.push(p);
     text.set(p, s);
-    if (!CODE.includes(extname(p)) || CHECKS.test(p)) continue; // zones count code bytes only
+    if (!SRC.includes(extname(p)) || CHECKS.test(p)) continue; // zones count source bytes only
     // layout keys: folders at depth 1 and 2, "*" for root files, "<dir>/*" for files directly in a depth-1 folder; a path is in one zone at most
     const segs = p.split("/");
     const keys = [segs.length === 1 ? "*" : segs[0], ...(segs.length > 2 ? [segs.slice(0, 2).join("/")] : segs.length === 2 ? [`${segs[0]}/*`] : [])];

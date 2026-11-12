@@ -67,9 +67,9 @@
         }
       ],
       "files": {
-        "hooks/core/adapt-gates.mjs": "875dcd5a8af6e901408f6c49f2bf167f501ad69db3f1ea6ea4212f1c741d9c06"
+        "hooks/core/adapt-gates.mjs": "a48e4d94a7f0868b185115f0c107b6f22679cf753ada5e6cfbcf16b5cb8ca84c"
       },
-      "sha256": "5c9417c7ddd92c1b53cdf96d7e6da885d95edd00cc0fa3cb6392378c2538322d"
+      "sha256": "c721f26b01d6db69440df516f3de403bddc8e20775b84973ae36d181bfbafeaf"
     },
     {
       "id": "adapt-record",
@@ -244,12 +244,12 @@
         "gemini"
       ],
       "files": {
-        "skills/adapt/SKILL.md": "a7e79fc25a4a6639c114a0ee78d5357394ea5d487d2a28b8912ac1f77a6323c4",
-        "skills/adapt/scan.mjs": "ef0e6d03ba1e87d3af7ce1a322dca7b567d0ca3b6b51824574e05930ead99da4",
-        "skills/adapt/research.workflow.js": "08642db6d9c94a2d925a85fb3d9bac4799d698e6079773f35db5e04cf7a712b2",
-        "skills/adapt/research.mjs": "dc7ea7afbb73ecb8dc6ba011e11dfa04c0e4e7eee8f12c140dfa3023f044a12a"
+        "skills/adapt/SKILL.md": "1b255fd8fe25b18e94a2de29885b541290b60cc649b73815b6a71d4aa17c199b",
+        "skills/adapt/scan.mjs": "8f033eb3dd79b16538b83308fe4284e8860006e8ab60e14bc154b3b606e40fca",
+        "skills/adapt/research.workflow.js": "d0d8f9bce1f40bb8bec57a3b37eeaf780534a6178f46265a007ea72f211a4217",
+        "skills/adapt/research.mjs": "303b9e0681b40efb6d22653c35820bddedfb787a552008f9070b1cd3c5237c34"
       },
-      "sha256": "a8a7b0c45488542ce215862940db9a62e99aaa6a1cf18e56afa9ea58b6e0a461"
+      "sha256": "bba31929cc300cabf6691b2932f12d0338156c71eb81d99a68c7badd969e343f"
     },
     {
       "id": "full-review",

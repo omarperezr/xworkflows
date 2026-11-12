@@ -73,6 +73,19 @@ test("every topic prompt carries the graphify-first and history-only rules", asy
   }
 });
 
+test("topic prompts do not force a heading and topic 2 proposes no zones", async () => {
+  const { calls } = await run({ root: ".", zeroHits: [] });
+  const topics = calls.slice(0, 6).map((c) => c.prompt);
+  for (const p of topics) {
+    assert.doesNotMatch(p, /Heading \d/);
+    assert.match(p, /Put each line under the summary heading it belongs to/);
+    assert.match(p, /'1' to '8', 'config' or 'written'/);
+    for (let n = 1; n <= 8; n++) assert.ok(p.includes(`'${n}' `), `heading ${n}`);
+  }
+  assert.doesNotMatch(topics[1], /Propose \d/);
+  assert.match(topics[1], /they come from the scan/);
+});
+
 test("every config key is named by exactly one topic prompt", async () => {
   const { calls } = await run({ root: ".", zeroHits: [] });
   const keys = ["paths.code", "paths.risk", "paths.heavyRead", "paths.codeAnyway", "tests.files", "tests.run", "tests.notRunnable", "checks.project", "checks.patterns", "checks.ratchets"];
@@ -93,7 +106,7 @@ test("schemas use plain enums and topic 4 omits areas without zeroHits", async (
 
 // ---- research.mjs: run file, verify, render ----
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, writeFileSync, existsSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, existsSync, rmSync, utimesSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { sum, verifyCitation, renderResearch, buildQueue, missing } from "./research.mjs";
@@ -150,12 +163,58 @@ test("start and done manage the run file", () => {
   rmSync(X(d, "summary.md"));
   cli(d, "start");
   assert.ok(!existsSync(X(d, "research.prev.json")));
+  cli(d, "done");
+  assert.ok(!existsSync(X(d, "adapt-run.json")));
+});
+
+test("prev is saved by done when the approved summary is written, never by start", () => {
+  const d = repo();
   writeFileSync(X(d, "research.json"), '{"x":1}');
+  cli(d, "start");
   writeFileSync(X(d, "summary.md"), "---\nstatus: approved\n---\n");
+  cli(d, "done");
+  assert.equal(readFileSync(X(d, "research.prev.json"), "utf8"), '{"x":1}');
+  // a re-adapt that stops before the summary is approved again keeps the old prev
+  utimesSync(X(d, "summary.md"), new Date(Date.now() - 60000), new Date(Date.now() - 60000));
+  writeFileSync(X(d, "research.json"), '{"x":2}');
   cli(d, "start");
   assert.equal(readFileSync(X(d, "research.prev.json"), "utf8"), '{"x":1}');
   cli(d, "done");
-  assert.ok(!existsSync(X(d, "adapt-run.json")));
+  assert.equal(readFileSync(X(d, "research.prev.json"), "utf8"), '{"x":1}');
+  // done with no run file copies nothing
+  rmSync(X(d, "research.prev.json"));
+  cli(d, "done");
+  assert.ok(!existsSync(X(d, "research.prev.json")));
+});
+
+test("an interrupted first adapt keeps its run; a lost run file is found in the log", () => {
+  const d = repo();
+  cli(d, "start");
+  const a = rj(d, "adapt-run.json");
+  const b0 = Date.now();
+  cli(d, "start");
+  const b = rj(d, "adapt-run.json");
+  assert.equal(b.run, a.run);
+  assert.ok(b.startedAt >= b0);
+  rmSync(X(d, "adapt-run.json"));
+  writeFileSync(X(d, "interview.log.jsonl"), JSON.stringify(L("H1-what", "Yes", a.run)) + "\n{trunc");
+  cli(d, "start");
+  assert.equal(rj(d, "adapt-run.json").run, a.run);
+  // a log from another commit, or a new HEAD, starts a new run
+  writeFileSync(join(d, "a.js"), "changed\n");
+  execFileSync("git", [...G, "commit", "-qam", "next"], { cwd: d });
+  cli(d, "start");
+  assert.notEqual(rj(d, "adapt-run.json").run, a.run);
+  rmSync(X(d, "adapt-run.json"));
+  cli(d, "start");
+  assert.notEqual(rj(d, "adapt-run.json").run, a.run);
+  // a draft whose run file expired resumes the log's run
+  const c = rj(d, "adapt-run.json").run;
+  writeFileSync(X(d, "interview.log.jsonl"), JSON.stringify(L("H1-what", "Yes", c)) + "\n");
+  rmSync(X(d, "adapt-run.json"));
+  writeFileSync(X(d, "summary.md"), "---\nstatus: \"Draft\"\n---\n");
+  cli(d, "start");
+  assert.equal(rj(d, "adapt-run.json").run, c);
 });
 
 test("hash mismatch twice stops", () => {
@@ -164,7 +223,7 @@ test("hash mismatch twice stops", () => {
   put(d, { ...sample(), sum: "bad" });
   const one = cli(d, "render");
   assert.equal(one.status, 1);
-  assert.match(one.stderr, /rerun the Workflow and write its result unchanged/);
+  assert.match(one.stderr, /write the Workflow result again, unchanged/);
   const two = cli(d, "render");
   assert.equal(two.status, 1);
   assert.match(two.stderr, /Research could not be copied unchanged twice: stop and tell the owner\./);
@@ -212,7 +271,7 @@ test("render exits 1 on a hash mismatch", () => {
   writeFileSync(X(d, "research.json"), readFileSync(X(d, "research.json"), "utf8").replace("a tool", "a tooL"));
   const r = cli(d, "render");
   assert.equal(r.status, 1);
-  assert.match(r.stderr, /rerun the Workflow/);
+  assert.match(r.stderr, /research.json was altered/);
 });
 
 test("render layout", () => {
@@ -253,7 +312,7 @@ test("fix round 1: dead topic, path spellings, missing run file", () => {
   put(d, { ...sample(), sum: "bad" });
   const m = cli(d, "render");
   assert.equal(m.status, 1);
-  assert.match(m.stderr, /rerun the Workflow and write its result unchanged/);
+  assert.match(m.stderr, /write the Workflow result again, unchanged/);
 });
 
 // ---- queue and check
@@ -316,7 +375,7 @@ test("ids are unique and at most 12 characters", () => {
   const q = buildQueue(allAbsent(), ZSCAN);
   const i = ids(q);
   assert.equal(new Set(i).size, i.length);
-  for (const x of [...i, ...i.filter((y) => /^H5-/.test(y)).map((y) => y + "-r"), "P-H7-fix"]) assert.ok(x.length <= 12, x);
+  for (const x of [...i, ...i.filter((y) => /^H5-/.test(y)).map((y) => y + "-r"), "P-H7-fix", "H1-what-fix", "H6-split"]) assert.ok(x.length <= 12, x);
   assert.ok(i.includes("H5-values") && i.includes("C10"));
 });
 
@@ -361,6 +420,14 @@ test("check counts answers from the resumed run", () => {
   const r = cli(d, "check");
   assert.equal(r.status, 0, r.stdout);
   assert.equal(r.stdout, "");
+});
+
+test("H1-what-fix required after a No on H1-what", () => {
+  const q = buildQueue(allFound(), ZSCAN);
+  const log = fullLog(q).map((l) => (l.id === "H1-what" ? { ...l, answer: "No" } : l));
+  assert.deepEqual(missing(q, log, "r1"), ["H1-what-fix"]);
+  assert.deepEqual(missing(q, [...log, L("H1-what-fix", "a shop")], "r1"), []);
+  assert.deepEqual(missing(q, fullLog(q), "r1"), []);
 });
 
 test("follow-up required", () => {
