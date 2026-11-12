@@ -17,8 +17,8 @@ One living list. The `pending` brake checks these rules:
 - **P-6** — `skills/adapt/scan.mjs`: whole files are read only to get their size and every text stays in memory. Origin: review of branch 1.2b, 2026-11-12. Status: unscheduled.
 - **P-7** — `skills/adapt/research.workflow.js`: agents are called by their unrenamed names, so a project that already has its own `mechanism` or `explore` agent runs the project's agent, not ours. Origin: review of branch 1.2b, 2026-11-12. Status: unscheduled.
 - **P-29** — `skills/adapt/scan.mjs` `projectFiles`: a folder with no repository of its own that sits under an unrelated parent repository is scanned through the parent's file list, so its untracked files give an empty scan with no warning. Origin: review of the 1.2b safety fixes, 2026-11-12. Status: unscheduled.
-- **P-63** — `proof/`: measure the new `/adapt` on the reference copy and on exam project C, batch 2 of the plan. Origin: docs/superpowers/plans/2026-11-12-adapt-general.md. Status: in progress on adapt-general-2.
 - **P-73** — `skills/adapt/research.mjs` `verifyCitation` and `skills/adapt/screens.mjs` `checker`: a citation whose absolute path is spelled through a symlink of the project root does not verify, so paid research is dropped (on macOS, any project under a linked temp folder). Compare real paths on both sides. The same defect had a card closed by mistake when its function was renamed. Origin: review of adapt-general-1, 2026-11-12. Status: unscheduled.
+- **P-82** — `skills/adapt/SKILL.md`, `skills/adapt/research.workflow.js`: with `research-only` the language of the sentences is not fixed: of six runs of 2026-11-12, two came out in Spanish and four in English. Say which language `args.language` takes when nobody is interviewed. Origin: the measure of batch 2 of the plan docs/superpowers/plans/2026-11-12-adapt-general.md. Status: unscheduled.
 
 ## Adapt: render, queue, run
 
