@@ -51,6 +51,13 @@ One living list. The `pending` brake checks these rules:
 - **P-26** — `bin/xworkflows.mjs` `apply()`: an upgrade leaves behind a file a newer version no longer ships, unrecorded, so `uninstall` never removes it. Origin: review of branch 1.2b, 2026-11-12. Status: unscheduled.
 - **P-27** — `README.md`: not updated for the two adapt hooks, the Workflow tool that `/adapt` needs, and the development-only SDK dependency. Origin: review of branch 1.2b, 2026-11-12. Status: unscheduled.
 - **P-28** — Privacy, the owner's call: tracked files already on the main branch keep reference-project file and agent names (`docs/design.md` sections 7.2, 7.7, 9.1, 9.2) and the folder that holds this repository (recorded hook fixtures). The two privacy commands do not look for them. Neutralize them, or leave them. Origin: review of branch 1.2b, 2026-11-12. Status: unscheduled.
+- **P-44** — `bin/xworkflows.mjs` `uninstall`: `.claude/settings.json` comes back in the installer's JSON layout, not byte for byte, when the project's own file was laid out differently. Origin: review of batch A4, 2026-11-12. Status: unscheduled.
+- **P-45** — `bin/xworkflows.mjs` `uninstall`: the prune that follows the removal of our settings keys climbs every level, so it deletes the project's own empty `hooks` or `permissions` object that was there before install. Origin: review of batch A4, 2026-11-12. Status: unscheduled.
+- **P-46** — `bin/xworkflows.mjs` hook chaining: the project's old hook is renamed, which changes its `$0`, and no test runs a real hook manager that dispatches on the hook file's name. Origin: review of batch A4, 2026-11-12. Status: unscheduled.
+- **P-47** — `bin/xworkflows.mjs` `plan()`: a committed record whose `files` entry holds the hash of an untracked local file at a package path makes install overwrite that file without asking. Ask whenever the file on disk is not text this package wrote. Not reproduced. Origin: review of batch A4, 2026-11-12. Status: unscheduled.
+- **P-48** — `bin/xworkflows.mjs` `doctor`: when `CLAUDE.md` is a symlink to `AGENTS.md`, doctor reports `CLAUDE.md does not import AGENTS.md`, though the two are one file. Origin: review of batch A4, 2026-11-12. Status: unscheduled.
+- **P-49** — `bin/xworkflows.mjs` `plan()`: the question about a skill or agent of the same name still runs for a unit under a linked `.claude/skills`; its answer is recorded though every write of that unit is dropped, so doctor warns about it and a later install keeps skipping the unit. Origin: review of batch A4, 2026-11-12. Status: unscheduled.
+- **P-50** — `bin/xworkflows.mjs`: no review ran the answers typed at a terminal (only `--yes` and the no-terminal path), a linked worktree by hand, or a symlink swapped in between `plan()` and `apply()`. Origin: review of batch A4, 2026-11-12. Status: unscheduled.
 
 ## Check runner and brakes
 
@@ -63,6 +70,7 @@ One living list. The `pending` brake checks these rules:
 - **P-37** — Tests: several test files leave their `xwf-*` folders in the system temp folder (thousands after a day of runs); remove them in each test's cleanup. Origin: review of the first nine brakes, 2026-11-12. Status: unscheduled.
 - **P-38** — `checks/ratchet.mjs`, `checks/project.mjs`: a project command that hangs has no time limit, so the push hangs with it. Origin: review of the last five brakes, 2026-11-12. Status: unscheduled.
 - **P-39** — `checks/stale-memory.mjs`, `checks/index-current.mjs`: not checked with a submodule entry under the memory folder, a file name holding a newline, or a memory folder name with glob characters. Origin: review of the last five brakes, 2026-11-12. Status: unscheduled.
+- **P-51** — `checks/fix-has-test.mjs`: the worktree where the test runs links only the root `node_modules`, so a fix in a package with its own `node_modules` cannot be judged. Origin: comparison with the original check over 60 merges, 2026-11-12. Status: unscheduled.
 
 ## Hooks
 

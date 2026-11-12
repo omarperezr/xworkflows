@@ -7,6 +7,7 @@ import { buildIndex } from "../hooks/core/memory-index.mjs";
 
 export const TABLE = ["signature", "review-seal", "goal-cited", "pending", "fix-has-test", "change-size",
   "comment-ratio", "skills-travel", "patterns", "ratchet", "graph-current", "stale-memory", "index-current", "project"];
+export const PACKS = ["lint", "semgrep", "trivy"];
 
 const noNl = (s) => s.replace(/\n$/, "");
 const isZero = (s) => /^0+$/.test(s);
@@ -71,7 +72,9 @@ export async function main(argv, io = {}) {
     const top = makeCtx(cwd, null).tryGit("rev-parse", "--show-toplevel");
     if (top.code !== 0) throw new Error("not a git repository");
     ctx = makeCtx(top.out, loadConfig(top.out));
-    const bad = only?.findIndex((n) => !TABLE.includes(n)) ?? -1; // an empty name is unknown too: "--only ," must not run nothing and pass
+    const p = ctx.config.packs;
+    if (p === null || typeof p !== "object" || Array.isArray(p)) throw new Error("packs in the config is not an object");
+    const bad = only?.findIndex((n) => !TABLE.includes(n) && !PACKS.includes(n)) ?? -1; // an empty name is unknown too: "--only ," must not run nothing and pass
     if (bad >= 0) throw new Error(`unknown brake ${only[bad] || "(empty)"}`);
     const rev = (r) => {
       const x = ctx.tryGit("rev-parse", "--verify", "--quiet", `${r}^{commit}`);
@@ -109,11 +112,17 @@ export async function main(argv, io = {}) {
   };
   const couldNot = (name, reason) => { failed++; cannot = true; print(`${name}: could not run: ${reason}`); };
   for (const range of ranges) {
-    for (const name of TABLE.filter((n) => !only || only.includes(n))) {
+    const on = Object.keys(ctx.config.packs).filter((n) => !only || only.includes(n));
+    const todo = [...TABLE.filter((n) => !only || only.includes(n)).map((n) => [n, n]),
+      ...PACKS.filter((n) => on.includes(n)).map((n) => [n, `packs/${n}`]),
+      ...on.filter((n) => !PACKS.includes(n)).map((n) => [n, null])];
+    for (const n of only ?? []) if (PACKS.includes(n) && !(n in ctx.config.packs)) { due++; couldNot(n, "not on in packs"); }
+    for (const [name, file] of todo) {
+      if (file === null) { due++; couldNot(name, `not a check pack (known: ${PACKS.join(", ")})`); continue; }
       let mod;
-      try { mod = await load(name); } catch (e) {
+      try { mod = await load(file); } catch (e) {
         due++;
-        couldNot(name, e?.code === "ERR_MODULE_NOT_FOUND" ? `checks/${name}.mjs is missing, reinstall xworkflows` : String(e?.message ?? e));
+        couldNot(name, e?.code === "ERR_MODULE_NOT_FOUND" ? `checks/${file}.mjs is missing, reinstall xworkflows` : String(e?.message ?? e));
         continue;
       }
       if (mod.mainOnly && !range.manual && !range.mainPush) continue;

@@ -2,18 +2,23 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { appendFileSync, cpSync, existsSync, mkdtempSync, mkdirSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { appendFileSync, chmodSync, cpSync, existsSync, mkdtempSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const BIN = join(dirname(fileURLToPath(import.meta.url)), "xworkflows.mjs");
 
+// the developer's own git config never reaches a test
+const ISO = { GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_SYSTEM: "/dev/null" };
+const isoEnv = () => ({ ...process.env, ...ISO });
+
 function repo(setup = {}) {
   const dir = mkdtempSync(join(tmpdir(), "xwf-"));
-  spawnSync("git", ["init", "-q", "-b", "main"], { cwd: dir });
-  spawnSync("git", ["config", "user.name", "t"], { cwd: dir });
-  spawnSync("git", ["config", "user.email", "t@t"], { cwd: dir });
+  const env = isoEnv();
+  spawnSync("git", ["init", "-q", "-b", "main"], { cwd: dir, env });
+  spawnSync("git", ["config", "user.name", "t"], { cwd: dir, env });
+  spawnSync("git", ["config", "user.email", "t@t"], { cwd: dir, env });
   for (const [p, c] of Object.entries(setup)) {
     mkdirSync(dirname(join(dir, p)), { recursive: true });
     writeFileSync(join(dir, p), c);
@@ -21,13 +26,13 @@ function repo(setup = {}) {
   return dir;
 }
 
-const git = (cwd, args) => spawnSync("git", args.split(" "), { cwd, encoding: "utf8" }).stdout.trim();
+const git = (cwd, args) => spawnSync("git", args.split(" "), { cwd, encoding: "utf8", env: isoEnv() }).stdout.trim();
 
 function cli(cwd, args, opts = {}) {
   const base = { ...process.env };
   delete base.XWORKFLOWS_FREE;
   delete base.XWORKFLOWS_RECORD;
-  const env = { ...base, ...opts.env };
+  const env = { ...base, ...ISO, ...opts.env };
   const r = spawnSync("node", [BIN, ...args], { cwd, env, input: opts.input ?? "", encoding: "utf8" });
   return { status: r.status, stdout: r.stdout, stderr: r.stderr };
 }
@@ -58,11 +63,11 @@ const PRE = WIRED.filter((c) => c.event === "PreToolUse").length;
 
 function packageCopy() {
   const dir = mkdtempSync(join(tmpdir(), "xwf-pkg-"));
-  for (const p of ["package.json", "manifest.json", "tiers.json", "templates", "bin", "skills", "agents", "hooks"]) {
+  for (const p of ["package.json", "manifest.json", "tiers.json", "templates", "bin", "skills", "agents", "hooks", "checks"]) {
     cpSync(join(PKG_ROOT, p), join(dir, p), { recursive: true });
   }
-  spawnSync("git", ["init", "-q", "-b", "main"], { cwd: dir });
-  spawnSync("git", ["add", "-A"], { cwd: dir });
+  spawnSync("git", ["init", "-q", "-b", "main"], { cwd: dir, env: isoEnv() });
+  spawnSync("git", ["add", "-A"], { cwd: dir, env: isoEnv() });
   return dir;
 }
 
@@ -70,7 +75,7 @@ function cliAt(pkg, cwd, args) {
   const env = { ...process.env };
   delete env.XWORKFLOWS_FREE;
   delete env.XWORKFLOWS_RECORD;
-  const r = spawnSync("node", [join(pkg, "bin/xworkflows.mjs"), ...args], { cwd, env, input: "", encoding: "utf8" });
+  const r = spawnSync("node", [join(pkg, "bin/xworkflows.mjs"), ...args], { cwd, env: { ...env, ...ISO }, input: "", encoding: "utf8" });
   return { status: r.status, stdout: r.stdout, stderr: r.stderr };
 }
 
@@ -89,10 +94,10 @@ test("pack fails on a piece without a license", () => {
 test("pack fails on an orphan file and --check fails on a stale hash", () => {
   const copy = packageCopy();
   writeFileSync(join(copy, "skills/grill/EXTRA.md"), "x");
-  spawnSync("git", ["add", "-A"], { cwd: copy });
+  spawnSync("git", ["add", "-A"], { cwd: copy, env: isoEnv() });
   assert.match(cliAt(copy, copy, ["pack"]).stderr, /skills\/grill\/EXTRA\.md belongs to no piece/);
   rmSync(join(copy, "skills/grill/EXTRA.md"));
-  spawnSync("git", ["add", "-A"], { cwd: copy });
+  spawnSync("git", ["add", "-A"], { cwd: copy, env: isoEnv() });
   appendFileSync(join(copy, "agents/explore.md"), "\n");
   assert.equal(cliAt(copy, copy, ["pack", "--check"]).status, 1);
   assert.equal(cliAt(copy, copy, ["pack"]).status, 0);
@@ -117,7 +122,7 @@ test("fresh install writes every piece and the record", () => {
   assert.match(readFileSync(join(r, ".claude/agents/explore.md"), "utf8"), /^model: haiku$/m);
   assert.doesNotMatch(readFileSync(join(r, ".claude/agents/explore.md"), "utf8"), /^tier:/m);
   const rec = JSON.parse(readFileSync(join(r, ".xworkflows/installed.json"), "utf8"));
-  assert.deepEqual(Object.keys(rec), ["xworkflows", "tools", "pieces", "files", "merged", "blocks", "imports", "created", "declined", "kept", "renamed"]);
+  assert.deepEqual(Object.keys(rec), ["xworkflows", "tools", "pieces", "files", "merged", "blocks", "imports", "created", "declined", "kept", "renamed", "scalars", "chained"]);
   assert.equal(out.stdout.trim().split("\n").at(-1), "Next: open Claude Code and type /adapt");
 });
 test("second install changes nothing", () => {
@@ -221,8 +226,8 @@ test("rerun: nothing to do, files byte-equal, record entries once", () => {
   assert.deepEqual(rec.merged[0].key, ["hooks", "PreToolUse"]);
   assert.equal(rec.merged[0].createdKey, true);
   assert.deepEqual(rec.blocks, [{ file: "AGENTS.md" }]);
-  assert.deepEqual(rec.imports, [{ file: "CLAUDE.md", line: "@AGENTS.md" }]);
-  assert.deepEqual(rec.created.sort(), [".claude/settings.json", "AGENTS.md", "CLAUDE.md"]);
+  assert.deepEqual(rec.imports.filter((i) => i.file === "CLAUDE.md"), [{ file: "CLAUDE.md", line: "@AGENTS.md" }]);
+  assert.deepEqual(rec.created.sort(), [".claude/settings.json", ".claude/settings.local.json", ".gitignore", "AGENTS.md", "CLAUDE.md"]);
 });
 test("AGENTS.md: a changed block is replaced in place, text outside kept; existing CLAUDE.md untouched", () => {
   const r = repo({ "AGENTS.md": "top\n<!-- xworkflows:start -->\nold\n<!-- xworkflows:end -->\nbottom\n", "CLAUDE.md": "mine\n" });
@@ -231,7 +236,7 @@ test("AGENTS.md: a changed block is replaced in place, text outside kept; existi
   assert.ok(t.startsWith("top\n<!-- xworkflows:start -->\n## xworkflows"));
   assert.ok(t.endsWith("<!-- xworkflows:end -->\nbottom\n"));
   assert.equal(readFileSync(join(r, "CLAUDE.md"), "utf8"), "mine\n");
-  assert.deepEqual(readJson(r, ".xworkflows/installed.json").created, [".claude/settings.json"]);
+  assert.deepEqual(readJson(r, ".xworkflows/installed.json").created.sort(), [".claude/settings.json", ".claude/settings.local.json", ".gitignore"]);
 });
 test("dry-run lists merges and writes nothing", () => {
   const r = repo();
@@ -338,7 +343,7 @@ test("doctor passes on a fresh install, in a path with a space, inside a Claude 
   const r = repo();
   const spaced = join(r, "my project"); mkdirSync(spaced); git(spaced, "init -q -b main");
   cli(spaced, ["install"]);
-  const out = cli(spaced, ["doctor"], { env: { CLAUDE_PROJECT_DIR: "/elsewhere", XWORKFLOWS_FREE: "1" } });
+  const out = doctor(spaced, { CLAUDE_PROJECT_DIR: "/elsewhere", XWORKFLOWS_FREE: "1" });
   assert.equal(out.status, 0, out.stdout);
   assert.match(out.stdout, /^ok +probe/m);
   assert.match(out.stdout, /always-loaded: \d+ bytes of 24000/);
@@ -347,13 +352,13 @@ test("doctor passes on a fresh install, in a path with a space, inside a Claude 
 test("doctor warns on a local change and still exits 0", () => {
   const r = repo(); cli(r, ["install"]);
   appendFileSync(join(r, ".claude/agents/explore.md"), "x\n");
-  const out = cli(r, ["doctor"]);
+  const out = doctor(r);
   assert.equal(out.status, 0);
   assert.match(out.stdout, /^warn changed locally: \.claude\/agents\/explore\.md/m);
 });
 test("doctor warns on a declined import", () => {
   const r = repo({ "CLAUDE.md": "# x\n" }); cli(r, ["install"]);
-  const out = cli(r, ["doctor"]);
+  const out = doctor(r);
   assert.equal(out.status, 0);
   assert.match(out.stdout, /^warn CLAUDE\.md does not import AGENTS\.md/m);
 });
@@ -366,20 +371,20 @@ for (const [name, breakIt] of [
   ["corrupt record", (r) => writeFileSync(join(r, ".xworkflows/installed.json"), "{")],
 ]) test(`doctor fails: ${name}`, () => {
   const r = repo(); cli(r, ["install"]); breakIt(r);
-  assert.equal(cli(r, ["doctor"]).status, 1);
+  assert.equal(doctor(r).status, 1);
 });
 test("doctor skips an @import that is a folder", () => {
   const r = repo(); cli(r, ["install"]);
   mkdirSync(join(r, "docs"));
   appendFileSync(join(r, "CLAUDE.md"), "@docs\n");
-  const out = cli(r, ["doctor"]);
+  const out = doctor(r);
   assert.equal(out.status, 0, out.stdout + out.stderr);
   assert.match(out.stdout, /^doctor: 0 fail/m);
 });
 test("doctor fails when the probe hangs", () => {
   const r = repo(); cli(r, ["install"]);
   writeFileSync(join(r, ".xworkflows/hooks/core/design-first.mjs"), "await new Promise(() => setInterval(() => {}, 1000));\n");
-  const out = cli(r, ["doctor"], { env: { XWORKFLOWS_PROBE_TIMEOUT_MS: "1500" } });
+  const out = doctor(r, { XWORKFLOWS_PROBE_TIMEOUT_MS: "1500" });
   assert.equal(out.status, 1);
   assert.match(out.stdout, /^fail probe/m);
 });
@@ -433,11 +438,9 @@ test("uninstall prunes a created key whichever record entry carries createdKey",
   const r = repo(); cli(r, ["install"]);
   const rec = readJson(r, ".xworkflows/installed.json");
   const first = rec.merged.find((m) => m.createdKey && m.key[0] === "hooks");
-  const extra = { hooks: [{ type: "command", command: first.entry.hooks[0].command.replace(/claude \S+$/, "claude other-id") }] };
-  const s = readJson(r, ".claude/settings.json");
-  s.hooks[first.key[1]].push(extra);
-  writeJson(r, ".claude/settings.json", s);
-  rec.merged.push({ file: first.file, key: first.key, entry: extra, createdKey: false });
+  // the flag moves to a later record entry of the same key; the entry itself is one the manifest names
+  rec.merged.push({ ...first, createdKey: true });
+  first.createdKey = false;
   writeJson(r, ".xworkflows/installed.json", rec);
   assert.equal(cli(r, ["uninstall"]).status, 0);
   assert.ok(!existsSync(join(r, ".claude/settings.json")));
@@ -489,19 +492,19 @@ test("uninstall is byte-identical when AGENTS.md and CLAUDE.md had no trailing n
   cli(r, ["install", "--yes"]);
   const rec = readJson(r, ".xworkflows/installed.json");
   assert.equal(rec.blocks.length, 1);
-  assert.equal(rec.imports.length, 1);
+  assert.equal(rec.imports.filter((i) => i.file === "CLAUDE.md").length, 1);
   assert.equal(cli(r, ["uninstall"]).status, 0);
   for (const [p, c] of Object.entries(files)) assert.equal(readFileSync(join(r, p), "utf8"), c, p);
 });
 test("doctor fails when a kept grill never marks itself, warns when it does", () => {
   const bad = repo({ ".claude/skills/grill/SKILL.md": "---\nname: grill\n---\nmine\n" });
   cli(bad, ["install"]);
-  const out = cli(bad, ["doctor"]);
+  const out = doctor(bad);
   assert.equal(out.status, 1);
   assert.match(out.stdout, /^fail kept grill never marks itself: spec writes will be denied\./m);
   const good = repo({ ".claude/skills/grill/SKILL.md": "---\nname: grill\n---\nnode .xworkflows/mark.mjs grill\n" });
   cli(good, ["install"]);
-  const o2 = cli(good, ["doctor"]);
+  const o2 = doctor(good);
   assert.match(o2.stdout, /^warn kept theirs: \.claude\/skills\/grill/m);
   assert.doesNotMatch(o2.stdout, /never marks itself/);
 });
@@ -509,7 +512,7 @@ test("doctor fails when a kept grill never marks itself, warns when it does", ()
 test("kept grill doctor message offers only the way that works", () => {
   const r = repo({ ".claude/skills/grill/SKILL.md": "---\nname: grill\n---\nmine\n" });
   cli(r, ["install"]);
-  const out = cli(r, ["doctor"]);
+  const out = doctor(r);
   assert.match(out.stdout, /^fail kept grill never marks itself/m);
   assert.doesNotMatch(out.stdout, /--yes/);
 });
@@ -536,5 +539,716 @@ test("fresh install writes the day-one skills and doctor passes", () => {
   assert.equal(cli(r, ["install"]).status, 0);
   for (const s of ["adapt", "full-review", "next-step", "thermo-nuclear-review", "thermo-nuclear-code-quality-review"])
     assert.ok(existsSync(join(r, `.claude/skills/${s}/SKILL.md`)), s);
-  assert.equal(cli(r, ["doctor"]).status, 0);
+  assert.equal(doctor(r).status, 0);
+});
+
+// brakes, git hooks, gitignore lines and scalar settings
+const ALL_KEYS = { paths: { code: [], risk: [], heavyRead: [], codeAnyway: [] }, tests: { files: [], run: "true", notRunnable: [] }, checks: { project: [], patterns: [], ratchets: [] } };
+const config = (r, patterns) => {
+  mkdirSync(join(r, ".xworkflows"), { recursive: true });
+  writeJson(r, ".xworkflows/config.json", { ...ALL_KEYS, checks: { ...ALL_KEYS.checks, patterns } });
+};
+const BAD = [{ name: "no-bad", regex: "BADWORD", why: "no bad words" }];
+const commit = (r, file, text, env) => {
+  file = `docs/${file}`; // under paths.nonCode: review-seal has nothing to say
+  mkdirSync(join(r, "docs"), { recursive: true });
+  writeFileSync(join(r, file), text);
+  spawnSync("git", ["add", file], { cwd: r, env: isoEnv() });
+  return spawnSync("git", ["commit", "-qm", `add ${file}`], { cwd: r, encoding: "utf8", env: { ...isoEnv(), ...env } });
+};
+const pushed = (r) => {
+  const x = spawnSync("git", ["push", "-q", "origin", "main"], { cwd: r, encoding: "utf8", env: isoEnv() });
+  return { status: x.status, stderr: x.stdout + x.stderr }; // a hook's standard output is shown on either stream
+};
+function withRemote() {
+  const r = repo();
+  const bare = mkdtempSync(join(tmpdir(), "xwf-bare-"));
+  spawnSync("git", ["init", "-q", "--bare", bare], { env: isoEnv() });
+  git(r, `remote add origin ${bare}`);
+  return { r, bare };
+}
+const waitFor = (p) => { for (let i = 0; i < 100 && !existsSync(p); i++) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 50); return existsSync(p); };
+
+test("the brakes are installed and xworkflows check runs one", () => {
+  const r = repo();
+  cli(r, ["install"]);
+  for (const f of ["run.mjs", "comment-lines.mjs", "signature.mjs", "project.mjs"]) assert.ok(existsSync(join(r, ".xworkflows/checks", f)), f);
+  assert.ok(!existsSync(join(r, ".xworkflows/checks/run.test.mjs")));
+  commit(r, "a.txt", "fine\n");
+  config(r, BAD);
+  assert.equal(cli(r, ["check", "--only", "signature"]).status, 0);
+  assert.equal(cli(r, ["check", "--only", "nope"]).status, 2); // run.mjs's own exit code
+  commit(r, "b.txt", "BADWORD\n");
+  const out = cli(r, ["check", "--only", "patterns", "HEAD~1"]);
+  assert.equal(out.status, 1);
+  assert.match(out.stdout, /^patterns: /m);
+});
+test("check: not installed is one line and exit 2", () => {
+  const out = cli(repo(), ["check"]);
+  assert.equal(out.status, 2);
+  assert.equal(out.stderr.trim().split("\n").length, 1);
+});
+
+test("a real push goes through the installed pre-push hook", () => {
+  const { r, bare } = withRemote();
+  cli(r, ["install"]);
+  config(r, BAD);
+  assert.equal(commit(r, "a.txt", "fine\n").status, 0);
+  assert.equal(pushed(r).status, 0); // first push: nothing to compare against
+  commit(r, "b.txt", "BADWORD\n");
+  const no = pushed(r);
+  assert.notEqual(no.status, 0);
+  assert.match(no.stderr, /patterns: /);
+  assert.equal(git(bare, "rev-list --count main"), "1");
+  config(r, []);
+  assert.equal(pushed(r).status, 0);
+  assert.equal(git(bare, "rev-list --count main"), "2");
+  assert.ok(statSync(join(r, ".git/hooks/pre-push")).mode & 0o100);
+});
+
+const OLD = '#!/bin/sh\nd="$(dirname "$0")/.."\necho "$@" > "$d/old-args"\ncat > "$d/old-in"\n[ -e "$d/old-fail" ] && { echo OLD-FAILED >&2; exit 7; }\nexit 0\n';
+function chained() {
+  const { r, bare } = withRemote();
+  mkdirSync(join(r, ".git/hooks"), { recursive: true });
+  writeFileSync(join(r, ".git/hooks/pre-push"), OLD);
+  chmodSync(join(r, ".git/hooks/pre-push"), 0o755);
+  return { r, bare };
+}
+test("an existing pre-push hook is chained: first, same input, its failure stops the push", () => {
+  const { r, bare } = chained();
+  config(r, BAD);
+  assert.equal(cli(r, ["install", "--yes"]).status, 0);
+  assert.equal(readFileSync(join(r, ".git/hooks/pre-push.before-xworkflows"), "utf8"), OLD);
+  commit(r, "a.txt", "fine\n");
+  assert.equal(pushed(r).status, 0);
+  assert.match(readFileSync(join(r, ".git/old-in"), "utf8"), /^refs\/heads\/main [0-9a-f]{40} refs\/heads\/main 0{40}$/m);
+  assert.match(readFileSync(join(r, ".git/old-args"), "utf8"), /^origin /);
+  commit(r, "b.txt", "BADWORD\n");
+  writeFileSync(join(r, ".git/old-fail"), "");
+  const no = pushed(r);
+  assert.notEqual(no.status, 0);
+  assert.match(no.stderr, /OLD-FAILED/);
+  assert.doesNotMatch(no.stderr, /patterns: /); // the check never ran
+  rmSync(join(r, ".git/old-fail"));
+  assert.match(pushed(r).stderr, /patterns: /); // old passes, then the check refuses
+  assert.equal(git(bare, "rev-list --count main"), "1");
+  assert.ok(readFileSync(join(r, ".git/old-in"), "utf8").includes("refs/heads/main"));
+});
+test("uninstall puts a chained hook back byte for byte", () => {
+  const { r } = chained();
+  cli(r, ["install", "--yes"]);
+  assert.match(cli(r, ["uninstall"]).stdout, /uninstalled/);
+  assert.equal(readFileSync(join(r, ".git/hooks/pre-push"), "utf8"), OLD);
+  assert.ok(statSync(join(r, ".git/hooks/pre-push")).mode & 0o100);
+  assert.ok(!existsSync(join(r, ".git/hooks/pre-push.before-xworkflows")));
+  assert.ok(!existsSync(join(r, ".git/hooks/post-commit")));
+});
+test("a declined chain installs nothing for that hook and is not asked again", () => {
+  const { r } = chained();
+  const out = cli(r, ["install"]);
+  assert.match(out.stdout, /answered for you: A pre-push hook exists\..* -> no/);
+  assert.equal(readFileSync(join(r, ".git/hooks/pre-push"), "utf8"), OLD);
+  assert.ok(existsSync(join(r, ".git/hooks/post-commit")));
+  const again = cli(r, ["install", "--yes"]);
+  assert.equal(readFileSync(join(r, ".git/hooks/pre-push"), "utf8"), OLD);
+  assert.match(again.stdout, /^nothing to do$/m);
+  assert.deepEqual(readJson(r, ".xworkflows/installed.json").declined.filter((d) => d.what === "chain").length, 1);
+});
+test("a hook the user changed after install stays on uninstall", () => {
+  const { r } = chained();
+  cli(r, ["install", "--yes"]);
+  appendFileSync(join(r, ".git/hooks/pre-push"), "# mine\n");
+  const out = cli(r, ["uninstall"]);
+  assert.match(out.stdout, /kept \(changed locally\): \.git\/hooks\/pre-push/);
+  assert.match(readFileSync(join(r, ".git/hooks/pre-push"), "utf8"), /# mine/);
+  assert.ok(existsSync(join(r, ".git/hooks/pre-push.before-xworkflows")));
+});
+test("core.hooksPath is honored", () => {
+  const { r, bare } = withRemote();
+  git(r, "config core.hooksPath .githooks");
+  mkdirSync(join(r, ".githooks"));
+  writeFileSync(join(r, ".githooks/pre-push"), OLD);
+  chmodSync(join(r, ".githooks/pre-push"), 0o755);
+  cli(r, ["install", "--yes"]);
+  assert.ok(existsSync(join(r, ".githooks/pre-push.before-xworkflows")));
+  assert.ok(existsSync(join(r, ".githooks/post-merge")));
+  assert.ok(!existsSync(join(r, ".git/hooks/post-merge")));
+  config(r, BAD);
+  commit(r, "a.txt", "fine\n");
+  pushed(r);
+  commit(r, "b.txt", "BADWORD\n");
+  assert.match(pushed(r).stderr, /patterns: /);
+  assert.equal(git(bare, "rev-list --count main"), "1");
+  cli(r, ["uninstall"]);
+  assert.equal(readFileSync(join(r, ".githooks/pre-push"), "utf8"), OLD);
+});
+
+test("the graph hooks run only on mainBranch and never fail a commit", () => {
+  const r = repo();
+  const bin = mkdtempSync(join(tmpdir(), "xwf-bin-"));
+  const mark = join(bin, "mark");
+  writeFileSync(join(bin, "graphify"), `#!/bin/sh\necho "$@" > "${mark}"\n`);
+  chmodSync(join(bin, "graphify"), 0o755);
+  const withG = { PATH: `${bin}:${process.env.PATH}` };
+  const without = { PATH: `${dirname(process.execPath)}:/usr/bin:/bin` };
+  cli(r, ["install"]);
+  assert.equal(commit(r, "a.txt", "x\n", without).status, 0); // graphify missing
+  git(r, "checkout -q -b batch");
+  assert.equal(commit(r, "b.txt", "x\n", withG).status, 0);
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 300);
+  assert.ok(!existsSync(mark), "another branch does not rebuild");
+  git(r, "checkout -q main");
+  assert.equal(commit(r, "c.txt", "x\n", withG).status, 0);
+  assert.ok(waitFor(mark));
+  assert.equal(readFileSync(mark, "utf8").trim(), "update .");
+  assert.ok(waitFor(join(r, "graphify-out/.update.log")));
+  rmSync(mark);
+  writeJson(r, ".xworkflows/config.json", { mainBranch: "batch" });
+  git(r, "checkout -q batch");
+  commit(r, "d.txt", "x\n", withG);
+  assert.ok(waitFor(mark), "mainBranch is read from the config at hook time");
+});
+
+test("gitignore lines and scalar settings: written once, left alone, removed by uninstall", () => {
+  const r = repo({ ".gitignore": "node_modules" });
+  cli(r, ["install"]);
+  const gi = readFileSync(join(r, ".gitignore"), "utf8");
+  assert.equal(gi, "node_modules\ngraphify-out/\n.claude/settings.local.json\n");
+  assert.deepEqual(readJson(r, ".claude/settings.json").attribution, { commit: "", pr: "" });
+  assert.deepEqual(readJson(r, ".claude/settings.local.json"), { autoMemoryDirectory: join(realpathSync(r), "docs/memory") });
+  assert.equal(git(r, "check-ignore .claude/settings.local.json"), ".claude/settings.local.json");
+  assert.match(cli(r, ["install"]).stdout, /^nothing to do$/m);
+  assert.equal(readFileSync(join(r, ".gitignore"), "utf8"), gi);
+  cli(r, ["uninstall"]);
+  assert.equal(readFileSync(join(r, ".gitignore"), "utf8"), "node_modules");
+  assert.deepEqual(readdirSync(r).sort(), [".git", ".gitignore"]);
+});
+test("gitignore and settings already there are left alone; memory.dir is honored", () => {
+  const mine = { attribution: { commit: "x" }, theme: "dark" };
+  const r = repo({ ".gitignore": "graphify-out\n.claude/*.local.json\n", ".claude/settings.json": JSON.stringify(mine), ".claude/settings.local.json": JSON.stringify({ autoMemoryDirectory: "/mine" }) });
+  cli(r, ["install"]);
+  assert.equal(readFileSync(join(r, ".gitignore"), "utf8"), "graphify-out\n.claude/*.local.json\n");
+  assert.deepEqual(readJson(r, ".claude/settings.json").attribution, { commit: "x" });
+  assert.deepEqual(readJson(r, ".claude/settings.local.json"), { autoMemoryDirectory: "/mine" });
+  cli(r, ["uninstall"]);
+  assert.deepEqual(readJson(r, ".claude/settings.json"), mine);
+  assert.deepEqual(readJson(r, ".claude/settings.local.json"), { autoMemoryDirectory: "/mine" });
+  const q = repo({ ".xworkflows/config.json": JSON.stringify({ memory: { dir: "notes" } }) });
+  cli(q, ["install"]);
+  assert.equal(readJson(q, ".claude/settings.local.json").autoMemoryDirectory, join(realpathSync(q), "notes"));
+});
+test("a scalar setting the user changed stays on uninstall", () => {
+  const r = repo();
+  cli(r, ["install"]);
+  const s = readJson(r, ".claude/settings.json");
+  s.attribution = { commit: "mine", pr: "" };
+  writeJson(r, ".claude/settings.json", s);
+  cli(r, ["uninstall"]);
+  assert.deepEqual(readJson(r, ".claude/settings.json").attribution, { commit: "mine", pr: "" });
+});
+test("dry-run writes no hook, no ignore line and no setting", () => {
+  const r = repo();
+  cli(r, ["install", "--dry-run"]);
+  assert.deepEqual(readdirSync(r), [".git"]);
+  assert.ok(!existsSync(join(r, ".git/hooks/pre-push")));
+});
+
+// doctor: fakes first on a PATH of its own, so the real qmd, graphify, semgrep and trivy never run
+const made = [];
+process.on("exit", () => made.forEach((d) => rmSync(d, { recursive: true, force: true })));
+const tmp = (p) => { const d = mkdtempSync(join(tmpdir(), p)); made.push(d); return d; };
+function tools(fakes = {}) {
+  const d = tmp("xwf-bin-");
+  symlinkSync(process.execPath, join(d, "node"));
+  symlinkSync(spawnSync("sh", ["-c", "command -v git"], { encoding: "utf8" }).stdout.trim(), join(d, "git"));
+  for (const [n, body] of Object.entries(fakes)) { writeFileSync(join(d, n), `#!/bin/sh\n${body}\n`); chmodSync(join(d, n), 0o755); }
+  return `${d}:/usr/bin:/bin`;
+}
+const GOOD = tools({ qmd: "exit 0", graphify: "exit 0" });
+const EMPTY_HOME = tmp("xwf-home-");
+function doctor(r, env = {}) {
+  if (!existsSync(join(r, ".xworkflows/config.json"))) { mkdirSync(join(r, ".xworkflows"), { recursive: true }); writeJson(r, ".xworkflows/config.json", ALL_KEYS); }
+  return cli(r, ["doctor"], { env: { PATH: GOOD, HOME: EMPTY_HOME, ...env } });
+}
+const withConfig = (r, c) => { mkdirSync(join(r, ".xworkflows"), { recursive: true }); writeJson(r, ".xworkflows/config.json", { ...ALL_KEYS, ...c }); };
+
+test("doctor: a missing project key fails and names its brakes; the same key set to [] passes", () => {
+  const r = repo(); cli(r, ["install"]);
+  const { patterns, ...checks } = ALL_KEYS.checks;
+  withConfig(r, { checks });
+  const out = doctor(r);
+  assert.equal(out.status, 1);
+  assert.match(out.stdout, /^fail not configured: checks\.patterns \(needed by patterns\), run \/adapt$/m);
+  withConfig(r, {});
+  const ok = doctor(r);
+  assert.equal(ok.status, 0, ok.stdout);
+  assert.doesNotMatch(ok.stdout, /not configured/);
+});
+test("doctor: graphify is asked only of a project with code", () => {
+  const r = repo(); cli(r, ["install"]);
+  const bare = tools({ qmd: "exit 0" });
+  assert.doesNotMatch(doctor(r, { PATH: bare }).stdout, /graphify/);
+  withConfig(r, { paths: { ...ALL_KEYS.paths, code: ["src/"] } });
+  const out = doctor(r, { PATH: bare });
+  assert.equal(out.status, 1);
+  assert.match(out.stdout, /^fail graphify command is missing: uv tool install graphifyy$/m);
+  assert.match(out.stdout, /^fail graphify-out\/graph\.json is missing: graphify update \.$/m);
+  mkdirSync(join(r, "graphify-out")); writeFileSync(join(r, "graphify-out/graph.json"), "{}");
+  const some = doctor(r);
+  assert.doesNotMatch(some.stdout, /^fail graphify/m);
+  assert.match(some.stdout, /^ok +graphify/m);
+});
+test("doctor: qmd missing fails with its fix line; a collection must cover the memory folder", () => {
+  const r = repo(); cli(r, ["install"]);
+  const none = doctor(r, { PATH: tools({}) });
+  assert.equal(none.status, 1);
+  assert.match(none.stdout, /^fail qmd command is missing: npm install -g @tobilu\/qmd$/m);
+  assert.match(doctor(r).stdout, /^warn no memory folder yet: docs\/memory$/m);
+  mkdirSync(join(r, "docs/memory"), { recursive: true });
+  const out = doctor(r);
+  assert.equal(out.status, 1);
+  assert.match(out.stdout, /^fail no qmd collection covers docs\/memory: qmd collection add docs\/memory$/m);
+  // the real formats: `list` names the collections, only `show <name>` prints the path
+  const fake = (dir) => tools({ qmd: `case "$*" in *"collection list"*) printf 'Collections (1):\\n\\nmemory (qmd://memory/)\\n  Pattern:  **/*.md\\n  Files:    3\\n';; *"collection show memory"*) printf 'Collection: memory\\n  Path:     ${dir}\\n  Pattern:  **/*.md\\n';; esac` });
+  const covers = fake(join(realpathSync(r), "docs"));
+  const ok = doctor(r, { PATH: covers });
+  assert.equal(ok.status, 0, ok.stdout);
+  assert.match(ok.stdout, /^ok +qmd collection covers docs\/memory$/m);
+  assert.match(doctor(r, { PATH: fake("/somewhere/else") }).stdout, /^fail no qmd collection covers docs\/memory/m);
+});
+test("doctor: a tool that hangs does not hang doctor", () => {
+  const r = repo(); cli(r, ["install"]);
+  mkdirSync(join(r, "docs/memory"), { recursive: true });
+  withConfig(r, { packs: { semgrep: { configs: ["auto"] } } });
+  const t0 = Date.now();
+  const out = doctor(r, { PATH: tools({ qmd: "exec sleep 30", semgrep: "exec sleep 30" }), XWORKFLOWS_PROBE_TIMEOUT_MS: "400" });
+  assert.ok(Date.now() - t0 < 15000);
+  assert.match(out.stdout, /^warn qmd did not answer/m);
+  assert.match(out.stdout, /^warn pack semgrep: version unknown/m);
+});
+test("doctor: the pre-push hook must be ours; a declined one warns", () => {
+  const r = repo(); cli(r, ["install"]);
+  assert.match(doctor(r).stdout, /^ok +pre-push hook is ours$/m);
+  rmSync(join(r, ".git/hooks/pre-push"));
+  assert.match(doctor(r).stdout, /^fail pre-push hook is missing or not ours$/m);
+  const d = repo({ ".git/hooks/pre-push": "#!/bin/sh\nexit 0\n" }); chmodSync(join(d, ".git/hooks/pre-push"), 0o755);
+  cli(d, ["install"]);
+  const out = doctor(d);
+  assert.match(out.stdout, /^warn pre-push hook is yours: chaining declined at install$/m);
+});
+test("doctor prints the session-start bytes and fails above the budget", () => {
+  const r = repo(); cli(r, ["install"]);
+  const home = tmp("xwf-home-");
+  mkdirSync(join(home, ".xworkflows")); writeFileSync(join(home, ".xworkflows/owner.md"), "Replies: short and direct.\n");
+  const out = doctor(r, { HOME: home });
+  assert.equal(out.status, 0, out.stdout);
+  assert.match(out.stdout, /^ok +session-start text: [1-9]\d* bytes of 2000$/m);
+  withConfig(r, { tokens: { sessionStartBytes: 10 } });
+  const over = doctor(r, { HOME: home });
+  assert.equal(over.status, 1);
+  assert.match(over.stdout, /^fail session-start text: [1-9]\d* bytes of 10$/m);
+});
+test("doctor warns on an attribution that shows an AI line and on a memory folder outside the repository", () => {
+  const r = repo(); cli(r, ["install"]);
+  assert.doesNotMatch(doctor(r).stdout, /^warn (attribution|autoMemoryDirectory)/m);
+  const s = readJson(r, ".claude/settings.json");
+  writeJson(r, ".claude/settings.json", { ...s, attribution: { commit: "Co-Authored-By: someone", pr: "" } });
+  writeJson(r, ".claude/settings.local.json", { autoMemoryDirectory: "/elsewhere/memory" });
+  const out = doctor(r);
+  assert.equal(out.status, 0, out.stdout);
+  assert.match(out.stdout, /^warn attribution in \.claude\/settings\.json shows an AI line$/m);
+  assert.match(out.stdout, /^warn autoMemoryDirectory is not the memory folder docs\/memory$/m);
+  rmSync(join(r, ".claude/settings.local.json"));
+  assert.match(doctor(r).stdout, /^warn autoMemoryDirectory is not set in \.claude\/settings\.local\.json$/m);
+});
+test("doctor: a pack that is on needs its tool, at the version it was tested with", () => {
+  const r = repo(); cli(r, ["install"]);
+  withConfig(r, { packs: { semgrep: { configs: ["auto"] }, lint: { run: "true" } } });
+  const out = doctor(r);
+  assert.equal(out.status, 1);
+  assert.match(out.stdout, /^fail pack semgrep: semgrep command is missing$/m);
+  assert.doesNotMatch(out.stdout, /pack lint/);
+  const old = doctor(r, { PATH: tools({ qmd: "exit 0", semgrep: "echo 1.0.0" }) });
+  assert.equal(old.status, 0, old.stdout);
+  assert.match(old.stdout, /^warn pack semgrep: version 1\.0\.0, tested with 1\.179\.0$/m);
+  assert.match(doctor(r, { PATH: tools({ qmd: "exit 0", semgrep: "echo 1.179.0" }) }).stdout, /^ok +pack semgrep: 1\.179\.0$/m);
+});
+test("doctor prints the first-turn input tokens of the newest session, or says none is recorded", () => {
+  const r = repo(); cli(r, ["install"]);
+  const home = tmp("xwf-home-");
+  assert.match(doctor(r, { HOME: home }).stdout, /^ok +first turn: no session recorded$/m);
+  const dir = join(home, ".claude/projects", realpathSync(r).replace(/[^a-zA-Z0-9]/g, "-"));
+  mkdirSync(dir, { recursive: true });
+  const usage = { input_tokens: 3, cache_creation_input_tokens: 100, cache_read_input_tokens: 20 };
+  writeFileSync(join(dir, "s.jsonl"), `${JSON.stringify({ type: "user" })}\n${JSON.stringify({ message: { usage } })}\n${JSON.stringify({ message: { usage: { input_tokens: 999 } } })}\n`);
+  const out = doctor(r, { HOME: home });
+  assert.equal(out.status, 0, out.stdout);
+  assert.match(out.stdout, /^ok +first turn: 123 input tokens \(newest session\)$/m);
+});
+
+// review findings
+const outside = (hooksPath) => {
+  const cfg = join(tmp("xwf-g-"), "gitconfig");
+  writeFileSync(cfg, `[core]\n\thooksPath = ${hooksPath}\n`);
+  return cfg;
+};
+const hasHook = (d) => { const p = join(d, "pre-push"); writeFileSync(p, OLD); chmodSync(p, 0o755); };
+
+test("the developer's global git config never reaches a test", () => {
+  const g = tmp("xwf-ghooks-"); hasHook(g);
+  const saved = process.env.GIT_CONFIG_GLOBAL;
+  process.env.GIT_CONFIG_GLOBAL = outside(g);
+  try { cli(repo(), ["install", "--yes"]); } finally { if (saved === undefined) delete process.env.GIT_CONFIG_GLOBAL; else process.env.GIT_CONFIG_GLOBAL = saved; }
+  assert.deepEqual(readdirSync(g), ["pre-push"]);
+  assert.equal(readFileSync(join(g, "pre-push"), "utf8"), OLD);
+});
+test("a hooks folder outside the repository is left alone, with one line", () => {
+  const g = tmp("xwf-ghooks-"); hasHook(g);
+  const r = repo();
+  const env = { GIT_CONFIG_GLOBAL: outside(g) };
+  const out = cli(r, ["install", "--yes"], { env });
+  assert.equal(out.status, 0, out.stderr);
+  assert.deepEqual(readdirSync(g), ["pre-push"]);
+  assert.equal(readFileSync(join(g, "pre-push"), "utf8"), OLD);
+  assert.equal(out.stdout.split("\n").filter((l) => /hooks folder .* outside/.test(l)).length, 1);
+  assert.ok(!existsSync(join(r, ".git/hooks/pre-push")));
+  assert.match(cli(r, ["uninstall"], { env }).stdout, /uninstalled/);
+});
+test("a linked worktree installs into the shared hooks folder and uninstall removes them", () => {
+  const main = repo();
+  git(main, "commit -q --allow-empty -m init");
+  const wt = join(tmp("xwf-wt-"), "wt");
+  git(main, `worktree add -q ${wt}`);
+  assert.equal(cli(wt, ["install", "--yes"]).status, 0);
+  const shared = join(main, ".git/hooks");
+  for (const h of ["pre-push", "post-merge", "post-commit"]) assert.ok(existsSync(join(shared, h)), h);
+  const out = cli(wt, ["uninstall"]);
+  assert.doesNotMatch(out.stdout, /not ours/);
+  for (const h of ["pre-push", "post-merge", "post-commit"]) assert.ok(!existsSync(join(shared, h)), h);
+});
+
+test("a chained hook found again after installed.json was lost is chained and restored", () => {
+  const { r } = chained();
+  cli(r, ["install", "--yes"]);
+  rmSync(join(r, ".xworkflows/installed.json"));
+  assert.equal(cli(r, ["install", "--yes"]).status, 0);
+  assert.deepEqual(readJson(r, ".xworkflows/installed.json").chained, [{ file: ".git/hooks/pre-push", to: ".git/hooks/pre-push.before-xworkflows" }]);
+  cli(r, ["uninstall"]);
+  assert.equal(readFileSync(join(r, ".git/hooks/pre-push"), "utf8"), OLD);
+  assert.ok(!existsSync(join(r, ".git/hooks/pre-push.before-xworkflows")));
+});
+test("an interrupted install that left the user's hook renamed still chains it", () => {
+  const r = repo();
+  mkdirSync(join(r, ".git/hooks"), { recursive: true });
+  writeFileSync(join(r, ".git/hooks/pre-push.before-xworkflows"), OLD);
+  chmodSync(join(r, ".git/hooks/pre-push.before-xworkflows"), 0o755);
+  cli(r, ["install", "--yes"]);
+  assert.match(readFileSync(join(r, ".git/hooks/pre-push"), "utf8"), /before-xworkflows/);
+  cli(r, ["uninstall"]);
+  assert.equal(readFileSync(join(r, ".git/hooks/pre-push"), "utf8"), OLD);
+});
+
+test("another clone's own pre-push is chained even when the record lists the path", () => {
+  const a = repo(); cli(a, ["install"]);
+  const b = repo({ ".git/hooks/pre-push": OLD }); chmodSync(join(b, ".git/hooks/pre-push"), 0o755);
+  mkdirSync(join(b, ".xworkflows"));
+  writeFileSync(join(b, ".xworkflows/installed.json"), readFileSync(join(a, ".xworkflows/installed.json")));
+  cli(b, ["install", "--yes"]);
+  assert.equal(readFileSync(join(b, ".git/hooks/pre-push.before-xworkflows"), "utf8"), OLD);
+  assert.match(readFileSync(join(b, ".git/hooks/pre-push"), "utf8"), /before-xworkflows/);
+});
+test("doctor does not call a recorded hook ours when it no longer holds our text", () => {
+  const r = repo(); cli(r, ["install"]);
+  writeFileSync(join(r, ".git/hooks/pre-push"), "#!/bin/sh\nexit 0\n");
+  const out = doctor(r);
+  assert.doesNotMatch(out.stdout, /^ok +pre-push hook is ours$/m);
+  assert.match(out.stdout, /^warn pre-push hook changed locally/m);
+  assert.equal(out.status, 0, out.stdout);
+});
+
+test("installed.json holds no absolute path: the memory dir is recorded as configured", () => {
+  const r = repo(); cli(r, ["install"]);
+  const raw = readFileSync(join(r, ".xworkflows/installed.json"), "utf8");
+  assert.ok(!raw.includes(realpathSync(r)) && !raw.includes(r), raw);
+  assert.deepEqual(readJson(r, ".xworkflows/installed.json").scalars.find((x) => x.file.endsWith("local.json")), { file: ".claude/settings.local.json", key: ["autoMemoryDirectory"], dir: "docs/memory" });
+});
+test("a tracked settings.local.json is not written to; one line says so", () => {
+  const r = repo({ ".claude/settings.local.json": '{"x":1}' });
+  git(r, "add -A"); git(r, "commit -qm t");
+  const out = cli(r, ["install", "--yes"]);
+  assert.equal(readFileSync(join(r, ".claude/settings.local.json"), "utf8"), '{"x":1}');
+  assert.equal(out.stdout.split("\n").filter((l) => /settings\.local\.json is tracked/.test(l)).length, 1);
+  assert.equal(readJson(r, ".xworkflows/installed.json").scalars.filter((x) => x.file.endsWith("local.json")).length, 0);
+});
+test("uninstall gives settings.local.json back byte for byte", () => {
+  for (const before of ['{"x":1}', '{\r\n  "x": 1\r\n}\r\n', "{}", "{\n}\n", "{ }", '{\n  "x": 1\n}']) {
+    const r = repo({ ".claude/settings.local.json": before });
+    cli(r, ["install", "--yes"]);
+    assert.equal(readJson(r, ".claude/settings.local.json").autoMemoryDirectory, join(realpathSync(r), "docs/memory"), before);
+    assert.equal(readJson(r, ".claude/settings.local.json").x ?? 1, 1);
+    cli(r, ["uninstall"]);
+    assert.equal(readFileSync(join(r, ".claude/settings.local.json"), "utf8"), before, JSON.stringify(before));
+  }
+});
+
+test("the three pack modules install with the checks", () => {
+  const r = repo(); cli(r, ["install"]);
+  for (const n of ["lint", "semgrep", "trivy"]) assert.ok(existsSync(join(r, `.xworkflows/checks/packs/${n}.mjs`)), n);
+  const m = readJson(PKG_ROOT, "manifest.json");
+  assert.deepEqual(m.pieces.filter((p) => p.kind === "pack").map((p) => [p.id, p.origin]), [["lint", "own"], ["semgrep", "fetched"], ["trivy", "fetched"]]);
+});
+test("pack refuses a tracked pack module that belongs to no piece", () => {
+  const copy = packageCopy();
+  writeFileSync(join(copy, "checks/packs/extra.mjs"), "export const x = 1;\n");
+  spawnSync("git", ["add", "-A"], { cwd: copy, env: isoEnv() });
+  assert.match(cliAt(copy, copy, ["pack"]).stderr, /checks\/packs\/extra\.mjs belongs to no piece/);
+});
+
+test("doctor never runs the graph tool the session-start hook would start", () => {
+  const r = repo({ "src/a.js": "x\n" });
+  git(r, "add -A"); git(r, "commit -qm t");
+  cli(r, ["install"]);
+  withConfig(r, { paths: { ...ALL_KEYS.paths, code: ["src/"] } });
+  mkdirSync(join(r, "graphify-out")); writeFileSync(join(r, "graphify-out/graph.json"), "{}");
+  utimesSync(join(r, "graphify-out/graph.json"), new Date("2020-01-01"), new Date("2020-01-01"));
+  const log = join(tmp("xwf-log-"), "calls");
+  const out = doctor(r, { PATH: tools({ qmd: "exit 0", graphify: `echo "$@" >> ${log}` }) });
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 500);
+  assert.equal(out.status, 0, out.stdout);
+  assert.ok(!existsSync(log), "graphify was run");
+});
+
+test("uninstall keeps settings.local.json parseable when a key was written after ours", () => {
+  const r = repo({ ".claude/settings.local.json": "{\n}\n" });
+  cli(r, ["install", "--yes"]);
+  const mine = readJson(r, ".claude/settings.local.json");
+  writeJson(r, ".claude/settings.local.json", { ...mine, permissions: { allow: ["Bash(ls)"] } });
+  cli(r, ["uninstall"]);
+  assert.deepEqual(readJson(r, ".claude/settings.local.json"), { permissions: { allow: ["Bash(ls)"] } });
+});
+test("uninstall never moves a path outside the hook that installed.json names as chained", () => {
+  const r = repo(); cli(r, ["install"]);
+  const victim = join(r, "../victim-key"); writeFileSync(victim, "secret"); made.push(victim);
+  const rec = readJson(r, ".xworkflows/installed.json");
+  rec.chained = [{ file: ".git/hooks/pre-push", to: "../victim-key" }];
+  writeJson(r, ".xworkflows/installed.json", rec);
+  rmSync(join(r, ".git/hooks/pre-push"), { force: true });
+  const out = cli(r, ["uninstall"]);
+  assert.equal(readFileSync(victim, "utf8"), "secret");
+  assert.ok(!existsSync(join(r, ".git/hooks/pre-push")));
+  assert.match(out.stdout, /kept \(not ours\):/);
+});
+
+const sha = (t) => createHash("sha256").update(t).digest("hex");
+test("uninstall never touches a global hooks folder a record names", () => {
+  const g = tmp("xwf-ghooks-"); hasHook(g);
+  writeFileSync(join(g, "post-merge.before-xworkflows"), "#!/bin/sh\nexit 0\n");
+  const r = repo();
+  const env = { GIT_CONFIG_GLOBAL: outside(g) };
+  cli(r, ["install", "--yes"], { env });
+  const rel = relative(realpathSync(r), g);
+  const rec = readJson(r, ".xworkflows/installed.json");
+  rec.files[`${rel}/pre-push`] = { piece: "checks", sha256: sha(OLD) };
+  rec.chained = [{ file: `${rel}/post-merge`, to: `${rel}/post-merge.before-xworkflows` }];
+  writeJson(r, ".xworkflows/installed.json", rec);
+  const out = cli(r, ["uninstall"], { env });
+  assert.equal(out.status, 0, out.stderr);
+  assert.equal(readFileSync(join(g, "pre-push"), "utf8"), OLD);
+  assert.ok(existsSync(join(g, "post-merge.before-xworkflows")));
+  assert.ok(!existsSync(join(g, "post-merge")));
+  assert.match(out.stdout, /kept \(not ours\): .*pre-push/);
+});
+test("uninstall acts only on paths the installer can write", () => {
+  const r = repo({ "src/main.js": "code\n", "pkg.json": '{"a":1}\n', "a.js": "x\nkeep\n", "a.js.before-xworkflows": "old\n", "empty.txt": "" });
+  cli(r, ["install"]);
+  const rec = readJson(r, ".xworkflows/installed.json");
+  rec.files["src/main.js"] = { piece: "x", sha256: sha("code\n") };
+  rec.scalars.push({ file: "pkg.json", key: ["a"], value: 1 });
+  rec.imports.push({ file: "a.js", line: "x" });
+  rec.created.push("empty.txt");
+  rec.chained.push({ file: "a.js", to: "a.js.before-xworkflows" });
+  writeJson(r, ".xworkflows/installed.json", rec);
+  const out = cli(r, ["uninstall"]);
+  assert.equal(out.status, 0, out.stderr);
+  assert.equal(readFileSync(join(r, "src/main.js"), "utf8"), "code\n");
+  assert.equal(readFileSync(join(r, "pkg.json"), "utf8"), '{"a":1}\n');
+  assert.equal(readFileSync(join(r, "a.js"), "utf8"), "x\nkeep\n");
+  assert.ok(existsSync(join(r, "a.js.before-xworkflows")));
+  assert.ok(existsSync(join(r, "empty.txt")));
+  for (const p of ["src/main.js", "pkg.json", "a.js", "empty.txt"]) assert.match(out.stdout, new RegExp(`kept \\(not ours\\): ${p.replace(".", "\\.")}$`, "m"));
+  assert.ok(!existsSync(join(r, ".xworkflows")));
+});
+test("uninstall goes on when a settings file parses to a string or a number", () => {
+  for (const body of ['"hello"', "5"]) {
+    const r = repo(); cli(r, ["install"]);
+    writeFileSync(join(r, ".claude/settings.json"), body);
+    const out = cli(r, ["uninstall"]);
+    assert.equal(out.status, 0, body + out.stderr);
+    assert.ok(!existsSync(join(r, ".xworkflows/installed.json")), body);
+  }
+});
+
+// the record is the project's text, never the package's word: uninstall removes only what this package writes
+const withRecord = (r, edit) => { const rec = readJson(r, ".xworkflows/installed.json"); edit(rec); writeJson(r, ".xworkflows/installed.json", rec); };
+const notOurs = (out, p) => assert.match(out.stdout, new RegExp(`^kept \\(not ours\\): ${p.replace(/[.\/]/g, "\\$&")}$`, "m"));
+
+test("uninstall: a symlinked folder or file under a path the package writes never reaches the target", () => {
+  const code = { "src/main.js": "code\n", "pkg.json": '{"a":1}\n' };
+  for (const link of [".xworkflows/ln", ".claude/skills/ln"]) {
+    const r = repo(code); cli(r, ["install"]);
+    symlinkSync(link === ".xworkflows/ln" ? "../src" : "../../src", join(r, link));
+    withRecord(r, (rec) => { rec.files[`${link}/main.js`] = { piece: "x", sha256: sha("code\n") }; });
+    const out = cli(r, ["uninstall"]);
+    assert.equal(readFileSync(join(r, "src/main.js"), "utf8"), "code\n", link);
+    notOurs(out, `${link}/main.js`);
+  }
+  const s = repo(code); cli(s, ["install"]);
+  rmSync(join(s, ".claude/settings.json")); symlinkSync("../pkg.json", join(s, ".claude/settings.json"));
+  withRecord(s, (rec) => { rec.scalars.push({ file: ".claude/settings.json", key: ["a"], value: 1 }); });
+  notOurs(cli(s, ["uninstall"]), ".claude/settings.json");
+  assert.equal(readFileSync(join(s, "pkg.json"), "utf8"), '{"a":1}\n');
+  const g = repo(code); cli(g, ["install"]);
+  rmSync(join(g, ".gitignore")); symlinkSync("src/main.js", join(g, ".gitignore"));
+  withRecord(g, (rec) => { rec.imports.push({ file: ".gitignore", line: "code" }); });
+  notOurs(cli(g, ["uninstall"]), ".gitignore");
+  assert.equal(readFileSync(join(g, "src/main.js"), "utf8"), "code\n");
+});
+test("uninstall: a hooks folder that is a symlink out of the repository gets no hook and loses none", () => {
+  const o = tmp("xwf-ghooks-"); hasHook(o);
+  const r = repo();
+  git(r, "config core.hooksPath .githooks");
+  symlinkSync(o, join(r, ".githooks"));
+  assert.equal(cli(r, ["install", "--yes"]).status, 0);
+  assert.deepEqual(readdirSync(o), ["pre-push"]);
+  withRecord(r, (rec) => { rec.files[".githooks/pre-push"] = { piece: "checks", sha256: sha(OLD) }; });
+  const out = cli(r, ["uninstall"]);
+  assert.equal(readFileSync(join(o, "pre-push"), "utf8"), OLD);
+  notOurs(out, ".githooks/pre-push");
+});
+test("uninstall: a record that names content the installer never adds removes nothing of the user's", () => {
+  const r = repo({ ".gitignore": ".env\n", "CLAUDE.md": "never push to main\n", ".claude/settings.json": JSON.stringify({ permissions: { deny: ["Read(.env)"] } }), ".claude/settings.local.json": JSON.stringify({ model: "opus" }) });
+  cli(r, ["install", "--yes"]);
+  withRecord(r, (rec) => {
+    rec.imports.push({ file: ".gitignore", line: ".env" }, { file: "CLAUDE.md", line: "never push to main" });
+    rec.merged.push({ file: ".claude/settings.json", key: ["permissions", "deny"], entry: "Read(.env)", createdKey: false });
+    rec.scalars.push({ file: ".claude/settings.local.json", key: ["model"], value: "opus" });
+  });
+  const out = cli(r, ["uninstall"]);
+  assert.equal(readFileSync(join(r, ".gitignore"), "utf8"), ".env\n");
+  assert.equal(readFileSync(join(r, "CLAUDE.md"), "utf8"), "never push to main\n");
+  assert.deepEqual(readJson(r, ".claude/settings.json"), { permissions: { deny: ["Read(.env)"] } });
+  assert.deepEqual(readJson(r, ".claude/settings.local.json"), { model: "opus" });
+  for (const p of [".gitignore", "CLAUDE.md", ".claude/settings.json", ".claude/settings.local.json"]) notOurs(out, p);
+});
+test("uninstall: an absolute path in files is never used", () => {
+  const r = repo(); cli(r, ["install"]);
+  const rr = realpathSync(r), abs = join(rr, ".xworkflows/x.js"), nested = join(rr, abs);
+  mkdirSync(dirname(nested), { recursive: true }); writeFileSync(nested, "x\n");
+  withRecord(r, (rec) => { rec.files[abs] = { piece: "x", sha256: sha("x\n") }; });
+  const out = cli(r, ["uninstall"]);
+  assert.equal(readFileSync(nested, "utf8"), "x\n");
+  notOurs(out, abs);
+});
+test("uninstall: the user's own pre-push stays whatever hash the record holds", () => {
+  const r = repo({ ".git/hooks/pre-push": OLD }); chmodSync(join(r, ".git/hooks/pre-push"), 0o755);
+  cli(r, ["install"]);
+  withRecord(r, (rec) => { rec.files[".git/hooks/pre-push"] = { piece: "checks", sha256: sha(OLD) }; });
+  const out = cli(r, ["uninstall"]);
+  assert.equal(readFileSync(join(r, ".git/hooks/pre-push"), "utf8"), OLD);
+  assert.ok(!existsSync(join(r, ".git/hooks/post-merge")));
+  assert.doesNotMatch(out.stdout, /deleted .*pre-push/);
+  notOurs(out, ".git/hooks/pre-push");
+  assert.doesNotMatch(out.stdout, /changed locally.*pre-push/);
+});
+test("uninstall: a user's file under .claude/skills or .xworkflows stays unless it is what the package installs there", () => {
+  const r = repo(); cli(r, ["install"]);
+  const mine = { ".claude/skills/mine/SKILL.md": "mine\n", ".xworkflows/own.js": "own\n" };
+  for (const [p, c] of Object.entries(mine)) { mkdirSync(dirname(join(r, p)), { recursive: true }); writeFileSync(join(r, p), c); }
+  withRecord(r, (rec) => { for (const [p, c] of Object.entries(mine)) rec.files[p] = { piece: "x", sha256: sha(c) }; });
+  const out = cli(r, ["uninstall"]);
+  for (const [p, c] of Object.entries(mine)) { assert.equal(readFileSync(join(r, p), "utf8"), c, p); notOurs(out, p); }
+  assert.ok(!existsSync(join(r, ".claude/agents/explore.md")));
+});
+test("uninstall: a record written by another version says so, and an honest uninstall says nothing of 'not ours'", () => {
+  const r = repo(); cli(r, ["install"]);
+  withRecord(r, (rec) => { rec.xworkflows = "0.0.1"; });
+  const out = cli(r, ["uninstall"]);
+  assert.match(out.stdout, /record .*0\.0\.1/);
+  assert.doesNotMatch(out.stdout, /not ours/);
+});
+
+// J1-J4: install honors the same symlink test as uninstall
+test("install writes nothing through a symlink; uninstall has nothing to undo there", () => {
+  // (1) settings.json -> outside file
+  const o1 = tmp("xwf-out-"); writeFileSync(join(o1, "settings.json"), '{"theme":"dark"}\n');
+  const r1 = repo(); mkdirSync(join(r1, ".claude")); symlinkSync(join(o1, "settings.json"), join(r1, ".claude/settings.json"));
+  const out1 = cli(r1, ["install", "--yes"]);
+  assert.equal(out1.status, 0, out1.stderr);
+  assert.equal(readFileSync(join(o1, "settings.json"), "utf8"), '{"theme":"dark"}\n');
+  assert.match(out1.stdout, /^not written \(symlink\): \.claude\/settings\.json$/m);
+  // (2) skills -> outside folder
+  const o2 = tmp("xwf-out-");
+  const r2 = repo(); mkdirSync(join(r2, ".claude")); symlinkSync(o2, join(r2, ".claude/skills"));
+  assert.equal(cli(r2, ["install", "--yes"]).status, 0);
+  assert.deepEqual(readdirSync(o2), []);
+  assert.ok(!Object.keys(readJson(r2, ".xworkflows/installed.json").files).some((p) => p.startsWith(".claude/skills/")));
+  // (3) CLAUDE.md -> AGENTS.md
+  const r3 = repo({ "AGENTS.md": "# mine\n" }); symlinkSync("AGENTS.md", join(r3, "CLAUDE.md"));
+  const out3 = cli(r3, ["install", "--yes"]);
+  assert.match(out3.stdout, /^not written \(symlink\): CLAUDE\.md$/m);
+  assert.ok(readFileSync(join(r3, "AGENTS.md"), "utf8").includes("xworkflows:start"));
+  assert.doesNotMatch(readFileSync(join(r3, "AGENTS.md"), "utf8"), /^@AGENTS\.md$/m);
+  const un = cli(r3, ["uninstall"]);
+  assert.equal(un.status, 0, un.stderr);
+  assert.equal(readFileSync(join(r3, "AGENTS.md"), "utf8"), "# mine\n");
+  assert.doesNotMatch(un.stdout, /not ours/);
+});
+test("a tracked settings.local.json: the ignore line is added once, not on every install", () => {
+  const r = repo({ ".claude/settings.local.json": '{"x":1}' });
+  git(r, "add -A"); git(r, "commit -qm t");
+  cli(r, ["install", "--yes"]); cli(r, ["install", "--yes"]);
+  assert.equal(readFileSync(join(r, ".gitignore"), "utf8").split("\n").filter((l) => l === ".claude/settings.local.json").length, 1);
+});
+test("a hooks folder that is a dangling symlink out of the repository counts as outside", () => {
+  const r = repo();
+  git(r, "config core.hooksPath .githooks");
+  symlinkSync(join(tmp("xwf-out-"), "nope/hooks"), join(r, ".githooks"));
+  const out = cli(r, ["install", "--yes"]);
+  assert.equal(out.status, 0, out.stderr);
+  assert.match(out.stdout, /hooks folder .* outside/);
+  assert.ok(existsSync(join(r, ".xworkflows/installed.json")));
+});
+test("install refuses, before any write, when its own folder or record is a symlink", () => {
+  // (1) the record itself links to an outside file
+  const o1 = tmp("xwf-out-"); writeFileSync(join(o1, "settings.json"), '{"theme":"dark"}\n');
+  const r1 = repo(); mkdirSync(join(r1, ".xworkflows")); symlinkSync(join(o1, "settings.json"), join(r1, ".xworkflows/installed.json"));
+  const out1 = cli(r1, ["install", "--yes"]);
+  assert.equal(out1.status, 1);
+  assert.match(out1.stderr, /^not written \(symlink\): \.xworkflows\/installed\.json$/m);
+  assert.equal(readFileSync(join(o1, "settings.json"), "utf8"), '{"theme":"dark"}\n');
+  assert.ok(!existsSync(join(r1, ".claude")));
+  // (2) the whole folder links outside
+  const o2 = tmp("xwf-out-");
+  const r2 = repo(); symlinkSync(o2, join(r2, ".xworkflows"));
+  assert.equal(cli(r2, ["install", "--yes"]).status, 1);
+  assert.deepEqual(readdirSync(o2), []);
+  // (3) a folder under it links outside: the hooks would be wired to files that were not written
+  const o3 = tmp("xwf-out-");
+  const r3 = repo(); mkdirSync(join(r3, ".xworkflows")); symlinkSync(o3, join(r3, ".xworkflows/checks"));
+  const out3 = cli(r3, ["install", "--yes"]);
+  assert.equal(out3.status, 1);
+  assert.match(out3.stderr, /^not written \(symlink\): \.xworkflows\/checks\//m);
+  assert.deepEqual(readdirSync(o3), []);
+  assert.ok(!existsSync(join(r3, ".git/hooks/pre-push")));
+  assert.ok(!existsSync(join(r3, ".claude")));
+});
+test("a hooks folder that is a dangling symlink inside the repository counts as outside too", () => {
+  const r = repo();
+  git(r, "config core.hooksPath hk");
+  symlinkSync("myhooks", join(r, "hk"));
+  const out = cli(r, ["install", "--yes"]);
+  assert.equal(out.status, 0, out.stderr);
+  assert.match(out.stdout, /hooks folder .* outside/);
+  assert.ok(existsSync(join(r, ".xworkflows/installed.json")));
+  assert.ok(!existsSync(join(r, "myhooks")));
 });

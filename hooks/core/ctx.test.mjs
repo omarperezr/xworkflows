@@ -104,3 +104,15 @@ test("writeFile refuses a symlink and says so", () => {
   assert.equal(c.writeFile("plain.md", "x"), true);
   assert.equal(readFileSync(join(root, "plain.md"), "utf8"), "x");
 });
+
+test("background starts nothing while the dry flag is set", () => {
+  const dir = tmp();
+  const ran = (env) => {
+    const f = join(dir, env.XWORKFLOWS_DRY ? "dry" : "wet");
+    makeCtx({ root: dir, session: "s1" }, { env, config: DEFAULTS, stateDir: dir }).background("touch", [f]);
+    for (let i = 0; i < 40 && !existsSync(f); i++) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 50);
+    return existsSync(f);
+  };
+  assert.equal(ran({ PATH: process.env.PATH, XWORKFLOWS_DRY: "1" }), false);
+  assert.equal(ran({ PATH: process.env.PATH }), true);
+});

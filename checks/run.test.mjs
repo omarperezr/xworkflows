@@ -5,7 +5,7 @@ import { mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "n
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { main, TABLE } from "./run.mjs";
+import { main, PACKS, TABLE } from "./run.mjs";
 import { makeRepo } from "../test/helpers/repo.mjs";
 
 const pass = { run: () => ({ ok: true, lines: [] }) };
@@ -273,4 +273,66 @@ test("index: writes MEMORY.md from the memory files, prints nothing; not a repos
     assert.equal(await main(["index"], { cwd: dir, print: (l) => out.push(l) }), 2);
     assert.match(out[0], /^xworkflows check: not a git repository/);
   } finally { rmSync(dir, { recursive: true, force: true }); }
+}));
+
+test("PACKS names the three packs", () => assert.deepEqual(PACKS, ["lint", "semgrep", "trivy"]));
+
+test("a pack that is on runs after the table, printed and counted like a brake", withRepo({ config: { packs: { semgrep: {} } } }, async (repo) => {
+  const order = [];
+  const mods = { project: { run: () => { order.push("project"); return { ok: true, lines: [] }; } },
+    "packs/semgrep": { run: () => { order.push("semgrep"); return { ok: false, lines: ["bad rule", "src/a.js:1"] }; } } };
+  const r = await check(repo, [], mods);
+  assert.deepEqual(order, ["project", "semgrep"]);
+  assert.equal(r.code, 1);
+  assert.deepEqual(r.out, ["semgrep: bad rule", "  src/a.js:1", `xworkflows check: 1 of ${TABLE.length + 1} failed`]);
+}));
+
+test("a pack that could not run: exit 2", withRepo({ config: { packs: { trivy: {} } } }, async (repo) => {
+  const r = await check(repo, [], { "packs/trivy": { run: () => ({ ok: false, cannotRun: true, lines: ["no trivy"] }) } });
+  assert.equal(r.code, 2);
+  assert.equal(r.out[0], "trivy: could not run: no trivy");
+}));
+
+test("no packs key runs none", withRepo({}, async (repo) => {
+  const seen = [];
+  const r = await check(repo, [], { "packs/lint": { run: () => seen.push("lint") }, "packs/semgrep": { run: () => seen.push("semgrep") } });
+  assert.deepEqual(seen, []);
+  assert.equal(r.code, 0);
+}));
+
+test("an unknown pack is could not run, named", withRepo({ config: { packs: { nope: {} } } }, async (repo) => {
+  const r = await check(repo, [], {});
+  assert.equal(r.code, 2);
+  assert.deepEqual(r.out, ["nope: could not run: not a check pack (known: lint, semgrep, trivy)", `xworkflows check: 1 of ${TABLE.length + 1} failed`]);
+}));
+
+test("--only semgrep runs only it; --only takes pack names", withRepo({ config: { packs: { semgrep: {}, lint: {} } } }, async (repo) => {
+  const seen = [];
+  const mk = (n) => ({ run: () => { seen.push(n); return { ok: true, lines: [] }; } });
+  const r = await check(repo, ["--only", "semgrep"], { "packs/semgrep": mk("semgrep"), "packs/lint": mk("lint"), project: mk("project") });
+  assert.deepEqual(seen, ["semgrep"]);
+  assert.equal(r.code, 0);
+}));
+
+test("--only a pack that is not on runs nothing and could not run", withRepo({}, async (repo) => {
+  const seen = [];
+  const r = await check(repo, ["--only", "trivy"], { "packs/trivy": { run: () => seen.push(1) } });
+  assert.deepEqual(seen, []);
+  assert.equal(r.code, 2);
+}));
+
+test("packs that is not an object: setup error, exit 2", async () => {
+  for (const bad of [[], "semgrep", 3, null]) {
+    await withRepo({ config: { packs: bad } }, async (repo) => {
+      const r = await check(repo, []);
+      assert.equal(r.code, 2);
+      assert.deepEqual(r.out, ["xworkflows check: packs in the config is not an object"]);
+    })();
+  }
+});
+
+test("--only for a pack that is not on could not run, never a silent pass", withRepo({}, async (repo) => {
+  const r = await check(repo, ["--only", "semgrep"]);
+  assert.equal(r.code, 2);
+  assert.match(r.out[0], /^semgrep: could not run: not on in packs/);
 }));

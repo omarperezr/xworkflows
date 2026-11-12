@@ -2,16 +2,17 @@
 import { execFileSync, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { createInterface } from "node:readline/promises";
-import { existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, rmdirSync, statSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { basename, dirname, join, resolve, sep } from "node:path";
+import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, readlinkSync, realpathSync, renameSync, rmSync, rmdirSync, statSync, writeFileSync } from "node:fs";
+import { homedir, tmpdir } from "node:os";
+import { basename, dirname, isAbsolute, join, normalize, relative, resolve, sep } from "node:path";
 import { isDeepStrictEqual } from "node:util";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import { DEFAULTS, PROJECT_KEYS, load as loadConfig, missing } from "../hooks/core/config.mjs";
 
 export const PKG = dirname(dirname(fileURLToPath(import.meta.url)));
 export let ROOT;
 
-const COMMANDS = ["install", "doctor", "uninstall", "pack"];
+const COMMANDS = ["install", "doctor", "uninstall", "pack", "check"];
 const BOOL = ["--yes", "--dry-run", "--check"];
 
 export const hash = (text) => createHash("sha256").update(text.replaceAll("\r\n", "\n")).digest("hex");
@@ -43,7 +44,7 @@ function pack(check) {
     q.sha256 = digest(q.files);
     return Object.fromEntries(KEYS.filter((k) => q[k] !== undefined).map((k) => [k, q[k]]));
   });
-  const tracked = execFileSync("git", ["ls-files", "skills", "agents", "hooks"], { cwd: PKG, encoding: "utf8" }).split("\n").filter(Boolean);
+  const tracked = execFileSync("git", ["ls-files", "skills", "agents", "hooks", "checks"], { cwd: PKG, encoding: "utf8" }).split("\n").filter(Boolean);
   for (const f of tracked) {
     if (f.endsWith(".test.mjs") || f.startsWith("hooks/fixtures/") || listed.has(f)) continue;
     errs.push(`${f} belongs to no piece`);
@@ -77,7 +78,7 @@ function parse(args) {
 export function main(argv) {
   const [cmd, ...rest] = argv;
   if (!COMMANDS.includes(cmd)) die(2, `usage: xworkflows <${COMMANDS.join("|")}> [--tool claude] [--yes] [--dry-run]`);
-  const flags = parse(rest);
+  const flags = cmd === "check" ? {} : parse(rest);
   if ((flags["dry-run"] || flags.yes) && cmd !== "install") die(2, "--dry-run and --yes are for install only");
   if (flags.check && cmd !== "pack") die(2, "--check is for pack only");
   if (flags.tool && flags.tool !== "claude") die(2, `not yet: ${flags.tool} comes in a later phase`);
@@ -87,12 +88,17 @@ export function main(argv) {
   } catch {
     die(1, "not inside a git repository");
   }
+  if (cmd === "check") {
+    const run = join(ROOT, ".xworkflows/checks/run.mjs");
+    if (!existsSync(run)) die(2, "xworkflows is not installed here: run xworkflows install");
+    process.exit(spawnSync("node", [run, ...rest], { stdio: "inherit" }).status ?? 2);
+  }
   if (cmd === "install") return install(flags);
   if (cmd === "doctor") return doctor();
   return uninstall();
 }
 
-const EMPTY = { xworkflows: "", tools: ["claude"], pieces: {}, files: {}, merged: [], blocks: [], imports: [], created: [], declined: [], kept: [], renamed: {} };
+const EMPTY = { xworkflows: "", tools: ["claude"], pieces: {}, files: {}, merged: [], blocks: [], imports: [], created: [], declined: [], kept: [], renamed: {}, scalars: [], chained: [] };
 const json = (v) => JSON.stringify(v, null, 2) + "\n";
 
 function target(f) {
@@ -110,15 +116,49 @@ const MARK = "Bash(node .xworkflows/mark.mjs:*)";
 const START = "<!-- xworkflows:start -->";
 const END = "<!-- xworkflows:end -->";
 
+// A global core.hooksPath belongs to every repository of the machine: the hooks folder counts only inside this repository.
+// Real paths: a hooks folder that is a symlink out of the repository is outside. Install and uninstall use this one test.
+// A dangling symlink resolves to its target, not to a path under its parent.
+const real = (p, depth = 0) => {
+  const rest = [];
+  for (let a = p; ; a = dirname(a)) {
+    try { return join(realpathSync(a), ...rest); } catch {
+      if (lstatSync(a, { throwIfNoEntry: false })?.isSymbolicLink()) return join(depth < 40 ? real(resolve(dirname(a), readlinkSync(a)), depth + 1) : "/", ...rest);
+      rest.unshift(basename(a));
+    }
+  }
+};
+function ownHooks(root) {
+  const dir = hooksFolder(root);
+  // a dangling link names a folder that is not there: no hook of ours can live in it
+  if (!existsSync(dir) && lstatSync(dir, { throwIfNoEntry: false })?.isSymbolicLink()) return null;
+  const gitDirs =["--absolute-git-dir", "--git-common-dir"].map((f) => real(resolve(root, execFileSync("git", ["rev-parse", f], { cwd: root, encoding: "utf8" }).trim())));
+  const rd = real(dir);
+  return [realpathSync(root), ...gitDirs].some((d) => rd === d || rd.startsWith(d + sep)) ? dir : null;
+}
+
 // Each merge: { path, text (null when nothing changes), rec: new record entries }.
-function mergeSettings(root, manifest, record) {
-  const path = ".claude/settings.json";
+function readObject(root, path) {
   const old = read(root, path);
   let s = {};
   if (old !== null) {
     try { s = JSON.parse(old); } catch { die(1, `${path} does not parse; fix it`); }
     if (!s || typeof s !== "object" || Array.isArray(s)) die(1, `${path} is not a JSON object`);
   }
+  return { old, s };
+}
+
+// A scalar is written only when its key is absent, and recorded so uninstall removes it only while unchanged.
+function setScalar(s, path, key, value, scalars) {
+  if (key in s) return false;
+  s[key] = value;
+  scalars.push({ file: path, key: [key], value });
+  return true;
+}
+
+const ATTRIBUTION = { commit: "", pr: "" };
+// What install puts in settings.json, from the manifest; uninstall removes exactly these.
+function settingsWants(manifest) {
   const want = [];
   for (const p of manifest.pieces) {
     for (const c of p.claude ?? []) {
@@ -128,6 +168,13 @@ function mergeSettings(root, manifest, record) {
     }
   }
   if (want.length) want.push({ key: ["permissions", "allow"], entry: MARK, ours: () => false });
+  return want;
+}
+
+function mergeSettings(root, manifest, record) {
+  const path = ".claude/settings.json";
+  const { old, s } = readObject(root, path);
+  const want = settingsWants(manifest);
   const merged = [];
   let changed = false;
   for (const { key, entry, ours } of want) {
@@ -151,7 +198,60 @@ function mergeSettings(root, manifest, record) {
     changed = true;
     merged.push({ file: path, key, entry, createdKey });
   }
-  return { path, text: changed ? json(s) : null, rec: { merged, created: old === null && changed ? [path] : [] } };
+  const scalars = [];
+  changed = setScalar(s, path, "attribution", ATTRIBUTION, scalars) || changed;
+  return { path, text: changed ? json(s) : null, rec: { merged, scalars, created: old === null && changed ? [path] : [] } };
+}
+
+// Claude Code ignores this key in the shared file; the local one holds a path of this machine.
+// An existing file gets the one key as a text insert before its closing brace, so uninstall can take out exactly that text.
+// The record holds the dir as configured and the insert without its value: installed.json is committed and must hold no path of this machine.
+function mergeLocal(root) {
+  const path = ".claude/settings.local.json";
+  const { old, s } = readObject(root, path);
+  const key = "autoMemoryDirectory";
+  let dir;
+  try { dir = loadConfig(root).memory.dir; } catch (e) { die(1, e.message); }
+  const none = { path, text: null, rec: { scalars: [], created: [] } };
+  if (key in s) return none;
+  if (spawnSync("git", ["ls-files", "--error-unmatch", path], { cwd: root, stdio: "ignore" }).status === 0) return { ...none, note: `${path} is tracked: ${key} not written, set it yourself` };
+  const value = JSON.stringify(resolve(root, dir));
+  if (old === null) return { path, text: json({ [key]: resolve(root, dir) }), rec: { scalars: [{ file: path, key: [key], dir }], created: [path] } };
+  const nl = old.includes("\r\n") ? "\r\n" : "\n";
+  const at = old.slice(0, old.lastIndexOf("}")).trimEnd().length;
+  const multi = old.includes("\n");
+  const insert = `${Object.keys(s).length ? "," : ""}${multi ? `${nl}  ` : ""}"${key}":${multi ? " " : ""}`;
+  return { path, text: old.slice(0, at) + insert + value + old.slice(at), rec: { scalars: [{ file: path, key: [key], dir, insert }], created: [] } };
+}
+
+const IGNORE = [["graphify-out/", "graphify-out/x"], [".claude/settings.local.json", ".claude/settings.local.json"]];
+function mergeIgnore(root) {
+  const path = ".gitignore";
+  const old = read(root, path);
+  let text = old ?? "";
+  const imports = [];
+  for (const [line, probe] of IGNORE) {
+    if (spawnSync("git", ["check-ignore", "-q", "--no-index", probe], { cwd: root }).status === 0) continue;
+    const addedNewline = text !== "" && !text.endsWith("\n");
+    imports.push({ file: path, line, ...(addedNewline && { addedNewline }) });
+    text += (addedNewline ? "\n" : "") + line + "\n";
+  }
+  return { path, text: imports.length ? text : null, rec: { imports, created: old === null && imports.length ? [path] : [] } };
+}
+
+const HOOKS = ["pre-push", "post-merge", "post-commit"];
+const hooksFolder = (root) => resolve(root, execFileSync("git", ["rev-parse", "--git-path", "hooks"], { cwd: root, encoding: "utf8" }).trim());
+const CHECK = 'node "$(git rev-parse --show-toplevel)/.xworkflows/checks/run.mjs" --pre-push "$1"';
+const MAIN = `node -e 'try{process.stdout.write(JSON.parse(require("fs").readFileSync(".xworkflows/config.json","utf8")).mainBranch||"main")}catch{process.stdout.write("main")}'`;
+// With `chain` the project's own hook, renamed <name>.before-xworkflows, runs first.
+function hookText(name, chain) {
+  const old = `old="$(dirname "$0")/${name}.before-xworkflows"\n`;
+  if (name === "pre-push") {
+    if (!chain) return `#!/bin/sh\n${CHECK}\nexit $?\n`;
+    // git feeds the pushed refs on stdin once: keep them for both runs
+    return `#!/bin/sh\nin=$(mktemp) || exit 1\ncat > "$in"\n${old}if [ -x "$old" ]; then "$old" "$@" < "$in" || { c=$?; rm -f "$in"; exit $c; }; fi\n${CHECK} < "$in"\nc=$?\nrm -f "$in"\nexit $c\n`;
+  }
+  return `#!/bin/sh\nc=0\n${chain ? `${old}[ -x "$old" ] && { "$old" "$@"; c=$?; }\n` : ""}cd "$(git rev-parse --show-toplevel)" || exit $c\nmain=$(${MAIN}) || main=main\n[ "$(git symbolic-ref --short -q HEAD)" = "$main" ] || exit $c\ncommand -v graphify >/dev/null 2>&1 || exit $c\nmkdir -p graphify-out\ngraphify update . > graphify-out/.update.log 2>&1 < /dev/null &\nexit $c\n`;
 }
 
 export function agentsBlock() {
@@ -178,11 +278,24 @@ function mergeAgents(root) {
 const UNIT = /^\.claude\/(skills|agents)\/[^/]+/;
 const IMPORT = "Add @AGENTS.md to CLAUDE.md?";
 
+const plain = (p) => typeof p === "string" && p !== "" && p !== "." && !isAbsolute(p) && normalize(p) === p && !p.split("/").includes("..");
+// no existing component of p, from the repository root down, is a symlink
+const clean = (root, p) => {
+  let a = root;
+  for (const c of p.split("/")) {
+    const st = lstatSync((a = join(a, c)), { throwIfNoEntry: false });
+    if (!st) return true;
+    if (st.isSymbolicLink()) return false;
+  }
+  return true;
+};
+
 // Reads and parses every target file before any write (ruling P2) and refuses before any write.
 // `ans` maps question id -> chosen label; an unanswered question is listed in `questions` and planned with its safe answer.
-export function plan(manifest, root, record, ans = {}) {
+// Every file this package copies, with the text it copies (tier line included); plan() and uninstall share it.
+function pkgWrites(manifest) {
   const tiers = readFileSync(join(PKG, "tiers.json"), "utf8");
-  let writes = [{ path: ".xworkflows/tiers.json", text: tiers, piece: "installer", src: "tiers.json" }];
+  const writes = [{ path: ".xworkflows/tiers.json", text: tiers, piece: "installer", src: "tiers.json" }];
   for (const p of manifest.pieces) {
     for (const f of Object.keys(p.files)) {
       const t = target(f);
@@ -194,6 +307,18 @@ export function plan(manifest, root, record, ans = {}) {
       writes.push({ path: t, text, piece: p.id, src: f });
     }
   }
+  return writes;
+}
+// The xwf- form of a file of unit u.
+function renameWrite(w, u) {
+  const id = basename(u, ".md");
+  const nu = `${dirname(u)}/xwf-${basename(u)}`;
+  const named = w.path === u || w.path.endsWith("/SKILL.md");
+  return { ...w, path: nu + w.path.slice(u.length), text: named ? w.text.replace(/^name: .*$/m, `name: xwf-${id}`) : w.text };
+}
+
+export function plan(manifest, root, record, ans = {}) {
+  let writes = pkgWrites(manifest);
   const questions = [], kept = [], renamed = {}, notes = [];
   const ask = (id, text, labels) => {
     if (ans[id] === undefined) questions.push({ id, text, labels });
@@ -215,21 +340,61 @@ export function plan(manifest, root, record, ans = {}) {
       rename = true;
     }
     if (rename) renamed[nu] = ws[0].piece;
-    for (const w of ws) {
-      const named = w.path === u || w.path.endsWith("/SKILL.md");
-      writes.push(rename ? { ...w, path: nu + w.path.slice(u.length), text: named ? w.text.replace(/^name: .*$/m, `name: xwf-${id}`) : w.text } : w);
-    }
+    for (const w of ws) writes.push(rename ? renameWrite(w, u) : w);
   }
+  const hooksDir = hooksFolder(root);
+  const hookMerges = [];
+  const mine_ = ownHooks(root) !== null;
+  if (!mine_) notes.push(`hooks folder ${relative(root, hooksDir)} is outside this repository: no hook installed, doctor will say so`);
+  for (const name of mine_ ? HOOKS : []) {
+    const path = relative(root, resolve(hooksDir, name));
+    const lst = lstatSync(join(root, path), { throwIfNoEntry: false });
+    const cur = lst?.isFile() ? read(root, path) : null;
+    const mine = cur !== null && ([false, true].some((c) => cur === hookText(name, c)) || (!!record.files[path] && hash(cur) === record.files[path].sha256));
+    let chain = record.chained.some((c) => c.file === path) || (cur !== null && cur === hookText(name, true)), rename;
+    const before = `${path}.before-xworkflows`;
+    // the user's hook renamed by an install that never recorded it: ours is the only code that makes this name
+    if ((!lst || mine) && lstatSync(join(root, before), { throwIfNoEntry: false }) && !record.chained.some((c) => c.file === path)) {
+      chain = true;
+      hookMerges.push({ path, text: null, rec: { chained: [{ file: path, to: before }] } });
+    }
+    if (lst && !mine) {
+      if (record.declined.some((d) => d.file === path && d.what === "chain")) continue;
+      if (ask(`chain:${name}`, `A ${name} hook exists. Chain it (it runs first, then ours)?`, ["no", "yes"]) === "no") {
+        hookMerges.push({ path, text: null, rec: { declined: [{ file: path, what: "chain" }] } });
+        continue;
+      }
+      rename = `${path}.before-xworkflows`;
+      if (lstatSync(join(root, rename), { throwIfNoEntry: false })) die(1, `exists and is not ours: ${rename}`);
+      chain = true;
+      hookMerges.push({ path, text: null, rec: { chained: [{ file: path, to: rename }] } });
+    }
+    writes.push({ path, text: hookText(name, chain), piece: "checks", src: name, mode: 0o755, rename });
+  }
+  // install and uninstall share one test: a path with a symlink component is never written or merged
+  const hookPaths = new Set(writes.filter((w) => w.src && HOOKS.includes(w.src)).map((w) => w.path));
+  const off = (p) => {
+    if (hookPaths.has(p) || (plain(p) && clean(root, p))) return false;
+    notes.push(`not written (symlink): ${p}`);
+    return true;
+  };
+  writes = writes.filter((w) => !off(w.path));
   for (const w of writes) {
     const cur = read(root, w.path);
-    if (cur === null || cur === w.text) continue;
+    if (cur === null || cur === w.text || w.rename) continue;
     const rec = record.files[w.path];
     if (!rec) die(1, `exists and is not ours: ${w.path}`);
     if (hash(cur) !== rec.sha256) { w.keep = true; notes.push(`kept (changed locally): ${w.path}  new: ${w.src}`); }
   }
-  const merges = [mergeSettings(root, manifest, record), mergeAgents(root)];
-  const claude = read(root, "CLAUDE.md");
-  if (claude === null) {
+  const merges = [];
+  if (!off(SETTINGS)) merges.push(mergeSettings(root, manifest, record));
+  if (!off(LOCAL)) { const local = mergeLocal(root); if (local.note) notes.push(local.note); merges.push(local); }
+  if (!off(".gitignore")) merges.push(mergeIgnore(root));
+  if (!off("AGENTS.md")) merges.push(mergeAgents(root));
+  merges.push(...hookMerges);
+  const link = off("CLAUDE.md");
+  const claude = link ? undefined : read(root, "CLAUDE.md");
+  if (link) { /* noted above */ } else if (claude === null) {
     merges.push({ path: "CLAUDE.md", text: "@AGENTS.md\n", rec: { imports: [{ file: "CLAUDE.md", line: "@AGENTS.md" }], created: ["CLAUDE.md"] } });
   } else if (!/^@AGENTS\.md\s*$/m.test(claude) && !record.declined.some((d) => d.file === "CLAUDE.md" && d.what === "import")) {
     if (ask("import", IMPORT, ["no", "yes"]) === "yes") {
@@ -240,14 +405,18 @@ export function plan(manifest, root, record, ans = {}) {
 }
 
 const differs = (root, w) => !existsSync(join(root, w.path)) || readFileSync(join(root, w.path), "utf8") !== w.text;
-const put = (root, path, text) => {
+const put = (root, path, text, mode) => {
   mkdirSync(dirname(join(root, path)), { recursive: true });
-  writeFileSync(join(root, path), text);
+  writeFileSync(join(root, path), text, { mode });
 };
 
 export function apply(pl, root, manifest, record) {
   const out = [];
-  for (const w of pl.writes) if (!w.keep && differs(root, w)) { put(root, w.path, w.text); out.push(w.path); }
+  for (const w of pl.writes) if (!w.keep && differs(root, w)) {
+    if (w.rename) renameSync(join(root, w.path), join(root, w.rename));
+    put(root, w.path, w.text, w.mode);
+    out.push(w.path);
+  }
   const next = { ...record, xworkflows: manifest.version, tools: ["claude"], pieces: {}, files: {}, kept: [...new Set([...record.kept, ...pl.kept])], renamed: { ...record.renamed, ...pl.renamed } };
   for (const m of pl.merges) {
     if (m.text !== null) { put(root, m.path, m.text); out.push(m.path); }
@@ -273,6 +442,8 @@ async function install(flags) {
   }
   let record = { ...EMPTY };
   const rp = join(ROOT, ".xworkflows/installed.json");
+  // uninstall refuses a linked record, so install must not read or write through one
+  if (!clean(ROOT, ".xworkflows/installed.json")) die(1, "not written (symlink): .xworkflows/installed.json");
   if (existsSync(rp)) {
     try {
       record = { ...EMPTY, ...JSON.parse(readFileSync(rp, "utf8")) };
@@ -281,6 +452,9 @@ async function install(flags) {
     }
   }
   let pl = plan(m, ROOT, record);
+  // a linked folder under .xworkflows would leave the hooks wired to files that were not written
+  const linked = pl.notes.find((n) => n.startsWith("not written (symlink): .xworkflows/"));
+  if (linked) die(1, linked);
   const ans = {}, auto = [];
   const rl = pl.questions.length && !flags.yes && !flags["dry-run"] && process.stdin.isTTY ? createInterface({ input: process.stdin, output: process.stdout }) : null;
   for (const q of pl.questions) {
@@ -294,7 +468,7 @@ async function install(flags) {
   if (pl.questions.length) pl = plan(m, ROOT, record, ans);
   for (const n of pl.notes) console.log(n);
   if (flags["dry-run"]) {
-    for (const w of pl.writes) if (!w.keep && differs(ROOT, w)) console.log(`would write ${w.path}`);
+    for (const w of pl.writes) if (!w.keep && differs(ROOT, w)) console.log(`${w.rename ? `would rename ${w.path} to ${w.rename}\n` : ""}would write ${w.path}`);
     for (const m of pl.merges) if (m.text !== null) console.log(`would merge ${m.path}`);
   } else {
     const done = apply(pl, ROOT, m, record);
@@ -304,7 +478,7 @@ async function install(flags) {
   for (const a of auto) console.log(a);
 }
 
-function doctor() {
+async function doctor() {
   const out = [];
   let nf = 0, nw = 0;
   const say = (lvl, t) => { out.push(`${lvl === "ok" ? "ok  " : lvl} ${t}`); if (lvl === "fail") nf++; if (lvl === "warn") nw++; };
@@ -313,6 +487,16 @@ function doctor() {
     process.exit(nf ? 1 : 0);
   };
   say("ok", "git repository");
+  // a hook run the way Claude Code runs it: the settings command, the event on standard input
+  const TIMEOUT = Number(process.env.XWORKFLOWS_PROBE_TIMEOUT_MS) || 10000;
+  const fire = (command, event) => {
+    const state = mkdtempSync(join(tmpdir(), "xwf-doctor-"));
+    const env = { ...process.env, CLAUDE_PROJECT_DIR: ROOT, XWORKFLOWS_STATE_DIR: state, XWORKFLOWS_DRY: "1" };
+    delete env.XWORKFLOWS_FREE; delete env.XWORKFLOWS_RECORD;
+    const r = spawnSync(command, { shell: true, cwd: ROOT, env, input: JSON.stringify(event), encoding: "utf8", timeout: TIMEOUT });
+    rmSync(state, { recursive: true, force: true });
+    return r;
+  };
   let rec;
   try { rec = { ...EMPTY, ...JSON.parse(readFileSync(join(ROOT, ".xworkflows/installed.json"), "utf8")) }; }
   catch (e) { say("fail", e.code === "ENOENT" ? "not installed" : "installed.json does not parse"); return finish(); }
@@ -363,12 +547,8 @@ function doctor() {
   } catch {}
   if (!command) say("fail", "probe: no design-first hook entry");
   else {
-    const state = mkdtempSync(join(tmpdir(), "xwf-doctor-"));
-    const env = { ...process.env, CLAUDE_PROJECT_DIR: ROOT, XWORKFLOWS_STATE_DIR: state };
-    delete env.XWORKFLOWS_FREE; delete env.XWORKFLOWS_RECORD;
     const event = { session_id: `doctor-${process.pid}`, cwd: ROOT, hook_event_name: "PreToolUse", tool_name: "Write", tool_input: { file_path: join(ROOT, specs, "xwf-doctor-probe.md"), content: "# probe\n" } };
-    const r = spawnSync(command, { shell: true, cwd: ROOT, env, input: JSON.stringify(event), encoding: "utf8", timeout: Number(process.env.XWORKFLOWS_PROBE_TIMEOUT_MS) || 10000 });
-    rmSync(state, { recursive: true, force: true });
+    const r = fire(command, event);
     let d; try { d = JSON.parse(r.stdout).hookSpecificOutput?.permissionDecision; } catch {}
     say(d === "deny" ? "ok" : "fail", d === "deny" ? "probe: design-first denies a spec write" : `probe: expected deny, got ${d ?? "no valid output"}`);
   }
@@ -390,67 +570,196 @@ function doctor() {
   const mem = join(ROOT, memDir, "MEMORY.md");
   if (existsSync(mem) && !seen.has(mem)) { seen.add(mem); bytes += statSync(mem).size; }
   say(bytes > budget ? "fail" : "ok", `always-loaded: ${bytes} bytes of ${budget}`);
+  // 7
+  const has = (cmd) => spawnSync("sh", ["-c", `command -v ${cmd}`]).status === 0;
+  // the installed copy first: the project runs that one; the package's when a piece is not installed there
+  const mod = (rel) => import(pathToFileURL(existsSync(join(ROOT, ".xworkflows", rel)) ? join(ROOT, ".xworkflows", rel) : join(PKG, rel)).href);
+  const tooling = async () => {
+    let conf = DEFAULTS, run = { TABLE: [], PACKS: [] };
+    try {
+      conf = loadConfig(ROOT);
+      run = await mod("checks/run.mjs");
+      const needs = {};
+      for (const b of run.TABLE) for (const k of [].concat((await mod(`checks/${b}.mjs`)).needs ?? [])) (needs[k] ??= []).push(b);
+      const gone = missing(conf, PROJECT_KEYS);
+      for (const k of gone) say("fail", `not configured: ${k}${needs[k] ? ` (needed by ${needs[k].join(", ")})` : ""}, run /adapt`);
+      if (!gone.length) say("ok", "config: every project key is set");
+    } catch (e) { say("fail", `config: ${e.message}`); }
+    if (conf.paths.code?.length) {
+      const dir = conf.lookup.index.folder;
+      say(has("graphify") ? "ok" : "fail", has("graphify") ? "graphify command" : "graphify command is missing: uv tool install graphifyy");
+      say(existsSync(join(ROOT, dir, "graph.json")) ? "ok" : "fail", existsSync(join(ROOT, dir, "graph.json")) ? "graphify index" : `${dir}/graph.json is missing: graphify update .`);
+    }
+    const mem = conf.memory.dir;
+    if (!has("qmd")) say("fail", "qmd command is missing: npm install -g @tobilu/qmd");
+    else if (!existsSync(join(ROOT, mem))) say("warn", `no memory folder yet: ${mem}`);
+    else {
+      const abs = resolve(ROOT, mem);
+      const q = (...a) => spawnSync("qmd", [...(conf.memory.index ? ["--index", conf.memory.index] : []), "collection", ...a], { cwd: ROOT, encoding: "utf8", timeout: TIMEOUT });
+      const l = q("list");
+      if (l.error) say("warn", `qmd did not answer: collections of ${mem} not checked`);
+      else {
+        // only `collection show <name>` prints the path
+        const names = [...(l.stdout ?? "").matchAll(/^(\S+) \(qmd:\/\//gm)].map((m) => m[1]);
+        const covers = names.some((n) => {
+          const t = q("show", n).stdout?.match(/^\s*Path:\s+(.+?)\s*$/m)?.[1]?.replace(/\/$/, "");
+          return t && (abs === t || abs.startsWith(t + "/"));
+        });
+        say(covers ? "ok" : "fail", covers ? `qmd collection covers ${mem}` : `no qmd collection covers ${mem}: qmd collection add ${mem}`);
+      }
+    }
+    const hp = relative(ROOT, resolve(hooksFolder(ROOT), "pre-push"));
+    const cur = lstatSync(join(ROOT, hp), { throwIfNoEntry: false })?.isFile() ? read(ROOT, hp) : null;
+    if (cur !== null && [false, true].some((c) => cur === hookText("pre-push", c))) say("ok", "pre-push hook is ours");
+    else if (cur !== null && rec.files[hp]) say("warn", "pre-push hook changed locally: it may no longer run the check");
+    else if (rec.declined.some((d) => d.file === hp && d.what === "chain")) say("warn", "pre-push hook is yours: chaining declined at install");
+    else say("fail", "pre-push hook is missing or not ours");
+    let st = {}, local = {};
+    try { st = JSON.parse(readFileSync(join(ROOT, ".claude/settings.json"), "utf8")); } catch {}
+    try { local = JSON.parse(readFileSync(join(ROOT, ".claude/settings.local.json"), "utf8")); } catch {}
+    let bytes = 0;
+    for (const h of (st.hooks?.SessionStart ?? []).flatMap((e) => e.hooks ?? [])) {
+      if (!`${h.command} `.includes('/.xworkflows/hooks/run.mjs" claude ')) continue;
+      bytes += Buffer.byteLength(fire(h.command, { session_id: `doctor-${process.pid}`, cwd: ROOT, hook_event_name: "SessionStart", source: "startup" }).stdout ?? "");
+    }
+    const sb = conf.tokens.sessionStartBytes;
+    say(bytes > sb ? "fail" : "ok", `session-start text: ${bytes} bytes of ${sb}`);
+    const ai = st.attribution && typeof st.attribution === "object" ? [st.attribution.commit, st.attribution.pr].some((x) => x) : !!st.attribution;
+    if (ai) say("warn", "attribution in .claude/settings.json shows an AI line");
+    const amd = local.autoMemoryDirectory, abs = resolve(ROOT, mem);
+    if (amd === undefined) say("warn", "autoMemoryDirectory is not set in .claude/settings.local.json");
+    else if (typeof amd !== "string" || !(resolve(ROOT, amd) + sep).startsWith(abs + sep)) say("warn", `autoMemoryDirectory is not the memory folder ${mem}`);
+    for (const n of Object.keys(conf.packs).filter((n) => run.PACKS.includes(n))) {
+      let tool;
+      try { tool = (await mod(`checks/packs/${n}.mjs`)).TOOL; } catch { continue; }
+      if (!tool) continue;
+      if (!has(tool.command)) { say("fail", `pack ${n}: ${tool.command} command is missing`); continue; }
+      const v = spawnSync(tool.command, ["--version"], { encoding: "utf8", timeout: TIMEOUT });
+      const got = `${v.stdout}${v.stderr}`.match(/\d+\.\d+\.\d+/)?.[0];
+      say(got === tool.version ? "ok" : "warn", got === tool.version ? `pack ${n}: ${got}` : `pack ${n}: version ${got ?? "unknown"}, tested with ${tool.version}`);
+    }
+    // shortcut: reads the whole session file, when sessions grow past a few MB read only the first lines
+    const sess = join(homedir(), ".claude/projects", ROOT.replace(/[^a-zA-Z0-9]/g, "-"));
+    let first;
+    try {
+      const newest = readdirSync(sess).filter((f) => f.endsWith(".jsonl")).map((f) => [statSync(join(sess, f)).mtimeMs, f]).sort((a, b) => b[0] - a[0])[0];
+      for (const line of readFileSync(join(sess, newest[1]), "utf8").split("\n")) {
+        let u; try { u = JSON.parse(line)?.message?.usage; } catch {}
+        if (u) { first = (u.input_tokens ?? 0) + (u.cache_creation_input_tokens ?? 0) + (u.cache_read_input_tokens ?? 0); break; }
+      }
+    } catch {}
+    say("ok", first === undefined ? "first turn: no session recorded" : `first turn: ${first} input tokens (newest session)`);
+  };
+  await tooling();
   say("ok", "Claude Code: tested");
   finish();
 }
 
+const SETTINGS = ".claude/settings.json", LOCAL = ".claude/settings.local.json", LOCAL_KEY = "autoMemoryDirectory";
+const FIVE = [SETTINGS, LOCAL, ".gitignore", "AGENTS.md", "CLAUDE.md"];
+// The lines install adds to the files it merges into.
+const LINES = new Map([[".gitignore", IGNORE.map(([l]) => l)], ["CLAUDE.md", ["@AGENTS.md"]]]);
+
+// installed.json is the project's text, so it is never the package's word: uninstall removes only what this package version
+// writes (manifest, target(), the fixed lines, keys and hook texts above). The record answers yes-or-no questions about those.
 function uninstall() {
   let rec;
   try { rec = { ...EMPTY, ...JSON.parse(readFileSync(join(ROOT, ".xworkflows/installed.json"), "utf8")) }; }
   catch (e) { die(1, e.code === "ENOENT" ? "not installed" : ".xworkflows/installed.json does not parse; fix or remove it"); }
+  for (const k of ["merged", "blocks", "imports", "scalars", "chained"]) rec[k] = Array.isArray(rec[k]) ? rec[k].filter((e) => e && typeof e === "object") : [];
+  for (const k of ["created", "kept"]) rec[k] = Array.isArray(rec[k]) ? rec[k] : [];
+  if (!rec.files || typeof rec.files !== "object" || Array.isArray(rec.files)) rec.files = {};
+  const manifest = readManifest();
   const out = [], gone = [];
-  // installed.json is committed, so its paths are untrusted: stay inside the repo, never config.json
-  const realRoot = realpathSync(ROOT);
-  const inside = (p) => {
-    const f = resolve(ROOT, p);
-    if (!f.startsWith(resolve(ROOT) + sep) || f === resolve(ROOT, ".xworkflows/config.json")) return false;
-    let a = f; // nearest existing ancestor, symlinks resolved; a dangling link counts as outside
-    for (;;) {
-      try { lstatSync(a); break; } catch { a = dirname(a); }
-    }
-    try { return (realpathSync(a) + sep).startsWith(realRoot + sep); } catch { return false; }
+  if (rec.xworkflows !== manifest.version) out.push(`record written by xworkflows ${rec.xworkflows || "unknown"}; this is ${manifest.version}`);
+
+  const hooksDir = ownHooks(ROOT);
+  const hookRel = new Map(hooksDir ? HOOKS.map((n) => [n, relative(ROOT, resolve(hooksDir, n))]) : []);
+  const hookSet = new Set(hookRel.values());
+  const wanted = new Map(); // path -> the text plan() writes there, renamed units included
+  for (const w of pkgWrites(manifest)) {
+    wanted.set(w.path, w.text);
+    const u = w.path.match(UNIT)?.[0];
+    if (u) { const x = renameWrite(w, u); wanted.set(x.path, x.text); }
+  }
+  const wants = settingsWants(manifest);
+
+  const named = {
+    files: (_, p) => wanted.has(p) || hookSet.has(p),
+    merged: (m) => m.file === SETTINGS && wants.some((w) => isDeepStrictEqual(w.key, m.key)),
+    scalars: (x) => (x.file === SETTINGS && isDeepStrictEqual(x.key, ["attribution"])) || (x.file === LOCAL && isDeepStrictEqual(x.key, [LOCAL_KEY])),
+    blocks: (b) => b.file === "AGENTS.md",
+    imports: (i) => !!LINES.get(i.file)?.includes(i.line),
+    created: (p) => FIVE.includes(p),
+    chained: (c) => hookSet.has(c.file) && c.to === c.file + ".before-xworkflows",
   };
-  const bad = new Set();
-  for (const p of [...Object.keys(rec.files), ...rec.merged.map((m) => m.file), ...rec.blocks.map((b) => b.file), ...rec.imports.map((i) => i.file), ...rec.created])
-    if (!inside(p) && !bad.has(p)) { bad.add(p); out.push(`kept (not ours): ${p}`); }
-  rec.files = Object.fromEntries(Object.entries(rec.files).filter(([p]) => !bad.has(p)));
-  rec.merged = rec.merged.filter((m) => !bad.has(m.file));
-  rec.blocks = rec.blocks.filter((b) => !bad.has(b.file));
-  rec.imports = rec.imports.filter((i) => !bad.has(i.file));
-  rec.created = rec.created.filter((p) => !bad.has(p));
+  const said = new Set();
+  const keep = (kind, e, p) => {
+    if ((hookSet.has(p) ? kind === "files" || kind === "chained" : plain(p) && clean(ROOT, p)) && named[kind](e, p)) return true;
+    if (!said.has(p)) { said.add(p); out.push(`kept (not ours): ${p}`); }
+    return false;
+  };
+  const recFiles = new Set(Object.keys(rec.files).filter((p) => keep("files", rec.files[p], p)));
+  for (const [k, f] of [["merged", (m) => m.file], ["blocks", (b) => b.file], ["imports", (i) => i.file], ["scalars", (x) => x.file], ["chained", (c) => c.file], ["created", (p) => p]])
+    rec[k] = rec[k].filter((e) => keep(k, e, String(f(e))));
+
   const rm = (p) => { rmSync(join(ROOT, p)); gone.push(p); };
   const write = (p, text) => { writeFileSync(join(ROOT, p), text); out.push(`changed ${p}`); };
-  for (const [p, { sha256 }] of Object.entries(rec.files)) {
-    if (rec.kept.includes(p) || !existsSync(join(ROOT, p))) continue;
-    if (hash(read(ROOT, p)) === sha256) { rm(p); out.push(`deleted ${p}`); }
+  for (const [p, text] of wanted) {
+    if (!recFiles.has(p) || rec.kept.includes(p) || rec.kept.includes(p.match(UNIT)?.[0])) continue;
+    if (!lstatSync(join(ROOT, p), { throwIfNoEntry: false })?.isFile()) continue;
+    if (hash(read(ROOT, p)) === hash(text)) { rm(p); out.push(`deleted ${p}`); }
     else out.push(`kept (changed locally): ${p}`);
   }
-  const sp = ".claude/settings.json";
-  const merged = rec.merged.filter((m) => m.file === sp);
-  if (merged.length && read(ROOT, sp) !== null) {
+  for (const [name, p] of hookRel) {
+    const abs = join(hooksDir, name), before = abs + ".before-xworkflows";
+    if (!lstatSync(abs, { throwIfNoEntry: false })?.isFile()) continue;
+    const cur = readFileSync(abs, "utf8");
+    if (![false, true].some((c) => cur === hookText(name, c))) { if (recFiles.has(p)) out.push(hash(cur) === rec.files[p].sha256 ? `kept (not ours): ${p}` : `kept (changed locally): ${p}`); continue; }
+    rmSync(abs); out.push(`deleted ${p}`);
+    if (lstatSync(before, { throwIfNoEntry: false })) { renameSync(before, abs); out.push(`restored ${p}`); }
+  }
+  const merged = rec.merged;
+  const text = merged.length ? read(ROOT, SETTINGS) : null;
+  if (text !== null) {
     let s;
-    try { s = JSON.parse(read(ROOT, sp)); } catch { out.push(`kept (does not parse): ${sp}`); }
-    if (s) {
+    try { s = JSON.parse(text); } catch { out.push(`kept (does not parse): ${SETTINGS}`); }
+    if (s && typeof s === "object") {
       let changed = false;
-      for (const m of merged) {
-        const parents = [s];
-        for (const k of m.key) parents.push(parents.at(-1)?.[k]);
-        const arr = parents.at(-1);
+      const recorded = ({ key }) => merged.some((m) => isDeepStrictEqual(m.key, key));
+      for (const w of wants.filter(recorded)) {
+        const arr = w.key.reduce((o, k) => o?.[k], s);
         if (!Array.isArray(arr)) continue;
-        const i = arr.findIndex((e) => isDeepStrictEqual(e, m.entry));
-        const id = m.entry?.hooks?.[0]?.command?.match(/run\.mjs" claude (\S+)/)?.[1];
+        const i = arr.findIndex((e) => isDeepStrictEqual(e, w.entry));
         if (i >= 0) { arr.splice(i, 1); changed = true; }
-        else if (id && arr.some((e) => isOurs(e, id))) { out.push(`kept (changed locally): ${sp} ${m.key.join(".")}`); continue; }
+        else if (arr.some(w.ours)) out.push(`kept (changed locally): ${SETTINGS} ${w.key.join(".")}`);
       }
-      // prune per key path once every entry is gone, whichever record entry carried createdKey
-      for (const m of merged) {
-        if (!merged.some((x) => x.createdKey && isDeepStrictEqual(x.key, m.key))) continue;
+      // a container install created goes once it is empty
+      for (const { key } of wants.filter((w) => merged.some((m) => m.createdKey && isDeepStrictEqual(m.key, w.key)))) {
         const parents = [s];
-        for (const k of m.key) parents.push(parents.at(-1)?.[k]);
-        for (let d = m.key.length; d > 0 && parents[d] && Object.keys(parents[d]).length === 0; d--) { delete parents[d - 1][m.key[d - 1]]; changed = true; }
+        for (const k of key) parents.push(parents.at(-1)?.[k]);
+        for (let d = key.length; d > 0 && parents[d] && typeof parents[d] === "object" && Object.keys(parents[d]).length === 0; d--) { delete parents[d - 1][key[d - 1]]; changed = true; }
       }
-      if (changed) write(sp, json(s));
+      if (changed) write(SETTINGS, json(s));
     }
+  }
+  let memory;
+  try { memory = resolve(ROOT, loadConfig(ROOT).memory.dir); } catch {}
+  for (const [file, key, was] of [[SETTINGS, "attribution", ATTRIBUTION], [LOCAL, LOCAL_KEY, memory]]) {
+    const x = rec.scalars.find((e) => e.file === file);
+    if (!x) continue;
+    const text = read(ROOT, file);
+    let s;
+    try { s = JSON.parse(text); } catch { continue; }
+    if (!s || typeof s !== "object" || Array.isArray(s) || !(key in s)) continue;
+    if (!isDeepStrictEqual(s[key], was)) { out.push(`kept (changed locally): ${file} ${key}`); continue; }
+    // the recorded text is only a candidate cut: it is used when the result is the file without our key
+    const ins = typeof x.insert === "string" ? x.insert + JSON.stringify(was) : null, at = ins === null ? -1 : text.lastIndexOf(ins);
+    const cut = at >= 0 ? text.slice(0, at) + text.slice(at + ins.length) : null;
+    const { [key]: _, ...rest } = s;
+    let ok = false;
+    try { ok = cut !== null && isDeepStrictEqual(JSON.parse(cut), rest); } catch {}
+    write(file, ok ? cut : json(rest));
   }
   for (const b of rec.blocks) {
     const t = read(ROOT, b.file), a = t?.indexOf(START) ?? -1, e = a < 0 ? -1 : t.indexOf(END, a);
@@ -474,10 +783,11 @@ function uninstall() {
     try { empty ||= t !== null && isDeepStrictEqual(JSON.parse(t), {}); } catch {}
     if (empty && !rec.kept.includes(p)) { rm(p); out.push(`deleted ${p}`); }
   }
-  rm(".xworkflows/installed.json");
+  const ir = ".xworkflows/installed.json";
+  if (clean(ROOT, ir)) rm(ir); else out.push(`kept (not ours): ${ir}`);
   for (const p of gone) {
     for (let d = dirname(p); d !== "."; d = dirname(d)) {
-      if (!existsSync(join(ROOT, d))) continue;
+      if (!lstatSync(join(ROOT, d), { throwIfNoEntry: false })?.isDirectory()) continue;
       if (readdirSync(join(ROOT, d)).length) break;
       rmdirSync(join(ROOT, d));
       out.push(`deleted ${d}/`);
