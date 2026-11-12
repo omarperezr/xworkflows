@@ -92,8 +92,8 @@ The Workflow returns what the prototype's script returns (branch `phase-1-adapt-
 - `areas[k].doubted`: a list of at most one `{ rule, why, file, line, quote }`.
 - `kinds`: the mechanism agents' answers, in the shipped shape.
 - `areas[k].ideas`: a list of at most four `{ text, file, line, quote }`.
-- `plain`: `{ claims: [{ text, from }] }`: every sentence, in no order. A `rest` list in a file written before the fourth round is read the same way.
-- `kinds[k].general.risk` and `.cost`, like an area's. `from` lists item ids: `<key>` for an area's general rule, `<key>.<n>` for the idea at place n of its list, from 1, and `kind:<kind>` for a mechanism kind's general rule.
+- `plain`: `{ claims: [{ text, from }] }`: every sentence, in no order. A `rest` list in a file written before the plain agent returned one list is read the same way. `from` lists item ids: `<key>` for an area's general rule, `<key>.<n>` for the idea at place n of its list, from 1, and `kind:<kind>` for a mechanism kind's general rule.
+- `kinds[k].general.risk` and `.cost`, like an area's.
 - `kinds[k].general.short`: the kind's general rule in one sentence of 14 words at most.
 - `areas[k].general.short`: the general rule in one sentence of 14 words at most.
 
