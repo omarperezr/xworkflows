@@ -28,12 +28,12 @@ const X = (d, f) => join(d, ".xworkflows", f);
 // The Workflow result, version 3, its keys in the script's order.
 function sample(over = {}) {
   const cite = { file: "a.js", line: 2, quote: "round(x)" };
-  const areas = { truth: { area: "truth", status: "found", general: { rule: "Round once", basis: "both", risk: "high", cost: "wrong totals", ...cite }, support: [], exceptions: [], contradicted: [], unprotected: [], commentRules: [{ text: "Never round twice.", file: "a.js", line: 1, quote: "line1" }], details: [], notChecked: [], doubted: [{ rule: "Totals are rounded.", why: "no test covers it", ...cite }] } };
+  const areas = { truth: { area: "truth", status: "found", ideas: [{ text: "Totals are rounded once.", ...cite }], general: { rule: "Round once", basis: "both", risk: "high", cost: "wrong totals", ...cite }, support: [], exceptions: [], contradicted: [], unprotected: [], commentRules: [{ text: "Never round twice.", file: "a.js", line: 1, quote: "line1" }], details: [], notChecked: [], doubted: [{ rule: "Totals are rounded.", why: "no test covers it", ...cite }] } };
   const kinds = {
     values: { kind: "values", status: "found", general: { rule: "Round once, only when shown", basis: "both", ...cite }, verdicts: [], rules: [{ rule: "round once", ...cite }, { rule: "fake rule", file: "a.js", line: 2, quote: "absent text" }], notChecked: [] },
     conc: { kind: "conc", status: "not-present", rules: [], notChecked: [] },
   };
-  const plain = { claims: [{ text: "Totals are rounded once.", from: ["truth"] }, { text: "A made up claim.", from: ["ghost"] }], rest: [] };
+  const plain = { claims: [{ text: "Totals are rounded once.", from: ["truth.1"] }, { text: "A made up claim.", from: ["ghost.1"] }], rest: [] };
   const r = { version: 3, profile: { what: "a tool" }, areaOrder: ["truth"], topics: {}, written: { count: 2, fromChecks: 1 }, areas, kinds, plain, questions: [], ...over };
   const { version, profile, areaOrder, topics, written, kinds: k, plain: p, questions } = r;
   r.sum = sum(JSON.stringify({ version, profile, areaOrder, topics, written, areas: r.areas, kinds: k, plain: p, questions }));
@@ -147,7 +147,7 @@ test("render writes research.md, screens.json, details.md and kinds.json; an unv
   const md = rt(d, "research.md");
   assert.match(md, /^---\ncommit: abc\nversion: 3\n---/);
   assert.match(md, /1\. Totals are rounded once\. \(a\.js:2\) Risk high\./);
-  assert.match(md, /## Dropped\n\n- plain: sentence: A made up claim\. names no rule with a verified citation/);
+  assert.match(md, /## Dropped\n\n- plain: sentence: A made up claim\. names no idea with a verified citation/);
   const s = rj(d, "screens.json");
   assert.deepEqual(s.drawer1.map((x) => x.text), ["Totals are rounded once."]);
   assert.deepEqual(s.drawer2.map((g) => g.kind), ["doubted"]);

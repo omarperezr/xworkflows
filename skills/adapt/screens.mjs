@@ -29,17 +29,17 @@ const checker = (root) => {
   };
 };
 
-// Verified rules by id: an area's key for its general rule, `<key>#2` for its second.
+// Verified general rules by area key (the risk and the detail), and verified ideas by id `<key>.<n>`, n from 1 in the area's own list.
 function ruleIndex(root, r) {
   const { ok, at } = checker(root);
-  const rules = new Map();
+  const rules = new Map(), ideas = new Map();
   for (const key of r.areaOrder || []) {
     const a = r.areas?.[key];
     if (!a || a.status !== "found") continue;
     if (a.general?.rule && ok(a.general)) rules.set(key, { rule: a.general.rule, basis: a.general.basis, risk: a.general.risk, cost: a.general.cost, at: [at(a.general), ...(a.support || []).filter(ok).map(at)] });
-    if (a.second?.rule && ok(a.second)) rules.set(`${key}#2`, { rule: a.second.rule, basis: "code", risk: a.second.risk, cost: a.second.cost, at: [at(a.second)] });
+    (a.ideas || []).forEach((i, n) => { if (i?.text && ok(i)) ideas.set(`${key}.${n + 1}`, { area: key, text: i.text, at: at(i) }); });
   }
-  return rules;
+  return { rules, ideas };
 }
 
 export function screens(root, r) {
@@ -69,17 +69,17 @@ export function screens(root, r) {
     if (g && ok(g) && exceptions.length) gaps.push({ kind: "exceptions", area: key, risk, text: `Rule: "${g.rule}". Done differently in ${exceptions.length} place${exceptions.length > 1 ? "s" : ""}: ${exceptions.map((e) => `${at(e)} (${e.how})`).join("; ")}. Mistake or exception?`, options: ["Mistake: fix it", "Exception: keep it", "I don't know"] });
     for (const u of keep(a.unprotected, "unprotected")) gaps.push({ kind: "unprotected", area: key, risk, text: `Nothing protects this: ${u.risk} (${at(u)}). Is that on purpose?`, options: ["On purpose", "Not on purpose: protect it", "I don't know"] });
   }
-  // A sentence shows only with a verified rule behind it, and short; its citation is the first verified one of the rules it names.
-  const index = ruleIndex(root, r);
+  // A sentence shows only with a verified rule behind it, and short; its citation is the first verified one of the ideas it names; its risk is its areas' general rule's.
+  const { rules, ideas } = ruleIndex(root, r);
   const byRisk = (x, y) => (RISK[x.risk] ?? 1) - (RISK[y.risk] ?? 1); // stable: the agent's order within a risk
   const lists = [[], []];
   [r.plain?.claims || [], r.plain?.rest || []].forEach((list, k) => { const sentences = lists[k];
   for (const c of list) {
-    const from = (c.from || []).filter((id) => index.has(id));
+    const from = (c.from || []).filter((id) => ideas.has(id));
     const n = words(c.text);
-    const why = !from.length ? "names no rule with a verified citation" : n > MAX_WORDS ? `${n} words, more than ${MAX_WORDS}` : null;
+    const why = !from.length ? "names no idea with a verified citation" : n > MAX_WORDS ? `${n} words, more than ${MAX_WORDS}` : null;
     if (why) dropped.push({ area: "plain", what: `sentence: ${c.text}`, reason: why });
-    else sentences.push({ text: c.text, from: c.from, at: index.get(from[0]).at[0], risk: from.map((id) => index.get(id).risk).sort((x, y) => (RISK[x] ?? 1) - (RISK[y] ?? 1))[0] });
+    else sentences.push({ text: c.text, from: c.from, at: ideas.get(from[0]).at, risk: from.map((id) => rules.get(ideas.get(id).area)?.risk ?? "medium").sort((x, y) => (RISK[x] ?? 1) - (RISK[y] ?? 1))[0] });
   }
   sentences.sort(byRisk); });
   // The verified sentences of `rest` only fill the places the claims leave free.
@@ -147,22 +147,24 @@ export function render(r, s, commit) {
   return out.join("\n") + "\n";
 }
 
-// details.md, apart from the screens: under each sentence its full rules with every verified citation, then the mechanism rules, then what the areas found in comments.
+// details.md, apart from the screens: under each sentence its ideas, each with its citation, and the general rule of their areas, then the mechanism rules, then what the areas found in comments.
 export function details(r, s, m, root, written = []) {
   const { ok, at } = checker(root);
-  const index = ruleIndex(root, r);
+  const { rules, ideas } = ruleIndex(root, r);
   const out = ["# Detail", "", "## Screen 1, sentence by sentence", ""];
   s.drawer1.forEach((x, i) => {
     out.push(`### ${i + 1}. ${x.text}`, "");
-    for (const id of x.from) {
-      const y = index.get(id);
+    const mine = x.from.filter((id) => ideas.has(id));
+    for (const id of mine) out.push(`- ${ideas.get(id).text} ${ideas.get(id).at}`);
+    for (const k of new Set(mine.map((id) => ideas.get(id).area))) {
+      const y = rules.get(k);
       if (y) out.push(`- ${y.rule} (${y.basis}; risk ${y.risk}: ${y.cost}) ${y.at.join(", ")}`);
     }
     out.push("");
   });
   const shown = new Set(s.drawer1.flatMap((x) => x.from));
-  const unnamed = [...index].filter(([id]) => !shown.has(id));
-  if (unnamed.length) out.push("## Rules no sentence shows", "", ...unnamed.map(([id, y]) => `- [${id}] ${y.rule} (${y.basis}; risk ${y.risk}: ${y.cost}) ${y.at.join(", ")}`), "");
+  const unnamed = [...ideas].filter(([id]) => !shown.has(id));
+  if (unnamed.length) out.push("## Rules no sentence shows", "", ...unnamed.map(([id, y]) => `- [${id}] ${y.text} ${y.at}`), "");
   out.push("## Mechanism rules", "", ...(m.lines.length ? m.lines : ["(none)", ""]));
   // Each written rule with the verdict a mechanism agent gave it; a verdict stands only with a verified citation, else no-evidence.
   const wtext = new Map(written.map((w) => [w.id, collapse(w.text)]));

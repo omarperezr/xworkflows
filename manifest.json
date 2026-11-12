@@ -249,11 +249,11 @@
         "skills/adapt/SKILL.md": "530a09b0bff7b6f2dba25aa621834d3f36a3b7eb7b6c935355355d472d98c09a",
         "skills/adapt/scan.mjs": "710c3445855b7a23d54c5b1b6ce0bf3a4ae102afe9bcdc9360704dc15bfad898",
         "skills/adapt/rules.mjs": "99766272105524b96372b0ef34ff8a2960d68d674a47de5f4da9e32ba9223a94",
-        "skills/adapt/research.workflow.js": "00188a8354f0b6d44b57894acf6b71ab0e31c7c4666380344c768c8d892c5222",
+        "skills/adapt/research.workflow.js": "33a55ba2aeeeddb724060dc56f0e0f446f090a584e8f23656a640bc78517c790",
         "skills/adapt/research.mjs": "b72933319f2f9dbf197d6a0f233ef72db9156869c2c7d145410a01cc840884f4",
-        "skills/adapt/screens.mjs": "c31d18e4f5fe58ea51c2758e456bca2e996c0dbd251ff15a35f2630a3d1af502"
+        "skills/adapt/screens.mjs": "00c0f7a461a288e893e6a62b6daf6c4ae49af4e3b0e1162ac2473e34b1f2ed47"
       },
-      "sha256": "875fae04f7397f7e1074f8a574b443075fad3f27792f69537e85cbbce60f63e0"
+      "sha256": "fbe96b5c23591a095292f9aca00f7a657980c82d7ad074d7dd972463fe3a73f7"
     },
     {
       "id": "full-review",

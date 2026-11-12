@@ -75,6 +75,7 @@ const AREA_SCHEMA = {
     status: { type: "string", enum: ["found", "absent", "not-present"] },
     general: CITED({ rule: { type: "string" }, basis: { type: "string", enum: ["code", "both"] }, risk: { type: "string", enum: ["high", "medium", "low"] }, cost: { type: "string" } }, ["rule", "basis", "risk", "cost"]),
     second: CITED({ rule: { type: "string" }, risk: { type: "string", enum: ["high", "medium", "low"] }, cost: { type: "string" } }, ["rule", "risk", "cost"]),
+    ideas: { type: "array", maxItems: 4, items: CITED({ text: { type: "string" } }, ["text"]) },
     support: { type: "array", maxItems: 3, items: CITED({}, []) },
     exceptions: { type: "array", maxItems: 3, items: CITED({ how: { type: "string" } }, ["how"]) },
     contradicted: { type: "array", maxItems: 3, items: CITED({ written: { type: "string" }, wfile: { type: "string" }, wline: { type: "integer" }, wquote: { type: "string" }, how: { type: "string" } }, ["written", "wfile", "wline", "wquote", "how"]) },
@@ -84,7 +85,7 @@ const AREA_SCHEMA = {
     details: { type: "array", maxItems: 3, items: CITED({ rule: { type: "string" } }, ["rule"]) },
     notChecked: { type: "array", items: { type: "string" } },
   },
-  required: ["area", "status", "support", "exceptions", "contradicted", "unprotected", "commentRules", "doubted", "details", "notChecked"],
+  required: ["area", "status", "ideas", "support", "exceptions", "contradicted", "unprotected", "commentRules", "doubted", "details", "notChecked"],
 };
 
 // The question texts are fixed in research2.mjs; the agent only drafts what each one leans on.
@@ -182,18 +183,19 @@ How to read:
 const PLAIN_ITEMS = { type: "array", items: { type: "object", properties: { text: { type: "string" }, from: { type: "array", items: { type: "string" } } }, required: ["text", "from"] } };
 const PLAIN_SCHEMA = { type: "object", properties: { claims: PLAIN_ITEMS, rest: PLAIN_ITEMS }, required: ["claims", "rest"] };
 
-const PLAIN = (language, rules) => `You turn the rules below into short plain sentences for the owner of the project, who is not a programmer. Write in ${language}.
+const PLAIN = (language, ideas) => `You merge and translate the ideas below into short plain sentences for the owner of the project, who is not a programmer. Write in ${language}.
 
-The rules, each with its id:
-${JSON.stringify(rules)}
+The ideas, each with its id (each was proven by its own line of code; you do not see the line):
+${JSON.stringify(ideas)}
 
 Return \`claims\`: sentences that each say ONE idea the owner can answer "yes" or "no" to.
 - 14 words at most. Everyday words: no function, file or table names, no jargon. One subject, active voice.
-- \`from\`: the ids of the rules the sentence comes from, at least one. Use only ids from the list.
-- A sentence says what its rules say, no more: never widen a rule to more cases, more places or more strength than it states, and never add a reason it does not give. A short sentence that says more than its rule is worse than a long one that does not. For example, from the rule "A loan period is counted in whole days" write "A loan lasts whole days.", never "Nothing is ever counted in hours."
-- Put first the ideas the owner would be most hurt to see broken. Two rules that give one idea give one sentence naming both ids.
-- At most 12 in \`claims\`. Ideas beyond 12 go in \`rest\`, in the same form, never dropped.
-- Leave out a rule you cannot say in 14 words without widening it.`;
+- \`from\`: the ids of the ideas the sentence comes from, at least one. Use only ids from the list.
+- Merge ideas that say the same thing into one sentence naming all their ids. Never split an idea into several sentences, each would borrow a line that proves only the whole.
+- A sentence says what its ideas say, no more: never widen an idea to more cases, more places or more strength than it states (no "all", "always" or "never" the idea did not have), and never add a reason it does not give. A short sentence that says more than its idea is worse than a long one that does not. For example, from the idea "A loan period is counted in whole days" write "A loan lasts whole days.", never "Nothing is ever counted in hours."
+- Put first the ideas the owner would be most hurt to see broken.
+- At most 12 in \`claims\`. Sentences beyond 12 go in \`rest\`, in the same form, never dropped.
+- Leave out an idea you cannot say in 14 words without widening it.`;
 
 // Same function as research.mjs `sum` (a test checks they agree).
 const sum = (s) => {
@@ -289,6 +291,7 @@ The rules are about the system, never about its tests: do not cite test files, a
 
 1. Find how the code handles this area. Run the patterns, open the files they point at, and search beyond them with \`graphify query\` and \`grep\`. Read the comments and docstrings around what you find: rules live there too.
 2. \`general\`: the area's ONE project-level rule. First list for yourself the candidates (the written and checked rules above, and the patterns you saw in the code); the general rule is the one whose breaking would cost the most and that the most code depends on. It is a pattern the code follows in more than one place, or a written rule the code really follows. State it as how every change in this area must behave, in one sentence, at the level where it is true: if it holds for every such value in the project, do not state it for one function. It names no function, file, table or column. For example, in a system that lends books: "A loan period is always counted in whole days in the library's own time zone." Cite one line where it is applied. \`basis\`: \`both\` when the docs say it and the code does it, \`code\` when only the code shows it. A rule that only the docs state, with no code behind it, is not the general rule. \`risk\`: how bad a mistake here is, \`high\`, \`medium\` or \`low\`; \`cost\`: what such a mistake costs, in a few words.
+   \`ideas\`: up to 4 things this code does in this area, each one sentence of 14 words at most, in plain words, with the citation of the line that proves it. An idea says no more than its cited line and the few lines around it show. One idea is one thing the code does: never split one rule into several ideas that share its citation. An idea about every case ("all", "always" or "never") must cite the one place that enforces it for all cases (a check, a constraint, a single entry point); when there is no such place, the idea says where it holds, or is left out.
    \`second\`, optional: ONE more project-level rule of this area, in the same form with its own citation, only when the area holds a second rule that is independent of the general one (breaking one does not break the other) and about as costly to break. Most areas have none; never split one rule in two to fill it.
 3. \`support\`: up to 3 more citations, in other files, where the same pattern is applied. A rule seen in one place only is weak: say so by giving none.
 4. \`exceptions\`: places that handle the same thing differently from the general rule, each with its citation and \`how\` it differs. Look for them on purpose: the second-most-common way of doing the same thing, an older module, a quick fix. An exception the code itself explains (a comment says why this place differs) is already decided: leave it out. None is a valid answer, and the usual one.
@@ -390,14 +393,11 @@ const generals = keys.filter((k) => areas[k] && areas[k].general).map((k) => ({ 
 const asked = await agent(at(ASK(profile.what, lines, written.notes, generals)), { agentType: "mechanism", model: "sonnet", schema: QUESTION_SCHEMA, label: "questions", phase: "Questions" });
 const questions = (asked && asked.questions) || null;
 
-// Last: it reads the areas' rules and nothing else. Id of a rule: the area key for its general rule, key#2 for its second.
+// Last: it reads the areas' ideas and nothing else. Id of an idea: <area key>.<n>, n from 1 in the area's list.
 phase("Plain");
-const ruled = [];
-for (const k of keys) {
-  if (areas[k] && areas[k].general) ruled.push({ id: k, rule: areas[k].general.rule });
-  if (areas[k] && areas[k].second) ruled.push({ id: k + "#2", rule: areas[k].second.rule });
-}
-const plain = await agent(at(PLAIN(args.language || "English", ruled)), { agentType: "mechanism", model: "sonnet", schema: PLAIN_SCHEMA, label: "plain", phase: "Plain" });
+const ideas = [];
+for (const k of keys) ((areas[k] && areas[k].ideas) || []).forEach((x, i) => ideas.push({ id: `${k}.${i + 1}`, idea: x.text }));
+const plain = await agent(at(PLAIN(args.language || "English", ideas)), { agentType: "mechanism", model: "sonnet", schema: PLAIN_SCHEMA, label: "plain", phase: "Plain" });
 
 // The result carries how many rules were read, not their text: the area agents already used them, and the main session copies this result by hand.
 const out = { version: 3, profile, areaOrder: keys, topics, written: { count: written.rules.length, fromChecks: written.rules.filter((r) => r.from === "check").length, notes: written.notes, notRead: written.notRead, docsLeftOut, readers: written.readers }, areas, kinds, plain, questions };
