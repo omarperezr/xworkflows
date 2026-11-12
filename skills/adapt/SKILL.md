@@ -9,7 +9,7 @@ Before anything else, run `node .xworkflows/mark.mjs adapt` in the shell.
 
 Talk to the owner in the owner's language. Headings in files, config keys and file contents stay in English. Ask the fixed questions below with exactly their meaning; in English, use the exact words.
 
-All questions go through `AskUserQuestion`; the `header` is the item id. You do not know this project yet: research's options are guesses, never a forced choice. Under the options of every question Claude Code shows a free-text line, `Type something`; call it by that name. Five styles:
+All questions go through `AskUserQuestion`; the `header` is the item id. You do not know this project yet: research's options are guesses, never a forced choice. The owner can always type a free answer in the line Claude Code shows below the options (in English it reads "Type something"); name it as Claude Code shows it to the owner. `Type something` below means that line. Five styles:
 
 - `open`: options `I don't know` and `Skip: not relevant here`. The question says: `Type your answer in Type something.`
 - `confirm`: One item per question: Yes, No, I don't know. Options `Yes`, `No`, `I don't know`; up to 4 questions per call. Never a multi-select list. Text typed in `Type something` corrects what the question shows.
@@ -18,9 +18,9 @@ All questions go through `AskUserQuestion`; the `header` is the item id. You do 
 - Playback (`Right`, `Wrong`, `Missing something`) is asked where a step says so.
 
 - Every question that is not `confirm` ends with one short note, in the owner's language: `If none fits, or it is something else, type it in Type something.` This includes `choice`.
-- Drafted options are suggestions from research, not answers: present them as suggestions. `(Recommended)` only on an option backed by a verified citation, on any style. A guess is never recommended.
+- Drafted options are suggestions from research, not answers: present them as suggestions, translated into the owner's language, label and description. `(Recommended)` only on an option backed by a verified citation, on any style. A guess is never recommended.
 - What the owner types in `Type something` wins over research and over every drafted option. `I don't know` settles the item; so does `Skip: not relevant here`. `I don't know` on a mechanism writes `unprotected: <risk>`.
-- The fixed labels are `Yes`, `No`, `I don't know`, `Skip: not relevant here`, `Nothing does today`, `Right`, `Wrong`, `Missing something`, and the `H6-r<n>` labels `Money`, `Data`, `Access`, `No risk`. Send them verbatim in English; put the translation in the option `description`.
+- The fixed labels are `Yes`, `No`, `I don't know`, `Skip: not relevant here`, `Nothing does today`, `Right`, `Wrong`, `Missing something`, and the `H6-r<n>` labels `Money`, `Data`, `Access`, `No risk`. Only these stay in English: send them verbatim, with the translation in the option `description`.
 
 ## Step 1: Resume
 

@@ -190,7 +190,8 @@ test("adapt question rules", () => {
 test("fixed labels stay English", () => {
   const rules = read("skills/adapt/SKILL.md").split("## Step 1")[0];
   has(rules, ["`Yes`", "`No`", "`I don't know`", "`Skip: not relevant here`", "`Nothing does today`", "`Right`", "`Wrong`", "`Missing something`",
-    "`Money`", "`Data`", "`Access`", "`No risk`", "Send them verbatim in English", "translation in the option `description`"]);
+    "`Money`", "`Data`", "`Access`", "`No risk`", "Only these stay in English: send them verbatim", "translation in the option `description`",
+    "translated into the owner's language, label and description", "the line Claude Code shows", "(in English it reads \"Type something\")"]);
 });
 
 const step = (n) => read("skills/adapt/SKILL.md").split(`## Step ${n}:`)[1].split(/^## Step /m)[0];
