@@ -3,8 +3,8 @@
   "source": "Claude Code 2.1.322, real session, 2026-11-11; home folder replaced by /home/user",
   "input": {
     "session_id": "5a7a254e-c5dd-4948-889b-f7e04b341479",
-    "transcript_path": "/home/user/.claude/projects/-home-user-xsingularity-xworkflows-sandbox/5a7a254e-c5dd-4948-889b-f7e04b341479.jsonl",
-    "cwd": "/home/user/xsingularity/xworkflows/sandbox",
+    "transcript_path": "/home/user/.claude/projects/-home-user-work-xworkflows-sandbox/5a7a254e-c5dd-4948-889b-f7e04b341479.jsonl",
+    "cwd": "/home/user/work/xworkflows/sandbox",
     "prompt_id": "31201a08-2615-4c2f-85c8-e5026f0605aa",
     "permission_mode": "auto",
     "effort": {
@@ -13,7 +13,7 @@
     "hook_event_name": "PreToolUse",
     "tool_name": "Write",
     "tool_input": {
-      "file_path": "/home/user/xsingularity/xworkflows/sandbox/docs/superpowers/specs/2026-11-11-demo.md",
+      "file_path": "/home/user/work/xworkflows/sandbox/docs/superpowers/specs/2026-11-11-demo.md",
       "content": "# Demo\n"
     },
     "tool_use_id": "toolu_014zmQgtEd8aqVEnVL9YksW5"

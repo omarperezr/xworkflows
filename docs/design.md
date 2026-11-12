@@ -80,8 +80,9 @@ uses, workflow runs 210, implementer agents 589, read-only lookups 265,
 reviewer 230, risk reviewer 108. Ask, plan, implement with agents, review by
 risk is what is really used. Tokens per stage are in section 13.
 
-Inside stage 5: a finding enters the plan only after `verify-finding`
-reproduces it with a failing test. There is one review per batch, before the
+Inside stage 5: a blocking finding enters the plan only after `verify-finding`
+reproduces it with a failing test. Every other finding becomes a card of the
+pending list (owner, 2026-11-12). There is one review per batch, before the
 batch merges. A fix is confirmed by a fresh reviewer of the same role, never
 the one that asked for it; it reads only the diff of the fix (owner,
 2026-11-11). Two rounds at most; if findings that
@@ -257,10 +258,10 @@ answers in that tool's form (exit code 2 or a `deny` decision).
 
 | Hook | Event | What it stops | Generalized from |
 |---|---|---|---|
-| `design-first` | before a file write | Creating a spec or adding questions to one before the `grill` skill ran this session | `grilling-antes.mjs` |
-| `orchestrator` | before a tool call | The main session doing an agent's work (long reads, lookups), and the first agent launch before `orchestrate` was loaded | `orquestador.mjs` |
-| `handback` | when an agent returns | A report without its red/green test line, what it skipped and its commit | `subagente-rojo-verde.mjs` |
-| `memory` | session start, before compaction | Nothing: it refreshes the memory index and brings back the notes on the current topic | `memoria.mjs` |
+| `design-first` | before a file write | Creating a spec or adding questions to one before the `grill` skill ran this session | the reference project's hook |
+| `orchestrator` | before a tool call | The main session doing an agent's work (long reads, lookups), and the first agent launch before `orchestrate` was loaded | the reference project's hook |
+| `handback` | when an agent returns | A report without its red/green test line, what it skipped and its commit | the reference project's hook |
+| `memory` | session start, before compaction | Nothing: it refreshes the memory index and brings back the notes on the current topic | the reference project's hook |
 | `modes` | session start | Nothing: it turns on the personal preferences (user scope) | `~/.claude/hooks/modes.js` |
 
 Rules for every hook: a broken input lets the call through with a warning (a
@@ -401,7 +402,7 @@ a valid answer. The reference column is not the default (owner, 2026-11-11).
 | `owner` | Name used in messages and question headings | the author |
 | `mainBranch` | Branch the pending list and seals are checked against | `main` |
 | `paths.plans`, `paths.specs` | Where plans and specs live | `docs/superpowers/plans`, `docs/superpowers/specs` |
-| `paths.pending` | The living list | `docs/PENDIENTES.md` |
+| `paths.pending` | The living list | `docs/PENDING.md` |
 | `paths.code` | Folders where a fix needs a test | `src api supabase scripts workers` |
 | `paths.nonCode`, `paths.codeAnyway` | What needs no review, and its exceptions | docs and markdown; hooks and settings |
 | `paths.risk` | A change here accepts only the risk reviewer and no escape | `supabase tools/db-tests scripts/apply-migrations.sh` |
@@ -471,8 +472,8 @@ testing and capturing screens is part of the flow, not a habit outside it.
 - A fix starts with a test that fails without it. Enforced twice: the
   `handback` hook asks the agent for its `red:` and `green:` lines, and the
   `fix-has-test` brake reruns the test on the parent commit.
-- A review finding enters a plan only after the `verify-finding` agent
-  reproduces it with a failing test.
+- A blocking review finding enters a plan only after the `verify-finding`
+  agent reproduces it with a failing test. Every other finding becomes a card.
 - Tests exercise behavior through real inputs and outputs. A test that
   matches source text is replaced by a `patterns` brake.
 - A reviewer does not rerun tests the author reported green; the push runs
@@ -576,7 +577,7 @@ Rules every agent in the run holds, taken from the recipe:
 
 The reference project's 6 saved main sessions, measured with a Node
 one-liner that imports the reference's own extractor
-(`scripts/memoria-sesiones.mjs`: functions `conversacion` and `tapar`):
+(the reference project's script):
 
 | What is kept | Size |
 |---|---|
@@ -716,18 +717,18 @@ Hooks are the early help; this is the stop that does not depend on the tool.
 ### 9.1 Where these come from
 
 Decided 2026-11-10: every stack-neutral process check of the reference
-project's `review.sh` ships in the core; static analysis tools ship as packs;
+project's review script ships in the core; static analysis tools ship as packs;
 domain checks stay in the reference project.
 
 | Core brake | Reference mode |
 |---|---|
-| `review-seal` | `revision-final` |
-| `pending` | `pendientes` |
-| `fix-has-test` | `prueba-del-fix` |
-| `comment-ratio` | `comentarios` |
-| `skills-travel` | `skills-agentes` |
-| `patterns` | `frenos` (its rules become a per-project list) |
-| `ratchet` | `trinquete` (its one counter becomes a per-project list) |
+| `review-seal` | ported |
+| `pending` | ported |
+| `fix-has-test` | ported |
+| `comment-ratio` | ported |
+| `skills-travel` | ported |
+| `patterns` | ported (its rules become a per-project list) |
+| `ratchet` | ported (its one counter becomes a per-project list) |
 | `goal-cited`, `signature`, `stale-memory`, `index-current`, `change-size`, `graph-current` | new |
 
 ### 9.2 Check packs

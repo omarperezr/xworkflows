@@ -3,8 +3,8 @@
   "source": "Claude Code 2.1.322, real session, 2026-11-11; home folder replaced by /home/user",
   "input": {
     "session_id": "5a7a254e-c5dd-4948-889b-f7e04b341479",
-    "transcript_path": "/home/user/.claude/projects/-home-user-xsingularity-xworkflows-sandbox/5a7a254e-c5dd-4948-889b-f7e04b341479.jsonl",
-    "cwd": "/home/user/xsingularity/xworkflows/sandbox",
+    "transcript_path": "/home/user/.claude/projects/-home-user-work-xworkflows-sandbox/5a7a254e-c5dd-4948-889b-f7e04b341479.jsonl",
+    "cwd": "/home/user/work/xworkflows/sandbox",
     "prompt_id": "1d2b6960-4a4d-4d91-bdf8-390753d1c8d8",
     "permission_mode": "auto",
     "effort": {
