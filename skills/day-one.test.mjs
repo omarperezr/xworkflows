@@ -70,7 +70,9 @@ test("adapt pins its questions, headings, keys and outputs", () => {
   for (const k of ["paths.code", "paths.risk", "paths.heavyRead", "paths.codeAnyway", "tests.files", "tests.run", "tests.notRunnable", "checks", "zones"]) assert.ok(s.includes(k), k);
   for (const h of ["What it is", "Who pays, what is sold, what is not done", "Aspirations at about 3, 12 and 36 months",
     "Risks, the costliest mistake first", "What must not change; what is free to change", "Zones and which paths are risk paths",
-    "How the owner works", "About you"]) { assert.ok(s.includes(h), h); assert.ok(read("skills/adapt/research.mjs").includes(h), h); }
+    "How the owner works", "About you"]) assert.ok(s.includes(h), h);
+  // research.md is no longer laid out under those headings: it is the three screens
+  for (const h of ["## Screen 1: what the code shows", "## Screen 2: where the code contradicts itself or leaves a gap", "## Screen 3: what no file says"]) assert.ok(read("skills/adapt/screens.mjs").includes(h), h);
 });
 test("adapt leaves the tree clean on an unchanged re-run and commits only its files", () => {
   const s = read("skills/adapt/SKILL.md");
@@ -165,11 +167,11 @@ test("README names graphify, the hand-off to deepen and the cursor/plugins credi
 });
 test("adapt asks how the code prevents each risk; research looks for mechanisms; zones question is plain", () => {
   const s = read("skills/adapt/SKILL.md");
-  const Q = "How does the code prevent this today, and what rule must every change follow?";
-  has(s, ["mechanisms research found go straight under heading 5", "up to 4 per call", "`unprotected: <risk>`", "That line is settled, not a guess",
+  has(s, ["mechanisms research found go straight under heading 5", "up to 4 per call", "`unprotected: <risk>`", "Screen 1 (`S1-<n>`)", "`Real, but a bad rule`", "`Not how it works`", "`G-interim`",
     "Heading 5 groups its rule lines under the risk they prevent, costliest risk first, then `rules tied to no risk`.", "grouped under the risk it prevents",
     "in heading 5's order: each risk, then the rules that prevent it", "whose path in `research.md` is in the zone's paths", "one line per heading 5 mechanism rule"]);
-  assert.equal(read("skills/adapt/research.mjs").split(Q).length, 2);
+  // the per-kind question is gone: a screen 1 sentence is judged with four options, written in one place
+  assert.equal((read("skills/adapt/research.mjs") + read("skills/adapt/screens.mjs")).split('"Real, but a bad rule"').length, 2);
   const zq = s.split("The zones question, in plain words:")[1].split(/^#{2,3} /m)[0];
   has(zq, ["so a bigger area costs more to review, and so does each extra zone", "everyday words", "about 5 MB", "`H6-zones` in a call of its own", "never `(Recommended)`"]);
   has(s.split("### Zones")[1], ["`.xworkflows/scan.json`", "`dir/*`", "`*`"]);
@@ -212,7 +214,8 @@ test("adapt research steps in order", () => {
 });
 test("adapt interview follows the queue", () => {
   const s = step(3);
-  has(s, ["Ask the items of `.xworkflows/interview.json` in file order", "header = the item's `id`", "`style`", "question rules", "`H5-<kind>-r`"]);
+  has(s, ["Ask the items of `.xworkflows/interview.json` in file order", "header = the item's `id`", "`style`", "question rules", "in three screens", "Screen 1 (`S1-<n>`)", "Screen 2 (`X<n>`)", "`B-rules`", "`G-interim`"]);
+  assert.doesNotMatch(s, /H5-|H2-refused|H3-|H4-|G-provisional/);
   inOrder(s, ["research.mjs check", "status: draft"]);
   assert.ok(!s.includes("topics.md"));
 });
@@ -262,7 +265,7 @@ test("fix round 1: zones, H1 and H5 follow-ups are mapped", () => {
   has(s, ["`H6-zones` is the zones question below, asked once, in a call of its own.", "after any merge, rename or split typed in `Type something`",
     "Any answer but `No risk` adds that scan zone's paths to `paths.risk`", "ask the follow-up `H6-split` once, `open`", "write its answer under heading 6",
     "On a bare `No`, ask the follow-up `H1-what-fix`, `open`", "list heading 1 under `Hotspots` until `P-H1` is `Right`.",
-    "a typed rule becomes `<kind>: <rule>`; `I don't know` becomes `<kind>: unprotected: <risk>`; `Skip: not relevant here` becomes `<kind>: not applicable`.",
+    "`Real, but a bad rule`, `Not how it works`, `I don't know`", "`You are right: a pending card`", "`Keep it, because ...`",
     "`P-H6` also covers the zones, the risk paths and the `## Config` block"]);
   assert.ok(!read("skills/adapt/SKILL.md").includes("no rule needed"));
   assert.ok(!read("skills/adapt/SKILL.md").includes("in plain text"));
@@ -291,14 +294,13 @@ test("revision 2: written rules first, coherent questions", () => {
   const q = step(3);
   const h6 = q.split("\n").find((x) => x.includes("ask `H6-r<n>`"));
   has(h6, ["`Money`, `Data`, `Access`, `No risk`", "several risks typed in `Type something`", "Any answer but `No risk` adds that scan zone's paths to `paths.risk`"]);
-  const h5 = q.split("\n").find((x) => x.startsWith("- `H5-<kind>`"));
-  has(h5, ["`Yes`: the general rule becomes the kind's line `<kind>: <general rule>`", "`No`: ask the follow-up `H5-<kind>-r`", "`I don't know`: `<kind>: unconfirmed: <general rule>`"]);
+  has(q, ["4 per call", "`B-free`", "`G-3m`, `G-12m`, `G-36m`, `G-interim`"]);
   assert.equal(s.split("backed by a verified `file:line` citation in `research.md`").length, 3);
   const c = q.split("\n").find((x) => x.startsWith("- `C<n>`"));
   has(c, ["on a bare `No`, ask the follow-up `C<n>-fix`, `open`: `What should it be?`", "Its answer is the key's value."]);
   has(s.split("## Step 1")[0], ["except `H6-r<n>`, whose text already says it"]);
   has(q, ["`unconfirmed:` lines"]);
-  has(q, ["`H5-keep` and `H5-free`"]);
+  has(q, ["`H1-what`", "`H2-pays`"]);
   has(s.split("## Step 1")[0], ["Drafted options are suggestions from research"]);
   has(q, ["asks each heading in the owner's language", "the canonical English heading stays in `summary.md`",
     "for each zone, why it is or is not a risk path: the `H6-r<n>` answer"]);

@@ -40,6 +40,10 @@ test("script-written sidecars denied during a run", () => {
   deny(decide(wr([{ path: "/r/.xworkflows/scan.json", content: "{}" }]), ctx()), /scan\.json is written by node \.claude\/skills\/adapt\/scan\.mjs\./);
   ok(decide(wr([{ path: "/r/.xworkflows/config.json", content: "{}" }]), ctx()));
 });
+test("screens.json and details.md writes denied during a run", () => {
+  deny(decide(wr([{ path: "/r/.xworkflows/screens.json", content: "{}" }]), ctx()), /screens\.json is written by node \.claude\/skills\/adapt\/research\.mjs render\./);
+  deny(decide(wr([{ path: "/r/.xworkflows/details.md", content: "x" }]), ctx()), /details\.md is written by node \.claude\/skills\/adapt\/research\.mjs render\./);
+});
 test("heading 5 needs a line for each kind absent in kinds.json, when it exists", () => {
   const f = { ...files(), "/r/.xworkflows/kinds.json": JSON.stringify({ snap: { status: "found", general: "x", unverified: false }, idem: { status: "absent", general: null, unverified: false } }) };
   deny(decide(sw(summary("draft", FIVE)), ctx(f)), /not applicable": idem\. /);

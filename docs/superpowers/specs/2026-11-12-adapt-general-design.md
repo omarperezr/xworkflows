@@ -20,7 +20,7 @@ Material: Today's detail comes from `skills/adapt/research.mjs:103-105`; the pro
 Material: `hooks/core/adapt-gates.mjs:28-34` requires the script `research.workflow.js` and its counts; `:57-60` reads the absent kinds. read not tested
 Material: The caps of 12 and 6 and the line that says what was left out exist in the prototype (`research2.mjs:9`, `:68`, `:72`). read not tested
 Material: The harness measures research alone with `--mode research-only` (`proof/harness.mjs:31`), with a spend cap (`:22`). read not tested
-Material: 22 pending cards touch `/adapt` (`docs/PENDING.md:10-38`). read not tested
+Material: 20 pending cards touch `/adapt` (`docs/PENDING.md:10-38`). read not tested
 Methods: Short sentences, way A: one cheap pass after research, as the one that worked on 2026-11-12 (46 rules to 12 sentences). Way B: each area agent writes short. Both fit.
 Methods: Detail: raise the cap per area, or add the pass per mechanism kind the shipped version uses.
 Methods: Measure: the reference plus a new exam project, or the reference alone.
@@ -64,6 +64,9 @@ The profile agent runs first. Then, at once: the readers of the docs, the reader
 - Screens 2 and 3: the questions as rendered; the dialog's free text takes the owner's own answer.
 - What an answer writes: `Right` writes the full rule from the detail. `Real, but a bad rule` and `You are right` write a card with the `pending` skill and no rule. `Keep it, because ...` writes the rule with the reason. `Not how it works` writes nothing and is logged.
 - Research proposes a value for every required config key, with its evidence; the playback shows them, and the interview does not end while one is missing.
+- After the three screens come the shipped questions that no screen asks, unchanged, with their follow-ups: `H1-what`, `H2-pays`, the zones (`H6-zones`, `H6-r<n>`), the way of working (`H7-*`), the reply preferences and the budget (`H8-*`) and the config keys (`C<n>`). The shipped questions the screens replace go away: `H2-refused`, `H3-*`, `H4-*`, `H5-*`.
+- Every agent that reads the repository keeps the shipped rules for it: the code index first, and history without content (`git show <sha>:<path>`, never a content diff).
+- The detail file also lists each written rule with the verdict the mechanism agents gave it.
 - The playback by section, its eight headings and the files step 4 writes stay as they are.
 - `adapt-gates` and `adapt-record` keep their contract: the run file, the denied direct writes, one log line per answer. The gate's Workflow check follows the new script's arguments.
 

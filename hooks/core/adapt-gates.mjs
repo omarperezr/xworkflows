@@ -38,7 +38,7 @@ export function decide(ev, ctx) {
   for (const w of ev.writes ?? []) {
     const abs = realFile(path.resolve(ev.root, w.path.replaceAll("\\", "/")));
     // Files the adapt scripts write; the agent never writes them directly.
-    for (const [f, by] of [["research.md", "research.mjs render"], ["kinds.json", "research.mjs render"], ["rules.json", "rules.mjs"], ["scan.json", "scan.mjs"], ["interview.json", "research.mjs queue"], ["adapt-run.json", "research.mjs start"]])
+    for (const [f, by] of [["research.md", "research.mjs render"], ["kinds.json", "research.mjs render"], ["screens.json", "research.mjs render"], ["details.md", "research.mjs render"],["rules.json", "rules.mjs"], ["scan.json", "scan.mjs"], ["interview.json", "research.mjs queue"], ["adapt-run.json", "research.mjs start"]])
       if (abs === realFile(x(f))) return deny(`${f} is written by node .claude/skills/${name}/${by}.`);
     if (abs === realFile(x("interview.log.jsonl"))) return deny("interview.log.jsonl is written by the adapt-record hook when the owner answers; ask the question with AskUserQuestion.");
     if (abs !== realFile(x("summary.md"))) continue;
