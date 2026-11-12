@@ -75,7 +75,7 @@ Questions:
 
 Heading 5:
 
-- Mechanism rules are read from `details.md` only when the owner asks for detail: no question and no summary line for them.
+- Mechanism rules are read from `details.md` only when the owner asks for detail: no question and no summary line for the `## Mechanism rules` section. A kind's general rule can be a screen 1 sentence (its item is `kind:<kind>`), asked like any other, and `Right` writes it like any item a sentence names; its other rules stay in the detail with no question.
 - Each answer becomes a rule line under heading 5, worded as how the code must do something (`a loan is counted in whole days, in the library's time zone`), not only as the outcome to avoid (`never get a due date wrong`).
 - Heading 5 groups its rule lines under the risk they prevent, costliest risk first, then `rules tied to no risk`. A risk may be a `###` sub-heading; no `#` or `##` heading inside heading 5.
 
