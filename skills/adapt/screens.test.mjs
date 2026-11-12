@@ -19,7 +19,7 @@ const claim = (text, ...from) => ({ text, from });
 
 test("a sentence is shown only when an idea it names has a verified citation; its citation is the first verified idea's, never the general rule's", () => {
   const s = screens(root, research({
-    truth: area({ general: general("Loans count whole days.", "medium", c(1, "days(loan)")), ideas: [{ text: "a", ...c(2, "late(loan)") }, { text: "b", ...c(3, "old(loan)") }, { text: "c", ...c(3, "not in the file") }] }),
+    truth: area({ general: general("Loans count whole days.", "medium", c(1, "days(loan)")), ideas: [{ text: "a", ...c(2, "late(loan)") }, { text: "b", ...c(3, "old(loan)") }, { text: "c", ...c(4, "not in the file") }] }),
     state: area({ general: general("Made up.", "high", c(1, "days(loan)")), ideas: [{ text: "d", ...c(1, "not in the file") }] }),
   }, { claims: [claim("Loans count whole days.", "truth.1"), claim("Made up.", "state.1"), claim("Nothing names an idea.", "nowhere.1"), claim("Names a rule id.", "truth"), claim("Late old loans.", "truth.3", "truth.2", "truth.1")], rest: [] }));
   assert.deepEqual(s.drawer1.map((x) => [x.text, x.at, x.risk]), [
@@ -222,4 +222,42 @@ test("a doubted rule with a blank reason is dropped with a line; a doc path in s
   assert.match(s.dropped.find((d) => /doubted/.test(d.what)).reason, /reason/);
   assert.ok(!s.drawer2[0].text.includes(root));
   assert.match(s.drawer2[0].text, /\(README\.md:1\)/);
+});
+
+test("details.md lists verified general and second rules that no shown idea belongs to", () => {
+  const r = research({
+    truth: area({ general: general("GENERAL TRUTH", "high", c(1, "days(loan)")), second: { rule: "SECOND TRUTH", risk: "high", cost: "c", ...c(2, "late(loan)") } }),
+    state: area({ general: general("GENERAL STATE", "high", c(3, "old(loan)")), ideas: [{ text: "idea s1", ...c(3, "zzz") }] }),
+  }, { claims: [claim("One.", "truth.1")], rest: [] });
+  const d = details(r, screens(root, r), mechanism(root, r), root);
+  assert.match(d, /SECOND TRUTH/);
+  assert.match(d, /GENERAL STATE/);
+});
+
+test("a verified idea of an absent area is kept: not dropped, and in details.md", () => {
+  const r = research({ pay: area({ status: "absent", ideas: [{ text: "Fees are kept in days.", ...c(1, "days(loan)") }] }) }, { claims: [claim("Fees count days.", "pay.1")], rest: [] });
+  const s = screens(root, r);
+  assert.equal(s.drawer1.length, 1, `sentence dropped: ${JSON.stringify(s.dropped)}`);
+  assert.ok(details(r, s, mechanism(root, r), root).includes("Fees are kept"));
+});
+
+test("a sentence with no verified general rule shows no risk word and sorts after those that have one", () => {
+  const r = research({
+    bare: area({ general: general("bad", "high", c(1, "not in the file")) }),
+    lo: area({ general: general("l", "low", c(1, "days(loan)")) }),
+  }, { claims: [claim("No rule.", "bare.1"), claim("Low one.", "lo.1")], rest: [] });
+  const s = screens(root, r);
+  assert.deepEqual(s.drawer1.map((x) => [x.text, x.risk]), [["Low one.", "low"], ["No rule.", undefined]]);
+  const md = render(r, s, "abc");
+  assert.match(md, /2\. No rule\. \(src\/a\.js:1\)\n/);
+  assert.doesNotMatch(md, /No rule\. \(src\/a\.js:1\) Risk/);
+});
+
+test("screen 1 is ordered by risk, and a merged sentence takes its highest risk", () => {
+  const r = research({
+    med: area({ general: general("m", "medium", c(1, "days(loan)")) }),
+    lo: area({ general: general("l", "low", c(1, "days(loan)")) }),
+    hi: area({ general: general("h", "high", c(2, "late(loan)")) }),
+  }, { claims: [claim("Medium.", "med.1"), claim("Low.", "lo.1"), claim("Merged.", "lo.1", "hi.1"), claim("High.", "hi.1")], rest: [] });
+  assert.deepEqual(screens(root, r).drawer1.map((x) => [x.text, x.risk]), [["Merged.", "high"], ["High.", "high"], ["Medium.", "medium"], ["Low.", "low"]]);
 });

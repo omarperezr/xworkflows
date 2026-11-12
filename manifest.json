@@ -251,9 +251,9 @@
         "skills/adapt/rules.mjs": "99766272105524b96372b0ef34ff8a2960d68d674a47de5f4da9e32ba9223a94",
         "skills/adapt/research.workflow.js": "33a55ba2aeeeddb724060dc56f0e0f446f090a584e8f23656a640bc78517c790",
         "skills/adapt/research.mjs": "b72933319f2f9dbf197d6a0f233ef72db9156869c2c7d145410a01cc840884f4",
-        "skills/adapt/screens.mjs": "00c0f7a461a288e893e6a62b6daf6c4ae49af4e3b0e1162ac2473e34b1f2ed47"
+        "skills/adapt/screens.mjs": "98dfd6c5588cf20a3840611fac56e9424e4b2ba5e41831269d44652589e27b3f"
       },
-      "sha256": "fbe96b5c23591a095292f9aca00f7a657980c82d7ad074d7dd972463fe3a73f7"
+      "sha256": "e3b1839decf9c16c227d4dc056374a0c6ea6dc29a52f647a5441374525670d32"
     },
     {
       "id": "full-review",
