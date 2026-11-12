@@ -71,15 +71,19 @@ export function screens(root, r) {
   }
   // A sentence shows only with a verified rule behind it, and short; its citation is the first verified one of the rules it names.
   const index = ruleIndex(root, r);
-  const sentences = [];
-  for (const c of [...(r.plain?.claims || []), ...(r.plain?.rest || [])]) {
+  const byRisk = (x, y) => (RISK[x.risk] ?? 1) - (RISK[y.risk] ?? 1); // stable: the agent's order within a risk
+  const lists = [[], []];
+  [r.plain?.claims || [], r.plain?.rest || []].forEach((list, k) => { const sentences = lists[k];
+  for (const c of list) {
     const from = (c.from || []).filter((id) => index.has(id));
     const n = words(c.text);
     const why = !from.length ? "names no rule with a verified citation" : n > MAX_WORDS ? `${n} words, more than ${MAX_WORDS}` : null;
     if (why) dropped.push({ area: "plain", what: `sentence: ${c.text}`, reason: why });
     else sentences.push({ text: c.text, from: c.from, at: index.get(from[0]).at[0], risk: from.map((id) => index.get(id).risk).sort((x, y) => (RISK[x] ?? 1) - (RISK[y] ?? 1))[0] });
   }
-  sentences.sort((x, y) => (RISK[x.risk] ?? 1) - (RISK[y.risk] ?? 1)); // stable: the agent's order within a risk
+  sentences.sort(byRisk); });
+  // The verified sentences of `rest` only fill the places the claims leave free.
+  const sentences = [...lists[0], ...lists[1]];
   // Screen 2: contradictions first, then a doubted rule, exceptions, unprotected places.
   const order = { contradicted: 0, doubted: 1, exceptions: 2, unprotected: 3 };
   gaps.sort((x, y) => order[x.kind] - order[y.kind] || x.risk - y.risk);
@@ -101,13 +105,13 @@ export function mechanism(root, r) {
     const x = r.kinds[k];
     if (!x) { errors.push(`${k}: agent returned nothing`); continue; }
     if (!["found", "absent", "not-present"].includes(x.status)) { errors.push(`${k}: invalid status ${JSON.stringify(x.status)}`); continue; }
+    for (const v of x.verdicts || []) if (v.verdict !== "no-evidence" && !ok(v)) dropped.push({ area: k, what: `verdict ${v.id} ${v.verdict}`, at: at(v), quote: v.quote });
     if (x.status !== "found") { state[k] = { general: null, status: x.status }; continue; }
     // A found kind whose general rule is missing or does not verify counts as absent; what failed gets a line.
     const g = x.general?.rule && ok(x.general) ? x.general : null;
     if (x.general?.rule && !g) dropped.push({ area: k, what: `general rule: ${x.general.rule}`, at: at(x.general), quote: x.general.quote });
     state[k] = { general: g ? g.rule : null, status: g ? "found" : "absent" };
     const rules = (x.rules || []).filter((y) => ok(y) || (dropped.push({ area: k, what: `rule: ${y.rule}`, at: at(y), quote: y.quote }), false));
-    for (const v of x.verdicts || []) if (v.verdict !== "no-evidence" && !ok(v)) dropped.push({ area: k, what: `verdict ${v.id} ${v.verdict}`, at: at(v), quote: v.quote });
     if (g || rules.length) lines.push(`### ${k}`, "", ...(g && ok(g) ? [`- general: ${g.rule} (${g.basis}) ${at(g)}`] : []), ...rules.map((y) => `- ${y.rule} (code) ${at(y)}`), "");
   }
   return { state: JSON.stringify(state, null, 2) + "\n", lines, errors, dropped };
