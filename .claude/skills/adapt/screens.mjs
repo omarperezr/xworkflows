@@ -4,7 +4,7 @@
 import { resolve, sep, posix } from "node:path";
 import { verifyCitation } from "./research.mjs";
 
-export const MAX_RULES = 12, MAX_GAPS = 6, MAX_WORDS = 14; // about what one short screen holds (owner, 2026-11-12)
+export const MAX_RULES = 12, MAX_MORE = 12, MAX_GAPS = 6, MAX_WORDS = 14; // about what one short screen holds (owner, 2026-11-12)
 const RISK = { high: 0, medium: 1, low: 2 };
 const ASK = {
   "B-rules": "Which business rule must the code respect that is written in no file?",
@@ -37,7 +37,12 @@ function ruleIndex(root, r) {
     const a = r.areas?.[key];
     if (!a || a.status === "not-present") continue;
     if (a.status === "found" && a.second?.rule && ok(a.second)) seconds.set(key, { rule: a.second.rule, risk: a.second.risk, cost: a.second.cost, at: at(a.second) });
-    if (a.status === "found" && a.general?.rule && ok(a.general)) rules.set(key, { rule: a.general.rule, basis: a.general.basis, risk: a.general.risk, cost: a.general.cost, at: [...new Set([at(a.general), ...(a.support || []).filter(ok).map(at)])] });
+    // A support counts, and is listed, only when its file is not the example's nor an earlier support's.
+    if (a.status === "found" && a.general?.rule && ok(a.general)) {
+      const seen = new Set([resolve(root, a.general.file)]);
+      const sup = (a.support || []).filter((c) => ok(c) && !seen.has(resolve(root, c.file)) && seen.add(resolve(root, c.file)));
+      rules.set(key, { rule: a.general.rule, basis: a.general.basis, risk: a.general.risk, cost: a.general.cost, at: [at(a.general), ...sup.map(at)] });
+    }
     (a.ideas || []).forEach((i, n) => { if (i?.text && ok(i)) ideas.set(`${key}.${n + 1}`, { area: key, text: i.text, at: at(i) }); });
   }
   return { rules, seconds, ideas };
@@ -57,6 +62,8 @@ export function screens(root, r) {
     const g = a.status === "found" && a.general?.rule ? a.general : null;
     const risk = RISK[g?.risk] ?? 1;
     const exceptions = keep(a.exceptions, "exception");
+    for (const i of a.ideas || []) if (i?.text && !ok(i)) dropped.push({ area: key, what: `idea: ${i.text}`, at: at(i), quote: i.quote });
+    if (a.status === "found") for (const c of a.support || []) if (!ok(c)) dropped.push({ area: key, what: `support: ${g?.rule ?? "no general rule"}`, at: at(c), quote: c.quote });
     if (g && !ok(g)) dropped.push({ area: key, what: `general rule: ${g.rule}`, at: at(g), quote: g.quote });
     else if (!g) noRule.push(key);
     const s2 = a.status === "found" && a.second?.rule ? a.second : null;
@@ -80,7 +87,7 @@ export function screens(root, r) {
     const named = (c.from || []).filter((id) => rules.has(id) || ideas.has(id));
     const rule = named.find((id) => rules.has(id));
     const n = words(c.text);
-    const why = !named.length ? "names no item with a verified citation" : n > MAX_WORDS ? `${n} words, more than ${MAX_WORDS}` : null;
+    const why = (c.from || []).some((id) => (r.areaOrder || []).includes(id) && !rules.has(id)) ? "its general rule did not verify" : !named.length ? "names no item with a verified citation" : n > MAX_WORDS ? `${n} words, more than ${MAX_WORDS}` : null;
     if (why) dropped.push({ area: "plain", what: `sentence: ${c.text}`, reason: why });
     else sentences.push({ text: c.text, from: c.from, at: rule ? rules.get(rule).at[0] : ideas.get(named[0]).at, ...(rule && { also: rules.get(rule).at.length - 1 }), risk: named.map((id) => (rules.get(id) ?? rules.get(ideas.get(id).area))?.risk).filter((k) => k in RISK).sort((x, y) => RISK[x] - RISK[y])[0] });
   }
@@ -130,7 +137,7 @@ export function render(r, s, commit) {
   const out = ["---", `commit: ${commit}`, "version: 3", "---", "", "## What it is", "", r.profile.what, ""];
   out.push("## Screen 1: what the code shows", "", "Strike what is habit and not rule; correct the level where a rule is stated too narrowly.", "");
   s.drawer1.forEach((x, i) => out.push(`${i + 1}. ${x.text} (${x.at})${seen(x)}${x.risk ? ` Risk ${x.risk}.` : ""}`));
-  if (s.drawer1LeftOut.length) out.push("", `Left out of this screen: ${s.drawer1LeftOut.length} sentence(s), the ones past ${MAX_RULES}; they are in the research, not asked.`);
+  if (s.drawer1LeftOut.length) out.push("", `Left out of this screen: ${s.drawer1LeftOut.length} sentence(s): ${Math.min(MAX_MORE, s.drawer1LeftOut.length)} on the second page, ${Math.max(0, s.drawer1LeftOut.length - MAX_MORE)} beyond it, not asked.`);
   out.push("", "## Screen 2: where the code contradicts itself or leaves a gap", "");
   for (const g of s.drawer2) out.push(`- ${g.id} [${g.area}] ${g.text}`, `  Options: ${g.options.join(" / ")}`);
   if (!s.drawer2.length) out.push("(nothing found)");
@@ -153,27 +160,24 @@ export function render(r, s, commit) {
   return out.join("\n") + "\n";
 }
 
-// details.md, apart from the screens: under each sentence its ideas, each with its citation, and the general rule of their areas, then the mechanism rules, then what the areas found in comments.
+// details.md, apart from the screens: under each sentence the items it names, each with its citation, then the mechanism rules, then what the areas found in comments.
 export function details(r, s, m, root, written = []) {
   const { ok, at } = checker(root);
   const { rules, seconds, ideas } = ruleIndex(root, r);
   const out = ["# Detail", "", "## Screen 1, sentence by sentence", ""];
-  s.drawer1.forEach((x, i) => {
+  const asked = [...s.drawer1, ...s.drawer1LeftOut.slice(0, MAX_MORE)];
+  asked.forEach((x, i) => {
     out.push(`### ${i + 1}. ${x.text}`, "");
     const mine = x.from.filter((id) => ideas.has(id) || rules.has(id));
     const line = (y) => `- ${y.rule} (${y.basis}; risk ${y.risk}: ${y.cost}) ${y.at.join(", ")}`;
     for (const id of mine) out.push(rules.has(id) ? line(rules.get(id)) : `- ${ideas.get(id).text} ${ideas.get(id).at}`);
-    for (const k of new Set(mine.filter((id) => ideas.has(id)).map((id) => ideas.get(id).area))) {
-      if (rules.has(k) && !mine.includes(k)) out.push(line(rules.get(k)));
-    }
     out.push("");
   });
-  const shown = new Set(s.drawer1.flatMap((x) => x.from));
+  const shown = new Set(asked.flatMap((x) => x.from));
   const unnamed = [...ideas].filter(([id]) => !shown.has(id));
-  const shownAreas = new Set([...shown].filter((id) => rules.has(id) || ideas.has(id)).map((id) => ideas.get(id)?.area ?? id));
   const lost = [
     ...unnamed.map(([id, y]) => `- [${id}] ${y.text} ${y.at}`),
-    ...[...rules].filter(([k]) => !shownAreas.has(k)).map(([k, y]) => `- [${k}] ${y.rule} (${y.basis}; risk ${y.risk}: ${y.cost}) ${y.at.join(", ")}`),
+    ...[...rules].filter(([k]) => !shown.has(k)).map(([k, y]) => `- [${k}] ${y.rule} (${y.basis}; risk ${y.risk}: ${y.cost}) ${y.at.join(", ")}`),
     ...[...seconds].map(([k, y]) => `- [${k}] ${y.rule} (risk ${y.risk}: ${y.cost}) ${y.at}`),
   ];
   if (lost.length) out.push("## Rules no sentence shows", "", ...lost, "");
