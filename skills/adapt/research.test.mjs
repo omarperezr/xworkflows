@@ -729,3 +729,14 @@ test("check and queue fail with one line, not a stack, and skip a truncated log 
   writeFileSync(X(d, "interview.log.jsonl"), fullLog(q, run).map((l) => JSON.stringify(l)).join("\n") + '\n{"run":"x","id":');
   assert.equal(cli(d, "check").status, 0);
 });
+
+test("absolute citations inside the root render repo-relative", () => {
+  const d = repo();
+  const r = sample();
+  r.kinds.values.general.file = join(d, "a.js");
+  r.kinds.values.rules[0].file = join(d, "a.js");
+  const out = renderResearch(d, r, SCAN);
+  assert.equal(out.errors.length, 0);
+  assert.match(out.md, /- general: Round once, only when shown \(both\) a\.js:2/);
+  assert.ok(!out.md.includes(d));
+});

@@ -55,6 +55,7 @@ export const KINDS = [
 const DIRS = ["node_modules", "dist", "build", "vendor"]; // also written to .graphifyignore
 const SILENT = ["graphify-out", ".xworkflows", ".git"];
 const LOCK = /(^|\/)(package-lock\.json|yarn\.lock|pnpm-lock\.yaml|Cargo\.lock|poetry\.lock|Gemfile\.lock|composer\.lock|go\.sum)$/;
+const TESTS = /(^|\/)(tests?|__tests__|specs?|e2e|cypress|playwright)\/|\.(test|spec)\.[^/]+$|(^|\/)test_[^/]+\.py$|_test\.[^/]+$|(^|\/)conftest\.py$/;
 const CHECKS = /(^|\/)scripts\/check-|(^|\/)\.semgrep|(^|\/)(\.eslintrc[^/]*|eslint\.config\.[^/]*|ruff\.toml|\.flake8)$|^\.github\/workflows\/|^\.gitlab-ci\.yml$|^\.circleci\/|(^|\/)Jenkinsfile$|(^|\/)\.pre-commit-config\.yaml$/;
 const MAX_HITS = 30, PER_FILE = 3;
 
@@ -207,6 +208,7 @@ export function scan(root) {
   for (const k of KINDS) kinds[k.key] = { hits: [], total: 0 };
   for (const p of live) {
     if (CHECKS.test(p)) { checks.push(p); continue; }
+    if (TESTS.test(p)) continue; // mechanisms are about the app, not its tests
     const ext = extname(p);
     const lines = text.get(p).split("\n");
     for (const k of KINDS) {

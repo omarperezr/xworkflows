@@ -373,3 +373,15 @@ test("signals need a mechanism-specific token", () => {
   const sig = (k, t) => KINDS.find((q) => q.key === k).signals.some((s) => s.re.test(t));
   for (const [k, ls] of Object.entries(noise)) for (const l of ls) assert.ok(!sig(k, l), `${k}: ${l}`);
 });
+
+test("test files never give kind hits", () => {
+  const d = tmp();
+  cpSync(FIXTURE, d, { recursive: true });
+  const src = scan(fixture()).kinds.txn.hits[0].file;
+  const T = ["tests/a.js", "src/a.test.js", "x/__tests__/a.js", "spec/a.js"];
+  for (const p of T) put(d, p, readFileSync(join(FIXTURE, src), "utf8"));
+  commit(d);
+  const files = new Set(allHits(scan(d)).map((h) => h.file));
+  for (const p of T) assert.ok(!files.has(p), p);
+  assert.ok(files.has(src));
+});

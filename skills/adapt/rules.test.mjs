@@ -184,3 +184,28 @@ test("per-file cap of 40 and file order put PRODUCT before a long README", () =>
   assert.equal(readme[0].text, "Manual 0 must hold.");
   assert.equal(r.length, 44);
 });
+
+test("design sentences are not mechanism rules", () => {
+  const d = tmp();
+  put(d, "DESIGN.md", "- Cards must always be gently rounded (12px).\n- Buttons must be rounded and never square.\n- En el teléfono la barra es una sola fila, siempre.\n- Los totales son el exacto redondeado, sólo para mostrar.\n");
+  commit(d);
+  const r = collectRules(d);
+  assert.deepEqual(find(r, /12px/).kinds, []);
+  assert.ok(!find(r, /Buttons/).kinds.includes("values"));
+  assert.ok(!find(r, /una sola fila/).kinds.includes("txn"));
+  assert.ok(find(r, /redondeado/).kinds.includes("values"));
+});
+
+test("each kind keeps its 15 strongest rules", () => {
+  const d = tmp();
+  const weak = Array.from({ length: 20 }, (_, i) => `- Weak ${i} must show the total.`);
+  put(d, "PRODUCT.md", [...weak, "- The price, amount and total must be rounded to cents once."].join("\n") + "\n");
+  commit(d);
+  const r = collectRules(d);
+  const vals = r.rules.filter((x) => x.kinds.includes("values"));
+  assert.equal(vals.length, 15);
+  assert.ok(find(r, /rounded to cents/).kinds.includes("values"));
+  assert.ok(find(r, /Weak 0 /).kinds.includes("values"));
+  assert.ok(!find(r, /Weak 19 /).kinds.includes("values"));
+  assert.deepEqual(collectRules(d), r);
+});

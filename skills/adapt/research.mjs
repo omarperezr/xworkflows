@@ -45,7 +45,10 @@ export function renderResearch(root, research, scan, written = []) {
   const wnum = (id) => Number(String(id).slice(1));
   // Each kind judges only its first MAX_VERDICTS tagged rules, lowest W id first (the kind prompt says the same).
   const allowed = (k) => new Set(written.filter((w) => (w.kinds || []).includes(k)).sort((a, b) => wnum(a.id) - wnum(b.id)).slice(0, MAX_VERDICTS).map((w) => w.id));
-  const kinds = research.kinds || {};
+  // Agents sometimes cite absolute paths inside the root; keep them repo-relative.
+  const base = resolve(root) + sep;
+  const rel = (x) => (x && typeof x.file === "string" && x.file.startsWith(base) ? { ...x, file: x.file.slice(base.length) } : x);
+  const kinds = Object.fromEntries(Object.entries(research.kinds || {}).map(([k, r]) => [k, r && { ...r, general: rel(r.general), verdicts: (r.verdicts || []).map(rel), rules: (r.rules || []).map(rel) }]));
   const skipped = research.skipped || {};
   const byHeading = {};
   const add = (h, l) => ((byHeading[h] ||= []).push(l));

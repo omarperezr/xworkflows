@@ -245,12 +245,12 @@
       ],
       "files": {
         "skills/adapt/SKILL.md": "79fbe492af407bb46a26dc4f179e4a3ff5b9aee6e168a0279a165de15df67009",
-        "skills/adapt/scan.mjs": "cff7acc757c1c1a8fd324aca159cbd4b0b9556f9508bbc985c4a5b27f921ddb4",
-        "skills/adapt/rules.mjs": "ac69385ce07d93b2d154efdd03312d91cd66446f73da2480c128073ccb7d0d6b",
-        "skills/adapt/research.workflow.js": "5fcbca04816cb33748f07e9ec97a7d33463eca240832bc3a5389af895d2d2079",
-        "skills/adapt/research.mjs": "506a83ffb3182773a78eda08a1822796d56d83ca3e2a77c1fb2562d3c2e62905"
+        "skills/adapt/scan.mjs": "cfe34ce33a1566fb80fb8676bf5fb0f0360353bd92e6b0350f849303f7a4127d",
+        "skills/adapt/rules.mjs": "857d9f4e8461f12c873ff985aeceaec0a8f19fc13fda1698992c26da1b266fa9",
+        "skills/adapt/research.workflow.js": "7f105302b3e6d88976ba9d8636b890f59927645ef989d8d393a4577a45dad9ea",
+        "skills/adapt/research.mjs": "9b7902ab1c9f5b9270727a92a166afe2e2b88145204d0c9615494d849be19aed"
       },
-      "sha256": "7981f5586eb31e2ccb8b2d13addab46fa137045e77ba7647ec8694dd39cd3224"
+      "sha256": "7234f76b56b4fbb2e666a32ad59cf9a2c3c5a4a9215941cb763e88960f7f8de8"
     },
     {
       "id": "full-review",
