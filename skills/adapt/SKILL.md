@@ -19,7 +19,7 @@ All questions go through `AskUserQuestion`; the `header` is the item id. You do 
 - Every question that is not `confirm` ends with one short note, in the owner's language: `If none fits, or it is something else, type it in Type something.` This includes `choice`, except `H6-r<n>`, whose text already says it: one free-text note per question.
 - Drafted options are suggestions from research, not answers: present them as suggestions, translated into the owner's language, label and description. `(Recommended)` only on an option backed by a verified `file:line` citation in `research.md`, on any style. A guess is never recommended.
 - What the owner types in `Type something` wins over research and over every drafted option. `I don't know` settles the item; so does `Skip: not relevant here`.
-- The fixed labels are `Yes`, `No`, `I don't know`, `Skip: not relevant here`, `Right`, `Real, but a bad rule`, `Not how it works`, `Wrong`, `Missing something`, and the `H6-r<n>` labels `Money`, `Data`, `Access`, `No risk`. Only these stay in English: send them verbatim, with the translation in the option `description`.
+- The fixed labels are `Yes`, `No`, `I don't know`, `Skip: not relevant here`, `Right`, `Real, but a bad rule`, `Not how it works`, `Wrong`, `Missing something`, `Keep it, because ...`, `Yes, show them`, `No, skip them`, and the `H6-r<n>` labels `Money`, `Data`, `Access`, `No risk`. Only these stay in English: send them verbatim, with the translation in the option `description`.
 
 ## Step 1: Resume
 
@@ -36,7 +36,7 @@ No questions in this step.
 2. Run `node <base>/rules.mjs` first: it writes `.xworkflows/rules.json`, the rules the project wrote down (docs, plans, ADRs, code comments), which research checks against the code. Then run `node <base>/scan.mjs`, which reads it. It writes `.xworkflows/scan.json` (zones, mechanism hits) and adds generated and vendored paths to `.graphifyignore`.
 3. Run `graphify update .`. If `graphify` is missing, run `node <base>/research.mjs done` and stop: tell the owner graphify is required and must be installed first.
 4. Read `graphify-out/GRAPH_REPORT.md`. Then run one `graphify query "<what are the main parts of this project?>"` yourself; the lookup rule wants a recent query before any `explore` agent.
-5. Call the `Workflow` tool with `scriptPath: "<base>/research.workflow.js"` and `args: { root: "<absolute repository root>", zeroHits: [...], language: "<the owner's language>" }`, never an inline script. `zeroHits` is exactly the kind keys whose `kinds.<key>.total` is 0 in `.xworkflows/scan.json` (`[]` if none). Without the Workflow tool, stop: run `node <base>/research.mjs done` and tell the owner adapt needs it.
+5. Call the `Workflow` tool with `scriptPath: "<base>/research.workflow.js"` and `args: { root: "<absolute repository root>", zeroHits: [...], language: "<the owner's language>" }`, never an inline script. `zeroHits` is exactly the kind keys whose `kinds.<key>.total` is 0 in `.xworkflows/scan.json` (`[]` if none). `language` is the owner's language in an interview; leave it out with `research-only`, where the sentences come out in English. Without the Workflow tool, stop: run `node <base>/research.mjs done` and tell the owner adapt needs it.
 6. The Workflow runs in the background: wait for its result, which arrives in a later turn. Run `rm -f .xworkflows/research.json` (the Write tool refuses to overwrite a file it has not read), then write the result unchanged (no field added, dropped or reordered) to `.xworkflows/research.json` with the Write tool.
 7. Run `node <base>/research.mjs render`. It verifies each citation and writes `.xworkflows/research.md`, `screens.json`, `details.md` and `kinds.json`. Never write those, `rules.json` or `scan.json` yourself; only their scripts do. On exit 1, read its message:
    - `research.json was altered`: run `rm -f .xworkflows/research.json`, write the Workflow result already in context to it again, unchanged, with the Write tool, and run `render` again. Rerun the Workflow (5 and 6) only if its result is no longer in context. At a second mismatch it prints `stop and tell the owner`: run `node <base>/research.mjs done`, stop and tell the owner.
@@ -60,7 +60,7 @@ The summary has these eight headings, verbatim, in this order:
 Questions:
 
 - Ask the items of `.xworkflows/interview.json` in file order, in three screens: header = the item's `id`; its `text` in the owner's language with the same meaning; its `options` when it has them. Ask nothing else but the follow-ups named here, and no id twice in a run (playback ids and heading 8 aside).
-- Screen 1 (`S1-<n>`): print its numbered sentences once. Then ask each sentence as its own question, 4 per call, with the options `Right`, `Real, but a bad rule`, `Not how it works`, `I don't know`. Open `.xworkflows/details.md` only when the owner asks for the detail of a sentence; show just that part.
+- Screen 1 (`S1-<n>`): print its numbered sentences once. Then ask each sentence as its own question, 4 per call, with the options `Right`, `Real, but a bad rule`, `Not how it works`, `I don't know`. When the queue holds `S1-more`, ask it in a call of its own. On `Yes, show them`, ask `S1-13` and on, 4 per call, like the first twelve; on `No, skip them`, go on to screen 2. Open `.xworkflows/details.md` only when the owner asks for the detail of a sentence; show just that part.
 - Screen 2 (`X<n>`): each question as rendered, up to 4 per call, with its options. A doubted rule has `You are right: a pending card`, `Keep it, because ...`, `I don't know`. When the answer is the bare label `Keep it, because ...`, ask the follow-up `X<n>-why`, `open`: the reason. Research's `(code)` and `(git)` only say where a line came from.
 - Screen 3: `B-rules`, `B-refused`, `B-mistake`, `B-incident`, `B-free`, then `G-3m`, `G-12m`, `G-36m`, `G-interim`, as rendered, up to 4 per call, in the item's `style` per the question rules above. The owner's free text is the answer.
 - Then the items no screen asks, as the shipped text asked them:
@@ -117,7 +117,7 @@ Only after `P-H1` to `P-H7` are all `Right`. Before that, write nothing but `.gr
 | `.xworkflows/summary.md` | Headings 1 to 7 as approved. Front matter `status: approved`, `date: YYYY-MM-DD`, `commit: <sha research read>`. |
 | `docs/BUSINESS.md` | Headings 1 to 3, then `## Goals` (below). |
 | `AGENTS.md` | Headings 4 and 5 as unbreakable rules, one line each, under `## Project rules`, in heading 5's order: each risk, then the rules that prevent it, worded as how the code must do something, then the rules tied to no risk. An owner-added rule with no path goes to `AGENTS.md` `## Project rules` only, in no rule file. Put it after the `<!-- xworkflows:end -->` line, outside the `<!-- xworkflows:start -->` block. Never edit inside the block; the installer owns it. If `## Project rules` exists, merge into only that section. |
-| `.claude/rules/<zone key>.md` | One file per zone that has a rule. Front matter `paths:` lists the zone's paths as globs: a folder `src` or `src/` becomes `src/**`; `dir/*` and `*` stay as written. Then the rules, one line each, one per rule the owner confirmed (a sentence answered `Right`, a doubted rule kept with a reason), each with its path from `details.md`, when that path is in the zone's paths, and every owner rule that names a path in them. |
+| `.claude/rules/<zone key>.md` | One file per zone that has a rule. Front matter `paths:` lists the zone's paths as globs: a folder `src` or `src/` becomes `src/**`; `dir/*` and `*` stay as written. Then the rules, one line each, one per rule the owner confirmed (a sentence answered `Right`, or a screen 2 rule kept: `Keep it, because ...`, `The written rule`, `The code`, `Mistake: fix it`, `Exception: keep it`), each with its path as in `What each answer writes`, when that path is in the zone's paths, and every owner rule that names a path in them. |
 | `.claude/agents/risk-review.md` | The risk reviewer (below). |
 | `.xworkflows/config.json` | Merged key by key (below). |
 | `~/.xworkflows/owner.md` | Heading 8 only. User scope, outside every repository. Create `~/.xworkflows/` if missing. Keep what is already there; update only what the owner changed. |
@@ -133,7 +133,7 @@ Goals in `docs/BUSINESS.md`, one line per aspiration, no dates. G1 is the 3-mont
 
 - Front matter: `name: risk-review`; a one-line `description`; `model:` set to the `top` entry of `claude` in `.xworkflows/tiers.json`; `tools: Read, Grep, Glob, Bash`.
 - What it guards: heading 4, the costliest mistake first.
-- A checklist: one line per check, each one a reviewer can check against a diff, with one line per rule the owner confirmed, each with its path from `details.md` (for example: `no query or server call inside a loop over rows`).
+- A checklist: one line per check, each one a reviewer can check against a diff, with one line per rule the owner confirmed, each with its path as in `What each answer writes` (for example: `no query or server call inside a loop over rows`).
 - The paths it covers: `paths.risk`.
 - Read-only: Bash only for `git log`, `diff`, `show`, `ls-files`, `blame`, `status`, `grep`, `wc`, `graphify query`. No redirects. Never writes or edits.
 - Report keys: `reviewed:` (what it checked) and `not checked:` (what it could not). When every check passes, the last line is `risk-review ok at <sha>`, with the reviewed `HEAD`.
@@ -146,7 +146,8 @@ Goals in `docs/BUSINESS.md`, one line per aspiration, no dates. G1 is the 3-mont
 
 What each answer writes (the playback shows it, step 4 writes it):
 
-- `Right`: the full rule from `details.md`, under heading 5.
+- `Right`: only the items the sentence names, each from `details.md`; a rule the owner did not see is never written.
+- A rule's path: a screen 1 rule takes it from `details.md`, a screen 2 rule (`Keep it, because ...`, `The written rule`, `The code`, `Mistake: fix it`, `Exception: keep it`) from its question in `interview.json`.
 - `Real, but a bad rule` and `You are right` (on a doubted rule): a card through the `pending` skill, and no rule.
 - `Keep it, because ...`: the rule, with the reason; with no reason, ask for the reason once.
 - `The written rule`: that rule and a card to change the code.

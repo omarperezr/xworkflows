@@ -140,7 +140,7 @@ test("an area answer carries at most four ideas, each cited, and the prompt says
   assert.ok(a.opts.schema.required.includes("ideas"));
   assert.match(a.prompt, /14 words/);
   assert.match(a.prompt, /no more than its cited line/);
-  assert.match(a.prompt, /"all", "always" or "never"[\s\S]*enforces it for all cases/);
+  assert.match(a.prompt, /"all", "always", "never" or "every"[\s\S]*enforces it for all cases/);
 });
 
 test("an area's general rule gains a short form, asked in one line, and the plain agent skips areas without a rule", async () => {
@@ -194,4 +194,26 @@ test("the six topic agents run as t1 to t6, only t1 to t3 name config keys", asy
   assert.deepEqual(t.map((c) => c.opts.label), labels);
   assert.deepEqual(Object.keys(result.topics), labels);
   for (const c of t) assert.equal(/Also return one line per key with heading "config"/.test(c.prompt), ["t1", "t2", "t3"].includes(c.opts.label), c.opts.label);
+});
+
+test("the area prompt looks for the contradicting case and keeps the rule's key words in short", async () => {
+  const { calls } = await run({ root: ".", zeroHits: [] });
+  const p = calls.find((c) => c.opts.label === "a:truth").prompt;
+  assert.ok(p.includes("look for the case that contradicts it"));
+  assert.match(p, /without the guard/);
+  assert.ok(p.includes("return that case under `exceptions`"));
+  assert.match(p, /key words/);
+  assert.ok(p.includes('It has no "all", "always", "never" or "every" unless'));
+  assert.ok(p.includes('An idea about every case ("all", "always", "never" or "every")'));
+  assert.match(p, /a loan is counted in whole days in the library's time zone/);
+});
+
+test("the plain agent keeps key words and the default language is English", async () => {
+  const { calls } = await run({ root: ".", zeroHits: [] });
+  const p = calls.find((c) => c.opts.label === "plain").prompt;
+  assert.match(p, /Write in English\./);
+  assert.match(p, /key words/);
+  assert.match(p, /vaguer/);
+  const es = await run({ root: ".", zeroHits: [], language: "Spanish" });
+  assert.match(es.calls.find((c) => c.opts.label === "plain").prompt, /Write in Spanish\./);
 });

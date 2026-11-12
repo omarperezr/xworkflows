@@ -169,7 +169,7 @@ test("adapt asks how the code prevents each risk; research looks for mechanisms;
   const s = read("skills/adapt/SKILL.md");
   has(s, ["Mechanism rules are read from `details.md` only when the owner asks for detail", "up to 4 per call", "Screen 1 (`S1-<n>`)", "`Real, but a bad rule`", "`Not how it works`", "`G-interim`",
     "Heading 5 groups its rule lines under the risk they prevent, costliest risk first, then `rules tied to no risk`.", "grouped under the risk it prevents",
-    "in heading 5's order: each risk, then the rules that prevent it", "each with its path from `details.md`", "one line per rule the owner confirmed", "the `contradicted` lines of `## Written rules and their verdicts` in `details.md`", "`X<n>-why`"]);
+    "in heading 5's order: each risk, then the rules that prevent it", "each with its path as in `What each answer writes`", "one line per rule the owner confirmed", "the `contradicted` lines of `## Written rules and their verdicts` in `details.md`", "`X<n>-why`"]);
   // the per-kind question is gone: a screen 1 sentence is judged with four options, written in one place
   assert.equal((read("skills/adapt/research.mjs") + read("skills/adapt/screens.mjs")).split('"Real, but a bad rule"').length, 2);
   const zq = s.split("The zones question, in plain words:")[1].split(/^#{2,3} /m)[0];
@@ -319,4 +319,13 @@ test("verify-finding cleans up on every exit", () => {
   assert.ok(s3.includes("step 5 cleanup") && s3.indexOf("step 5 cleanup") < s3.indexOf("answer"), "step 3");
   for (const n of ["4.", "5."]) assert.ok(ls.find((x) => x.startsWith(n)).includes("git worktree remove --force <temp dir>"), n);
   assert.ok(ls.find((x) => x.startsWith("5.")).includes("git branch -D verify/<finding-id>"));
+});
+test("adapt: second page, what Right writes, English labels, language without an interview", () => {
+  const s = read("skills/adapt/SKILL.md");
+  has(s.split("## Step 1")[0], ["`Keep it, because ...`, `Yes, show them`, `No, skip them`"]);
+  has(step(3), ["When the queue holds `S1-more`, ask it in a call of its own", "On `Yes, show them`, ask `S1-13` and on, 4 per call, like the first twelve", "on `No, skip them`, go on to screen 2"]);
+  has(step(4), ["`Right`: only the items the sentence names, each from `details.md`; a rule the owner did not see is never written",
+    "A rule's path: a screen 1 rule takes it from `details.md`, a screen 2 rule (`Keep it, because ...`, `The written rule`, `The code`, `Mistake: fix it`, `Exception: keep it`) from its question in `interview.json`"]);
+  has(step(2), ["`language` is the owner's language in an interview; leave it out with `research-only`, where the sentences come out in English"]);
+  assert.ok(s.split("\n").length < 200);
 });

@@ -8,10 +8,14 @@ import { screens, render, details, mechanism, MAX_RULES, MAX_GAPS, MAX_WORDS } f
 const root = mkdtempSync(join(tmpdir(), "xwf-screens-"));
 mkdirSync(join(root, "src"));
 writeFileSync(join(root, "src/a.js"), "const due = days(loan);\nlate(loan);\nold(loan);\n");
+writeFileSync(join(root, "src/b.js"), "late(loan);\n");
+writeFileSync(join(root, "src/c.js"), "old(loan);\n");
+mkdirSync(join(root, "src/dir"));
 writeFileSync(join(root, "README.md"), "Loans are counted in whole days.\n");
 test.after(() => rmSync(root, { recursive: true, force: true }));
 
 const c = (line, quote, more = {}) => ({ file: "src/a.js", line, quote, ...more });
+const at = (file, line, quote) => ({ file, line, quote });
 const area = (more = {}) => ({ status: "found", ideas: [{ text: "i", ...c(1, "days(loan)") }], support: [], exceptions: [], contradicted: [], unprotected: [], commentRules: [], details: [], notChecked: [], ...more });
 const general = (rule, risk, cite) => ({ rule, basis: "code", risk, cost: "wrong due dates", ...cite });
 const research = (areas, plain = { claims: [], rest: [] }, more = {}) => ({ version: 3, profile: { what: "A lending desk." }, areaOrder: Object.keys(areas), areas, written: { count: 0, fromChecks: 0 }, kinds: {}, plain, questions: [{ id: "B-mistake", lead: "The README says so.", options: [{ label: "A lost book", description: "it is the costliest", file: "README.md", line: 1, quote: "whole days" }] }], ...more });
@@ -99,7 +103,7 @@ test("research.md is version 3 and carries no detail; details.md holds every ver
   const r = research({
     truth: area({
       general: general("Loans count whole days.", "high", c(1, "days(loan)")),
-      support: [c(2, "late(loan)"), c(9, "nope")],
+      support: [at("src/b.js", 1, "late(loan)"), c(9, "nope")],
       commentRules: [{ text: "Never count hours.", ...c(3, "old(loan)") }, { text: "Made up comment.", ...c(3, "zzz") }],
     }),
   }, { claims: [claim("Loans count whole days.", "truth.1")], rest: [] }, {
@@ -110,7 +114,7 @@ test("research.md is version 3 and carries no detail; details.md holds every ver
   assert.match(md, /^---\ncommit: abc\nversion: 3\n---/);
   assert.doesNotMatch(md, /## Details/);
   const d = details(r, s, mechanism(root, r), root);
-  assert.match(d, /Loans count whole days\.[\s\S]*src\/a\.js:1[\s\S]*src\/a\.js:2/);
+  assert.match(d, /Loans count whole days\.[\s\S]*src\/a\.js:1[\s\S]*src\/b\.js:1/);
   assert.match(d, /## Mechanism rules[\s\S]*values[\s\S]*Round once\.[\s\S]*Round at the end\./);
   assert.match(d, /## Rules found in comments[\s\S]*Never count hours\./);
   for (const bad of ["Fake rule.", "Made up comment.", "nope", "src/a.js:9"]) assert.ok(!d.includes(bad), bad);
@@ -172,13 +176,15 @@ test("render stops when the plain agent, the questions agent or a config agent r
   assert.deepEqual(screens(root, research(a)).errors, []);
 });
 
-test("details.md lists under each sentence its ideas with their citations, then the general rule of their area; a verified idea no shown sentence names has its own heading", () => {
+test("details.md lists under each sentence only the items it names, with their citations; a verified idea no shown sentence names has its own heading", () => {
   const r = research({
     truth: area({ general: general("Loans count whole days.", "high", c(1, "days(loan)")), ideas: [{ text: "Days are whole.", ...c(2, "late(loan)") }, { text: "Unnamed idea.", ...c(3, "old(loan)") }, { text: "Fake idea.", ...c(3, "zzz") }] }),
   }, { claims: [claim("Loans count whole days.", "truth.1")], rest: [] });
   const s = screens(root, r);
   const d = details(r, s, mechanism(root, r), root);
-  assert.match(d, /### 1\. Loans count whole days\.\n\n- Days are whole\. src\/a\.js:2\n- Loans count whole days\. \(code; risk high: wrong due dates\) src\/a\.js:1\n/);
+  assert.match(d, /### 1\. Loans count whole days\.\n\n- Days are whole\. src\/a\.js:2\n\n/);
+  assert.doesNotMatch(d.split("## Rules no sentence shows")[0], /Loans count whole days\. \(code/);
+  assert.match(d.split("## Rules no sentence shows")[1], /- \[truth\] Loans count whole days\. \(code; risk high: wrong due dates\) src\/a\.js:1\n/);
   assert.match(d, /## Rules no sentence shows\n\n- \[truth\.2\] Unnamed idea\. src\/a\.js:3\n/);
   assert.ok(!d.includes("Fake idea.") && !d.split("## Rules no sentence shows")[1].includes("Days are whole."));
 });
@@ -264,7 +270,7 @@ test("screen 1 is ordered by risk, and a merged sentence takes its highest risk"
 
 test("a sentence from a verified general rule shows that rule's citation as an example and counts its verified support; it goes before idea-only sentences", () => {
   const r = research({
-    truth: area({ general: general("Loans count whole days.", "low", c(1, "days(loan)")), support: [c(2, "late(loan)"), c(3, "old(loan)"), c(9, "nope")], ideas: [{ text: "Days are whole.", ...c(4, "") }, { text: "i2", ...c(2, "late(loan)") }] }),
+    truth: area({ general: general("Loans count whole days.", "low", c(1, "days(loan)")), support: [at("src/b.js", 1, "late(loan)"), at("src/c.js", 1, "old(loan)"), c(9, "nope")], ideas: [{ text: "Days are whole.", ...c(4, "") }, { text: "i2", ...c(2, "late(loan)") }] }),
     bad: area({ general: general("Made up.", "high", c(1, "not in the file")), ideas: [{ text: "x", ...c(1, "not in the file") }] }),
     pay: area({ general: general("Fees in days.", "high", c(2, "late(loan)")), support: [] }),
   }, { claims: [claim("Idea only.", "pay.1"), claim("From a rule.", "truth.2", "truth"), claim("Unverified rule.", "bad"), claim("Rule with no support.", "pay")], rest: [] });
@@ -281,22 +287,80 @@ test("a sentence from a verified general rule shows that rule's citation as an e
   assert.doesNotMatch(md, /Idea only\. .*seen in/);
 });
 
-test("a support citation that repeats the example or another support line counts once; details.md lists it once", () => {
+test("a support citation counts only when its file differs from the example's and from the other supports'; details.md lists it once", () => {
   const r = research({
-    truth: area({ general: general("Loans count whole days.", "high", c(1, "days(loan)")), support: [c(1, "days(loan)"), c(2, "late(loan)"), c(2, "late(loan)")] }),
+    truth: area({ general: general("Loans count whole days.", "high", c(1, "days(loan)")), support: [c(1, "days(loan)"), c(2, "late(loan)"), at("./src/b.js", 1, "late(loan)"), at("src/b.js", 1, "late(loan)"), at(join(root, "src/b.js"), 1, "late(loan)")] }),
   }, { claims: [claim("From a rule.", "truth")], rest: [] });
   const s = screens(root, r);
   assert.equal(s.drawer1[0].also, 1);
   assert.ok(!("general" in s.drawer1[0]));
-  assert.match(details(r, s, mechanism(root, r), root), /src\/a\.js:1, src\/a\.js:2\n/);
+  assert.match(details(r, s, mechanism(root, r), root), /src\/a\.js:1, \.\/src\/b\.js:1\n/);
 });
 
 test("details.md lists a named general rule in full with its example and every verified support; a rule a shown sentence names is not in the lost list", () => {
   const r = research({
-    truth: area({ general: general("Loans count whole days.", "high", c(1, "days(loan)")), support: [c(2, "late(loan)"), c(9, "nope")], ideas: [{ text: "Unnamed idea.", ...c(3, "old(loan)") }] }),
+    truth: area({ general: general("Loans count whole days.", "high", c(1, "days(loan)")), support: [at("src/b.js", 1, "late(loan)"), c(9, "nope")], ideas: [{ text: "Unnamed idea.", ...c(3, "old(loan)") }] }),
   }, { claims: [claim("Loans count whole days.", "truth")], rest: [] });
   const d = details(r, screens(root, r), mechanism(root, r), root);
-  assert.match(d, /### 1\. Loans count whole days\.\n\n- Loans count whole days\. \(code; risk high: wrong due dates\) src\/a\.js:1, src\/a\.js:2\n/);
+  assert.match(d, /### 1\. Loans count whole days\.\n\n- Loans count whole days\. \(code; risk high: wrong due dates\) src\/a\.js:1, src\/b\.js:1\n/);
   assert.ok(!d.includes("src/a.js:9"));
   assert.doesNotMatch(d, /## Rules no sentence shows[\s\S]*\[truth\] Loans count/);
+});
+
+test("a sentence that names an area whose general rule did not verify is dropped, even beside a verified idea; its idea stays in the detail", () => {
+  const r = research({
+    bad: area({ general: general("Wide and unproven.", "high", c(1, "not in the file")), ideas: [{ text: "Small idea.", ...c(2, "late(loan)") }] }),
+  }, { claims: [claim("Wide and unproven.", "bad", "bad.1"), claim("Small idea.", "bad.1")], rest: [] });
+  const s = screens(root, r);
+  assert.deepEqual(s.drawer1.map((x) => x.text), ["Small idea."]);
+  assert.equal(s.dropped.find((d) => d.what === "sentence: Wide and unproven.").reason, "its general rule did not verify");
+});
+
+test("a sentence naming an absent area whose general rule did not verify is dropped, and its failed idea gets a Dropped line", () => {
+  const r = research({
+    pay: area({ status: "absent", general: general("Wide and unproven.", "high", c(1, "not in the file")), ideas: [{ text: "Good idea.", ...c(2, "late(loan)") }, { text: "Bad idea.", ...c(3, "not in the file") }] }),
+  }, { claims: [claim("Wide and unproven.", "pay", "pay.1"), claim("Good idea.", "pay.1")], rest: [] });
+  const s = screens(root, r);
+  assert.deepEqual(s.drawer1.map((x) => x.text), ["Good idea."]);
+  assert.equal(s.dropped.find((d) => d.what === "sentence: Wide and unproven.").reason, "its general rule did not verify");
+  assert.ok(s.dropped.some((d) => d.what === "idea: Bad idea."));
+});
+
+test("an idea or a support citation that fails gets a Dropped line, and the count includes it", () => {
+  const r = research({
+    truth: area({ general: general("r", "low", c(1, "days(loan)")), support: [c(9, "nope"), at("src/b.js", 1, "late(loan)")], ideas: [{ text: "Fake idea.", ...c(1, "zzz") }, { text: "Fine.", ...c(2, "late(loan)") }] }),
+  }, { claims: [claim("Fine.", "truth.2")], rest: [] });
+  const s = screens(root, r);
+  assert.deepEqual(s.dropped.map((d) => [d.area, d.what]), [["truth", "idea: Fake idea."], ["truth", "support: r"]]);
+  assert.match(render(r, s, "abc"), /## Dropped\n\n- truth: idea: Fake idea\. src\/a\.js:1 "zzz"\n- truth: support: r src\/a\.js:9 "nope"\n/);
+});
+
+test("a citation whose file is a folder does not verify and does not throw", () => {
+  const r = research({ truth: area({ general: general("r", "low", c(1, "days(loan)")), ideas: [{ text: "In a folder.", file: "src/dir", line: 1, quote: "x" }] }) }, { claims: [claim("In a folder.", "truth.1")], rest: [] });
+  const s = screens(root, r);
+  assert.equal(s.drawer1.length, 0);
+  assert.ok(s.dropped.some((d) => d.what === "idea: In a folder."));
+});
+
+test("the second page: the first 12 of drawer1LeftOut, and the rest is counted beyond in the one left-out line", () => {
+  const r = research({ truth: area({ general: general("r", "low", c(1, "days(loan)")) }) }, {
+    claims: Array.from({ length: MAX_RULES + 14 }, (_, i) => claim(`sentence ${i}`, "truth.1")), rest: [],
+  });
+  const s = screens(root, r);
+  assert.equal(s.drawer1.length, MAX_RULES);
+  assert.ok(!("drawer1More" in s));
+  assert.equal(s.drawer1LeftOut.length, 14);
+  const md = render(r, s, "abc");
+  assert.match(md, /Left out of this screen: 14 sentence\(s\): 12 on the second page, 2 beyond it, not asked\./);
+  assert.doesNotMatch(md, /Second page:|they are in the research, not asked/);
+  const d = details(r, s, mechanism(root, r), root);
+  assert.match(d, /### 13\. sentence 12\n/);
+  assert.ok(!d.includes("sentence 24"));
+});
+
+test("with nothing left out there is no second page and no line for it", () => {
+  const r = research({ truth: area({ general: general("r", "low", c(1, "days(loan)")) }) }, { claims: [claim("One.", "truth.1")], rest: [] });
+  const s = screens(root, r);
+  assert.deepEqual(s.drawer1LeftOut, []);
+  assert.doesNotMatch(render(r, s, "abc"), /second page/);
 });

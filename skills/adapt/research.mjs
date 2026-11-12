@@ -5,7 +5,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync, mkdirSync, rmSync, copyFileSync, statSync, lstatSync } from "node:fs";
 import { join, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
-import { screens, render, details, mechanism, seen } from "./screens.mjs";
+import { screens, render, details, mechanism, seen, MAX_RULES, MAX_MORE } from "./screens.mjs";
 
 const STOP = "Research could not be copied unchanged twice: stop and tell the owner.";
 
@@ -21,7 +21,7 @@ const collapse = (s) => String(s).replace(/\s+/g, " ").trim();
 export function verifyCitation(root, c) {
   const base = resolve(root);
   const p = resolve(base, String(c.file || ""));
-  if (!p.startsWith(base + sep) || !existsSync(p)) return false;
+  if (!p.startsWith(base + sep) || !existsSync(p) || !statSync(p).isFile()) return false;
   const q = collapse(c.quote || "");
   if (!q || !Number.isInteger(c.line)) return false;
   const lines = readFileSync(p, "utf8").split("\n");
@@ -34,6 +34,7 @@ const FIXED = ["Right", "Wrong", "Missing something"];
 
 // An option label fits 60 characters, cut at a word; the description keeps the whole text.
 const label = (t) => { if (t.length <= 60) return t; const i = t.slice(0, 60).lastIndexOf(" "); return (i > 0 ? t.slice(0, i) : t.slice(0, 59)) + "…"; };
+const MORE = ["Yes, show them", "No, skip them"];
 const SENTENCE = ["Right", "Real, but a bad rule", "Not how it works", "I don't know"];
 
 const CONFIG_KEYS = ["paths.code", "paths.risk", "paths.heavyRead", "paths.codeAnyway", "tests.files", "tests.run", "tests.notRunnable", "checks.project", "checks.patterns", "checks.ratchets"];
@@ -64,8 +65,12 @@ export function buildQueue(s, research = {}, scan = {}, prev = null, cfg = {}) {
     item("H8-reply", "8", "How should I reply to you?"),
     item("H8-budget", "8", "What model budget per session or month should I keep to?"),
   ];
+  const sentence = (x, i) => item(`S1-${i + 1}`, "1", `${x.text} (${x.at})${seen(x)}`, SENTENCE);
+  const left = s.drawer1LeftOut.length, more = s.drawer1LeftOut.slice(0, MAX_MORE);
   return [
-    ...s.drawer1.map((x, i) => item(`S1-${i + 1}`, "1", `${x.text} (${x.at})${seen(x)}`, SENTENCE)),
+    ...s.drawer1.map(sentence),
+    ...(left ? [item("S1-more", "1", `${left} more sentence(s) were left out of the first ${MAX_RULES}. Show up to ${more.length} of them?`, MORE)] : []),
+    ...more.map((x, i) => sentence(x, MAX_RULES + i)),
     ...s.drawer2.map((g) => item(g.id, "2", g.text, g.options)),
     ...s.drawer3.map((q) => {
       const opts = q.options.slice(0, 3).map((x) => ({ label: label(collapse(x.label)), description: `${collapse(x.description)}${x.at ? ` (${x.at})` : ""}` }));
@@ -82,6 +87,7 @@ export function missing(queue, log, run, approved = false) {
   for (const l of log) if (l.run === run && l.answer !== undefined && l.answer !== "") last[l.id] = l.answer;
   const out = [];
   for (const { id, style } of queue) {
+    if (/^S1-\d+$/.test(id) && Number(id.slice(3)) > MAX_RULES && last["S1-more"] !== MORE[0]) continue; // the second page is asked only after a yes
     if (!(id in last)) out.push(id);
     else if (id === "H1-what" && last[id] === "No" && !("H1-what-fix" in last)) out.push("H1-what-fix");
     else if (last[id] === "Keep it, because ..." && !(`${id}-why` in last)) out.push(`${id}-why`);

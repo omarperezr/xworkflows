@@ -421,3 +421,46 @@ test("start refuses when .xworkflows itself is a symlink", () => {
   assert.equal(cli(d, "start").status, 1);
   assert.ok(!existsSync(join(real, "adapt-run.json")));
 });
+
+// ---- the second page, a folder as citation
+
+const MORE = (n) => Array.from({ length: n }, (_, i) => ({ text: `More ${i}.`, from: ["truth.1"], at: "a.js:2" }));
+test("with sentences left out the queue adds S1-more after screen 1, then the first 12 of them as S1-13 and on built like the first twelve", () => {
+  const left = [{ text: "Second.", from: ["truth.1"], at: "a.js:5", also: 1 }, { text: "Third.", from: ["truth.1"], at: "a.js:6" }, ...MORE(13)];
+  const q = buildQueue(SC({ drawer1LeftOut: left }));
+  assert.deepEqual(ids(q).slice(0, 5), ["S1-1", "S1-2", "S1-more", "S1-13", "S1-14"]);
+  assert.equal(ids(q).filter((i) => /^S1-\d+$/.test(i)).length, 2 + 12);
+  assert.ok(!ids(q).includes("S1-27"));
+  const more = q.find((i) => i.id === "S1-more");
+  assert.deepEqual(more.options, ["Yes, show them", "No, skip them"]);
+  assert.match(more.text, /15 more.*Show up to 12/);
+  assert.deepEqual(q[3], { id: "S1-13", heading: "1", style: "choice", text: "Second. (a.js:5) seen in 1 more place(s).", options: ["Right", "Real, but a bad rule", "Not how it works", "I don't know"] });
+  assert.equal(q[4].text, "Third. (a.js:6)");
+});
+
+test("nothing left out: no S1-more", () => {
+  assert.ok(!ids(buildQueue(SC())).includes("S1-more"));
+});
+
+test("the second page starts at S1-13: S1-12 is always asked, S1-13 only after the logged answer Yes, show them", () => {
+  const q = [{ id: "S1-1", style: "choice" }, { id: "S1-12", style: "choice" }, { id: "S1-more", style: "choice" }, { id: "S1-13", style: "choice" }, { id: "X1", style: "choice" }];
+  const first = [L("S1-1", "Right")];
+  assert.deepEqual(missing(q, first, "r1"), ["S1-12", "S1-more", "X1"]);
+  assert.deepEqual(missing(q, [...first, L("S1-more", "No, skip them"), L("X1", "x")], "r1"), ["S1-12"]);
+  assert.deepEqual(missing(q, [...first, L("S1-12", "Right"), L("S1-more", "No, skip them"), L("X1", "x")], "r1"), []);
+  assert.deepEqual(missing(q, [...first, L("S1-12", "Right"), L("S1-more", "Yes, show them"), L("X1", "x")], "r1"), ["S1-13"]);
+  assert.deepEqual(missing(q, [...first, L("S1-12", "Right"), L("S1-more", "Yes, show them"), L("S1-13", "Right"), L("X1", "x")], "r1"), []);
+});
+
+test("a citation whose file is a folder does not verify; render drops it and goes on", () => {
+  const d = repo();
+  assert.equal(verifyCitation(d, { file: ".xworkflows", line: 1, quote: "x" }), false);
+  const r = sample();
+  r.areas.truth.ideas.push({ text: "In a folder.", file: ".xworkflows", line: 1, quote: "x" });
+  const { version, profile, areaOrder, topics, written, kinds: k, plain: p, questions } = r;
+  r.sum = sum(JSON.stringify({ version, profile, areaOrder, topics, written, areas: r.areas, kinds: k, plain: p, questions }));
+  put(d, r);
+  const out = cli(d, "render");
+  assert.equal(out.status, 0, out.stderr);
+  assert.match(rt(d, "research.md"), /idea: In a folder\./);
+});
