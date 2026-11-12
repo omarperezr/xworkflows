@@ -18,19 +18,19 @@ const c = (line, quote, more = {}) => ({ file: "src/a.js", line, quote, ...more 
 const at = (file, line, quote) => ({ file, line, quote });
 const area = (more = {}) => ({ status: "found", ideas: [{ text: "i", ...c(1, "days(loan)") }], support: [], exceptions: [], contradicted: [], unprotected: [], commentRules: [], details: [], notChecked: [], ...more });
 const general = (rule, risk, cite) => ({ rule, basis: "code", risk, cost: "wrong due dates", ...cite });
-const research = (areas, plain = { claims: [], rest: [] }, more = {}) => ({ version: 3, profile: { what: "A lending desk." }, areaOrder: Object.keys(areas), areas, written: { count: 0, fromChecks: 0 }, kinds: {}, plain, questions: [{ id: "B-mistake", lead: "The README says so.", options: [{ label: "A lost book", description: "it is the costliest", file: "README.md", line: 1, quote: "whole days" }] }], ...more });
+const research = (areas, plain = { claims: [] }, more = {}) => ({ version: 3, profile: { what: "A lending desk." }, areaOrder: Object.keys(areas), areas, written: { count: 0, fromChecks: 0 }, kinds: {}, plain, questions: [{ id: "B-mistake", lead: "The README says so.", options: [{ label: "A lost book", description: "it is the costliest", file: "README.md", line: 1, quote: "whole days" }] }], ...more });
 const claim = (text, ...from) => ({ text, from });
 
 test("a sentence is shown only when an idea it names has a verified citation; its citation is the first verified idea's, never the general rule's", () => {
   const s = screens(root, research({
     truth: area({ general: general("Loans count whole days.", "medium", c(1, "days(loan)")), ideas: [{ text: "a", ...c(2, "late(loan)") }, { text: "b", ...c(3, "old(loan)") }, { text: "c", ...c(4, "not in the file") }] }),
     state: area({ general: general("Made up.", "high", c(1, "days(loan)")), ideas: [{ text: "d", ...c(1, "not in the file") }] }),
-  }, { claims: [claim("Loans count whole days.", "truth.1"), claim("Made up.", "state.1"), claim("Nothing names an idea.", "nowhere.1"), claim("Late old loans.", "truth.3", "truth.2", "truth.1")], rest: [] }));
+  }, { claims: [claim("Loans count whole days.", "truth.1"), claim("Made up.", "state.1"), claim("Nothing names an idea.", "nowhere.1"), claim("Late old loans.", "truth.3", "truth.2", "truth.1")] }));
   assert.deepEqual(s.drawer1.map((x) => [x.text, x.at, x.risk]), [
+    ["Late old loans.", "src/a.js:2", "medium"],
     ["Loans count whole days.", "src/a.js:2", "medium"],
-    ["Late old loans.", "src/a.js:3", "medium"],
   ]);
-  assert.deepEqual(s.drawer1.map((x) => x.from), [["truth.1"], ["truth.3", "truth.2", "truth.1"]]);
+  assert.deepEqual(s.drawer1.map((x) => x.from), [["truth.3", "truth.2", "truth.1"], ["truth.1"]]);
   assert.deepEqual(s.dropped.filter((d) => d.area === "plain").map((d) => d.what), ["sentence: Made up.", "sentence: Nothing names an idea."]);
   assert.ok(s.dropped.filter((d) => d.area === "plain").every((d) => d.reason));
 });
@@ -38,15 +38,14 @@ test("a sentence is shown only when an idea it names has a verified citation; it
 test("a sentence of 15 words is dropped with its reason; 14 words stay", () => {
   const w = (n) => Array.from({ length: n }, (_, i) => `w${i}`).join("  ");
   assert.equal(MAX_WORDS, 14);
-  const s = screens(root, research({ truth: area({ general: general("r", "low", c(1, "days(loan)")) }) }, { claims: [claim(w(14), "truth.1"), claim(w(15), "truth.1")], rest: [] }));
+  const s = screens(root, research({ truth: area({ general: general("r", "low", c(1, "days(loan)")) }) }, { claims: [claim(w(14), "truth.1"), claim(w(15), "truth.1")] }));
   assert.equal(s.drawer1.length, 1);
   assert.match(s.dropped.find((d) => d.what.startsWith("sentence: w0")).reason, /15 words/);
 });
 
-test("screen 1 holds 12; the rest and plain.rest are counted in the left-out line, never cut in silence", () => {
+test("screen 1 holds 12; the rest is counted in the left-out line, never cut in silence", () => {
   const r = research({ truth: area({ general: general("r", "low", c(1, "days(loan)")) }) }, {
-    claims: Array.from({ length: MAX_RULES + 2 }, (_, i) => claim(`sentence ${i}`, "truth.1")),
-    rest: [claim("spare one", "truth.1"), claim("spare two", "truth.1")],
+    claims: Array.from({ length: MAX_RULES + 4 }, (_, i) => claim(`sentence ${String(i).padStart(2, "0")}`, "truth.1")),
   });
   const s = screens(root, r);
   assert.equal(s.drawer1.length, MAX_RULES);
@@ -106,7 +105,7 @@ test("research.md is version 3 and carries no detail; details.md holds every ver
       support: [at("src/b.js", 1, "late(loan)"), c(9, "nope")],
       commentRules: [{ text: "Never count hours.", ...c(3, "old(loan)") }, { text: "Made up comment.", ...c(3, "zzz") }],
     }),
-  }, { claims: [claim("Loans count whole days.", "truth.1")], rest: [] }, {
+  }, { claims: [claim("Loans count whole days.", "truth.1")] }, {
     kinds: { values: { status: "found", general: { rule: "Round once.", basis: "code", ...c(1, "days(loan)") }, rules: [{ rule: "Round at the end.", ...c(2, "late(loan)") }, { rule: "Fake rule.", ...c(2, "zzz") }], notChecked: [] } },
   });
   const s = screens(root, r);
@@ -179,7 +178,7 @@ test("render stops when the plain agent, the questions agent or a config agent r
 test("details.md lists under each sentence only the items it names, with their citations; a verified idea no shown sentence names has its own heading", () => {
   const r = research({
     truth: area({ general: general("Loans count whole days.", "high", c(1, "days(loan)")), ideas: [{ text: "Days are whole.", ...c(2, "late(loan)") }, { text: "Unnamed idea.", ...c(3, "old(loan)") }, { text: "Fake idea.", ...c(3, "zzz") }] }),
-  }, { claims: [claim("Loans count whole days.", "truth.1")], rest: [] });
+  }, { claims: [claim("Loans count whole days.", "truth.1")] });
   const s = screens(root, r);
   const d = details(r, s, mechanism(root, r), root);
   assert.match(d, /### 1\. Loans count whole days\.\n\n- Days are whole\. src\/a\.js:2\n\n/);
@@ -189,25 +188,23 @@ test("details.md lists under each sentence only the items it names, with their c
   assert.ok(!d.includes("Fake idea.") && !d.split("## Rules no sentence shows")[1].includes("Days are whole."));
 });
 
-test("verified sentences of plain.rest fill the free places of screen 1; the left-out line counts what remains", () => {
+test("a plain.rest of a research.json written before this round is read like claims: no verified sentence is lost", () => {
   const r = research({ truth: area({ general: general("r", "low", c(1, "days(loan)")) }) }, {
     claims: [claim("Made up.", "ghost.1"), claim("Good one.", "truth.1")],
-    rest: [claim("Spare verified.", "truth.1"), claim("Spare made up.", "ghost.1")],
+    rest: [claim("Spare verified.", "truth.1")],
   });
   const s = screens(root, r);
-  assert.deepEqual(s.drawer1.map((x) => x.text), ["Good one.", "Spare verified."]);
-  assert.equal(s.drawer1LeftOut.length, 0);
-  assert.equal(s.dropped.filter((d) => d.area === "plain").length, 2);
+  assert.deepEqual(s.drawer1.map((x) => x.text).sort(), ["Good one.", "Spare verified."]);
+  assert.deepEqual(s.errors, []);
+  assert.equal(s.dropped.filter((d) => d.area === "plain").length, 1);
 });
 
-test("plain.rest is no lesser list: a high-risk sentence of it comes before a low-risk one of claims", () => {
-  const r = research({ lo: area({ general: general("r", "low", c(1, "days(loan)")) }), hi: area({ general: general("h", "high", c(2, "late(loan)")) }) }, {
-    claims: Array.from({ length: MAX_RULES }, (_, i) => claim(`Chosen ${i}.`, "lo.1")),
-    rest: [claim("Spare high.", "hi.1")],
-  });
+test("a kind's own risk ranks its sentences: the list of kind sentences sorts by risk first, the fixed order of kinds only breaks ties; the risk word shows", () => {
+  const withRisk = (risk) => ({ ...kinds().snap, general: { ...kinds().snap.general, risk, cost: "fees change under a borrower" } });
+  const r = research({ a1: area({ general: general("r", "low", c(1, "days(loan)")) }) }, { claims: [claim("Snap low.", "kind:snap"), claim("Txn high.", "kind:txn"), claim("Idem high.", "kind:idem"), claim("Values med.", "kind:values"), claim("Mixed.", "kind:snap", "a1")] }, { kinds: { snap: withRisk("low"), idem: withRisk("high"), txn: withRisk("high"), values: withRisk("medium") } });
   const s = screens(root, r);
-  assert.deepEqual(s.drawer1.map((x) => x.text), ["Spare high.", ...Array.from({ length: MAX_RULES - 1 }, (_, i) => `Chosen ${i}.`)]);
-  assert.deepEqual(s.drawer1LeftOut.map((x) => x.text), [`Chosen ${MAX_RULES - 1}.`]);
+  assert.deepEqual(s.drawer1.map((x) => [x.text, x.risk]), [["Idem high.", "high"], ["Txn high.", "high"], ["Values med.", "medium"], ["Mixed.", "low"], ["Snap low.", "low"]]);
+  assert.match(render(r, s, "abc"), /1\. Idem high\. \(src\/a\.js:1\) Risk high\.\n/);
 });
 
 test("the left-out line of screen 2 says the cut is by kind, then by risk", () => {
@@ -234,14 +231,14 @@ test("details.md lists verified general and second rules that no shown idea belo
   const r = research({
     truth: area({ general: general("GENERAL TRUTH", "high", c(1, "days(loan)")), second: { rule: "SECOND TRUTH", risk: "high", cost: "c", ...c(2, "late(loan)") } }),
     state: area({ general: general("GENERAL STATE", "high", c(3, "old(loan)")), ideas: [{ text: "idea s1", ...c(3, "zzz") }] }),
-  }, { claims: [claim("One.", "truth.1")], rest: [] });
+  }, { claims: [claim("One.", "truth.1")] });
   const d = details(r, screens(root, r), mechanism(root, r), root);
   assert.match(d, /SECOND TRUTH/);
   assert.match(d, /GENERAL STATE/);
 });
 
 test("a verified idea of an absent area is kept: not dropped, and in details.md", () => {
-  const r = research({ pay: area({ status: "absent", ideas: [{ text: "Fees are kept in days.", ...c(1, "days(loan)") }] }) }, { claims: [claim("Fees count days.", "pay.1")], rest: [] });
+  const r = research({ pay: area({ status: "absent", ideas: [{ text: "Fees are kept in days.", ...c(1, "days(loan)") }] }) }, { claims: [claim("Fees count days.", "pay.1")] });
   const s = screens(root, r);
   assert.equal(s.drawer1.length, 1, `sentence dropped: ${JSON.stringify(s.dropped)}`);
   assert.ok(details(r, s, mechanism(root, r), root).includes("Fees are kept"));
@@ -251,7 +248,7 @@ test("a sentence with no verified general rule shows no risk word and sorts afte
   const r = research({
     bare: area({ general: general("bad", "high", c(1, "not in the file")) }),
     lo: area({ general: general("l", "low", c(1, "days(loan)")) }),
-  }, { claims: [claim("No rule.", "bare.1"), claim("Low one.", "lo.1")], rest: [] });
+  }, { claims: [claim("No rule.", "bare.1"), claim("Low one.", "lo.1")] });
   const s = screens(root, r);
   assert.deepEqual(s.drawer1.map((x) => [x.text, x.risk]), [["Low one.", "low"], ["No rule.", undefined]]);
   const md = render(r, s, "abc");
@@ -264,7 +261,7 @@ test("screen 1 is ordered by risk, and a merged sentence takes its highest risk"
     med: area({ general: general("m", "medium", c(1, "days(loan)")) }),
     lo: area({ general: general("l", "low", c(1, "days(loan)")) }),
     hi: area({ general: general("h", "high", c(2, "late(loan)")) }),
-  }, { claims: [claim("Medium.", "med.1"), claim("Low.", "lo.1"), claim("Merged.", "lo.1", "hi.1"), claim("High.", "hi.1")], rest: [] });
+  }, { claims: [claim("Medium.", "med.1"), claim("Low.", "lo.1"), claim("Merged.", "lo.1", "hi.1"), claim("High.", "hi.1")] });
   assert.deepEqual(screens(root, r).drawer1.map((x) => [x.text, x.risk]), [["Merged.", "high"], ["High.", "high"], ["Medium.", "medium"], ["Low.", "low"]]);
 });
 
@@ -273,7 +270,7 @@ test("a sentence from a verified general rule shows that rule's citation as an e
     truth: area({ general: general("Loans count whole days.", "low", c(1, "days(loan)")), support: [at("src/b.js", 1, "late(loan)"), at("src/c.js", 1, "old(loan)"), c(9, "nope")], ideas: [{ text: "Days are whole.", ...c(4, "") }, { text: "i2", ...c(2, "late(loan)") }] }),
     bad: area({ general: general("Made up.", "high", c(1, "not in the file")), ideas: [{ text: "x", ...c(1, "not in the file") }] }),
     pay: area({ general: general("Fees in days.", "high", c(2, "late(loan)")), support: [] }),
-  }, { claims: [claim("Idea only.", "pay.1"), claim("From a rule.", "truth.2", "truth"), claim("Unverified rule.", "bad"), claim("Rule with no support.", "pay")], rest: [] });
+  }, { claims: [claim("Idea only.", "pay.1"), claim("From a rule.", "truth.2", "truth"), claim("Unverified rule.", "bad"), claim("Rule with no support.", "pay")] });
   const s = screens(root, r);
   assert.deepEqual(s.drawer1.map((x) => [x.text, x.at, x.also]), [
     ["Rule with no support.", "src/a.js:2", 0],
@@ -290,7 +287,7 @@ test("a sentence from a verified general rule shows that rule's citation as an e
 test("a support citation counts only when its file differs from the example's and from the other supports'; details.md lists it once", () => {
   const r = research({
     truth: area({ general: general("Loans count whole days.", "high", c(1, "days(loan)")), support: [c(1, "days(loan)"), c(2, "late(loan)"), at("./src/b.js", 1, "late(loan)"), at("src/b.js", 1, "late(loan)"), at(join(root, "src/b.js"), 1, "late(loan)")] }),
-  }, { claims: [claim("From a rule.", "truth")], rest: [] });
+  }, { claims: [claim("From a rule.", "truth")] });
   const s = screens(root, r);
   assert.equal(s.drawer1[0].also, 1);
   assert.ok(!("general" in s.drawer1[0]));
@@ -300,7 +297,7 @@ test("a support citation counts only when its file differs from the example's an
 test("details.md lists a named general rule in full with its example and every verified support; a rule a shown sentence names is not in the lost list", () => {
   const r = research({
     truth: area({ general: general("Loans count whole days.", "high", c(1, "days(loan)")), support: [at("src/b.js", 1, "late(loan)"), c(9, "nope")], ideas: [{ text: "Unnamed idea.", ...c(3, "old(loan)") }] }),
-  }, { claims: [claim("Loans count whole days.", "truth")], rest: [] });
+  }, { claims: [claim("Loans count whole days.", "truth")] });
   const d = details(r, screens(root, r), mechanism(root, r), root);
   assert.match(d, /### 1\. Loans count whole days\.\n\n- Loans count whole days\. \(code; risk high: wrong due dates\) src\/a\.js:1, src\/b\.js:1\n/);
   assert.ok(!d.includes("src/a.js:9"));
@@ -310,7 +307,7 @@ test("details.md lists a named general rule in full with its example and every v
 test("a sentence that names an area whose general rule did not verify is dropped, even beside a verified idea; its idea stays in the detail", () => {
   const r = research({
     bad: area({ general: general("Wide and unproven.", "high", c(1, "not in the file")), ideas: [{ text: "Small idea.", ...c(2, "late(loan)") }] }),
-  }, { claims: [claim("Wide and unproven.", "bad", "bad.1"), claim("Small idea.", "bad.1")], rest: [] });
+  }, { claims: [claim("Wide and unproven.", "bad", "bad.1"), claim("Small idea.", "bad.1")] });
   const s = screens(root, r);
   assert.deepEqual(s.drawer1.map((x) => x.text), ["Small idea."]);
   assert.equal(s.dropped.find((d) => d.what === "sentence: Wide and unproven.").reason, "its general rule did not verify");
@@ -319,7 +316,7 @@ test("a sentence that names an area whose general rule did not verify is dropped
 test("a sentence naming an absent area whose general rule did not verify is dropped, and its failed idea gets a Dropped line", () => {
   const r = research({
     pay: area({ status: "absent", general: general("Wide and unproven.", "high", c(1, "not in the file")), ideas: [{ text: "Good idea.", ...c(2, "late(loan)") }, { text: "Bad idea.", ...c(3, "not in the file") }] }),
-  }, { claims: [claim("Wide and unproven.", "pay", "pay.1"), claim("Good idea.", "pay.1")], rest: [] });
+  }, { claims: [claim("Wide and unproven.", "pay", "pay.1"), claim("Good idea.", "pay.1")] });
   const s = screens(root, r);
   assert.deepEqual(s.drawer1.map((x) => x.text), ["Good idea."]);
   assert.equal(s.dropped.find((d) => d.what === "sentence: Wide and unproven.").reason, "its general rule did not verify");
@@ -329,14 +326,14 @@ test("a sentence naming an absent area whose general rule did not verify is drop
 test("an idea or a support citation that fails gets a Dropped line, and the count includes it", () => {
   const r = research({
     truth: area({ general: general("r", "low", c(1, "days(loan)")), support: [c(9, "nope"), at("src/b.js", 1, "late(loan)")], ideas: [{ text: "Fake idea.", ...c(1, "zzz") }, { text: "Fine.", ...c(2, "late(loan)") }] }),
-  }, { claims: [claim("Fine.", "truth.2")], rest: [] });
+  }, { claims: [claim("Fine.", "truth.2")] });
   const s = screens(root, r);
   assert.deepEqual(s.dropped.map((d) => [d.area, d.what]), [["truth", "idea: Fake idea."], ["truth", "support: r"]]);
   assert.match(render(r, s, "abc"), /## Dropped\n\n- truth: idea: Fake idea\. src\/a\.js:1 "zzz"\n- truth: support: r src\/a\.js:9 "nope"\n/);
 });
 
 test("a citation whose file is a folder does not verify and does not throw", () => {
-  const r = research({ truth: area({ general: general("r", "low", c(1, "days(loan)")), ideas: [{ text: "In a folder.", file: "src/dir", line: 1, quote: "x" }] }) }, { claims: [claim("In a folder.", "truth.1")], rest: [] });
+  const r = research({ truth: area({ general: general("r", "low", c(1, "days(loan)")), ideas: [{ text: "In a folder.", file: "src/dir", line: 1, quote: "x" }] }) }, { claims: [claim("In a folder.", "truth.1")] });
   const s = screens(root, r);
   assert.equal(s.drawer1.length, 0);
   assert.ok(s.dropped.some((d) => d.what === "idea: In a folder."));
@@ -344,7 +341,7 @@ test("a citation whose file is a folder does not verify and does not throw", () 
 
 test("the second page: the first 12 of drawer1LeftOut, and the rest is counted beyond in the one left-out line", () => {
   const r = research({ truth: area({ general: general("r", "low", c(1, "days(loan)")) }) }, {
-    claims: Array.from({ length: MAX_RULES + 14 }, (_, i) => claim(`sentence ${i}`, "truth.1")), rest: [],
+    claims: Array.from({ length: MAX_RULES + 14 }, (_, i) => claim(`sentence ${String(i).padStart(2, "0")}`, "truth.1")),
   });
   const s = screens(root, r);
   assert.equal(s.drawer1.length, MAX_RULES);
@@ -359,7 +356,7 @@ test("the second page: the first 12 of drawer1LeftOut, and the rest is counted b
 });
 
 test("with nothing left out there is no second page and no line for it", () => {
-  const r = research({ truth: area({ general: general("r", "low", c(1, "days(loan)")) }) }, { claims: [claim("One.", "truth.1")], rest: [] });
+  const r = research({ truth: area({ general: general("r", "low", c(1, "days(loan)")) }) }, { claims: [claim("One.", "truth.1")] });
   const s = screens(root, r);
   assert.deepEqual(s.drawer1LeftOut, []);
   assert.doesNotMatch(render(r, s, "abc"), /second page/);
@@ -369,15 +366,17 @@ const FEE = "A fee never changes after the loan is returned.";
 const kinds = (more = {}) => ({ snap: { status: "found", general: { rule: FEE, basis: "code", ...c(1, "days(loan)") }, rules: [{ rule: "Same in b.", ...at("src/b.js", 1, "late(loan)") }, { rule: "Same in c.", ...at("src/c.js", 1, "old(loan)") }] }, ...more });
 
 test("a sentence naming kind:<kind> shows the kind's own citation only: its other rules are not other places of it", () => {
-  const r = research({ pay: area() }, { claims: [claim("Idea only.", "pay.1"), claim("Fees stay.", "kind:snap")], rest: [] }, { kinds: kinds() });
+  const r = research({ pay: area() }, { claims: [claim("Idea only.", "pay.1"), claim("Fees stay.", "kind:snap")] }, { kinds: kinds() });
   const s = screens(root, r);
-  assert.deepEqual(s.drawer1.map((x) => [x.text, x.at, x.also]), [["Fees stay.", "src/a.js:1", 0], ["Idea only.", "src/a.js:1", undefined]]);
-  assert.match(render(r, s, "abc"), /Fees stay\. \(src\/a\.js:1\) seen in 0 more place\(s\)\./);
+  assert.deepEqual(s.drawer1.map((x) => [x.text, x.at, x.also]), [["Fees stay.", "src/a.js:1", undefined], ["Idea only.", "src/a.js:1", undefined]]);
+  const md = render(r, s, "abc");
+  assert.match(md, /Fees stay\. \(src\/a\.js:1\)\n/);
+  assert.doesNotMatch(md, /seen in/);
 });
 
 test("a sentence naming a kind that does not resolve is dropped with the reason, whatever the kind's status", () => {
   const absentWithRule = { status: "absent", general: { rule: "An absent kind's rule.", basis: "code", ...c(1, "days(loan)") }, rules: [] };
-  const r = research({ pay: area() }, { claims: [claim("A.", "kind:snap", "pay.1"), claim("B.", "kind:gone"), claim("C.", "kind:abs")], rest: [] }, { kinds: kinds({ abs: absentWithRule }) });
+  const r = research({ pay: area() }, { claims: [claim("A.", "kind:snap", "pay.1"), claim("B.", "kind:gone"), claim("C.", "kind:abs")] }, { kinds: kinds({ abs: absentWithRule }) });
   r.kinds.snap.general.quote = "not in the file";
   const s = screens(root, r);
   assert.deepEqual(s.drawer1, []);
@@ -385,7 +384,7 @@ test("a sentence naming a kind that does not resolve is dropped with the reason,
 });
 
 test("a sentence naming a verified rule and a failed one is shown with the verified one's citation; each failed rule has its own dropped line", () => {
-  const r = research({ truth: area({ general: general("r", "low", c(2, "late(loan)")) }) }, { claims: [claim("Both.", "kind:snap", "truth"), claim("Neither.", "kind:snap", "kind:gone")], rest: [] }, { kinds: kinds() });
+  const r = research({ truth: area({ general: general("r", "low", c(2, "late(loan)")) }) }, { claims: [claim("Both.", "kind:snap", "truth"), claim("Neither.", "kind:snap", "kind:gone")] }, { kinds: kinds() });
   r.kinds.snap.general.quote = "not in the file";
   const s = screens(root, r);
   assert.deepEqual(s.drawer1.map((x) => [x.text, x.at, x.also, x.risk]), [["Both.", "src/a.js:2", 0, "low"]]);
@@ -394,30 +393,49 @@ test("a sentence naming a verified rule and a failed one is shown with the verif
   assert.match(render(r, s, "abc"), /- plain: rule kind:snap, named by: Both\. did not verify\n/);
 });
 
-test("the first page: sentences from general rules first, a kind's and an area-only one in turn, each list by risk; then ideas by risk; claims and rest are one list", () => {
+test("the first page: sentences from general rules first, a kind's and an area-only one in turn, each list by risk; then ideas by risk", () => {
   const rule = (risk) => general("r", risk, c(1, "days(loan)"));
   const r = research({ a1: area({ general: rule("low") }), a2: area({ general: rule("high") }), a3: area({ general: rule("medium") }), a4: area({ general: rule("high") }), a5: area({ general: rule("high"), ideas: [{ text: "i", ...c(2, "late(loan)") }] }), a6: area({ ideas: [{ text: "i", ...c(1, "days(loan)") }] }) }, {
-    claims: [claim("I-none-1.", "a6.1"), claim("A-low.", "a1"), claim("K1.", "kind:snap"), claim("A-high-1.", "a2")],
-    rest: [claim("A-med.", "a3"), claim("K2.", "kind:idem"), claim("I-high.", "a5.1"), claim("A-high-2.", "a4"), claim("K3 and area.", "kind:txn", "a1")],
+    claims: [claim("I-none-1.", "a6.1"), claim("A-low.", "a1"), claim("K1.", "kind:snap"), claim("A-high-1.", "a2"), claim("A-med.", "a3"), claim("K2.", "kind:idem"), claim("I-high.", "a5.1"), claim("A-high-2.", "a4"), claim("K3 and area.", "kind:txn", "a1")],
   }, { kinds: kinds({ idem: kinds().snap, txn: kinds().snap }) });
   const s = screens(root, r);
   assert.deepEqual(s.drawer1.slice(0, MAX_RULES).map((x) => x.text), ["K3 and area.", "A-high-1.", "K1.", "A-high-2.", "K2.", "A-med.", "A-low.", "I-high.", "I-none-1."]);
-  const twelve = research({ a1: area({ general: general("r", "low", c(1, "days(loan)")) }) }, { claims: Array.from({ length: 13 }, (_, i) => claim(`S${i}.`, i < 5 ? "a1.1" : "a1")), rest: [] });
+  const both = s.drawer1.find((x) => x.text === "K3 and area.");
+  assert.ok(both.at === "src/a.js:1" && !("also" in both));
+  const twelve = research({ a1: area({ general: general("r", "low", c(1, "days(loan)")) }) }, { claims: Array.from({ length: 13 }, (_, i) => claim(`S${i}.`, i < 5 ? "a1.1" : "a1")) });
   const t = screens(root, twelve);
   assert.deepEqual([t.drawer1.length, t.drawer1LeftOut.map((x) => x.text)], [12, ["S4."]]);
-  assert.deepEqual(t.drawer1.slice(0, 2).map((x) => x.text), ["S5.", "S6."]);
+  assert.deepEqual(t.drawer1.slice(0, 2).map((x) => x.text), ["S10.", "S11."]);
 });
 
 test("details.md lists a shown kind's general rule once under its sentence, an unshown one once in the mechanism section; no 'undefined' anywhere", () => {
-  const r = research({}, { claims: [claim("Fees stay.", "kind:snap")], rest: [] }, { kinds: kinds() });
+  const r = research({}, { claims: [claim("Fees stay.", "kind:snap")] }, { kinds: kinds() });
   const d = details(r, screens(root, r), mechanism(root, r), root);
   assert.match(d, /### 1\. Fees stay\.\n\n- A fee never changes after the loan is returned\. \(code\) src\/a\.js:1\n/);
   assert.equal(d.split("A fee never changes").length, 2);
   assert.match(d, /### snap\n\n- Same in b\. \(code\) src\/b\.js:1\n- Same in c\./);
-  const u = research({}, { claims: [], rest: [] }, { kinds: kinds() });
+  const u = research({}, { claims: [] }, { kinds: kinds() });
   const du = details(u, screens(root, u), mechanism(root, u), root);
   assert.match(du, /- general: A fee never changes after the loan is returned\./);
   assert.equal(du.split("A fee never changes").length, 2);
   assert.ok(!du.includes("undefined") && !d.includes("undefined"));
   assert.ok(!du.includes("Rules no sentence shows"));
+});
+
+test("the same sentences in the reverse order give the same two pages: the script's own order breaks ties, never the agent's", () => {
+  const rule = (risk) => general("r", risk, c(1, "days(loan)"));
+  const areas = Object.fromEntries(Array.from({ length: 9 }, (_, i) => [`a${i}`, area({ general: rule("high"), ideas: [{ text: "i", ...c(1, "days(loan)") }, { text: "j", ...c(2, "late(loan)") }] })]));
+  const k = kinds({ idem: kinds().snap, txn: kinds().snap, values: kinds().snap });
+  const claims = [
+    ...["snap", "idem", "txn", "values"].map((x) => claim(`K ${x}.`, `kind:${x}`)),
+    ...Object.keys(areas).map((a) => claim(`Area ${a}.`, a)),
+    ...Object.keys(areas).flatMap((a) => [claim(`Idea ${a}.2.`, `${a}.2`), claim(`Idea ${a}.1.`, `${a}.1`)]),
+    claim("Both ways.", "a3.1", "a1.2"), claim("Both ways.", "a1.2", "a3.1"),
+  ];
+  const pages = (list) => { const s = screens(root, research(areas, { claims: list }, { kinds: k })); return [s.drawer1.map((x) => x.text), s.drawer1LeftOut.map((x) => x.text)]; };
+  const fwd = pages(claims);
+  assert.deepEqual(fwd[0], ["K snap.", "Area a0.", "K idem.", "Area a1.", "K txn.", "Area a2.", "K values.", "Area a3.", "Area a4.", "Area a5.", "Area a6.", "Area a7."]);
+  assert.deepEqual(pages([...claims].reverse()), fwd);
+  assert.deepEqual(pages(claims.map((x) => ({ ...x, from: [...x.from].reverse() }))), fwd);
+  assert.ok(fwd[1].length > 0);
 });

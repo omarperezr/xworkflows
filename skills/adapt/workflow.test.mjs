@@ -26,7 +26,7 @@ async function run(args, over = {}) {
     if (opts.label === "profile") return PROFILE;
     if (opts.agentType === "mechanism" && opts.label.startsWith("k:")) return { kind: opts.label.slice(2), status: "found", verdicts: [], rules: [], notChecked: [] };
     if (opts.label.startsWith("a:")) return { area: opts.label.slice(2), status: "found", general: { rule: `rule of ${opts.label}`, short: `short of ${opts.label}`, basis: "code", risk: "high", cost: "c", ...cite }, second: { rule: "second", risk: "low", cost: "c", ...cite }, ideas: [{ text: `idea of ${opts.label}`, ...cite }, { text: `other of ${opts.label}`, ...cite }], support: [], exceptions: [], contradicted: [], unprotected: [], commentRules: [], details: [], doubted: [], notChecked: [] };
-    if (opts.label === "plain") return { claims: [{ text: "One idea.", from: ["truth"] }], rest: [] };
+    if (opts.label === "plain") return { claims: [{ text: "One idea.", from: ["truth"] }] };
     if (opts.label === "questions") return { questions: [] };
     if (opts.label.startsWith("docs") || opts.label === "checks") return { rules: [], notes: [], notRead: [] };
     return { lines: [] };
@@ -124,11 +124,13 @@ test("the plain agent: language, rule ids, 14 words, every sentence returned, no
   assert.match(p.prompt, /never split/i);
   assert.match(p.prompt, /14 words/);
   assert.match(p.prompt, /never widen/i);
-  assert.deepEqual(p.opts.schema.required, ["claims", "rest"]);
+  assert.deepEqual(p.opts.schema.required, ["claims"]);
+  assert.ok(!("rest" in p.opts.schema.properties));
+  assert.doesNotMatch(p.prompt, /rest/);
   assert.deepEqual(p.opts.schema.properties.claims.items.required, ["text", "from"]);
   const es = await run({ root: ".", zeroHits: [], language: "Spanish" });
   assert.match(es.calls.find((c) => c.opts.label === "plain").prompt, /Write in Spanish\./);
-  assert.deepEqual(es.result.plain, { claims: [{ text: "One idea.", from: ["truth"] }], rest: [] });
+  assert.deepEqual(es.result.plain, { claims: [{ text: "One idea.", from: ["truth"] }] });
 });
 
 test("an area answer carries at most four ideas, each cited, and the prompt says how to prove one", async () => {
@@ -174,12 +176,12 @@ test("every agent that reads the repository carries the index rule and the histo
 // The ids the questions agent may answer must be the ids screens() looks up.
 test("every question id the workflow asks is a drawer3 id", () => {
   const ids = [...text.match(/const QUESTIONS = \{([\s\S]*?)\n\};/)[1].matchAll(/^\s*"([^"]+)":/gm)].map((m) => m[1]);
-  const drawer3 = screens(process.cwd(), { areas: {}, areaOrder: [], plain: { claims: [], rest: [] }, questions: [] }).drawer3.map((q) => q.id);
+  const drawer3 = screens(process.cwd(), { areas: {}, areaOrder: [], plain: { claims: [] }, questions: [] }).drawer3.map((q) => q.id);
   assert.deepEqual(ids, drawer3);
 });
 
 test("the questions agent schema and prompt carry exactly the drawer3 ids", async () => {
-  const drawer3 = screens(process.cwd(), { areas: {}, areaOrder: [], plain: { claims: [], rest: [] }, questions: [] }).drawer3.map((q) => q.id);
+  const drawer3 = screens(process.cwd(), { areas: {}, areaOrder: [], plain: { claims: [] }, questions: [] }).drawer3.map((q) => q.id);
   const { calls } = await run({ root: ".", zeroHits: [] });
   const q = calls.find((c) => c.opts.label === "questions");
   assert.deepEqual(q.opts.schema.properties.questions.items.properties.id.enum, drawer3);
@@ -227,7 +229,10 @@ test("a kind's general rule gains a short form, asked in one line with the area'
   const k = calls.find((c) => c.opts.label === "k:values");
   const g = k.opts.schema.properties.general;
   assert.equal(g.properties.short.type, "string");
-  assert.deepEqual(g.required, ["rule", "short", "basis", "file", "line", "quote"]);
+  assert.deepEqual(g.required, ["rule", "short", "basis", "risk", "cost", "file", "line", "quote"]);
+  assert.deepEqual(g.properties.risk.enum, ["high", "medium", "low"]);
+  assert.equal(g.properties.cost.type, "string");
+  assert.match(k.prompt, /`risk`[^\n]*high, medium or low[^\n]*`cost`[^\n]*what breaks, and for whom/);
   assert.match(k.prompt, /`short`[^\n]*14 words at most[^\n]*never wider than the rule/);
   assert.ok(k.prompt.includes('no "all", "always", "never" or "every" unless one cited place enforces it for every case'));
   assert.match(k.prompt, BUSINESS);
@@ -235,11 +240,11 @@ test("a kind's general rule gains a short form, asked in one line with the area'
 });
 
 test("the plain agent also reads the short rule of each found kind as kind:<kind>, and merges only what says the same", async () => {
-  const kind = (label) => ({ kind: label.slice(2), status: "found", verdicts: [], rules: [], notChecked: [], general: { rule: `long ${label}`, short: `short ${label}`, basis: "code", ...cite } });
+  const kind = (label) => ({ kind: label.slice(2), status: "found", verdicts: [], rules: [], notChecked: [], general: { rule: `long ${label}`, short: `short ${label}`, basis: "code", risk: "medium", cost: "c", ...cite } });
   const over = { "k:values": async (p, o) => kind(o.label), "k:txn": async (p, o) => ({ ...kind(o.label), status: "absent" }), "k:input": async (p, o) => ({ ...kind(o.label), general: undefined }) };
   const { calls } = await run({ root: ".", zeroHits: ["conc"] }, over);
   const p = calls.find((c) => c.opts.label === "plain").prompt;
-  assert.ok(p.includes('{"id":"kind:values","rule":"short k:values"}'));
+  assert.ok(p.includes('{"id":"kind:values","rule":"short k:values","risk":"medium"}'));
   assert.ok(!p.includes("kind:txn") && !p.includes("kind:input") && !p.includes("kind:conc") && !p.includes("long k:values"));
   assert.ok(p.indexOf('"id":"kind:values"') < p.indexOf('"id":"truth.1"'));
   assert.match(p, /id `kind:<kind>`/);

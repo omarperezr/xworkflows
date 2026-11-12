@@ -33,7 +33,7 @@ function sample(over = {}) {
     values: { kind: "values", status: "found", general: { rule: "Round once, only when shown", basis: "both", ...cite }, verdicts: [], rules: [{ rule: "round once", ...cite }, { rule: "fake rule", file: "a.js", line: 2, quote: "absent text" }], notChecked: [] },
     conc: { kind: "conc", status: "not-present", rules: [], notChecked: [] },
   };
-  const plain = { claims: [{ text: "Totals are rounded once.", from: ["truth.1"] }, { text: "A made up claim.", from: ["ghost.1"] }], rest: [] };
+  const plain = { claims: [{ text: "Totals are rounded once.", from: ["truth.1"] }, { text: "A made up claim.", from: ["ghost.1"] }] };
   const r = { version: 3, profile: { what: "a tool" }, areaOrder: ["truth"], topics: {}, written: { count: 2, fromChecks: 1 }, areas, kinds, plain, questions: [], ...over };
   const { version, profile, areaOrder, topics, written, kinds: k, plain: p, questions } = r;
   r.sum = sum(JSON.stringify({ version, profile, areaOrder, topics, written, areas: r.areas, kinds: k, plain: p, questions }));
@@ -172,7 +172,7 @@ test("render exits 1 when the Workflow's key order or any value changed", () => 
   assert.equal(r.status, 1);
   assert.match(r.stderr, /research.json was altered/);
   const p = sample();
-  put(d, { ...p, plain: { claims: [], rest: [] } }); // plain changed, sum kept
+  put(d, { ...p, plain: { claims: [] } }); // plain changed, sum kept
   assert.equal(cli(d, "render").status, 1);
 });
 

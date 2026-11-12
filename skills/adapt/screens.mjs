@@ -46,7 +46,7 @@ function ruleIndex(root, r) {
     (a.ideas || []).forEach((i, n) => { if (i?.text && ok(i)) ideas.set(`${key}.${n + 1}`, { area: key, text: i.text, at: at(i) }); });
   }
   // A found kind's verified general rule is the item `kind:<kind>`, with its own citation only: its other rules are not other places of it.
-  for (const [k, x] of Object.entries(r.kinds || {})) if (x?.status === "found" && x.general?.rule && ok(x.general)) rules.set(`kind:${k}`, { rule: x.general.rule, basis: x.general.basis, at: [at(x.general)] });
+  for (const [k, x] of Object.entries(r.kinds || {})) if (x?.status === "found" && x.general?.rule && ok(x.general)) rules.set(`kind:${k}`, { rule: x.general.rule, basis: x.general.basis, risk: x.general.risk, cost: x.general.cost, at: [at(x.general)] });
   return { rules, seconds, ideas };
 }
 
@@ -82,23 +82,26 @@ export function screens(root, r) {
   // A sentence shows when a general rule it names (id `<key>` of an area, `kind:<kind>`) verified, or, naming none, an idea (id `<key>.<n>`) did; the first verified rule gives the example (its own citation) and `also`, the count of its verified support; else the first verified idea's citation.
   // Its risk is the highest of the rules it names or whose area its ideas belong to. A rule it names that did not verify gets its own Dropped line.
   const { rules, ideas } = ruleIndex(root, r);
-  const byRisk = (x, y) => (RISK[x.risk] ?? 3) - (RISK[y.risk] ?? 3); // stable: the agent's order within a risk; no risk sorts last
+  // After risk (none sorts last) the script's own order breaks ties, never the agent's: kinds' keys, then areaOrder, then the idea's number; the text last.
+  const pos = (id) => id.startsWith("kind:") ? Object.keys(r.kinds || {}).indexOf(id.slice(5)) : (r.areaOrder || []).indexOf(id.split(".")[0]) * 1000 + (Number(id.split(".")[1]) || 0);
+  const byOrder = (x, y) => (x.id.startsWith("kind:") ? 0 : 1) - (y.id.startsWith("kind:") ? 0 : 1) || pos(x.id) - pos(y.id);
+  const byRisk = (x, y) => (RISK[x.risk] ?? 3) - (RISK[y.risk] ?? 3) || byOrder(x.first, y.first) || (x.text < y.text ? -1 : x.text > y.text ? 1 : 0);
   const verified = [];
-  for (const c of [...(r.plain?.claims || []), ...(r.plain?.rest || [])]) {
-    const named = (c.from || []).filter((id) => rules.has(id) || ideas.has(id));
+  for (const c of [...(r.plain?.claims || []), ...(r.plain?.rest || [])]) { // `rest`: a research.json written before the plain agent returned only `claims`
+    const named = (c.from || []).filter((id) => rules.has(id) || ideas.has(id)).map((id) => ({ id })).sort(byOrder).map((x) => x.id);
     const rule = named.find((id) => rules.has(id));
     const failed = (c.from || []).filter((id) => ((r.areaOrder || []).includes(id) || id.startsWith("kind:")) && !rules.has(id));
     const n = words(c.text);
     const why = failed.length && !rule ? "its general rule did not verify" : !named.length ? "names no item with a verified citation" : n > MAX_WORDS ? `${n} words, more than ${MAX_WORDS}` : null;
     if (why) dropped.push({ area: "plain", what: `sentence: ${c.text}`, reason: why });
     for (const id of failed) dropped.push({ area: "plain", what: `rule ${id}, named by: ${c.text}`, reason: "did not verify" });
-    if (!why) verified.push({ text: c.text, from: c.from, at: rule ? rules.get(rule).at[0] : ideas.get(named[0]).at, ...(rule && { also: rules.get(rule).at.length - 1 }), kind: named.some((id) => id.startsWith("kind:")), risk: named.map((id) => (rules.get(id) ?? rules.get(ideas.get(id).area))?.risk).filter((k) => k in RISK).sort((x, y) => RISK[x] - RISK[y])[0] });
+    if (!why) verified.push({ text: c.text, from: c.from, at: rule ? rules.get(rule).at[0] : ideas.get(named[0]).at, ...(rule && !rule.startsWith("kind:") && { also: rules.get(rule).at.length - 1 }), general: Boolean(rule), first: { id: rule ?? named[0] }, kind: named.some((id) => id.startsWith("kind:")), risk: named.map((id) => (rules.get(id) ?? rules.get(ideas.get(id).area))?.risk).filter((k) => k in RISK).sort((x, y) => RISK[x] - RISK[y])[0] });
   }
   // The script picks the page: sentences from general rules first, one that names a kind in turn with one that names only an area, each list by risk; then the ones from ideas by risk.
   const by = (f) => verified.filter(f).sort(byRisk);
-  const [kindList, areaList] = [by((x) => "also" in x && x.kind), by((x) => "also" in x && !x.kind)];
+  const [kindList, areaList] = [by((x) => x.general && x.kind), by((x) => x.general && !x.kind)];
   const mixed = Array.from({ length: Math.max(kindList.length, areaList.length) }, (_, i) => [kindList[i], areaList[i]].filter(Boolean)).flat();
-  const sentences = [...mixed, ...by((x) => !("also" in x))].map(({ kind, ...x }) => x);
+  const sentences = [...mixed, ...by((x) => !x.general)].map(({ kind, general, first, ...x }) => x);
   // Screen 2: contradictions first, then a doubted rule, exceptions, unprotected places.
   const order = { contradicted: 0, doubted: 1, exceptions: 2, unprotected: 3 };
   gaps.sort((x, y) => order[x.kind] - order[y.kind] || x.risk - y.risk);
@@ -141,7 +144,7 @@ const mechLines = (parts, shown = new Set()) => parts.flatMap(({ k, general, rul
 const norm = (p) => posix.normalize(String(p).replace(/^(\.\/)+/, "")).replace(/\/$/, "");
 const dropLine = (d) => `- ${d.area}: ${d.what} ${d.reason ?? `${d.at} ${JSON.stringify(d.quote)}`}`;
 
-// The words that say in how many more places a general rule was seen; an idea sentence has no `also`.
+// The words that say in how many more places an area's general rule was seen; an idea or kind sentence has no `also`.
 export const seen = (x) => ("also" in x ? ` seen in ${x.also} more place(s).` : "");
 
 export function render(r, s, commit) {

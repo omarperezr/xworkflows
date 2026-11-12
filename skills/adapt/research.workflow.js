@@ -138,8 +138,8 @@ const KIND_SCHEMA = {
     // required when status is found; render shows a found kind without it as "general rule missing"
     general: {
       type: "object",
-      properties: { rule: { type: "string" }, short: { type: "string" }, basis: { type: "string", enum: ["written", "code", "both"] }, ...CITE },
-      required: ["rule", "short", "basis", "file", "line", "quote"],
+      properties: { rule: { type: "string" }, short: { type: "string" }, basis: { type: "string", enum: ["written", "code", "both"] }, risk: { type: "string", enum: ["high", "medium", "low"] }, cost: { type: "string" }, ...CITE },
+      required: ["rule", "short", "basis", "risk", "cost", "file", "line", "quote"],
     },
     rules: {
       type: "array",
@@ -172,7 +172,7 @@ const KIND_PROMPT = (kind) => `Mechanism kind \`${kind}\` (${GLOSS[kind]}). The 
    (b) None is enforced, but the code follows one consistent pattern for this kind across files: state that pattern. \`basis\` \`code\`. Anchor it on the pattern applied across files; cite one line where it is applied.
    (c) Otherwise: no general rule, status \`absent\`.
    A \`contradicted\` written rule never becomes the general rule.
-   State the rule at project level, in your own words if needed: one sentence, how every change of this kind must behave across the project. It must not name a function, file, table or column. For example: "Every label a user sees comes from the translation files." \`short\`: the same claim as \`rule\` in one plain sentence of 14 words at most, never wider than the rule. ${WORDS} It has no "all", "always", "never" or "every" unless one cited place enforces it for every case.
+   State the rule at project level, in your own words if needed: one sentence, how every change of this kind must behave across the project. It must not name a function, file, table or column. For example: "Every label a user sees comes from the translation files." \`short\`: the same claim as \`rule\` in one plain sentence of 14 words at most, never wider than the rule. ${WORDS} It has no "all", "always", "never" or "every" unless one cited place enforces it for every case. \`risk\`: high, medium or low, how costly a change that breaks the rule is; \`cost\`: one short clause, what breaks, and for whom, when a change breaks it.
 5. rules: at most 3 details, each narrower than the general rule and not repeating it, worded as how the code must do something, with file, line and \`quote\`.
 6. status: \`found\` (case a or b: you state a general rule), \`absent\` (case c: the area for this kind exists, no general rule), \`not-present\` (the project has no such area). Give verdicts whatever the status.
 
@@ -183,11 +183,11 @@ How to read:
 - Read history as commit messages and file stats only (\`git log --oneline\`, \`--stat\`, \`--name-only\`). Never read past versions of files or content diffs: no \`git show <sha>:<path>\`, no \`git log -p\`; \`git diff\` and \`git stash show\` only with \`--stat\` or \`--name-only\`.`;
 
 const PLAIN_ITEMS = { type: "array", items: { type: "object", properties: { text: { type: "string" }, from: { type: "array", items: { type: "string" } } }, required: ["text", "from"] } };
-const PLAIN_SCHEMA = { type: "object", properties: { claims: PLAIN_ITEMS, rest: PLAIN_ITEMS }, required: ["claims", "rest"] };
+const PLAIN_SCHEMA = { type: "object", properties: { claims: PLAIN_ITEMS }, required: ["claims"] };
 
 const PLAIN = (language, items) => `You merge and translate the items below into short plain sentences for the owner of the project, who is not a programmer. Write in ${language}.
 
-The items, of two kinds and nothing else. A general rule has a short \`rule\`: an area's has an id that is an area key and its \`risk\`; a mechanism kind's has the id \`kind:<kind>\` and no risk. An idea has the id <area key>.<n>. Each was proven by its own line of code; you do not see the line:
+The items, of two kinds and nothing else. A general rule has a short \`rule\`: an area's has an id that is an area key and its \`risk\`; a mechanism kind's has the id \`kind:<kind>\` and its \`risk\`. An idea has the id <area key>.<n>. Each was proven by its own line of code; you do not see the line:
 ${JSON.stringify(items)}
 
 Return sentences that each say ONE item the owner can answer "yes" or "no" to.
@@ -196,7 +196,7 @@ Return sentences that each say ONE item the owner can answer "yes" or "no" to.
 - \`from\`: the ids of the items the sentence comes from, at least one. Use only ids from the list.
 - Merge items that say the same thing into one sentence naming all their ids. An idea that only repeats its own area's general rule is merged into that rule's sentence. Merge a kind's rule with an area's rule only when they say the same thing. Never split an item into several sentences, each would borrow a line that proves only the whole.
 - A sentence says what its items say, no more: never widen an item to more cases, more places or more strength than it states (no "all", "always" or "never" the item did not have), and never add a reason it does not give. A short sentence that says more than its item is worse than a long one that does not. For example, from the idea "A loan period is counted in whole days" write "A loan lasts whole days.", never "Nothing is ever counted in hours."
-- Return every sentence in \`claims\`, in any order, and leave \`rest\` an empty list: the script orders them and picks the first page, so do not count, rank or choose.
+- Return every sentence in \`claims\`, in no order: the script orders them and picks the first page, so do not count, rank or choose.
 - Leave out an item you cannot say in 14 words without widening it.`;
 
 // Same function as research.mjs `sum` (a test checks they agree).
@@ -398,7 +398,7 @@ const questions = (asked && asked.questions) || null;
 // Last: it reads the short general rule of each found kind (id: kind:<kind>), each area's short general rule (id: the area key) and its ideas (id: <area key>.<n>, n from 1), nothing else.
 phase("Plain");
 const items = [];
-for (const k of KINDS) { const g = kinds[k] && kinds[k].status === "found" && kinds[k].general; if (g) items.push({ id: `kind:${k}`, rule: g.short }); }
+for (const k of KINDS) { const g = kinds[k] && kinds[k].status === "found" && kinds[k].general; if (g) items.push({ id: `kind:${k}`, rule: g.short, risk: g.risk }); }
 for (const k of keys) {
   const g = areas[k] && areas[k].general;
   if (g) items.push({ id: k, rule: g.short, risk: g.risk });
