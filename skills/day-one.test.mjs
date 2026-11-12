@@ -214,6 +214,7 @@ test("adapt interview follows the queue", () => {
 });
 test("playback by section", () => {
   const s = step(3);
+  has(s, ["`## Not checked`"]);
   inOrder(s, ["`Hotspots`", "`P-H1`", "`Right`", "`Wrong`", "`Missing something`", "`P-H<n>-fix`"]);
   has(read("skills/adapt/SKILL.md"), ["research.mjs check --approved"]);
   assert.ok(!read("skills/adapt/SKILL.md").includes("Did I understand correctly?"));

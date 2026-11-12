@@ -255,10 +255,13 @@ test("render failure conditions", () => {
   bad((r) => { r.kinds.snap = null; }, /snap/);
   bad((r) => { r.kinds.txn.status = "maybe"; }, /txn/);
   bad((r) => { r.kinds.values.rules[0].quote = "zzz"; }, /values/);
-  bad((r) => { r.kinds.values.notChecked = ["a.js"]; }, /values: notChecked lists a\.js, one of this kind's scan hits/);
   const r = sample();
-  r.kinds.idem.notChecked = ["a.js", "db.sql", "other/x.js"];
-  assert.equal(renderResearch(d, r, SCAN).errors.length, 0);
+  r.kinds.values.notChecked = ["./b.js", "a.js"];
+  r.kinds.idem.notChecked = ["a.js", "db.sql", "other/x.js", "a.js"];
+  const o = renderResearch(d, r, SCAN);
+  assert.equal(o.errors.length, 0);
+  assert.ok(o.md.includes("## Not checked\n\n- idem: a.js\n- idem: db.sql\n- idem: other/x.js\n- values: a.js\n- values: b.js\n"));
+  assert.ok(!renderResearch(d, sample(), SCAN).md.includes("## Not checked"));
   put(d, { ...sample(), kinds: { ...sample().kinds, snap: null } });
   assert.equal(cli(d, "render").status, 1);
 });
@@ -302,7 +305,9 @@ test("fix round 1: dead topic, path spellings, missing run file", () => {
   for (const p of ["./a.js", "x/../a.js", "a.js/"]) {
     const q = sample();
     q.kinds.values.notChecked = [p];
-    assert.match(renderResearch(d, q, SCAN).errors.join("\n"), /values/, p);
+    const o = renderResearch(d, q, SCAN);
+    assert.equal(o.errors.length, 0, p);
+    assert.ok(o.md.includes("- values: a.js"), p);
   }
   writeFileSync(X(d, "summary.md"), "---\nstatus: draft\n---\n");
   cli(d, "start");

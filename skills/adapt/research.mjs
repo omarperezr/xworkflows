@@ -34,6 +34,7 @@ export function verifyCitation(root, c) {
 export function renderResearch(root, research, scan) {
   const errors = [];
   const dropped = [];
+  const notChecked = new Set();
   const kinds = research.kinds || {};
   const skipped = research.skipped || {};
   const byHeading = {};
@@ -54,8 +55,7 @@ export function renderResearch(root, research, scan) {
     const r = kinds[k];
     if (!r) { errors.push(`${k}: agent returned nothing`); continue; }
     if (!["found", "absent", "not-present"].includes(r.status)) { errors.push(`${k}: invalid status ${JSON.stringify(r.status)}`); continue; }
-    const own = new Set(((scan.kinds || {})[k]?.hits || []).map((h) => norm(h.file)));
-    for (const p of r.notChecked || []) if (own.has(norm(p))) errors.push(`${k}: notChecked lists ${p}, one of this kind's scan hits`);
+    for (const p of r.notChecked || []) notChecked.add(`${k}: ${norm(p)}`); // listed, never fatal (ruling 2026-11-12)
     if (r.status === "absent") { blocks.push(`- no rule found: ${k}`); continue; }
     if (r.status === "not-present") { blocks.push(`- ${k}: not-present${skipped[k] ? ` (skipped: ${skipped[k]})` : ""}`); continue; }
     let kept = 0;
@@ -72,6 +72,7 @@ export function renderResearch(root, research, scan) {
   out.push("## Existing checks", "", ...(scan.checks || []).map((c) => `- ${c}`), "");
   out.push("## Config", "", ...config, "", "## Written down", "", ...written, "");
   if (dropped.length) out.push("## Dropped citations", "", ...dropped.map((d) => `- ${d.kind}: ${d.file}:${d.line} ${JSON.stringify(d.quote)}`), "");
+  if (notChecked.size) out.push("## Not checked", "", ...[...notChecked].sort().map((l) => `- ${l}`), "");
   return { md: out.join("\n"), errors, dropped };
 }
 

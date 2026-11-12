@@ -177,8 +177,10 @@ writes `.xworkflows/research.md`:
 - `## Existing checks`: the `checks` list.
 - It exits 1, printing what is missing, when: a kind's agent returned
   nothing (`null` from `parallel`) or no valid `status`; a `found` kind has no
-  verified rule left; or a `notChecked` path is one of that kind's own scan
-  hit files (ruling 2026-11-11).
+  verified rule left. A `notChecked` path never fails render (ruling 2026-11-12:
+  listed, not fatal): every kind's paths, normalised, deduplicated and sorted
+  as `<kind>: <path>`, go under `## Not checked` after `## Dropped citations`,
+  omitted when empty.
 - Headings 1 to 4 and 6 to 8 are rendered from the topic answers as today.
 
 ### 4.4 Zones by rule
