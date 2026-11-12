@@ -19,6 +19,7 @@ One living list. The `pending` brake checks these rules:
 - **P-29** — `skills/adapt/scan.mjs` `projectFiles`: a folder with no repository of its own that sits under an unrelated parent repository is scanned through the parent's file list, so its untracked files give an empty scan with no warning. Origin: review of the 1.2b safety fixes, 2026-11-12. Status: unscheduled.
 - **P-73** — `skills/adapt/research.mjs` `verifyCitation` and `skills/adapt/screens.mjs` `checker`: a citation whose absolute path is spelled through a symlink of the project root does not verify, so paid research is dropped (on macOS, any project under a linked temp folder). Compare real paths on both sides. The same defect had a card closed by mistake when its function was renamed. Origin: review of adapt-general-1, 2026-11-12. Status: unscheduled.
 - **P-91** — test data: two example rules that restate rules of the reference project still stand in `skills/adapt/research.test.mjs` and in the fixtures under `test/fixtures/proof/trial/`. They are not prompts and are not installed. The owner's call: replace them with the lending example, or leave them. Origin: risk review of adapt-general-3, 2026-11-12. Status: unscheduled.
+- **P-92** — `skills/adapt/`: the mechanism kinds' general rules become candidates for screen 1 and the short forms use the words of the business, batch 4 of the plan. Origin: docs/superpowers/plans/2026-11-12-adapt-general.md. Status: in progress on adapt-general-4.
 
 ## Adapt: render, queue, run
 

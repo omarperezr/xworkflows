@@ -115,6 +115,25 @@ About 200 code lines. The reviewer is `risk-review`: the commits of this plan no
 - Role: main session
 - Done: the ledger holds, for 3 runs of this version on the reference copy, the invariants whole on the two pages and in the detail, the sentences that say more than their places show, and the cost.
 
+### Batch 4: `adapt-general-4`
+
+About 120 code lines. The reviewer is `risk-review`, as in batch 3.
+
+**T17: the mechanism kinds' general rules are candidates for screen 1; short forms in the words of the business** (spec "Research", "Data")
+- Files: `skills/adapt/research.workflow.js`, `skills/adapt/workflow.test.mjs`
+- Role: implement
+- Done: `node --test skills/adapt/workflow.test.mjs` passes.
+
+**T18: a sentence can come from a mechanism kind's general rule** (spec "Render", "Data")
+- Files: `skills/adapt/screens.mjs`, `skills/adapt/screens.test.mjs`, `skills/adapt/research.mjs`, `skills/adapt/research.test.mjs`
+- Role: implement
+- Done: `node --test skills/adapt/screens.test.mjs skills/adapt/research.test.mjs` passes.
+
+**T19: the fourth round's measure** (spec "Measure")
+- Files: none with tracking; the numbers go in the private ledger.
+- Role: main session
+- Done: the ledger holds, for 3 runs of this version on the reference copy, the invariants whole on the first page, on both pages and in the detail, the sentences that say more than their places show, the sentences an owner understands as written, and the cost.
+
 ## Review Focus
 
 - A citation that did not verify never reaches a screen, the detail file or a written rule.

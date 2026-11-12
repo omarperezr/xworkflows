@@ -45,13 +45,13 @@ Proof: No source measures how many rules a person judges well on one screen: the
 
 The profile agent runs first. Then, at once: the readers of the docs, the reader of the project's own checks, one agent per area (seven universal areas and up to four the profile proposes), and one `mechanism` agent per kind the scan found. A `plain` agent runs last.
 
-- The mechanism agents are the shipped ones (decision 4, the method already measured). Their rules feed the detail only, never screen 1.
+- The mechanism agents are the shipped ones (decision 4, the method already measured). Since the fourth round their general rules are candidates for screen 1 like the areas' rules, each with a short form; their other rules stay in the detail. In the third round (3 runs on the reference) the first page held 2 of the 10 invariants whole while the detail held 8 to 9, and those sat in the mechanism rules.
 - An area's answer gains `doubted`: at most one rule the code follows that the agent has a reason to doubt, with the reason and one citation.
 - An area's answer also carries `ideas`, four at most: each is one thing the code does, in one sentence of 14 words at most, with its own citation, and says no more than the cited line and the few lines around it show. An idea about every case names the one place that enforces it for all; otherwise it says where it holds (way B; owner, 2026-11-12, after the first run on the reference: 7 of 8 sentences cited a line that did not prove them).
 - An area's general rule also comes in a short form, `general.short`: the same claim in one plain sentence of 14 words at most, no wider than the rule (owner's order to fix and measure, second tuning round, 2026-11-12: with ideas alone the screen held local facts and lost the rules that matter, 1 invariant of 8 against 3).
 - The `plain` agent reads the areas' short general rules and ideas and nothing else. It merges the items that say the same thing and writes each in the owner's language. It never splits an item and never widens one. Each sentence names the items it comes from. The general rules come first, by risk; the ideas fill the places that are left. Sentences beyond 12 are returned in a second list, never dropped.
 - The six topic agents of the prototype stay, under `topics`: three of them propose the values of the config keys, and their lines feed `H2-pays` and the questions of screen 3. Their cost is judged in the measure.
-- Before an area agent writes its general rule it looks for the case that contradicts it: the same operation done without the guard. When it finds one it narrows the rule to where it holds, or keeps the rule and returns that case under `exceptions`, which becomes a question of screen 2. The short form says the thing protected and the constraint, with the rule's own key words, and carries no "all", "always", "never" or "every" unless one place enforces it for every case (owner, 2026-11-12: "Y si hacemos ambas?", the second page and a third round on the instructions).
+- Before an area agent writes its general rule it looks for the case that contradicts it: the same operation done without the guard. When it finds one it narrows the rule to where it holds, or keeps the rule and returns that case under `exceptions`, which becomes a question of screen 2. The short form says the thing protected and the constraint in the words of the business (what the thing is called by the people who use the product), never a code name: no name of a function, table, column, constant or file, which belong in the detail (third round: with "key words" half the sentences needed a programmer). It and carries no "all", "always", "never" or "every" unless one place enforces it for every case (owner, 2026-11-12: "Y si hacemos ambas?", the second page and a third round on the instructions).
 - With `research-only` nobody is interviewed: the sentences are written in English.
 - Agents judge. Scripts verify, cap and order; they judge nothing.
 
@@ -90,7 +90,8 @@ The Workflow returns what the prototype's script returns (branch `phase-1-adapt-
 - `areas[k].doubted`: a list of at most one `{ rule, why, file, line, quote }`.
 - `kinds`: the mechanism agents' answers, in the shipped shape.
 - `areas[k].ideas`: a list of at most four `{ text, file, line, quote }`.
-- `plain`: `{ claims: [{ text, from }], rest: [{ text, from }] }`. `from` lists item ids: `<key>` for an area's general rule, `<key>.<n>` for the idea at place n of its list, from 1.
+- `plain`: `{ claims: [{ text, from }], rest: [{ text, from }] }`. `from` lists item ids: `<key>` for an area's general rule, `<key>.<n>` for the idea at place n of its list, from 1, and `kind:<kind>` for a mechanism kind's general rule.
+- `kinds[k].short`: the kind's general rule in one sentence of 14 words at most.
 - `areas[k].general.short`: the general rule in one sentence of 14 words at most.
 
 `screens.json` is what the prototype's `screens()` returns (`skills/adapt/research2.mjs` on that branch), with `drawer1` holding the sentences as `{ text, from, at, risk }` and a gap of kind `doubted` in `drawer2`.
@@ -107,6 +108,7 @@ The queue built from topics and kinds, and the questions about mechanism kinds. 
 - Exam project C, 3 runs, once: the owner marks the short sentences blind; the target is none invented. A key of its written rules, made by an agent from the instruction files removed from the copy, splits the missed rules into "in the code" and "only in the owner's head".
 - The interview is measured afterwards, on the owner's word: one live interview and three replays.
 - Tuning uses the reference only. Two rounds were the limit; on 2026-11-12 the owner raised the spend cap to 190 USD "para tus pruebas y ajustes" and asked for a third round. Exam project C is run once.
+- Fourth round, 3 runs on the reference: the same counts, and how many first-page sentences an owner who does not write code understands as written.
 - Third round, 3 runs of one version on the reference: the same judge counts the invariants whole on the two pages together and in the detail, and the sentences that say more than their places show.
 - The suite passes and `pack --check` prints nothing.
 
