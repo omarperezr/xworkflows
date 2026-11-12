@@ -103,7 +103,7 @@ const topics = (zero) => [
 
 const KIND_PROMPT = (kind) => `Mechanism kind \`${kind}\` (${GLOSS[kind]}). Work in this order.
 
-1. Written rules. Read \`.xworkflows/rules.json\` (\`{ rules: [{ id, text, file, line, kinds }] }\`) and take every rule whose \`kinds\` includes \`${kind}\`. These are what the project says it does; check each against the code.
+1. Written rules. Read \`.xworkflows/rules.json\` (\`{ rules: [{ id, text, file, line, kinds }] }\`) and take the first 15 rules, in file order, whose \`kinds\` includes \`${kind}\` (at most 15; leave the rest). These are what the project says it does; check each against the code.
 2. The code. Read \`.xworkflows/scan.json\`: the \`kinds.${kind}.hits\` and the \`sql\` entries. Open the cited files and the files the written rules name. Search beyond the hits with \`graphify query\` and \`grep\`.
 3. verdicts: one per written rule from step 1, with its \`id\`:
    - \`enforced\`: the code does what the rule says. Cite the code line that does it.

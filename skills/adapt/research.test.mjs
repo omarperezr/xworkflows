@@ -70,7 +70,7 @@ test("kind prompt: written rules first, then one general rule, then at most 3 de
   for (const c of calls.filter((x) => x.opts.agentType === "mechanism")) {
     const p = c.prompt, k = c.opts.label.slice(2);
     assert.ok(p.includes(`\`kinds\` includes \`${k}\``), k);
-    for (const w of [".xworkflows/rules.json", ".xworkflows/scan.json", "`enforced`", "`contradicted`", "`no-evidence`", "ONE", "`written`", "`code`", "`both`", "at most 3"]) assert.ok(p.includes(w), `${k}: ${w}`);
+    for (const w of ["the first 15 rules", ".xworkflows/rules.json", ".xworkflows/scan.json", "`enforced`", "`contradicted`", "`no-evidence`", "ONE", "`written`", "`code`", "`both`", "at most 3"]) assert.ok(p.includes(w), `${k}: ${w}`);
     assert.ok(p.indexOf("rules.json") < p.indexOf("scan.json") && p.indexOf("ONE") < p.indexOf("at most 3"), k);
   }
   const t = calls.slice(0, 6).map((c) => c.prompt);
@@ -273,7 +273,6 @@ test("render failure conditions", () => {
   };
   bad((r) => { r.kinds.snap = null; }, /snap/);
   bad((r) => { r.kinds.txn.status = "maybe"; }, /txn/);
-  bad((r) => { r.kinds.values.rules[0].quote = "zzz"; r.kinds.values.general.quote = "zzz"; }, /values/);
   const r = sample();
   r.kinds.values.notChecked = ["./b.js", "a.js"];
   r.kinds.idem.notChecked = ["a.js", "db.sql", "other/x.js", "a.js"];
@@ -373,12 +372,31 @@ test("render: dropped verdict citations become no-evidence; dropped general is u
   assert.match(o.md, /- general: Round once, only when shown \(both\) \(unverified\)\n- W2 no-evidence: Never store a float\. x+\.\.\.\n- W1 no-evidence: Amounts are rounded once\.\n- round once/);
   assert.doesNotMatch(o.md, /- W9 |## Contradicted/);
   assert.ok(o.md.includes(['- values: general: a.js:2 "nowhere"', '- values: W2 contradicted, now no-evidence: a.js:2 "nowhere"', "- values: W1 enforced, now no-evidence: no citation", '- values: W9 not in rules.json: a.js:2 "round(x)"'].join("\n")), o.md);
-  // nothing verified left, or no general rule, fails a found kind
+  // nothing verified left, or no general rule: rendered for the owner, never fatal
   r.kinds.values.rules[0].quote = "zzz";
-  assert.match(renderResearch(d, r, SCAN, WR).errors.join("\n"), /values: found, but no citation survived verification/);
+  const m = renderResearch(d, r, SCAN, WR);
+  assert.deepEqual(m.errors, []);
+  assert.match(m.md, /- values: general rule missing \(needs the owner\)\n- W2 no-evidence/);
+  assert.equal(JSON.parse(m.kinds).values.status, "absent");
   const n = sample();
   delete n.kinds.values.general;
-  assert.match(renderResearch(d, n, SCAN, WR).errors.join("\n"), /values: found, but no general rule/);
+  const nm = renderResearch(d, n, SCAN, WR);
+  assert.deepEqual(nm.errors, []);
+  assert.match(nm.md, /- values: general rule missing \(needs the owner\)\n- round once \(code\) a\.js:2/);
+  // a dropped general with a verified detail stays found, marked unverified
+  const u = sample();
+  u.kinds.values.general.quote = "nowhere";
+  assert.deepEqual(JSON.parse(renderResearch(d, u, SCAN, WR).kinds).values, { general: "Round once, only when shown", status: "found", unverified: true });
+});
+
+test("render shows at most 15 verdicts per kind", () => {
+  const d = repo();
+  const r = sample();
+  const many = Array.from({ length: 17 }, (_, i) => ({ id: `W${i + 1}`, text: `Rule ${i + 1}.`, file: "README.md", line: i + 1, kinds: ["values"] }));
+  r.kinds.values.verdicts = many.map((w) => ({ id: w.id, verdict: "no-evidence" }));
+  const o = renderResearch(d, r, SCAN, many);
+  assert.equal((o.md.match(/^- W\d+ no-evidence/gm) || []).length, 15);
+  assert.match(o.md, /- values: 2 verdicts past the first 15 not shown/);
 });
 
 test("render reads rules.json and the sum still covers topics, kinds, skipped", () => {
@@ -390,6 +408,22 @@ test("render reads rules.json and the sum still covers topics, kinds, skipped", 
   writeFileSync(X(d, "rules.json"), JSON.stringify({ rules: WR }));
   assert.equal(cli(d, "render").status, 0);
   assert.match(readFileSync(X(d, "research.md"), "utf8"), /## Contradicted written rules\n\n- values: W2: Never store/);
+  const k = readFileSync(X(d, "kinds.json"), "utf8");
+  assert.deepEqual(Object.keys(JSON.parse(k)), [...KINDS].sort());
+  assert.deepEqual(JSON.parse(k).values, { general: "Round once, only when shown", status: "found", unverified: false });
+  assert.deepEqual(JSON.parse(k).snap, { general: null, status: "absent", unverified: false });
+  // a found kind without a general rule: exit 0, absent in the sidecar
+  const g = sample();
+  delete g.kinds.values.general;
+  g.sum = sum(JSON.stringify({ topics: g.topics, kinds: g.kinds, skipped: g.skipped }));
+  put(d, g);
+  assert.equal(cli(d, "render").status, 0);
+  assert.deepEqual(JSON.parse(readFileSync(X(d, "kinds.json"), "utf8")).values, { general: null, status: "absent", unverified: false });
+  assert.match(readFileSync(X(d, "research.md"), "utf8"), /- values: general rule missing \(needs the owner\)/);
+  const before = readFileSync(X(d, "kinds.json"), "utf8");
+  cli(d, "render");
+  assert.equal(readFileSync(X(d, "kinds.json"), "utf8"), before);
+  put(d, r);
   writeFileSync(X(d, "research.json"), JSON.stringify({ ...r, kinds: { ...r.kinds, values: { ...r.kinds.values, verdicts: [] } } }));
   assert.equal(cli(d, "render").status, 1);
 });
