@@ -101,6 +101,11 @@ test("rule 3 does not ask it of a seal-only commit, a spec, or a merge-free no-o
   assert.deepEqual(await r.run(pending), { ok: true, lines: [] });
 }));
 
+test("a seal written after a blank line, as the plan template lays it out, is still seal-only", withRepo({ files: { [PLAN]: "plan\n\n## Seals\n" } }, async (r) => {
+  r.commit("seal", { files: { [PLAN]: "plan\n\n## Seals\n\nreview ok at abc1234\n" } });
+  assert.deepEqual(await r.run(pending), { ok: true, lines: [] });
+}));
+
 test("a commit that seals and also edits the plan is asked", withRepo({ files: { [PLAN]: "plan\n" } }, async (r) => {
   r.commit("seal+edit", { files: { [PLAN]: "plan changed\nreview ok at abc1234\n" } });
   assert.equal((await r.run(pending)).ok, false);

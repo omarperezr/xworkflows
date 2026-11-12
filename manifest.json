@@ -566,7 +566,7 @@
         "checks/signature.mjs": "369f1c717d975692f082dc71d05540a2279408807969254f987ae01a0ef5d28f",
         "checks/review-seal.mjs": "f659594ac3d87999a75f6caecb69d62b04113f5bc135b9807a8f2f4d072f7e6c",
         "checks/goal-cited.mjs": "ece9e129e2bdb39a619bf8680195101364e67d2d6ab318eef00cf4cb11c9eb8d",
-        "checks/pending.mjs": "7159976c8e68c41c66e00c72680aaa38bbe8f0106b97b0871bd2d3b16ec9e5e3",
+        "checks/pending.mjs": "0eb036116ed41676dd1fb2bed3c8a96d1357360e246bead864af6b311559c0cb",
         "checks/fix-has-test.mjs": "1223154d28d7bd972e0806a8cd69d1023c49c9357d79c928046200e08e290da7",
         "checks/change-size.mjs": "3d00fa69ae1e8be01eae91c8ecb97cf07aa4d01287e5308cb1a318e45fcb8cdd",
         "checks/comment-ratio.mjs": "20112da90275485c4cfa149cb2164517aa308873b49a97d1f5d8c98f9a621310",
@@ -578,7 +578,7 @@
         "checks/index-current.mjs": "52b1d47da0e375d52d970e20b18cbc6e3269f117ab807545d8b73aa258d15bfe",
         "checks/project.mjs": "af3161760f0ac32a4f816a1cd6a4d5a17e848811d8dcdfd95c1b575568a11d87"
       },
-      "sha256": "8b08a3c2299ebdfafbeca5c523b5b402d5f8299df5e7398e1257ac8f46aeac44"
+      "sha256": "1e7f8938a0bca22ba7b2e8d629fa7b3d13d82f7929708e5c52ef181e8db20698"
     },
     {
       "id": "lint",

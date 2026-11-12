@@ -50,6 +50,7 @@ export function run(range, ctx) {
       if (l.startsWith("diff --git")) hunk = false;
       else if (l.startsWith("@@")) hunk = true;
       else if (hunk && l[0] === "-") return false;
+      else if (hunk && l.trim() === "+") continue; // the blank line the template leaves under "Seals"
       else if (hunk && l[0] === "+") { if (!seal.test(l)) return false; added++; }
     }
     return added > 0;
