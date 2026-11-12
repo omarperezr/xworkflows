@@ -72,7 +72,7 @@ The profile agent runs first. Then, at once: the readers of the docs, the reader
 - `Right` writes only the items the sentence names. A general rule the owner did not see is never written: in the detail file it is listed under the rules no sentence shows, not under a sentence of its area.
 - A sentence that names general rules (of an area or of a mechanism kind) is shown when at least one of them verified, with that one's citation; when none verified it is dropped, and its verified ideas stay in the detail. Each named rule that failed gets its line under "Dropped".
 - A mechanism kind's general rule shows only its own citation, with no count of other places: nobody counted them, and its other rules are other rules, not other places of it.
-- The script, not an agent, picks the first page: it takes every sentence the plain agent returned, puts the ones from general rules first, alternating one that names a mechanism kind with one that names only an area, each of the two lists by risk and then by the script's own order of kinds and areas, never by the order the agent returned, then the ones from ideas; the first 12 are the first page, the next 12 the second.
+- The script, not an agent, picks the first page: it takes every sentence the plain agent returned, puts the ones from general rules first, alternating one that names a mechanism kind with one that names only an area, each of the two lists by risk (a mechanism kind's general rule carries a risk and a cost like an area's, so cost ranks the kinds, not their place in the fixed list) and then by the script's own order of kinds and areas, never by the order the agent returned, then the ones from ideas; the first 12 are the first page, the next 12 the second.
 - Screens 2 and 3: the questions as rendered; the dialog's free text takes the owner's own answer.
 - What an answer writes: `Right` writes the full rule from the detail. `Real, but a bad rule` and `You are right` write a card with the `pending` skill and no rule. `Keep it, because ...` writes the rule with the reason. `Not how it works` writes nothing and is logged.
 - What a screen 2 answer writes: `The written rule` writes that rule and a card to change the code; `The code` writes the code's rule and a card to change the doc; `Mistake: fix it` writes the rule and one card per place; `Exception: keep it` writes the rule with its exceptions named; `Not on purpose: protect it` writes a card; `On purpose` and `I don't know` write nothing and are logged. `Keep it, because ...` with no reason asks for the reason once.
@@ -92,7 +92,8 @@ The Workflow returns what the prototype's script returns (branch `phase-1-adapt-
 - `areas[k].doubted`: a list of at most one `{ rule, why, file, line, quote }`.
 - `kinds`: the mechanism agents' answers, in the shipped shape.
 - `areas[k].ideas`: a list of at most four `{ text, file, line, quote }`.
-- `plain`: `{ claims: [{ text, from }] }`: every sentence, in no order. `from` lists item ids: `<key>` for an area's general rule, `<key>.<n>` for the idea at place n of its list, from 1, and `kind:<kind>` for a mechanism kind's general rule.
+- `plain`: `{ claims: [{ text, from }] }`: every sentence, in no order. A `rest` list in a file written before the fourth round is read the same way.
+- `kinds[k].general.risk` and `.cost`, like an area's. `from` lists item ids: `<key>` for an area's general rule, `<key>.<n>` for the idea at place n of its list, from 1, and `kind:<kind>` for a mechanism kind's general rule.
 - `kinds[k].general.short`: the kind's general rule in one sentence of 14 words at most.
 - `areas[k].general.short`: the general rule in one sentence of 14 words at most.
 
