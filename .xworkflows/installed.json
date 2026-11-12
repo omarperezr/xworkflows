@@ -50,7 +50,7 @@
     },
     "adapt": {
       "version": "0.1.0",
-      "sha256": "875fae04f7397f7e1074f8a574b443075fad3f27792f69537e85cbbce60f63e0"
+      "sha256": "e3b1839decf9c16c227d4dc056374a0c6ea6dc29a52f647a5441374525670d32"
     },
     "full-review": {
       "version": "0.1.0",
@@ -340,7 +340,7 @@
     },
     ".claude/skills/adapt/research.workflow.js": {
       "piece": "adapt",
-      "sha256": "00188a8354f0b6d44b57894acf6b71ab0e31c7c4666380344c768c8d892c5222"
+      "sha256": "33a55ba2aeeeddb724060dc56f0e0f446f090a584e8f23656a640bc78517c790"
     },
     ".claude/skills/adapt/research.mjs": {
       "piece": "adapt",
@@ -348,7 +348,7 @@
     },
     ".claude/skills/adapt/screens.mjs": {
       "piece": "adapt",
-      "sha256": "c31d18e4f5fe58ea51c2758e456bca2e996c0dbd251ff15a35f2630a3d1af502"
+      "sha256": "98dfd6c5588cf20a3840611fac56e9424e4b2ba5e41831269d44652589e27b3f"
     },
     ".claude/skills/full-review/SKILL.md": {
       "piece": "full-review",
