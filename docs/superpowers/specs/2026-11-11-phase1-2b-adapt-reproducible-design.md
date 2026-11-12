@@ -409,3 +409,67 @@ pattern syntax; whether topics 1 to 6 share agents.
   multi-select becomes yes/no per item (5.2).
 - 1.2 spec 5.4: zones come from the rule of 4.4.
 - 1.2 spec 8: the proof is section 8 of this spec.
+
+## 12. Revision 2 (owner, 2026-11-12): written rules first, a better interview
+
+Run 4 (the first live run of this design) scored R 1 and I 2. The pipeline was
+reproducible (fixture 12/12 three times; a public repository passed), but on a
+real project: research searched only code (signals matched thousands of lines,
+agents saw the 30 most-changed); nothing read the project's written rules
+(run 2's best hits came from its product doc); every kind came back `found`
+with scattered low-level rules, so no mechanism question was asked; and eight
+questions offered only `I don't know` / `Skip`. The owner asked for all of the
+following.
+
+### 12.1 Research reads the written rules first
+
+- New `skills/adapt/rules.mjs` (no LLM): collects rule sentences from
+  `README*`, `PRODUCT*`, `DESIGN*`, `ARCHITECTURE*`, `CONTRIBUTING*`, `docs/**`
+  (plans, ADRs, specs included), and code comments, keeping sentences with a
+  normative word (`must`, `never`, `always`, `only`, `do not`, `don't`,
+  `required`, `forbidden`, and the Spanish `debe`, `nunca`, `siempre`,
+  `solo`, `sólo`, `no se`, `prohibido`). Each rule: `{ id, text, file, line,
+  kinds }`, where `kinds` are the mechanism kinds its words point to (a fixed
+  keyword table per kind). Output `.xworkflows/rules.json`, sorted, byte-stable.
+  Generated and vendored paths are skipped as in the scan; at most 400 rules,
+  docs before comments, the most-changed files first.
+- Each kind agent first receives its kind's written rules and returns, for
+  each, a verdict `enforced` | `contradicted` | `no-evidence` with a cited
+  `file:line` and quote (verified by `render` like any citation). Then it
+  states the kind's **general rule** (`general: { rule, basis: written | code
+  | both, file, line, quote }`), then at most 3 detail rules.
+- Hit selection: files named by the kind's written rules first, then the
+  most-changed; at most 30. Signals are narrowed so a kind does not match
+  thousands of ordinary lines (each signal needs a mechanism-specific token,
+  not a bare common word).
+- `render` writes, per kind: the general rule first, then the verdicts on
+  written rules, then the details.
+
+### 12.2 The interview asks the right things
+
+- `H5-<kind>` for every `found` kind is a confirm item: "Is this the rule every
+  change must follow here: <general rule>?" (`Yes`, `No`, `I don't know`;
+  free text corrects it). `absent` kinds keep the mechanism question.
+  A `No` asks the follow-up `H5-<kind>-r` (what the rule is).
+- Open questions (`H2-pays`, `H2-refused`, `H4-risks`, `H5-keep`, `H5-free`)
+  become `choice` items with 2 to 3 options drafted from research (topic lines
+  and written rules), plus `I don't know`; free text always works.
+- `H6-r<n>` becomes a choice: `Money`, `Data`, `Access`, `No risk` (several may
+  apply: the owner types more in free text).
+- `C<n>`: when research proposed a value, a confirm item showing it in plain
+  words ("Your test command looks like `npm test`. Correct?"); otherwise an
+  open item with the plain gloss.
+- Wording: the free-text line is named as Claude Code shows it ("Type
+  something"), not "Other"; `H5-keep` / `H5-free` carry their examples (a
+  format, an API, a schema, a number, a name users see / free to change
+  without asking); playback headings are asked in the owner's language; the
+  playback explains why each zone is or is not a risk path.
+
+### 12.3 Measuring
+
+- Before the next live run: 3 research-only trials on the reference copy.
+  Pass: R ≥ 6 in 3 of 3 (rubric v2).
+- Rubric v2 (private) widens patterns that missed meaning in run 4 (for
+  example idempotent replay written as "claimed once"); every earlier run is
+  re-graded with v2 and both versions are kept.
+- Then one live run with the owner and 3 replays, as in section 8.
