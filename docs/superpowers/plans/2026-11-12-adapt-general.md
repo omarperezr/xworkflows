@@ -82,3 +82,5 @@ About 40 code lines.
 - A sentence that names one verified rule and one that did not verify is shown, with the verified rule's citation: the spec's "Render" asks exactly that, since the rules a sentence names say the same thing. The owner was told on 2026-11-12 and did not object.
 
 ## Seals
+
+risk-review ok at a00d4db
