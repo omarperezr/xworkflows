@@ -245,11 +245,12 @@
       ],
       "files": {
         "skills/adapt/SKILL.md": "faa1c812b82f8460e396bad55347aee919a9b7f4156554702dd1fc575904fe96",
-        "skills/adapt/scan.mjs": "8f033eb3dd79b16538b83308fe4284e8860006e8ab60e14bc154b3b606e40fca",
+        "skills/adapt/scan.mjs": "37546e2e4c54ab2808b0ce581cde7c90cb7937dbffab3ad601b5a93b5ee58523",
+        "skills/adapt/rules.mjs": "1833fe8d1a7f78a968f4278875040318859b26c27b97f32f7ae433050d9300a2",
         "skills/adapt/research.workflow.js": "d0d8f9bce1f40bb8bec57a3b37eeaf780534a6178f46265a007ea72f211a4217",
         "skills/adapt/research.mjs": "cad0e591a7c9a2dcba50b08601df778ee3f5366f6d6c47bd4811a3f10083bd91"
       },
-      "sha256": "6ee76ad332e646adb083b40ea1e0554ea413a8c298be9aa4f845581bb2430897"
+      "sha256": "6de7e638403c1ca7b4a9165e00a21fb0aba239cc0c92c0bbe4fd6746710b10bd"
     },
     {
       "id": "full-review",
