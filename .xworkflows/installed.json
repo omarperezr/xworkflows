@@ -1,0 +1,679 @@
+{
+  "xworkflows": "0.1.0",
+  "tools": [
+    "claude"
+  ],
+  "pieces": {
+    "hook-runtime": {
+      "version": "0.1.0",
+      "sha256": "7de40d36d6531346776a84c71aea7b54669a05efa6b37d411f06a5a5b26c54d0"
+    },
+    "design-first": {
+      "version": "0.1.0",
+      "sha256": "f1ca4c0ced121e4be10cfad875a62ba221e4356fde1aae84cf0a7448154729d3"
+    },
+    "adapt-gates": {
+      "version": "0.1.0",
+      "sha256": "b18f81c4ca2c11a518d06e3b811580d7c8a845771145e4442aeb4f26f455820d"
+    },
+    "adapt-record": {
+      "version": "0.1.0",
+      "sha256": "d43783df72c19e571172bb30c6666d0a4be149e85837790a92b4de1f48abc63b"
+    },
+    "grill": {
+      "version": "95249b0b49782349740fd9b8c6ce32b4e59e497a",
+      "sha256": "22304fe3fec29f5197a521a08011c4db05a3d026a65508e136b7731f6e786a72"
+    },
+    "explore": {
+      "version": "0.1.0",
+      "sha256": "f65f16b993bd1103b38ce9fecf5aea063b1da6e6cce52f6d08b071cba224d8e8"
+    },
+    "mechanism": {
+      "version": "0.1.0",
+      "sha256": "cfa684ecb49777e73bdad23696a1758546c8ff930da387301514614991972379"
+    },
+    "thermo-nuclear-review": {
+      "version": "dc415439eebed0cd8fddb11e896dee43bce9d8b0",
+      "sha256": "4550732c80216da5bedf3af0fb85fa3d3d2b487eea6e14adce571a7b8b4c392d"
+    },
+    "thermo-nuclear-code-quality-review": {
+      "version": "dc415439eebed0cd8fddb11e896dee43bce9d8b0",
+      "sha256": "d2d3cf626999e04fa8a15113c19d9118b07f718185ff43badb13276b5bea3290"
+    },
+    "zone-review": {
+      "version": "0.1.0",
+      "sha256": "351cb0ee3d709aa8d13fbe476a919ebfdc6a1f20e24ad37e42f7c97e60147caf"
+    },
+    "verify-finding": {
+      "version": "0.1.0",
+      "sha256": "4993932e80d4a4ade27399fd4f17c7358862685f377c9407ded2b71fe78c63d9"
+    },
+    "adapt": {
+      "version": "0.1.0",
+      "sha256": "0f13fcd7e6e21949d1399f3a723e77a3824c7b4a81c257998809efba2a2913ab"
+    },
+    "full-review": {
+      "version": "0.1.0",
+      "sha256": "b858f0eb28ae009180c9fa81c3bf544af6bbf0a358d49c6b1b1c5b870dbe0c1c"
+    },
+    "next-step": {
+      "version": "0.1.0",
+      "sha256": "2f9038a0e25e197e358a418ca2b2e7fd5fa92d4684778a2642765a97d6163567"
+    },
+    "orchestrator": {
+      "version": "0.1.0",
+      "sha256": "899ab41819f68ac008c4bb07911502eb5f3bb0a24046569bc365b348854df798"
+    },
+    "handback": {
+      "version": "0.1.0",
+      "sha256": "97dfa39db09105beb678e121485f1e76a48fb040783f9170225d578b83750505"
+    },
+    "memory": {
+      "version": "0.1.0",
+      "sha256": "ab2560e9625deacc5e47965c3aa7e950a412c2a4329dbfb0e889923c0dde88a3"
+    },
+    "modes": {
+      "version": "0.1.0",
+      "sha256": "4739f4bd94ebbcd336f1aa9a58c9610e21aa606fedc7d6bea6b277f9d0d15941"
+    },
+    "implement": {
+      "version": "0.1.0",
+      "sha256": "5744a15a0549222b5c7f076cf86da376a65e2470426813fcbbf0a36878ed2c43"
+    },
+    "mechanical": {
+      "version": "0.1.0",
+      "sha256": "b3b453be5e342669893b093b56e9c63070dae7c1dfcd37b173250f44162324c6"
+    },
+    "review": {
+      "version": "0.1.0",
+      "sha256": "244c129220da386ae3c84d1670d20d2226b0490ac18db984e6c88a59e74cff06"
+    },
+    "deepen": {
+      "version": "0.1.0",
+      "sha256": "711d371798811c619f773c2597113a442632d7d60ef51453bfd175564a57d77f"
+    },
+    "plan": {
+      "version": "0.1.0",
+      "sha256": "404bf77570fab0804b04d6c2fb8ea4f7ce64f52157488b648dd0d2d559f54b9b"
+    },
+    "orchestrate": {
+      "version": "0.1.0",
+      "sha256": "9ee349860b39a140454c44b0bf268e24599a6915498d633b901fa9c9eaaae944"
+    },
+    "pending": {
+      "version": "0.1.0",
+      "sha256": "b2265bae9b950268b6ec4ad43c1eae4b58374f1091c292dd640f58695c20c429"
+    },
+    "tdd": {
+      "version": "bb92a77741419a4ab5f06e711a283343f1ada0c3",
+      "sha256": "44a1ce7ee421f5cfa1779f8b77d2136cfd31ae475e66dc3ab7dba24edaef2f7a"
+    },
+    "ponytail": {
+      "version": "09c434ab73ca43761c5d8b0c5d341926c2fba710",
+      "sha256": "fdad32cdae79cc21420796df3eb8c55c6c61150f265d452c736daf39ba598025"
+    },
+    "ponytail-review": {
+      "version": "09c434ab73ca43761c5d8b0c5d341926c2fba710",
+      "sha256": "668b7e9812764f990234ac58cf21e2d816e16cb8584e8130234da5e23fc7e4ff"
+    },
+    "checks": {
+      "version": "0.1.0",
+      "sha256": "1e7f8938a0bca22ba7b2e8d629fa7b3d13d82f7929708e5c52ef181e8db20698"
+    },
+    "lint": {
+      "version": "0.1.0",
+      "sha256": "3a35fc759f944afc7e783d83a782e755d957f74a5efb417bbce2186088a87e6d"
+    },
+    "semgrep": {
+      "version": "1.179.0",
+      "sha256": "de0ef78122950c9d1bd4da7717344c9f84c10f37edde42f5d0dd6a5a84530406"
+    },
+    "trivy": {
+      "version": "0.75.0",
+      "sha256": "1aa16ee4a0ddbfad6260a320b3f8c380be4d839dc0c90f26664fb5ac98d90614"
+    }
+  },
+  "files": {
+    ".xworkflows/tiers.json": {
+      "piece": "installer",
+      "sha256": "9bcc9425977d8f02d20db8bd2a1af838ecac3054db14b9d0dce55418e5512adf"
+    },
+    ".xworkflows/hooks/run.mjs": {
+      "piece": "hook-runtime",
+      "sha256": "f22b05807f00614995c0429d36c5139be47a9cd0f26b5228cb2242773b340686"
+    },
+    ".xworkflows/mark.mjs": {
+      "piece": "hook-runtime",
+      "sha256": "f2ecad21dedeb1515287063237e6852b9374781f71ce876f13b57324bfcb88a5"
+    },
+    ".xworkflows/hooks/core/marks.mjs": {
+      "piece": "hook-runtime",
+      "sha256": "9f52d052c8fb1275e92335d1dd5664be0f1bff7d43a4a9432268bac01d61a2b7"
+    },
+    ".xworkflows/hooks/adapters/claude.mjs": {
+      "piece": "hook-runtime",
+      "sha256": "dcba638334e4447a339907005f6723580b64517b5278af047c0cce64c5e6ad80"
+    },
+    ".xworkflows/hooks/core/config.mjs": {
+      "piece": "hook-runtime",
+      "sha256": "bbb179d4b8d1c5b907650acd81407d3446d12fee8a1fa363dba830e53b225433"
+    },
+    ".xworkflows/hooks/core/ctx.mjs": {
+      "piece": "hook-runtime",
+      "sha256": "2e24043a1176b09e7e3a69071673062bbc19c101eda3d621bfacce52f05a2b12"
+    },
+    ".xworkflows/hooks/core/design-first.mjs": {
+      "piece": "design-first",
+      "sha256": "213646ac1a3129377bc1959681334ba106936612b018e70b7620615a0118ce2a"
+    },
+    ".xworkflows/hooks/core/adapt-gates.mjs": {
+      "piece": "adapt-gates",
+      "sha256": "5b28516c20ba6b3bcd17147d879536ad6badb7e4c12ffceee1ffc052324405c1"
+    },
+    ".xworkflows/hooks/core/adapt-record.mjs": {
+      "piece": "adapt-record",
+      "sha256": "d37616614691520eace48927b139b05f7e0cc8e909ed06ecae9b7af91f880261"
+    },
+    ".xworkflows/hooks/core/orchestrator.mjs": {
+      "piece": "orchestrator",
+      "sha256": "f1f1ca6c23e7c10a7c76cf5f4af1f2366496f0fd129daaf117590198f56db49f"
+    },
+    ".xworkflows/hooks/core/handback.mjs": {
+      "piece": "handback",
+      "sha256": "4ee10ac11966ae64c7371b0fd7278612545c2e8d53be2d6c8b8c8b1aa8235145"
+    },
+    ".xworkflows/hooks/core/memory.mjs": {
+      "piece": "memory",
+      "sha256": "25c77804b88ad1ae1c5ee54fb4a699e094028fdeb004586f4493c6cfe3094b2b"
+    },
+    ".xworkflows/hooks/core/memory-index.mjs": {
+      "piece": "memory",
+      "sha256": "ed9d990262ae86bfb68b63b7c34e6594e3239460136907fbb376011990898006"
+    },
+    ".xworkflows/hooks/core/modes.mjs": {
+      "piece": "modes",
+      "sha256": "b07109cb1c24818c5e9562e9b9acf033bd996430ca37d57b480b7d53f0e380ec"
+    },
+    ".xworkflows/templates/PENDING.md": {
+      "piece": "pending",
+      "sha256": "024be763b231bbc39ea583635fe25413985745180345c5e731119a5f4259551f"
+    },
+    ".xworkflows/checks/run.mjs": {
+      "piece": "checks",
+      "sha256": "ee14948dbc6fc54c58e0aeaf77784e624e000b8ea0fe140f91ae220be9b15b7f"
+    },
+    ".xworkflows/checks/comment-lines.mjs": {
+      "piece": "checks",
+      "sha256": "7cc1262dc37358f5c2436e47f3808baa4af7c39d5579d5c428996c90c446dcf7"
+    },
+    ".xworkflows/checks/signature.mjs": {
+      "piece": "checks",
+      "sha256": "369f1c717d975692f082dc71d05540a2279408807969254f987ae01a0ef5d28f"
+    },
+    ".xworkflows/checks/review-seal.mjs": {
+      "piece": "checks",
+      "sha256": "f659594ac3d87999a75f6caecb69d62b04113f5bc135b9807a8f2f4d072f7e6c"
+    },
+    ".xworkflows/checks/goal-cited.mjs": {
+      "piece": "checks",
+      "sha256": "ece9e129e2bdb39a619bf8680195101364e67d2d6ab318eef00cf4cb11c9eb8d"
+    },
+    ".xworkflows/checks/pending.mjs": {
+      "piece": "checks",
+      "sha256": "0eb036116ed41676dd1fb2bed3c8a96d1357360e246bead864af6b311559c0cb"
+    },
+    ".xworkflows/checks/fix-has-test.mjs": {
+      "piece": "checks",
+      "sha256": "1223154d28d7bd972e0806a8cd69d1023c49c9357d79c928046200e08e290da7"
+    },
+    ".xworkflows/checks/change-size.mjs": {
+      "piece": "checks",
+      "sha256": "3d00fa69ae1e8be01eae91c8ecb97cf07aa4d01287e5308cb1a318e45fcb8cdd"
+    },
+    ".xworkflows/checks/comment-ratio.mjs": {
+      "piece": "checks",
+      "sha256": "20112da90275485c4cfa149cb2164517aa308873b49a97d1f5d8c98f9a621310"
+    },
+    ".xworkflows/checks/skills-travel.mjs": {
+      "piece": "checks",
+      "sha256": "d6188c4677f6ddcaf7bbb6ba6a311976377b318c6d9ddb3612614dce6d7e89cd"
+    },
+    ".xworkflows/checks/patterns.mjs": {
+      "piece": "checks",
+      "sha256": "b76bd62236b34035c628147793d6d428959a91036f7700389bd6d7c443805e12"
+    },
+    ".xworkflows/checks/ratchet.mjs": {
+      "piece": "checks",
+      "sha256": "588ee64ef495668ef7c83c790bf825b211fbbcb753478ad8d21ea4394a81ef79"
+    },
+    ".xworkflows/checks/graph-current.mjs": {
+      "piece": "checks",
+      "sha256": "128f4d871649d88b9fa2af0a3e8cc52535a197ea3f8df4da20dd4de5f652a019"
+    },
+    ".xworkflows/checks/stale-memory.mjs": {
+      "piece": "checks",
+      "sha256": "9a4e11507f800da3a472a7db4b48645d3fd5ff9fa5f8120006c0b6c6d425529d"
+    },
+    ".xworkflows/checks/index-current.mjs": {
+      "piece": "checks",
+      "sha256": "52b1d47da0e375d52d970e20b18cbc6e3269f117ab807545d8b73aa258d15bfe"
+    },
+    ".xworkflows/checks/project.mjs": {
+      "piece": "checks",
+      "sha256": "af3161760f0ac32a4f816a1cd6a4d5a17e848811d8dcdfd95c1b575568a11d87"
+    },
+    ".xworkflows/checks/packs/lint.mjs": {
+      "piece": "lint",
+      "sha256": "dcdeeb4f80cb30a25f80c420a27ce52c503e40309fda2f5aad4ee94acf5739af"
+    },
+    ".xworkflows/checks/packs/semgrep.mjs": {
+      "piece": "semgrep",
+      "sha256": "084d969104ea88917a3bfc90ea74ad97990dfc79f29ab5b4a220314ede32060b"
+    },
+    ".xworkflows/checks/packs/trivy.mjs": {
+      "piece": "trivy",
+      "sha256": "e9422f56fa76b1f48533e61afc9622bf7623e4a9ea371a789f780704cd945afa"
+    },
+    ".claude/skills/grill/SKILL.md": {
+      "piece": "grill",
+      "sha256": "e47dbadf6fd577421b48695a5ad715d64d18abcbb70887c036c8501b08434090"
+    },
+    ".claude/skills/grill/LICENSE": {
+      "piece": "grill",
+      "sha256": "0e7ac423bf2c6e223b7c5b156f8cf72da49d748e56a1641402c31f22ad07dbb5"
+    },
+    ".claude/skills/grill/SOURCE.md": {
+      "piece": "grill",
+      "sha256": "0d45975648257f7b7cd8ee01b8a891088e84f560dd377e8aacee6548bf068daf"
+    },
+    ".claude/agents/explore.md": {
+      "piece": "explore",
+      "sha256": "7c5dcf050c0ef492d0e16b03e2bab3b10f8e57f97ec74935e175dffa6a3d5088"
+    },
+    ".claude/agents/mechanism.md": {
+      "piece": "mechanism",
+      "sha256": "a33fc4ba45343df1eb82382f02e5be40e90042a2057b3255954450280fd73fc2"
+    },
+    ".claude/skills/thermo-nuclear-review/SKILL.md": {
+      "piece": "thermo-nuclear-review",
+      "sha256": "73004532dae6f52935950caced2446b835379393cf0df20623561dd817c6af60"
+    },
+    ".claude/skills/thermo-nuclear-review/LICENSE": {
+      "piece": "thermo-nuclear-review",
+      "sha256": "702f5f331b56aff0e33d8c7826df5202559f894145eb70355c6477b55b5bb8a0"
+    },
+    ".claude/skills/thermo-nuclear-review/SOURCE.md": {
+      "piece": "thermo-nuclear-review",
+      "sha256": "0ec84f1cc5e5d91e5f1b7bc03461c55c3f79a79302646a092abca1b93779b3c7"
+    },
+    ".claude/skills/thermo-nuclear-code-quality-review/SKILL.md": {
+      "piece": "thermo-nuclear-code-quality-review",
+      "sha256": "ca3738f76cca43ec3662920c150869266fb4b29c4c97296e8a4a6523dcf8e90a"
+    },
+    ".claude/skills/thermo-nuclear-code-quality-review/LICENSE": {
+      "piece": "thermo-nuclear-code-quality-review",
+      "sha256": "702f5f331b56aff0e33d8c7826df5202559f894145eb70355c6477b55b5bb8a0"
+    },
+    ".claude/skills/thermo-nuclear-code-quality-review/SOURCE.md": {
+      "piece": "thermo-nuclear-code-quality-review",
+      "sha256": "0867d3e01173ef653bb28d7df29694d62ab042c6d65a790f49fbe678ac19476a"
+    },
+    ".claude/agents/zone-review.md": {
+      "piece": "zone-review",
+      "sha256": "ecbbc33512a794c6feb65ddb73d796f09913009001d4f6caccc2041e7087ad3d"
+    },
+    ".claude/agents/verify-finding.md": {
+      "piece": "verify-finding",
+      "sha256": "15be29137615ebabbf61c774290d8be5b9654a96f46bf012cf5eb5bbbf960e87"
+    },
+    ".claude/skills/adapt/SKILL.md": {
+      "piece": "adapt",
+      "sha256": "79fbe492af407bb46a26dc4f179e4a3ff5b9aee6e168a0279a165de15df67009"
+    },
+    ".claude/skills/adapt/scan.mjs": {
+      "piece": "adapt",
+      "sha256": "710c3445855b7a23d54c5b1b6ce0bf3a4ae102afe9bcdc9360704dc15bfad898"
+    },
+    ".claude/skills/adapt/rules.mjs": {
+      "piece": "adapt",
+      "sha256": "99766272105524b96372b0ef34ff8a2960d68d674a47de5f4da9e32ba9223a94"
+    },
+    ".claude/skills/adapt/research.workflow.js": {
+      "piece": "adapt",
+      "sha256": "3cb7e4a0f5861e8d29beb863b4b03c8dd7f9d80c6f3438f3a12d6e2f46f97646"
+    },
+    ".claude/skills/adapt/research.mjs": {
+      "piece": "adapt",
+      "sha256": "61e29ae8243f5ca8cf5eef5ab8b0cf1c3e17c14024c2d6d407c767e3e8d684ee"
+    },
+    ".claude/skills/full-review/SKILL.md": {
+      "piece": "full-review",
+      "sha256": "d8879b367674c739fdce0806a290c0f240ef3bd30f6359f1609a275abcf48d15"
+    },
+    ".claude/skills/next-step/SKILL.md": {
+      "piece": "next-step",
+      "sha256": "2ce979fcfe60b9f5350d7fec8fd0f3954a7db523afdf867dfaa5e52e75c62d08"
+    },
+    ".claude/agents/implement.md": {
+      "piece": "implement",
+      "sha256": "fa39204c96a3ab1273a213a1af63d834f82c056368803684d5952e468f8c1ee5"
+    },
+    ".claude/agents/mechanical.md": {
+      "piece": "mechanical",
+      "sha256": "275357aeaa75f39d493440c75f0654a049e34efe9dd20f5e6ab627c6392fd67d"
+    },
+    ".claude/agents/review.md": {
+      "piece": "review",
+      "sha256": "3e55a48f2406d8ef6175baf9149fdc8ea39baf072a49b8147f4e720cc38a0c3c"
+    },
+    ".claude/skills/deepen/SKILL.md": {
+      "piece": "deepen",
+      "sha256": "a8a8ff83c0755e86879e027661d96c57b8ad74781105fef19a29c22b94f5948b"
+    },
+    ".claude/skills/plan/SKILL.md": {
+      "piece": "plan",
+      "sha256": "60f777f6649c4be4f0ea6f4c3438db30f2b9832e3672bcf914487a0c51e27edb"
+    },
+    ".claude/skills/orchestrate/SKILL.md": {
+      "piece": "orchestrate",
+      "sha256": "2f11bb6c15b5d837a31fca75b9ba189e71ca1e05be26d30f896f1f4183296f2a"
+    },
+    ".claude/skills/pending/SKILL.md": {
+      "piece": "pending",
+      "sha256": "db3f46432734f0cdc6ec008db5385fba2f43f9517019ef89f43d92a5b49eb0b8"
+    },
+    ".claude/skills/tdd/SKILL.md": {
+      "piece": "tdd",
+      "sha256": "6b0e52fbfc2021228af506c29bcc9893048fa84a2ab9b289eff6ce34bd0e90a6"
+    },
+    ".claude/skills/tdd/writing-good-tests.md": {
+      "piece": "tdd",
+      "sha256": "51471c853306ff92ca8bb41dcaea05f31c0e46b03651f8f3c99754b7172f4ae1"
+    },
+    ".claude/skills/tdd/LICENSE": {
+      "piece": "tdd",
+      "sha256": "a37e0e9697144819e1d965176ac4ae5bc3fa02d11e7812036bbcadf6dafe2400"
+    },
+    ".claude/skills/tdd/SOURCE.md": {
+      "piece": "tdd",
+      "sha256": "cefc788202cd3fc2b769faf3484798cc53c7bd670a6d17f8d5f8348bd36eba2c"
+    },
+    ".claude/skills/ponytail/SKILL.md": {
+      "piece": "ponytail",
+      "sha256": "9badd22a32e19cb884e46dfa8d3aae82bb81dfa5484105b8b4f0262df823a509"
+    },
+    ".claude/skills/ponytail/LICENSE": {
+      "piece": "ponytail",
+      "sha256": "fb1bc6909ac3ef82d5c22106e32ef682b0cff66788fa915fb9b53b15c9d2f3ab"
+    },
+    ".claude/skills/ponytail/SOURCE.md": {
+      "piece": "ponytail",
+      "sha256": "23eb81d19afa1af53cd7b4df2483552f2cc87c59f68bffc681c63956107347d6"
+    },
+    ".claude/skills/ponytail-review/SKILL.md": {
+      "piece": "ponytail-review",
+      "sha256": "33fe4ebe22a460924e5d4a261e223df22e409cc94ab76182bee9fb91a3ef022e"
+    },
+    ".claude/skills/ponytail-review/LICENSE": {
+      "piece": "ponytail-review",
+      "sha256": "fb1bc6909ac3ef82d5c22106e32ef682b0cff66788fa915fb9b53b15c9d2f3ab"
+    },
+    ".claude/skills/ponytail-review/SOURCE.md": {
+      "piece": "ponytail-review",
+      "sha256": "efc2bad9ff85270a0ea9f55890b4ad7b63680bf66fa07ba1b41bb9e044388f7c"
+    },
+    ".git/hooks/pre-push": {
+      "piece": "checks",
+      "sha256": "aa713744c2f71f4a6bdbdc7917e6b80bca6c67923bb8d08228fd36141f9387d1"
+    },
+    ".git/hooks/post-merge": {
+      "piece": "checks",
+      "sha256": "1505466be2b9c89a950027d28235ee05f7c01f72c658053a976c3b58d9fe3c4c"
+    },
+    ".git/hooks/post-commit": {
+      "piece": "checks",
+      "sha256": "1505466be2b9c89a950027d28235ee05f7c01f72c658053a976c3b58d9fe3c4c"
+    }
+  },
+  "merged": [
+    {
+      "file": ".claude/settings.json",
+      "key": [
+        "hooks",
+        "PreToolUse"
+      ],
+      "entry": {
+        "matcher": "Write|Edit|MultiEdit|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$(git rev-parse --show-toplevel)/.xworkflows/hooks/run.mjs\" claude design-first"
+          }
+        ]
+      },
+      "createdKey": true
+    },
+    {
+      "file": ".claude/settings.json",
+      "key": [
+        "hooks",
+        "PreToolUse"
+      ],
+      "entry": {
+        "matcher": "Write|Edit|MultiEdit|Workflow",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$(git rev-parse --show-toplevel)/.xworkflows/hooks/run.mjs\" claude adapt-gates"
+          }
+        ]
+      },
+      "createdKey": false
+    },
+    {
+      "file": ".claude/settings.json",
+      "key": [
+        "hooks",
+        "PostToolUse"
+      ],
+      "entry": {
+        "matcher": "AskUserQuestion",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$(git rev-parse --show-toplevel)/.xworkflows/hooks/run.mjs\" claude adapt-record"
+          }
+        ]
+      },
+      "createdKey": true
+    },
+    {
+      "file": ".claude/settings.json",
+      "key": [
+        "hooks",
+        "PreToolUse"
+      ],
+      "entry": {
+        "matcher": "Agent|Workflow|Read|Bash|WebSearch|WebFetch|AskUserQuestion|Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$(git rev-parse --show-toplevel)/.xworkflows/hooks/run.mjs\" claude orchestrator"
+          }
+        ]
+      },
+      "createdKey": false
+    },
+    {
+      "file": ".claude/settings.json",
+      "key": [
+        "hooks",
+        "UserPromptSubmit"
+      ],
+      "entry": {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$(git rev-parse --show-toplevel)/.xworkflows/hooks/run.mjs\" claude orchestrator"
+          }
+        ]
+      },
+      "createdKey": true
+    },
+    {
+      "file": ".claude/settings.json",
+      "key": [
+        "hooks",
+        "PreToolUse"
+      ],
+      "entry": {
+        "matcher": "SubagentHandback",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$(git rev-parse --show-toplevel)/.xworkflows/hooks/run.mjs\" claude handback"
+          }
+        ]
+      },
+      "createdKey": false
+    },
+    {
+      "file": ".claude/settings.json",
+      "key": [
+        "hooks",
+        "PreToolUse"
+      ],
+      "entry": {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$(git rev-parse --show-toplevel)/.xworkflows/hooks/run.mjs\" claude memory"
+          }
+        ]
+      },
+      "createdKey": false
+    },
+    {
+      "file": ".claude/settings.json",
+      "key": [
+        "hooks",
+        "SessionStart"
+      ],
+      "entry": {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$(git rev-parse --show-toplevel)/.xworkflows/hooks/run.mjs\" claude memory"
+          }
+        ]
+      },
+      "createdKey": true
+    },
+    {
+      "file": ".claude/settings.json",
+      "key": [
+        "hooks",
+        "PreCompact"
+      ],
+      "entry": {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$(git rev-parse --show-toplevel)/.xworkflows/hooks/run.mjs\" claude memory"
+          }
+        ]
+      },
+      "createdKey": true
+    },
+    {
+      "file": ".claude/settings.json",
+      "key": [
+        "hooks",
+        "SessionEnd"
+      ],
+      "entry": {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$(git rev-parse --show-toplevel)/.xworkflows/hooks/run.mjs\" claude memory"
+          }
+        ]
+      },
+      "createdKey": true
+    },
+    {
+      "file": ".claude/settings.json",
+      "key": [
+        "hooks",
+        "SessionStart"
+      ],
+      "entry": {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$(git rev-parse --show-toplevel)/.xworkflows/hooks/run.mjs\" claude modes"
+          }
+        ]
+      },
+      "createdKey": false
+    },
+    {
+      "file": ".claude/settings.json",
+      "key": [
+        "permissions",
+        "allow"
+      ],
+      "entry": "Bash(node .xworkflows/mark.mjs:*)",
+      "createdKey": true
+    }
+  ],
+  "blocks": [
+    {
+      "file": "AGENTS.md"
+    }
+  ],
+  "imports": [
+    {
+      "file": ".gitignore",
+      "line": "graphify-out/"
+    },
+    {
+      "file": ".gitignore",
+      "line": ".claude/settings.local.json"
+    },
+    {
+      "file": "CLAUDE.md",
+      "line": "@AGENTS.md"
+    }
+  ],
+  "created": [
+    ".claude/settings.json",
+    ".claude/settings.local.json",
+    "AGENTS.md",
+    "CLAUDE.md"
+  ],
+  "declined": [],
+  "kept": [],
+  "renamed": {},
+  "scalars": [
+    {
+      "file": ".claude/settings.json",
+      "key": [
+        "attribution"
+      ],
+      "value": {
+        "commit": "",
+        "pr": ""
+      }
+    },
+    {
+      "file": ".claude/settings.local.json",
+      "key": [
+        "autoMemoryDirectory"
+      ],
+      "dir": "docs/memory"
+    }
+  ],
+  "chained": []
+}

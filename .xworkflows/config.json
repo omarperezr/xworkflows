@@ -1,0 +1,52 @@
+{
+  "mainBranch": "main",
+  "paths": {
+    "code": [
+      "bin",
+      "hooks",
+      "checks",
+      "proof",
+      "skills/adapt"
+    ],
+    "risk": [
+      "bin",
+      "hooks",
+      "checks",
+      "proof"
+    ],
+    "heavyRead": [
+      "bin",
+      "hooks",
+      "checks",
+      "proof"
+    ],
+    "codeAnyway": [
+      ".claude/settings.json"
+    ]
+  },
+  "tests": {
+    "files": [
+      "**/*.test.mjs"
+    ],
+    "run": "node --test",
+    "notRunnable": []
+  },
+  "checks": {
+    "project": [
+      {
+        "name": "tests",
+        "run": "node --test $(git ls-files '*.test.mjs')"
+      },
+      {
+        "name": "pack",
+        "run": "node bin/xworkflows.mjs pack --check"
+      },
+      {
+        "name": "privacy",
+        "run": "test -z \"$(git ls-files docs/reference-coupling.md docs/measure-tokens.py docs/proof/private)\" && ! git grep -nE '/Users/[a-z]|-Users-[a-z]'"
+      }
+    ],
+    "patterns": [],
+    "ratchets": []
+  }
+}

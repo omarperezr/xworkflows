@@ -1,7 +1,6 @@
 # Adapt, general: the experiment (one page)
 
-Goal: G-none yet (no `docs/BUSINESS.md` in this repository until xworkflows
-is installed in itself).
+Goal: G1
 
 Design: `docs/design.md` 8.2 (the split in three) and 10.1 (how it is
 judged), owner, 2026-11-12. This is an experiment: a cheap throwaway proof

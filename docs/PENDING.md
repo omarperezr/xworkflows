@@ -79,6 +79,7 @@ One living list. The `pending` brake checks these rules:
 - **P-53** — `checks/graph-current.mjs`: with `git commit && git push` in one line, the graph update the post-commit hook starts has not finished when the push is judged, so the push stops once. Origin: end-to-end proof in a throwaway project, 2026-11-12. Status: unscheduled.
 - **P-58** — `hooks/core/memory.mjs` and the git hook text in `bin/xworkflows.mjs`: `touch -c` follows a linked `graph.json` and sets the time of a file outside the repository, time only. Set the link's own time. Origin: review of the late fixes of batch A4, 2026-11-12. Status: unscheduled.
 - **P-59** — `hooks/core/memory.mjs`, `checks/graph-current.mjs`: an index folder whose name starts with `-` stops `touch`, and the fix the check prints is unquoted, so a folder with a space pastes into a command that sets nothing. Use `--` and quote the path. Origin: review of the late fixes of batch A4, 2026-11-12. Status: unscheduled.
+- **P-60** — `checks/run.mjs`: in a project that installs the method while it has history not yet pushed, the first push judges the commits written before the install; in this repository 57 code commits have no seal. Decide: commits older than the one that added `.xworkflows/installed.json` are not judged, or the first push uses `--no-verify`. Origin: the method installed in its own repository, 2026-11-12. Status: unscheduled.
 
 ## Hooks
 
