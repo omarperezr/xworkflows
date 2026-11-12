@@ -1,5 +1,5 @@
 // Pure-ish trial helpers (no SDK import): the tests load this file with a stubbed exec.
-import { existsSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { stripLeft, stripPlan } from "./answers.mjs";
 
@@ -10,6 +10,7 @@ export function prepareCopy({ dir, source, commit, init, strip, repo, exec, copy
   const git = (...a) => exec("git", a, dir);
   if (init) {
     copyDir(source, dir);
+    rmSync(join(dir, ".git"), { recursive: true, force: true }); // a worktree's .git file would point git at the source repo
     git("init", "-q");
     git("add", "-A");
     git(...GIT, "commit", "-q", "-m", "proof: initial");
@@ -90,3 +91,19 @@ export function addSpend(file, entry) {
   writeFileSync(file, JSON.stringify(l, null, 2) + "\n");
   return l.totalUsd;
 }
+
+const lockOf = (home) => join(home, ".xworkflows", "owner.md.proof-lock");
+
+// One harness run at a time: a lock file holding the pid. A dead pid's lock is taken over. Returns {ok} or {ok:false, pid}.
+export function acquireLock(home) {
+  mkdirSync(join(home, ".xworkflows"), { recursive: true });
+  for (let i = 0; i < 2; i++) {
+    try { writeFileSync(lockOf(home), String(process.pid), { flag: "wx" }); return { ok: true }; } catch (e) { if (e.code !== "EEXIST") throw e; }
+    const pid = Number(readFileSync(lockOf(home), "utf8"));
+    try { process.kill(pid, 0); return { ok: false, pid }; } catch (e) { if (e.code === "EPERM") return { ok: false, pid }; }
+    rmSync(lockOf(home), { force: true });
+  }
+  return { ok: false, pid: NaN };
+}
+
+export const releaseLock = (home) => rmSync(lockOf(home), { force: true });

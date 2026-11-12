@@ -4,9 +4,9 @@ import { readFileSync, mkdtempSync, writeFileSync, cpSync, mkdirSync, existsSync
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { grade, stats, kindsFound, noMoneyCheck, recommendedReport } from "./grade.mjs";
-import { spawnSync } from "node:child_process";
+import { spawnSync, execFileSync } from "node:child_process";
 import { answerFor, toAnswers, stripPlan, stripLeft, loadAnswers } from "./answers.mjs";
-import { prepareCopy, stopFor, withOwnerBackup, apiKeyGuard, budgetStop, countedCost, restoreOwner, readLedger, addSpend } from "./trial-lib.mjs";
+import { prepareCopy, stopFor, withOwnerBackup, apiKeyGuard, budgetStop, countedCost, restoreOwner, readLedger, addSpend, acquireLock, releaseLock } from "./trial-lib.mjs";
 
 const FX = new URL("../test/fixtures/proof/", import.meta.url).pathname;
 const TRIAL = FX + "trial";
@@ -209,4 +209,37 @@ test("strip removes paths and fails if any remains", () => {
   assert.deepEqual(stripPlan(["AGENTS.md", "docs", "CLAUDE.md"], existing), { remove: ["AGENTS.md", "docs"], absent: ["CLAUDE.md"] });
   assert.deepEqual(stripLeft(["AGENTS.md", "docs"], ["docs/a.md", "src/x.js"]), ["docs"]);
   assert.deepEqual(stripLeft(["AGENTS.md", "docs"], ["src/x.js"]), []);
+});
+
+test("prepareCopy init on a git worktree source leaves the source repository untouched", () => {
+  const sh = (cwd, ...a) => execFileSync("git", a, { cwd, encoding: "utf8" });
+  const main = tmp(), wt = join(tmp(), "wt"), dir = join(tmp(), "trial");
+  const id = ["-c", "user.name=t", "-c", "user.email=t@example.invalid"];
+  sh(main, "init", "-q"); writeFileSync(join(main, "a.txt"), "a");
+  sh(main, "add", "-A"); sh(main, ...id, "commit", "-q", "-m", "one");
+  sh(main, "worktree", "add", "-q", wt);
+  writeFileSync(join(wt, "b.txt"), "b");
+  const before = sh(wt, "rev-parse", "HEAD");
+  const exec = (c, a, cwd) => (c === "git" ? execFileSync(c, a, { cwd, encoding: "utf8" }) : "");
+  prepareCopy({ dir, source: wt, init: true, strip: [], repo: "/r", exec, copyDir: (s, d) => cpSync(s, d, { recursive: true }) });
+  assert.equal(sh(wt, "rev-parse", "HEAD"), before);
+  assert.equal(sh(wt, "status", "--porcelain"), "?? b.txt\n");
+  assert.equal(sh(dir, "rev-list", "--count", "HEAD").trim(), "1");
+});
+
+test("harness lock: second run refused, stale lock taken over, profile intact", () => {
+  const home = tmp(), x = join(home, ".xworkflows");
+  mkdirSync(x);
+  writeFileSync(join(x, "owner.md.proof-backup"), "REAL");
+  assert.equal(acquireLock(home).ok, true);
+  assert.equal(acquireLock(home).ok, false);
+  assert.equal(readFileSync(join(x, "owner.md.proof-backup"), "utf8"), "REAL");
+  assert.equal(existsSync(join(x, "owner.md")), false);
+  releaseLock(home);
+  writeFileSync(join(x, "owner.md.proof-lock"), "2147483646");
+  assert.equal(acquireLock(home).ok, true);
+  assert.equal(restoreOwner(home), true);
+  assert.equal(readFileSync(join(x, "owner.md"), "utf8"), "REAL");
+  releaseLock(home);
+  assert.equal(existsSync(join(x, "owner.md.proof-lock")), false);
 });
