@@ -267,7 +267,7 @@ test("a sentence from a verified general rule shows that rule's citation as an e
     truth: area({ general: general("Loans count whole days.", "low", c(1, "days(loan)")), support: [c(2, "late(loan)"), c(3, "old(loan)"), c(9, "nope")], ideas: [{ text: "Days are whole.", ...c(4, "") }, { text: "i2", ...c(2, "late(loan)") }] }),
     bad: area({ general: general("Made up.", "high", c(1, "not in the file")), ideas: [{ text: "x", ...c(1, "not in the file") }] }),
     pay: area({ general: general("Fees in days.", "high", c(2, "late(loan)")), support: [] }),
-  }, { claims: [claim("Idea only.", "pay.1"), claim("From a rule.", "truth", "truth.2"), claim("Unverified rule.", "bad"), claim("Rule with no support.", "pay")], rest: [] });
+  }, { claims: [claim("Idea only.", "pay.1"), claim("From a rule.", "truth.2", "truth"), claim("Unverified rule.", "bad"), claim("Rule with no support.", "pay")], rest: [] });
   const s = screens(root, r);
   assert.deepEqual(s.drawer1.map((x) => [x.text, x.at, x.also]), [
     ["Rule with no support.", "src/a.js:2", 0],
@@ -277,8 +277,18 @@ test("a sentence from a verified general rule shows that rule's citation as an e
   assert.ok(s.dropped.some((d) => d.what === "sentence: Unverified rule."));
   const md = render(r, s, "abc");
   assert.match(md, /From a rule\. \(src\/a\.js:1\) seen in 2 more place\(s\)\./);
-  assert.doesNotMatch(md, /Rule with no support\. .*seen in/);
+  assert.match(md, /Rule with no support\. \(src\/a\.js:2\) seen in 0 more place\(s\)\./);
   assert.doesNotMatch(md, /Idea only\. .*seen in/);
+});
+
+test("a support citation that repeats the example or another support line counts once; details.md lists it once", () => {
+  const r = research({
+    truth: area({ general: general("Loans count whole days.", "high", c(1, "days(loan)")), support: [c(1, "days(loan)"), c(2, "late(loan)"), c(2, "late(loan)")] }),
+  }, { claims: [claim("From a rule.", "truth")], rest: [] });
+  const s = screens(root, r);
+  assert.equal(s.drawer1[0].also, 1);
+  assert.ok(!("general" in s.drawer1[0]));
+  assert.match(details(r, s, mechanism(root, r), root), /src\/a\.js:1, src\/a\.js:2\n/);
 });
 
 test("details.md lists a named general rule in full with its example and every verified support; a rule a shown sentence names is not in the lost list", () => {

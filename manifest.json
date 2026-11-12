@@ -250,10 +250,10 @@
         "skills/adapt/scan.mjs": "710c3445855b7a23d54c5b1b6ce0bf3a4ae102afe9bcdc9360704dc15bfad898",
         "skills/adapt/rules.mjs": "99766272105524b96372b0ef34ff8a2960d68d674a47de5f4da9e32ba9223a94",
         "skills/adapt/research.workflow.js": "6232649eb6d0aff69217f56b8c84480db19373a94355a910ab06383768242941",
-        "skills/adapt/research.mjs": "b72933319f2f9dbf197d6a0f233ef72db9156869c2c7d145410a01cc840884f4",
-        "skills/adapt/screens.mjs": "1c95475bc5182cab24394cf57bf81281912b96d57a9fceb67285e4b31c39739d"
+        "skills/adapt/research.mjs": "5061e4d9179b1f7e26ac638650e863c2e30b0d50d49931dccfc0d8212a3bee52",
+        "skills/adapt/screens.mjs": "4377c66320be389e29055f99173863f8ea2a1a6a659d817af03645bbe6bed98a"
       },
-      "sha256": "1a98d6aa43dae03f72a98965bfcd69147e0161c262be6b582b1b0517414e50e5"
+      "sha256": "28898a14d19d8be69b3cf1dfb2aa36e16a8e66ad17878608a572afd7493f1f65"
     },
     {
       "id": "full-review",
