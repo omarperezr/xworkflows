@@ -640,7 +640,12 @@ What is asked is split in three (owner, 2026-11-12):
    at most, each with its evidence (file and line): a written rule the code
    contradicts; a pattern with exceptions («done differently in these 2
    places: mistake or exception?»); a risk area with nothing protecting it
-   («on purpose?»).
+   («on purpose?»); a rule the code does follow that research has a reason
+   to doubt (owner, 2026-11-12). A project can start from a wrong base, so a
+   rule that is real is not always right. Research says which rule, why it
+   may be wrong, and where it is applied. The owner answers «you are right»:
+   the rule is not written, and changing the code becomes a pending card; or
+   «keep it, because …»: the rule is written with that reason beside it.
 3. What is in no file. This is the centre of the interview: business rules,
    what the project does not do, the costliest mistake, one real incident,
    what is free to change, the goals at 3, 12 and 36 months, and which part

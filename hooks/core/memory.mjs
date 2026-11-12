@@ -53,7 +53,8 @@ function start(ev, ctx) {
     const graph = ctx.mtime(path.join(idx.folder, "graph.json"));
     const head = Number(ctx.git("log", "-1", "--format=%ct"));
     if (graph === null || (head && graph < head * 1000)) {
-      ctx.background(idx.command.split(/\s+/)[0], ["update", "."]);
+      // graphify leaves graph.json untouched when the code's shape did not change, so the time is set here; the names go in as arguments, never as shell text
+      ctx.background("sh", ["-c", '"$0" update . && touch -c "$1"', idx.command.split(/\s+/)[0], path.join(idx.folder, "graph.json")]);
       lines.push("The code graph is out of date, it is being updated in the background.");
     }
   }

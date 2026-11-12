@@ -41,6 +41,6 @@ export function makeCtx(ev, { env, config, stateDir }) {
     },
     git: (...args) => { const r = exec("git", args, { timeout: 5000 }); return r.code === 0 ? r.out.trim() : null; },
     exec,
-    background: (cmd, args) => { try { spawn(cmd, args, { cwd: ev.root, env, detached: true, stdio: "ignore" }).on("error", () => {}).unref(); } catch { /* never throws */ } },
+    background: (cmd, args) => { if (env?.XWORKFLOWS_DRY) return; try { spawn(cmd, args, { cwd: ev.root, env, detached: true, stdio: "ignore" }).on("error", () => {}).unref(); } catch { /* never throws */ } },
   };
 }

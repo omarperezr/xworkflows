@@ -24,9 +24,9 @@
         "hooks/adapters/cursor.mjs": "394c1a81f4040089b67f0fbf1131012bbb5883bdf705ce3af12dff66d9b3cbd5",
         "hooks/adapters/gemini.mjs": "eff8f29bce46d7c4a7c62845f3762a16c6fd38e831e6c4a5d6b54361ec599175",
         "hooks/core/config.mjs": "bbb179d4b8d1c5b907650acd81407d3446d12fee8a1fa363dba830e53b225433",
-        "hooks/core/ctx.mjs": "c22dcf699c63ba862812b0679f7816be14d6aa1dca024a1f35addd4ab875a764"
+        "hooks/core/ctx.mjs": "2e24043a1176b09e7e3a69071673062bbc19c101eda3d621bfacce52f05a2b12"
       },
-      "sha256": "a467649b2b77ce8e4d34e6b659f5999c84d5792a5bea72215abf6585bd1b7c5b"
+      "sha256": "7de40d36d6531346776a84c71aea7b54669a05efa6b37d411f06a5a5b26c54d0"
     },
     {
       "id": "design-first",
@@ -361,10 +361,10 @@
         }
       ],
       "files": {
-        "hooks/core/memory.mjs": "31d53c58d1eff8d87ed03106e4cb332429aef6477f4bb6b02cf2ecf8aa639e15",
+        "hooks/core/memory.mjs": "25c77804b88ad1ae1c5ee54fb4a699e094028fdeb004586f4493c6cfe3094b2b",
         "hooks/core/memory-index.mjs": "ed9d990262ae86bfb68b63b7c34e6594e3239460136907fbb376011990898006"
       },
-      "sha256": "8649dbe0a0db420f694571ca7545b79d3d9324d62c81909f6f3d97ff38affce7"
+      "sha256": "ab2560e9625deacc5e47965c3aa7e950a412c2a4329dbfb0e889923c0dde88a3"
     },
     {
       "id": "modes",
@@ -549,6 +549,83 @@
         "skills/ponytail-review/SOURCE.md": "efc2bad9ff85270a0ea9f55890b4ad7b63680bf66fa07ba1b41bb9e044388f7c"
       },
       "sha256": "668b7e9812764f990234ac58cf21e2d816e16cb8584e8130234da5e23fc7e4ff"
+    },
+    {
+      "id": "checks",
+      "kind": "check",
+      "origin": "own",
+      "version": "0.1.0",
+      "license": "MIT",
+      "scope": "project",
+      "tools": [
+        "claude"
+      ],
+      "files": {
+        "checks/run.mjs": "ee14948dbc6fc54c58e0aeaf77784e624e000b8ea0fe140f91ae220be9b15b7f",
+        "checks/comment-lines.mjs": "7cc1262dc37358f5c2436e47f3808baa4af7c39d5579d5c428996c90c446dcf7",
+        "checks/signature.mjs": "369f1c717d975692f082dc71d05540a2279408807969254f987ae01a0ef5d28f",
+        "checks/review-seal.mjs": "f659594ac3d87999a75f6caecb69d62b04113f5bc135b9807a8f2f4d072f7e6c",
+        "checks/goal-cited.mjs": "ece9e129e2bdb39a619bf8680195101364e67d2d6ab318eef00cf4cb11c9eb8d",
+        "checks/pending.mjs": "0eb036116ed41676dd1fb2bed3c8a96d1357360e246bead864af6b311559c0cb",
+        "checks/fix-has-test.mjs": "1223154d28d7bd972e0806a8cd69d1023c49c9357d79c928046200e08e290da7",
+        "checks/change-size.mjs": "3d00fa69ae1e8be01eae91c8ecb97cf07aa4d01287e5308cb1a318e45fcb8cdd",
+        "checks/comment-ratio.mjs": "20112da90275485c4cfa149cb2164517aa308873b49a97d1f5d8c98f9a621310",
+        "checks/skills-travel.mjs": "d6188c4677f6ddcaf7bbb6ba6a311976377b318c6d9ddb3612614dce6d7e89cd",
+        "checks/patterns.mjs": "b76bd62236b34035c628147793d6d428959a91036f7700389bd6d7c443805e12",
+        "checks/ratchet.mjs": "588ee64ef495668ef7c83c790bf825b211fbbcb753478ad8d21ea4394a81ef79",
+        "checks/graph-current.mjs": "128f4d871649d88b9fa2af0a3e8cc52535a197ea3f8df4da20dd4de5f652a019",
+        "checks/stale-memory.mjs": "9a4e11507f800da3a472a7db4b48645d3fd5ff9fa5f8120006c0b6c6d425529d",
+        "checks/index-current.mjs": "52b1d47da0e375d52d970e20b18cbc6e3269f117ab807545d8b73aa258d15bfe",
+        "checks/project.mjs": "af3161760f0ac32a4f816a1cd6a4d5a17e848811d8dcdfd95c1b575568a11d87"
+      },
+      "sha256": "1e7f8938a0bca22ba7b2e8d629fa7b3d13d82f7929708e5c52ef181e8db20698"
+    },
+    {
+      "id": "lint",
+      "kind": "pack",
+      "origin": "own",
+      "version": "0.1.0",
+      "license": "MIT",
+      "scope": "project",
+      "tools": [
+        "claude"
+      ],
+      "files": {
+        "checks/packs/lint.mjs": "dcdeeb4f80cb30a25f80c420a27ce52c503e40309fda2f5aad4ee94acf5739af"
+      },
+      "sha256": "3a35fc759f944afc7e783d83a782e755d957f74a5efb417bbce2186088a87e6d"
+    },
+    {
+      "id": "semgrep",
+      "kind": "pack",
+      "origin": "fetched",
+      "source": "https://github.com/semgrep/semgrep",
+      "version": "1.179.0",
+      "license": "LGPL-2.1",
+      "scope": "project",
+      "tools": [
+        "claude"
+      ],
+      "files": {
+        "checks/packs/semgrep.mjs": "084d969104ea88917a3bfc90ea74ad97990dfc79f29ab5b4a220314ede32060b"
+      },
+      "sha256": "de0ef78122950c9d1bd4da7717344c9f84c10f37edde42f5d0dd6a5a84530406"
+    },
+    {
+      "id": "trivy",
+      "kind": "pack",
+      "origin": "fetched",
+      "source": "https://github.com/aquasecurity/trivy",
+      "version": "0.75.0",
+      "license": "Apache-2.0",
+      "scope": "project",
+      "tools": [
+        "claude"
+      ],
+      "files": {
+        "checks/packs/trivy.mjs": "e9422f56fa76b1f48533e61afc9622bf7623e4a9ea371a789f780704cd945afa"
+      },
+      "sha256": "1aa16ee4a0ddbfad6260a320b3f8c380be4d839dc0c90f26664fb5ac98d90614"
     }
   ]
 }

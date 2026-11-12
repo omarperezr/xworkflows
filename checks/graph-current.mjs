@@ -8,7 +8,8 @@ export function run(range, ctx) {
   if (ctx.config.paths.code.length === 0) return { ok: true, lines: [] };
   const { command, folder } = ctx.config.lookup.index;
   const rel = `${folder}/graph.json`;
-  const fix = `run \`${command.split(/\s+/)[0]} update .\``;
+  // graphify leaves graph.json untouched when the code's shape did not change, so the fix sets the time too
+  const fix = `run \`${command.split(/\s+/)[0]} update . && touch -c ${rel}\``;
   let mtime;
   try { mtime = statSync(join(ctx.root, rel)).mtimeMs; } catch { return { ok: false, lines: [`${rel} is missing`, fix] }; }
   const head = Number(ctx.git("log", "-1", "--format=%ct", range.head));
