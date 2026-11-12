@@ -7,3 +7,5 @@ hooks/fixtures/claude/raw/
 # Interview proof: the reference project's invariants, never public.
 docs/proof/private/
 node_modules/
+graphify-out/
+.claude/settings.local.json

@@ -1,7 +1,6 @@
 # Phase 1.3: the method, ported (one page)
 
-Goal: G-none yet (this repository has no `docs/BUSINESS.md` until step 3 of
-the owner's order installs xworkflows in itself).
+Goal: G1
 
 Spec: `docs/superpowers/specs/2026-11-11-phase1-3-method-design.md`, approved.
 This is a port of the reference project's working pieces, not a new design.
