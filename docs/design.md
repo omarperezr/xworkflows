@@ -82,7 +82,8 @@ risk is what is really used. Tokens per stage are in section 13.
 
 Inside stage 5: a blocking finding enters the plan only after `verify-finding`
 reproduces it with a failing test. Every other finding becomes a card of the
-pending list (owner, 2026-11-12). There is one review per batch, before the
+pending list, or a question to the owner when its remedy is the owner's call
+(owner, 2026-11-12). There is one review per batch, before the
 batch merges. A fix is confirmed by a fresh reviewer of the same role, never
 the one that asked for it; it reads only the diff of the fix (owner,
 2026-11-11). Two rounds at most; if findings that
@@ -402,13 +403,13 @@ a valid answer. The reference column is not the default (owner, 2026-11-11).
 | `owner` | Name used in messages and question headings | the author |
 | `mainBranch` | Branch the pending list and seals are checked against | `main` |
 | `paths.plans`, `paths.specs` | Where plans and specs live | `docs/superpowers/plans`, `docs/superpowers/specs` |
-| `paths.pending` | The living list | `docs/PENDING.md` |
+| `paths.pending` | The living list | another name; default `docs/PENDING.md` |
 | `paths.code` | Folders where a fix needs a test | `src api supabase scripts workers` |
 | `paths.nonCode`, `paths.codeAnyway` | What needs no review, and its exceptions | docs and markdown; hooks and settings |
-| `paths.risk` | A change here accepts only the risk reviewer and no escape | `supabase tools/db-tests scripts/apply-migrations.sh` |
+| `paths.risk` | A change here accepts only the risk reviewer and no escape | the database folder, its tests and the migration script |
 | `paths.heavyRead` | Folders the main session may not read at length | `src supabase` |
 | `paths.curated` | Files only the main session may change | new: instructions, rules, the business file |
-| `roles.reviewer`, `roles.riskReviewer`, `roles.implementers`, `roles.lookup` | Agent names per role | `revisar`, `dinero`, two implementers, `Explore` |
+| `roles.reviewer`, `roles.riskReviewer`, `roles.implementers`, `roles.lookup` | Agent names per role | a reviewer, a risk reviewer, two implementers, the tool's read-only agent |
 | `roles.verifier`, `roles.builtIn` | Agent name of the finding verifier; built-in agent names the project allows | new |
 | `zones` | The zones of the code the interview found | new; default `[]` |
 | `paths.reviews` | Where review notes live | new; default `docs/superpowers/reviews` |
@@ -473,7 +474,8 @@ testing and capturing screens is part of the flow, not a habit outside it.
   `handback` hook asks the agent for its `red:` and `green:` lines, and the
   `fix-has-test` brake reruns the test on the parent commit.
 - A blocking review finding enters a plan only after the `verify-finding`
-  agent reproduces it with a failing test. Every other finding becomes a card.
+  agent reproduces it with a failing test. Every other finding becomes a card or a
+  question to the owner.
 - Tests exercise behavior through real inputs and outputs. A test that
   matches source text is replaced by a `patterns` brake.
 - A reviewer does not rerun tests the author reported green; the push runs
@@ -752,9 +754,7 @@ them when a push arrives without the seal of a `pre-push` that passed. The
 product ships that CI job as an optional piece: `pre-push` alone is skipped
 by `git push --no-verify`.
 
-Not shipped (reference-project domain): `dia-caracas`, `reloj-telefono`,
-`cte`, `clientes`, `acceso`, `diagrama`, `datos`, `base`, `app`, `avisos`,
-`camino`, `tablero`.
+Not shipped: the twelve checks of the reference project's own domain.
 
 ## 10. Proof that it works
 
