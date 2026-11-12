@@ -209,3 +209,12 @@ test("each kind keeps its 15 strongest rules", () => {
   assert.ok(!find(r, /Weak 19 /).kinds.includes("values"));
   assert.deepEqual(collectRules(d), r);
 });
+
+test("utility-class sentences are not mechanism rules", () => {
+  const d = tmp();
+  put(d, "DESIGN.md", "- A note must sit in a panel (`rounded-lg px-3.5 py-2.5`), never with a role badge.\n- Only the owner role may see the total.\n");
+  commit(d);
+  const r = collectRules(d);
+  assert.deepEqual(find(r, /panel/).kinds, []);
+  assert.ok(find(r, /owner role/).kinds.includes("access"));
+});

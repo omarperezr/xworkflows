@@ -27,8 +27,8 @@ const KIND_WORDS = [
   ["conc", L("lock|concurren|race|bloqueo|mutex")],
   ["input", L("validat|sanitiz|input|validar|entrada")],
 ];
-// Visual-design sentences (sizes in px/rem) are not mechanism rules.
-const STYLE = /\d(?:px|rem)\b/;
+// Visual-design sentences (sizes in px/rem, utility classes such as px-3.5 or rounded-lg) are not mechanism rules.
+const STYLE = /\d(?:px|rem)\b|(?<![\w-])(?:p[xytrbl]?|m[xytrbl]|gap|rounded|shadow|ring|border)-[\w.\[\]/]+/;
 const G = KIND_WORDS.map(([k, re]) => [k, new RegExp(re.source, "giu")]);
 // Match strength of a sentence for a kind: distinct keyword matches.
 const strength = (text, k) => new Set([...text.matchAll(G.find(([x]) => x === k)[1])].map((m) => m[0].toLowerCase())).size;
