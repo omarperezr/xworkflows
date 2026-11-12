@@ -76,7 +76,7 @@ Questions:
 Heading 5:
 
 - Mechanism rules are read from `details.md` only when the owner asks for detail: no question and no summary line for them.
-- Each answer becomes a rule line under heading 5, worded as how the code must do something (`stored values stay exact; round once, only when shown`), not only as the outcome to avoid (`never miscalculate money`).
+- Each answer becomes a rule line under heading 5, worded as how the code must do something (`a loan is counted in whole days, in the library's time zone`), not only as the outcome to avoid (`never get a due date wrong`).
 - Heading 5 groups its rule lines under the risk they prevent, costliest risk first, then `rules tied to no risk`. A risk may be a `###` sub-heading; no `#` or `##` heading inside heading 5.
 
 ### Zones
@@ -133,7 +133,7 @@ Goals in `docs/BUSINESS.md`, one line per aspiration, no dates. G1 is the 3-mont
 
 - Front matter: `name: risk-review`; a one-line `description`; `model:` set to the `top` entry of `claude` in `.xworkflows/tiers.json`; `tools: Read, Grep, Glob, Bash`.
 - What it guards: heading 4, the costliest mistake first.
-- A checklist: one line per check, each one a reviewer can check against a diff, with one line per rule the owner confirmed, each with its path as in `What each answer writes` (for example: `no query or server call inside a loop over rows`).
+- A checklist: one line per check, each one a reviewer can check against a diff, with one line per rule the owner confirmed, each with its path as in `What each answer writes` (for example: `a fee is charged only after the due date has passed`).
 - The paths it covers: `paths.risk`.
 - Read-only: Bash only for `git log`, `diff`, `show`, `ls-files`, `blame`, `status`, `grep`, `wc`, `graphify query`. No redirects. Never writes or edits.
 - Report keys: `reviewed:` (what it checked) and `not checked:` (what it could not). When every check passes, the last line is `risk-review ok at <sha>`, with the reviewed `HEAD`.
