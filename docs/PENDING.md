@@ -51,3 +51,13 @@ One living list. The `pending` brake checks these rules:
 - **P-26** — `bin/xworkflows.mjs` `apply()`: an upgrade leaves behind a file a newer version no longer ships, unrecorded, so `uninstall` never removes it. Origin: review of branch 1.2b, 2026-11-12. Status: unscheduled.
 - **P-27** — `README.md`: not updated for the two adapt hooks, the Workflow tool that `/adapt` needs, and the development-only SDK dependency. Origin: review of branch 1.2b, 2026-11-12. Status: unscheduled.
 - **P-28** — Privacy, the owner's call: tracked files already on the main branch keep reference-project file and agent names (`docs/design.md` sections 7.2, 7.7, 9.1, 9.2) and the folder that holds this repository (recorded hook fixtures). The two privacy commands do not look for them. Neutralize them, or leave them. Origin: review of branch 1.2b, 2026-11-12. Status: unscheduled.
+
+## Check runner and brakes
+
+- **P-31** — `checks/run.mjs`: `--pre-push ""` runs the brakes against every remote, and a pre-push line that is not git's four fields is skipped without a word. Origin: review of the 1.3 shared ground, 2026-11-12. Status: unscheduled.
+- **P-32** — `checks/signature.mjs`: a human co-author whose name is also a tool's name is refused. Origin: review of the first nine brakes, 2026-11-12. Status: unscheduled.
+- **P-33** — `checks/fix-has-test.mjs`: the kill on timeout or interrupt uses a POSIX process group, so it does nothing on Windows; a signal that arrives between two test runs leaves the temporary worktree; a test command that starts its own session escapes the kill. Origin: review of the first nine brakes, 2026-11-12. Status: unscheduled.
+- **P-34** — `checks/change-size.mjs`: a text file that holds a NUL byte is taken as binary and counts 0 lines. Origin: review of the first nine brakes, 2026-11-12. Status: unscheduled.
+- **P-35** — `checks/review-seal.mjs`: a seal written as a numbered item or a checkbox item does not seal, while one alone on a line inside a fenced block does. Origin: review of the first nine brakes, 2026-11-12. Status: unscheduled.
+- **P-36** — `checks/fix-has-test.test.mjs`: the interrupt test waits for its child with no time limit, so a regression would hang the suite instead of failing it. Origin: review of the first nine brakes, 2026-11-12. Status: unscheduled.
+- **P-37** — Tests: several test files leave their `xwf-*` folders in the system temp folder (thousands after a day of runs); remove them in each test's cleanup. Origin: review of the first nine brakes, 2026-11-12. Status: unscheduled.

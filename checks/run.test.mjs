@@ -162,14 +162,27 @@ test("pre-push: a new branch uses the merge base with origin/main", withRepo({},
   assert.equal(r.mainPush, false);
 }));
 
-test("pre-push: first push to an empty remote has base null and every commit", withRepo({}, async (repo) => {
+test("pre-push: a first push to a remote with no branch judges no history, and says so", withRepo({}, async (repo) => {
+  repo.remote();
+  const c2 = repo.commit("two");
+  const got = [];
+  const r = await check(repo, ["--pre-push", "origin", "--only", "signature"], { signature: { run: (range) => { got.push(range); return { ok: true, lines: [] }; } } }, `refs/heads/main ${c2} refs/heads/main ${ZERO}\n`);
+  assert.deepEqual(r, { code: 0, out: ["xworkflows check: first push to origin: the history already written is not judged"] });
+  assert.equal(got[0].base, c2);
+  assert.deepEqual(got[0].commits, []);
+}));
+
+test("pre-push: a new branch on a remote that has branches but no main has base null and the commits on no remote ref", withRepo({}, async (repo) => {
   repo.remote();
   const c1 = repo.git("rev-parse", "HEAD");
+  repo.branch("other");
+  repo.git("push", "-q", "origin", "other");
   const c2 = repo.commit("two");
-  const [r] = await ranges(repo, `refs/heads/main ${c2} refs/heads/main ${ZERO}\n`);
+  const [r] = await ranges(repo, `refs/heads/feature ${c2} refs/heads/feature ${ZERO}\n`);
   assert.equal(r.base, null);
   assert.equal(r.diffBase, EMPTY_TREE);
-  assert.deepEqual(r.commits, [c1, c2]);
+  assert.deepEqual(r.commits, [c2]);
+  assert.notEqual(c1, c2);
 }));
 
 test("by hand: base is the merge base with main, head is HEAD", withRepo({}, async (repo) => {
@@ -223,4 +236,9 @@ test("a result with no lines, a string needs, a thrown string: could not run, th
 test("an extra argument: exit 2", withRepo({}, async (repo) => {
   assert.deepEqual(await check(repo, ["HEAD", "HEAD", "junk"]), { code: 2, out: ["xworkflows check: unexpected argument junk"] });
   assert.equal((await check(repo, ["--pre-push", "origin", "HEAD"])).code, 2);
+}));
+
+test("needs that are not key names: could not run", withRepo({}, async (repo) => {
+  const r = await check(repo, ["--only", "ratchet"], { ratchet: { needs: [5], run: () => ({ ok: true, lines: [] }) } });
+  assert.deepEqual(r, { code: 2, out: ["ratchet: could not run: its needs must be config key names", "xworkflows check: 1 of 1 failed"] });
 }));

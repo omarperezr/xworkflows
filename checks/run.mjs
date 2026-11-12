@@ -72,7 +72,12 @@ export async function main(argv, io = {}) {
         const [, local, ref, remoteSha] = line.trim().split(/\s+/);
         if (!local || isZero(local)) continue;
         const head = rev(local);
-        const base = isZero(remoteSha) ? mergeBase(head, `${remote}/${main}`) : rev(remoteSha);
+        let base = isZero(remoteSha) ? mergeBase(head, `${remote}/${main}`) : rev(remoteSha);
+        // a first push to a remote with no branch yet has nothing to compare against: as in the reference, what is already written is not judged
+        if (isZero(remoteSha) && base === null && !ctx.git("for-each-ref", "--count=1", `refs/remotes/${remote}`)) {
+          base = head;
+          print(`xworkflows check: first push to ${remote}: the history already written is not judged`);
+        }
         ranges.push(rangeFor(ctx, { head, base, ref, remote, manual: false }));
       }
     }
@@ -97,7 +102,8 @@ export async function main(argv, io = {}) {
       }
       if (mod.mainOnly && !range.manual && !range.mainPush) continue;
       due++;
-      const keys = missing(ctx.config, [].concat(mod.needs ?? []));
+      let keys;
+      try { keys = missing(ctx.config, [].concat(mod.needs ?? [])); } catch { couldNot(name, "its needs must be config key names"); continue; }
       if (keys.length) {
         failed++; cannot = true;
         for (const k of keys) print(`${name}: not configured: ${k}, run /adapt`);
