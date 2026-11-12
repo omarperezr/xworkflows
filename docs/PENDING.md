@@ -61,3 +61,12 @@ One living list. The `pending` brake checks these rules:
 - **P-35** — `checks/review-seal.mjs`: a seal written as a numbered item or a checkbox item does not seal, while one alone on a line inside a fenced block does. Origin: review of the first nine brakes, 2026-11-12. Status: unscheduled.
 - **P-36** — `checks/fix-has-test.test.mjs`: the interrupt test waits for its child with no time limit, so a regression would hang the suite instead of failing it. Origin: review of the first nine brakes, 2026-11-12. Status: unscheduled.
 - **P-37** — Tests: several test files leave their `xwf-*` folders in the system temp folder (thousands after a day of runs); remove them in each test's cleanup. Origin: review of the first nine brakes, 2026-11-12. Status: unscheduled.
+- **P-38** — `checks/ratchet.mjs`, `checks/project.mjs`: a project command that hangs has no time limit, so the push hangs with it. Origin: review of the last five brakes, 2026-11-12. Status: unscheduled.
+- **P-39** — `checks/stale-memory.mjs`, `checks/index-current.mjs`: not checked with a submodule entry under the memory folder, a file name holding a newline, or a memory folder name with glob characters. Origin: review of the last five brakes, 2026-11-12. Status: unscheduled.
+
+## Hooks
+
+- **P-40** — `hooks/core/memory.mjs`: several edits to one memory file in a single call (a multi-edit) are each judged against the file on disk, not against the result of the edits before it. Single edits are judged right. Origin: review of the four hooks, 2026-11-12. Status: unscheduled.
+- **P-41** — `hooks/core/orchestrator.mjs`: the long-read rule for shell commands does not see a reader that follows a line break or leading spaces (`cd x`, new line, `cat src/a.ts`). It never denies wrongly. Origin: review of the four hooks, 2026-11-12. Status: unscheduled.
+- **P-42** — `hooks/core/ctx.mjs` `writeFile` and `checks/run.mjs index`: only the last path component is checked for a symlink; a memory folder that is itself a link out of the tree is still written through. Origin: review of the four hooks, 2026-11-12. Status: unscheduled.
+- **P-43** — Claude Code: the `SubagentHandback` event was not checked for agents that run inside a `Workflow`; where it does not fire, `review-seal` is the stop (docs/gaps.md). Origin: recorded sessions, 2026-11-12. Status: unscheduled.
