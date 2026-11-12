@@ -59,9 +59,9 @@ About 700 code lines: the Workflow script is rewritten whole and cannot be cut s
 About 40 code lines.
 
 **T7: the harness keeps the new files of a run**
-- Files: `proof/harness.mjs`, `proof/proof.test.mjs`
+- Files: `proof/harness.mjs`, `proof/trial-lib.mjs`, `proof/proof.test.mjs`
 - Role: implement
-- A research-only trial also copies `screens.json` and `details.md`.
+- A research-only trial also copies `screens.json` and `details.md`. The list of kept files moves to `proof/trial-lib.mjs`, which a test can import; the harness itself starts a trial when imported.
 - Done: `node --test proof/proof.test.mjs` passes.
 
 **T8: the measure** (spec "Measure")
