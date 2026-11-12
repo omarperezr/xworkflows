@@ -54,6 +54,7 @@ One living list. The `pending` brake checks these rules:
 - **P-25** — `proof/trial-lib.mjs`: the ledger write is not atomic and the total is never checked against the entries. Origin: review of branch 1.2b, 2026-11-12. Status: unscheduled.
 - **P-65** — `proof/`: the driver that ran the end-to-end proof of 2026-11-12 (one real session from deepen to the seal, each question answered with its first option) is not in the repository; add it with a test, so the proof can be run again. Origin: the end-to-end proof, 2026-11-12. Status: unscheduled.
 - **P-70** — `proof/grade.mjs`: the grader reads the layout the old research.md had (its heading 5 and its list of dropped citations); a version 3 research.md has neither, so a graded trial of the new `/adapt` counts nothing. Origin: review of adapt-general-1, 2026-11-12. Status: unscheduled.
+- **P-81** — `proof/proof.test.mjs`: the test of the kept files only repeats the list; it stays green if the harness stops using the list or if a missing file stops the save. Move the copy loop into `proof/trial-lib.mjs` as one function and test it on a temp folder. Origin: review of adapt-general-2, 2026-11-12. Status: unscheduled.
 
 ## Installer and docs
 
