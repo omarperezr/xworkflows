@@ -179,7 +179,7 @@ test("adapt question rules", () => {
   const s = read("skills/adapt/SKILL.md");
   const rules = s.split("## Step 1")[0];
   has(rules, ["`open`", "`confirm`", "`mechanism`", "`choice`", "One item per question: Yes, No, I don't know.",
-    "If none fits, or it is something else, type it in Type something.", "`(Recommended)` only on an option backed by a verified citation",
+    "If none fits, or it is something else, type it in Type something.", "`(Recommended)` only on an option backed by a verified `file:line` citation in `research.md`",
     "What the owner types in `Type something` wins over research and over every drafted option.", "`I don't know` settles the item"]);
   assert.doesNotMatch(s, /multiSelect/);
   assert.doesNotMatch(rules, /multi-select answer/);
@@ -245,7 +245,7 @@ test("gitignore lines", () => {
   const s = step(4);
   const l = s.split("\n").find((x) => x.includes("to `.gitignore`"));
   has(l, ["`graphify-out/`", "`.xworkflows/research.md`", "`.xworkflows/research.json`", "`.xworkflows/research.prev.json`", "`.xworkflows/scan.json`",
-    "`.xworkflows/interview.json`", "`.xworkflows/interview.log.jsonl`", "`.xworkflows/adapt-run.json`"]);
+    "`.xworkflows/interview.json`", "`.xworkflows/interview.log.jsonl`", "`.xworkflows/adapt-run.json`", "`.xworkflows/rules.json`", "`.xworkflows/kinds.json`"]);
   inOrder(s, ["git commit -m", "research.mjs done"]);
 });
 
@@ -290,7 +290,12 @@ test("revision 2: written rules first, coherent questions", () => {
   const h6 = q.split("\n").find((x) => x.includes("ask `H6-r<n>`"));
   has(h6, ["`Money`, `Data`, `Access`, `No risk`", "several risks typed in `Type something`", "Any answer but `No risk` adds that scan zone's paths to `paths.risk`"]);
   const h5 = q.split("\n").find((x) => x.startsWith("- `H5-<kind>`"));
-  has(h5, ["`Yes`: the general rule becomes the kind's line `<kind>: <general rule>`", "`No`: ask the follow-up `H5-<kind>-r`", "`I don't know`: `<kind>: unprotected: <risk>`"]);
+  has(h5, ["`Yes`: the general rule becomes the kind's line `<kind>: <general rule>`", "`No`: ask the follow-up `H5-<kind>-r`", "`I don't know`: `<kind>: unconfirmed: <general rule>`"]);
+  assert.equal(s.split("backed by a verified `file:line` citation in `research.md`").length, 3);
+  const c = q.split("\n").find((x) => x.startsWith("- `C<n>`"));
+  has(c, ["on a bare `No`, ask the follow-up `C<n>-fix`, `open`: `What should it be?`", "Its answer is the key's value."]);
+  has(s.split("## Step 1")[0], ["except `H6-r<n>`, whose text already says it"]);
+  has(q, ["`unconfirmed:` lines"]);
   has(q, ["`H5-keep` and `H5-free`"]);
   has(s.split("## Step 1")[0], ["Drafted options are suggestions from research"]);
   has(q, ["asks each heading in the owner's language", "the canonical English heading stays in `summary.md`",

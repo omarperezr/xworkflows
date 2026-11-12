@@ -159,7 +159,7 @@ export function buildQueue(research, scan, prev, cfg, kinds = null, written = []
   const ks = kinds || Object.fromEntries(Object.entries(research.kinds || {}).map(([k, v]) => [k, { status: v?.status, general: v?.general?.rule || null }]));
   const mech = KINDS.filter((k) => ["found", "absent"].includes(ks[k]?.status) && (!prev || prev.kinds?.[k]?.status !== research.kinds?.[k]?.status))
     .map((k) => (ks[k].status === "found" && ks[k].general
-      ? confirm(`H5-${k}`, "5", `Is this the rule every change must follow here: ${collapse(ks[k].general).replace(/[.?!]+$/, "")}?`)
+      ? confirm(`H5-${k}`, "5", `Is this the rule every change must follow here: ${collapse(ks[k].general).replace(/[.?!]+$/, "")}?${ks[k].unverified ? " (its code citation could not be verified)" : ""}`)
       : item(`H5-${k}`, "5", "mechanism", `${KIND_Q[k]} ${SPEC_Q}`, ["Nothing does today", "I don't know"])));
   if (prev) return [...mech, ...config];
   return [
@@ -191,15 +191,16 @@ export function buildQueue(research, scan, prev, cfg, kinds = null, written = []
   ];
 }
 
-// Ids with no answer in `run`; `-r` follow-ups after `Nothing does today` or a `No` on a general rule, `H1-what-fix` after a `No` on `H1-what`; with `approved`, P-H1..P-H7 last answer must be `Right`.
+// Ids with no answer in `run`; `-r` follow-ups after `Nothing does today` or a `No` on a general rule, `H1-what-fix` after a `No` on `H1-what`, `C<n>-fix` after a `No` on a config confirm; with `approved`, P-H1..P-H7 last answer must be `Right`.
 export function missing(queue, log, run, approved = false) {
   const last = {};
   for (const l of log) if (l.run === run && l.answer !== undefined && l.answer !== "") last[l.id] = l.answer;
   const out = [];
-  for (const { id } of queue) {
+  for (const { id, style } of queue) {
     if (!(id in last)) out.push(id);
     else if (/^H5-/.test(id) && KINDS.includes(id.slice(3)) && ["Nothing does today", "No"].includes(last[id]) && !(`${id}-r` in last)) out.push(`${id}-r`);
     else if (id === "H1-what" && last[id] === "No" && !("H1-what-fix" in last)) out.push("H1-what-fix");
+    else if (/^C\d+$/.test(id) && style === "confirm" && last[id] === "No" && !(`${id}-fix` in last)) out.push(`${id}-fix`);
   }
   if (approved) for (let n = 1; n <= 7; n++) if (last[`P-H${n}`] !== FIXED[0]) out.push(`P-H${n}`);
   return out;

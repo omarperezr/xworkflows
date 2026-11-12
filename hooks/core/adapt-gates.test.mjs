@@ -44,6 +44,7 @@ test("heading 5 needs a line for each kind absent in kinds.json, when it exists"
   const f = { ...files(), "/r/.xworkflows/kinds.json": JSON.stringify({ snap: { status: "found", general: "x", unverified: false }, idem: { status: "absent", general: null, unverified: false } }) };
   deny(decide(sw(summary("draft", FIVE)), ctx(f)), /not applicable": idem\. /);
   ok(decide(sw(summary("draft", "- idem: unprotected: double writes\n")), ctx(f)));
+  ok(decide(sw(summary("draft", "- idem: unconfirmed: one key per write (code)\n- snap: unconfirmed: rows keep their price (code)\n")), ctx(f)));
 });
 test("draft summary denied while ids are missing", () => {
   deny(decide(sw(summary("draft", FIVE)), ctx(files(), missing("H1-a\nH2-b"))), /Ask these first: H1-a, H2-b/);

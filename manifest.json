@@ -244,13 +244,13 @@
         "gemini"
       ],
       "files": {
-        "skills/adapt/SKILL.md": "d9b7961ac6f463374fca8dd36c685f9aeadc8d622b60b394b3a7bdfcf7c8b423",
+        "skills/adapt/SKILL.md": "79fbe492af407bb46a26dc4f179e4a3ff5b9aee6e168a0279a165de15df67009",
         "skills/adapt/scan.mjs": "cff7acc757c1c1a8fd324aca159cbd4b0b9556f9508bbc985c4a5b27f921ddb4",
         "skills/adapt/rules.mjs": "ac69385ce07d93b2d154efdd03312d91cd66446f73da2480c128073ccb7d0d6b",
         "skills/adapt/research.workflow.js": "5fcbca04816cb33748f07e9ec97a7d33463eca240832bc3a5389af895d2d2079",
-        "skills/adapt/research.mjs": "4a1dce22895c64e95ec44139ac97bec7b21fc3dde7bc96c03ac62e307cd45151"
+        "skills/adapt/research.mjs": "506a83ffb3182773a78eda08a1822796d56d83ca3e2a77c1fb2562d3c2e62905"
       },
-      "sha256": "cd6a71ded9f6c7ef1f7421a69a8586dd7da693e9bcf22fbf1c197b4cacc65cee"
+      "sha256": "7981f5586eb31e2ccb8b2d13addab46fa137045e77ba7647ec8694dd39cd3224"
     },
     {
       "id": "full-review",

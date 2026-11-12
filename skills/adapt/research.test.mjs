@@ -494,7 +494,7 @@ test("H5: a found general rule is confirmed; found without one or absent asks th
   const kj = { ...KJ({ idem: "found", txn: "absent", conc: "not-present" }), values: { status: "found", general: "Round once, only when shown.", unverified: true } };
   const q = buildQueue(allFound(), ZSCAN, null, null, kj);
   const by = Object.fromEntries(q.map((i) => [i.id, i]));
-  assert.deepEqual(by["H5-values"], { id: "H5-values", heading: "5", style: "confirm", text: "Is this the rule every change must follow here: Round once, only when shown?", options: ["Yes", "No", "I don't know"] });
+  assert.deepEqual(by["H5-values"], { id: "H5-values", heading: "5", style: "confirm", text: "Is this the rule every change must follow here: Round once, only when shown? (its code citation could not be verified)", options: ["Yes", "No", "I don't know"] });
   assert.equal(by["H5-snap"].text, "Is this the rule every change must follow here: rule snap?");
   for (const k of ["idem", "txn"]) assert.equal(by[`H5-${k}`].style, "mechanism", k);
   assert.ok(!by["H5-conc"]);
@@ -580,7 +580,7 @@ test("ids are unique and at most 12 characters", () => {
   const q = buildQueue(allAbsent(), ZSCAN);
   const i = ids(q);
   assert.equal(new Set(i).size, i.length);
-  for (const x of [...i, ...i.filter((y) => /^H5-/.test(y)).map((y) => y + "-r"), "P-H7-fix", "H1-what-fix", "H6-split"]) assert.ok(x.length <= 12, x);
+  for (const x of [...i, ...i.filter((y) => /^H5-/.test(y)).map((y) => y + "-r"), "P-H7-fix", "H1-what-fix", "H6-split", "C10-fix"]) assert.ok(x.length <= 12, x);
   assert.ok(i.includes("H5-values") && i.includes("C10"));
 });
 
@@ -650,6 +650,18 @@ test("follow-up required", () => {
   assert.deepEqual(missing(q, [...log, L("H5-idem-r", "use a key")], "r1"), []);
 });
 
+test("C<n>-fix required after a No on a config confirm", () => {
+  const q = [{ id: "C5", style: "confirm" }, { id: "C6", style: "open" }];
+  assert.deepEqual(missing(q, [L("C5", "No"), L("C6", "No")], "r1"), ["C5-fix"]);
+  assert.deepEqual(missing(q, [L("C5", "No"), L("C6", "x"), L("C5-fix", "npm test")], "r1"), []);
+});
+test("an unverified general rule says so in its question", () => {
+  const k = KJ();
+  k.values.unverified = true;
+  const q = buildQueue(allFound(), ZSCAN, null, null, k);
+  assert.match(q.find((i) => i.id === "H5-values").text, /: rule values\? \(its code citation could not be verified\)$/);
+  assert.match(q.find((i) => i.id === "H5-snap").text, /: rule snap\?$/);
+});
 test("translated label is not a pick", () => {
   const q = buildQueue(allFound(), ZSCAN);
   const P = (a) => [1, 2, 3, 4, 5, 6, 7].map((n) => L(`P-H${n}`, n === 3 ? a : "Right"));
