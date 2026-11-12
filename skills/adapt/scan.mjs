@@ -16,36 +16,36 @@ export const KINDS = [
     E(/\.toFixed\(|\bround\(|\bDecimal\(/i, "price.toFixed(2)", "// round trip to the server"),
     E(/\b\w*(money|cents)\w*\(/i, "toCents(price)", "const monkey = money;"),
     E(/\b(convert|to|from)_?units?\(/i, "convertUnit(x, 'kg')", "const unit = 1;"),
-    E(/\bUTC\b|time_?zone|\bcurrency\w*|_unit\b|\bunit_(price|cost|of)\w*/i, "created_at at time zone 'utc'", "const community = 1;") ] },
+    E(/\bat time zone\b|\btime_?zone\w*\s*[:=]|\bcurrency(_code)?\s*(=\s*["']|text\b|char|varchar)|\bunit_(price|cost|of)\w*/i, "created_at at time zone 'utc'", "const community = 1;") ] },
   { key: "snap", name: "values frozen when a record is written", signals: [
-    E(/\b\w+_at_sale\b|\bnew\.\w+\s*:?=/i, "new.unit_price := p.price;", "select renewal from plan;") ] },
+    E(/\b\w+_at_(sale|purchase|order|checkout|invoice)\b|\bnew\.(?!(updated|modified|created)_)\w+\s*:=\s*(\w+\.\w+|\(\s*select\b)/i, "new.unit_price := p.price;", "select renewal from plan;") ] },
   { key: "srvw", name: "data written only through server functions", signals: [
     E(/\.rpc\(|\.from\(\s*["']\w+["']\s*\)\s*\.(insert|update|delete|upsert)\(/, "await db.rpc(\"make\", {})", "db.from(\"item\").select(\"*\")"),
-    E(/\bcreate\s+(or\s+replace\s+)?function\b|\b(app|router)\.(post|put|patch|delete)\(|@(app|router)\.(post|put|patch|delete)\b/i, "create or replace function make_item()", "-- a function of time") ] },
+    E(/\bcreate\s+(or\s+replace\s+)?function\s+[\w."]*\b(create|make|add|insert|update|delete|remove|set|record|apply|register|cancel|submit)_\w*|\bsecurity definer\b|\b(app|router)\.(post|put|patch|delete)\(|@(app|router)\.(post|put|patch|delete)\b/i, "create or replace function make_item()", "-- a function of time") ] },
   { key: "delta", name: "changes as deltas, never absolute values", signals: [
     E(/\bset\s+(\w+)\s*=\s*\1\s*[+-]|\.increment\(|\bF\(\s*["']\w+["']\s*\)\s*[+-]|\b(\w+)\s*=\s*\2\s*[+-]\s*:\w+/i, "set stock = stock - 1", "i = i + 1") ] },
   { key: "idem", name: "retried or offline writes applied once", signals: [
-    E(/\bon conflict\b|idempotency[_-]?key|\boutbox\b/i, "on conflict (id) do nothing", "# a merge conflict in git"),
+    E(/\bon conflict\b.*\bdo nothing\b|idempotency[_-]?key|\boutbox\b/i, "on conflict (id) do nothing", "# a merge conflict in git"),
     E(/\bunique\b.*\b(request|idempotency|event)_?id\b|\b(request|idempotency|event)_?id\b.*\bunique\b/i, "request_id text unique", "# a unique name"),
-    E(/\b(en|de)queue\w*\(|\bqueue\.(add|push|put)\(/i, "enqueue(job)", "const queued = 1;") ] },
+    E(/\benqueue\w*\(/i, "enqueue(job)", "const queued = 1;") ] },
   { key: "txn", name: "a multi-row action is one transaction", signals: [
-    E(/^\s*begin\s*;|\btransaction\s*\(|transaction\.atomic/i, "with transaction.atomic():", "// transactions are explained in the docs") ] },
+    E(/^\s*(begin|start transaction)\s*;|[.$]transaction\(|transaction\.atomic/i, "with transaction.atomic():", "// transactions are explained in the docs") ] },
   { key: "access", name: "access checked by the database or server", signals: [
-    E(/enable row level security|\bcreate policy\b|\braise exception\b|\brequire_?auth\w*\(|\bcheck_?permission\w*\(/i, "alter table t enable row level security;", "-- see the policy document") ] },
+    E(/enable row level security|\bcreate policy\b|\braise exception\b.*\b(permission|not allowed|forbidden|denied|unauthori[sz]ed|access|role|admin|owner)|\brequire_?auth\w*\(|\bcheck_?permission\w*\(/i, "alter table t enable row level security;", "-- see the policy document") ] },
   { key: "batch", name: "work over many rows done once", signals: [
-    E(/\.map\(\s*async\b|\bfor\s*\([^)]*\)\s*\{?\s*await\b|\bfor\b.*:\s*\w+\.(execute|query)\(/, "ids.map(async (i) => q(i))", "for (const x of xs) { total += x; }"),
+    E(/\.map\(\s*async\b|\bfor\s*\([^)]*\)\s*\{?\s*await\s+[\w.]+\.(query|execute|insert|update|delete|rpc|save|create)\w*\(|\bfor\b.*:\s*\w+\.(execute|query)\(/, "ids.map(async (i) => q(i))", "for (const x of xs) { total += x; }"),
     E(/\bfor\s+\w+\s+in\b.*\bloop\b/i, "for r in select id from t loop", "for r in select id from t") ] },
   { key: "domain", name: "legal, tax or domain rules", signals: [
-    E(/\b(law|legal|regulations?|tax(es)?|vat|gdpr)\b/i, "Tax rules by law", "Notes on the project.", [".md"]),
-    E(/\b(tax|vat)[_ ]?rate\b|\b(TAX|VAT)_[A-Z_]+\b|\bregulations?\b/i, "TAX_RATE = 0.2", "const taxi = 1;") ] },
+    E(/\b(tax(es)?|vat|gdpr|by law|legally)\b/i, "Tax rules by law", "Notes on the project.", [".md"]),
+    E(/\b(tax|vat)[_ ]?rate\b|\b(TAX|VAT)_[A-Z_]+\b/i, "TAX_RATE = 0.2", "const taxi = 1;") ] },
   { key: "compat", name: "what must not break for those who use it", signals: [
     E(/\bdeprecated\b|schema_?version|format_?version|\bAPI_VERSION\b/i, "SCHEMA_VERSION = 3", "# the version of node we use"),
     E(/\b__all__\s*=|\bmodule\.exports\s*=\s*\{|^\s*export\s*\{/, "module.exports = { run };", "const exports2 = 1;"),
     E(/\bchangelog\b|\bbreaking changes?\b/i, "Update the CHANGELOG", "# a log of changes", [...CODE, ".md"]),
     E(/\b__version__\b|\bversion\s*=\s*["']\d+\.\d+/, "__version__ = \"1.2\"", "# the version of node we use") ] },
   { key: "conc", name: "concurrency and order", signals: [
-    E(/\bfor update\b|\bpg_advisory\w*\(|\bmutex\b|\bLock\(|\.lock\(/i, "lock = threading.Lock()", "const clock = now();"),
-    E(/\.consume\(|\bconsumer\b|\bsubscribe\(/i, "queue.consume(handle)", "const consumed = 1;"),
+    E(/\bselect\b.*\bfor (no key )?update\b|\bpg_advisory\w*\(|\bmutex\b|\bLock\(|\.lock\(/i, "lock = threading.Lock()", "const clock = now();"),
+    E(/\.consume\(/i, "queue.consume(handle)", "const consumed = 1;"),
     E(/\b(version|seq|sequence)\s+(int|integer|bigint|serial|bigserial)\b|\bnextval\(|\bcreate sequence\b/i, "version int not null", "-- the version of the docs") ] },
   { key: "input", name: "validation of outside input", signals: [
     E(/\bz\.object\(|\bjoi\.|\.safeParse\(|\bBaseModel\b|\bsanitize\w*\(|\bvalidate\w*\(/i, "class Req(BaseModel):", "# validation is hard"),
@@ -217,8 +217,18 @@ export function scan(root) {
       });
     }
   }
+  // Files the project's written rules name per kind: a rule's own file when its kinds include the kind, plus repo paths quoted in its text.
+  let rules = [];
+  try { rules = JSON.parse(readFileSync(join(root, ".xworkflows/rules.json"), "utf8")).rules || []; } catch { /* no rules yet */ }
+  const known = new Set(live);
+  const named = Object.fromEntries(KINDS.map((k) => [k.key, new Set()]));
+  for (const r of rules) {
+    const quoted = (String(r.text).match(/[\w@.-]+(?:\/[\w@.-]+)*/g) || []).map((t) => t.replace(/\.+$/, "")).filter((t) => known.has(t));
+    for (const k of r.kinds || []) if (named[k]) for (const p of [r.file, ...quoted]) if (p) named[k].add(p);
+  }
   const c = (f) => churn.get(f) || 0;
-  for (const k of KINDS) kinds[k.key].hits = kinds[k.key].hits.sort((a, b) => c(b.file) - c(a.file) || (a.file < b.file ? -1 : a.file > b.file ? 1 : 0) || a.line - b.line).slice(0, MAX_HITS);
+  for (const k of KINDS) kinds[k.key].ruleFiles = [...named[k.key]].sort();
+  for (const k of KINDS) kinds[k.key].hits = kinds[k.key].hits.sort((a, b) => named[k.key].has(b.file) - named[k.key].has(a.file) || c(b.file) - c(a.file) || (a.file < b.file ? -1 : a.file > b.file ? 1 : 0) || a.line - b.line).slice(0, MAX_HITS);
 
   const lines = readLines(ignorePath);
   const next = [...new Set([...lines, ...[...dropped].sort()])];

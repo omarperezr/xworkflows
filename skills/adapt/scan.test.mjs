@@ -280,15 +280,15 @@ test("every spec 4.1 example category has a signal", () => {
   const table = {
     values: ["x.toFixed(2)", "round(x)", "Decimal(1)", "toCents(p)", "convertUnit(x)", "currency = 'EUR'", "created_at at time zone 'utc'"],
     snap: ["new.unit_price := p.price;", "price_at_sale numeric"],
-    srvw: ["await db.rpc('x')", "create function make()", "db.from('t').insert({})"],
+    srvw: ["await db.rpc('x')", "create function make_item()", "db.from('t').insert({})"],
     delta: ["set x = x + 1", "x.increment(1)", "F('x') + 1"],
     idem: ["on conflict (id) do nothing", "idempotency_key", "request_id text unique", "enqueue(job)", "outbox"],
     txn: ["begin;", "db.transaction(fn)"],
-    access: ["create policy p on t", "alter table t enable row level security;", "raise exception 'no'", "require_auth()"],
+    access: ["create policy p on t", "alter table t enable row level security;", "raise exception 'permission denied'", "require_auth()"],
     batch: ["xs.map(async (x) => f(x))", "for r in select 1 loop"],
     domain: ["TAX_RATE = 0.2"],
     compat: ["deprecated", "SCHEMA_VERSION = 3", "module.exports = { a }", "__version__ = \"1\"", "Update the CHANGELOG"],
-    conc: ["for update", "pg_advisory_lock(1)", "mutex", "queue.consume(h)", "version int not null"],
+    conc: ["select * from t for update", "pg_advisory_lock(1)", "mutex", "queue.consume(h)", "version int not null"],
     input: ["z.object({})", "validate(x)", "if not request.user.is_authenticated:"],
   };
   assert.deepEqual(Object.keys(table), KEYS);
@@ -324,4 +324,43 @@ test("multi-line triggers are keyed per table; a definer after a body with a dro
   const r = sqlInventory([{ path: "m.sql", text: sql }]);
   assert.deepEqual(r.triggers.map((t) => [t.name, t.line]), [["touch on a", 1], ["touch on b", 4]]);
   assert.deepEqual(r.definers.map((t) => [t.name, t.line]), [["h", 7]]);
+});
+
+test("hits from files named by a written rule come first", () => {
+  const d = tmp();
+  put(d, "a.js", "ids.map(async (i) => q(i));\n");
+  put(d, "b.js", "ids.map(async (i) => q(i));\n");
+  put(d, "c.js", "ids.map(async (i) => q(i));\n");
+  commit(d);
+  for (const n of [1, 2]) { put(d, "a.js", `ids.map(async (i) => q(i));// ${n}\n`); git(d, "add", "a.js"); git(d, "commit", "-q", "-m", "y"); }
+  assert.deepEqual(scan(d).kinds.batch.hits.map((h) => h.file), ["a.js", "b.js", "c.js"]);
+  put(d, ".xworkflows/rules.json", JSON.stringify({ rules: [
+    { id: "R1", text: "Always batch.", file: "b.js", line: 1, kinds: ["batch"] },
+    { id: "R2", text: "See c.js and docs/none.md for loops.", file: "README.md", line: 2, kinds: ["input"] },
+    { id: "R3", text: "Batch work, see c.js.", file: "README.md", line: 3, kinds: ["batch"] },
+  ] }));
+  const k = scan(d).kinds;
+  assert.deepEqual(k.batch.hits.map((h) => h.file), ["b.js", "c.js", "a.js"]);
+  assert.deepEqual(k.batch.ruleFiles, ["README.md", "b.js", "c.js"]);
+  assert.deepEqual(k.input.ruleFiles, ["README.md", "c.js"]);
+  assert.deepEqual(k.values.ruleFiles, []);
+});
+
+test("signals need a mechanism-specific token", () => {
+  const noise = {
+    values: ["const value = price * 2", "// all times are UTC", "const currencyList = [];", "// set the time zone in the docs"],
+    snap: ["new.updated_at := now();", "const x = new.target;"],
+    srvw: ["create function helper() returns int", "db.from(\"t\").select(\"*\")"],
+    delta: ["count += 1", "i = i + 1"],
+    idem: ["on conflict (id) do update set a = 1", "queue.push(node)", "const q = queue.add(x);"],
+    txn: ["begin", "// transaction ids are strings"],
+    access: ["raise exception 'bad input';", "-- see the policy document"],
+    batch: ["for (const x of xs) total += x;", "for (const x of xs) { await sleep(1); }"],
+    domain: ["const legal = 1;", "This is the law of averages."],
+    compat: ["const exports2 = 1;", "# the version of node we use"],
+    conc: ["for update to authenticated", "stream.subscribe(render)", "const consumerCount = 1;"],
+    input: ["const user = getUser();", "# validation is hard"],
+  };
+  const sig = (k, t) => KINDS.find((q) => q.key === k).signals.some((s) => s.re.test(t));
+  for (const [k, ls] of Object.entries(noise)) for (const l of ls) assert.ok(!sig(k, l), `${k}: ${l}`);
 });
