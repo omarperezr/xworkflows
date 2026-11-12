@@ -69,9 +69,9 @@
         }
       ],
       "files": {
-        "hooks/core/adapt-gates.mjs": "5b28516c20ba6b3bcd17147d879536ad6badb7e4c12ffceee1ffc052324405c1"
+        "hooks/core/adapt-gates.mjs": "439a609adabbf78a1841b4b41ba0c7013728d3ddf7265fe8b90c524df6eaa025"
       },
-      "sha256": "b18f81c4ca2c11a518d06e3b811580d7c8a845771145e4442aeb4f26f455820d"
+      "sha256": "986c5468a064660aa758935fbf8a5f716b55e6af5f4495617a81fd3585fc1e67"
     },
     {
       "id": "adapt-record",
@@ -246,13 +246,14 @@
         "gemini"
       ],
       "files": {
-        "skills/adapt/SKILL.md": "79fbe492af407bb46a26dc4f179e4a3ff5b9aee6e168a0279a165de15df67009",
+        "skills/adapt/SKILL.md": "530a09b0bff7b6f2dba25aa621834d3f36a3b7eb7b6c935355355d472d98c09a",
         "skills/adapt/scan.mjs": "710c3445855b7a23d54c5b1b6ce0bf3a4ae102afe9bcdc9360704dc15bfad898",
         "skills/adapt/rules.mjs": "99766272105524b96372b0ef34ff8a2960d68d674a47de5f4da9e32ba9223a94",
-        "skills/adapt/research.workflow.js": "3cb7e4a0f5861e8d29beb863b4b03c8dd7f9d80c6f3438f3a12d6e2f46f97646",
-        "skills/adapt/research.mjs": "61e29ae8243f5ca8cf5eef5ab8b0cf1c3e17c14024c2d6d407c767e3e8d684ee"
+        "skills/adapt/research.workflow.js": "00188a8354f0b6d44b57894acf6b71ab0e31c7c4666380344c768c8d892c5222",
+        "skills/adapt/research.mjs": "b72933319f2f9dbf197d6a0f233ef72db9156869c2c7d145410a01cc840884f4",
+        "skills/adapt/screens.mjs": "c31d18e4f5fe58ea51c2758e456bca2e996c0dbd251ff15a35f2630a3d1af502"
       },
-      "sha256": "0f13fcd7e6e21949d1399f3a723e77a3824c7b4a81c257998809efba2a2913ab"
+      "sha256": "875fae04f7397f7e1074f8a574b443075fad3f27792f69537e85cbbce60f63e0"
     },
     {
       "id": "full-review",

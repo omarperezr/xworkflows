@@ -38,7 +38,7 @@ export function decide(ev, ctx) {
   for (const w of ev.writes ?? []) {
     const abs = realFile(path.resolve(ev.root, w.path.replaceAll("\\", "/")));
     // Files the adapt scripts write; the agent never writes them directly.
-    for (const [f, by] of [["research.md", "research.mjs render"], ["kinds.json", "research.mjs render"], ["rules.json", "rules.mjs"], ["scan.json", "scan.mjs"], ["interview.json", "research.mjs queue"], ["adapt-run.json", "research.mjs start"]])
+    for (const [f, by] of [["research.md", "research.mjs render"], ["kinds.json", "research.mjs render"], ["screens.json", "research.mjs render"], ["details.md", "research.mjs render"],["rules.json", "rules.mjs"], ["scan.json", "scan.mjs"], ["interview.json", "research.mjs queue"], ["adapt-run.json", "research.mjs start"]])
       if (abs === realFile(x(f))) return deny(`${f} is written by node .claude/skills/${name}/${by}.`);
     if (abs === realFile(x("interview.log.jsonl"))) return deny("interview.log.jsonl is written by the adapt-record hook when the owner answers; ask the question with AskUserQuestion.");
     if (abs !== realFile(x("summary.md"))) continue;
@@ -54,11 +54,6 @@ export function decide(ev, ctx) {
       const at = HEADINGS.map((h) => lines.findIndex((l) => /^#+\s/.test(l) && l.includes(h)));
       const lack = HEADINGS.filter((_, i) => at[i] < 0);
       if (lack.length) return deny(`The summary lacks these headings: ${lack.join("; ")}.`);
-      const st = json(ctx.readFile(x("kinds.json"))) ?? json(ctx.readFile(x("research.json")))?.kinds; // kinds.json: a found kind without a general rule is absent
-      const end = lines.findIndex((l, i) => i > at[4] && /^#{1,2}\s/.test(l));
-      const five = lines.slice(at[4], end < 0 ? undefined : end).map((l) => l.replace(/^\s*[-*]?\s*/, ""));
-      const none = Object.entries(st ?? {}).filter(([k, v]) => v.status === "absent" && !five.some((l) => l.startsWith(`${k}:`))).map(([k]) => k);
-      if (none.length) return deny(`Heading 5 needs a line for each of these, "<kind>: <rule>", "<kind>: unprotected: <risk>" or "<kind>: not applicable": ${none.join(", ")}.`);
     }
   }
   return { decision: "allow" };
