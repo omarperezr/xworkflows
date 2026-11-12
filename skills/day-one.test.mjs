@@ -101,9 +101,11 @@ test("next-step pins sources, GitHub skip and the hand-off section", () => {
   const s = read("skills/next-step/SKILL.md");
   assert.ok(firstBodyLine(s).includes("node .xworkflows/mark.mjs next-step"));
   for (const t of ["docs/PENDING.md", "TODO.md", "ROADMAP.md", "NEXT.md", "gh issue list", "gh auth status",
-    "GitHub issues skipped: gh is not set up.", "(Recommended)", "verify-finding", "superpowers:brainstorming",
+    "GitHub issues skipped: gh is not set up.", "(Recommended)", "verify-finding",
     "Status: scheduled."]) assert.ok(s.includes(t), t);
   assert.match(s, /^## Hand-off$/m);
+  assert.ok(s.split(/^## Hand-off$/m)[1].includes("Invoke `deepen` with the chosen step (its text, source and goal). After a `red:`, also pass `verify/<id>` and the red test"));
+  assert.doesNotMatch(s, /brainstorming/);
   const order = ["docs/PENDING.md", "TODO.md", "gh issue list", "git grep"].map((t) => s.indexOf(t));
   assert.deepEqual([...order].sort((a, b) => a - b), order);
   assert.ok(s.split("\n").length < 120);
@@ -136,7 +138,7 @@ test("next-step: plain text under 2 candidates, reads paths.reviews, names the v
   const s = read("skills/next-step/SKILL.md");
   has(s, ["With fewer than 2 candidates, ask `What is the next step?` in plain text, not `AskUserQuestion`",
     "`paths.reviews` (default `docs/superpowers/reviews`)", "`<review date>-E<n>`", "`P-<n>` for a card",
-    "A picked card whose `Origin:` is a review file counts as a review error.", "pass `verify/<id>`"]);
+    "A picked card whose `Origin:` names a review (a review file, or `review of <branch>, <date>`) counts as a review error.", "pass `verify/<id>`"]);
   assert.ok(s.split("## Step 2")[0].includes("paths.reviews"));
 });
 test("adapt reuses a fresh research.md when there is no summary", () => {
@@ -156,9 +158,9 @@ test("adapt: installer files stay uncommitted, existing files are merged, topic 
   assert.doesNotMatch(s, /replace only that section/);
   assert.ok(s.split("\n").length < 200);
 });
-test("README names graphify, superpowers brainstorming and the cursor/plugins credit", () => {
+test("README names graphify, the hand-off to deepen and the cursor/plugins credit", () => {
   const r = read("README.md");
-  has(r, ["`/adapt` needs the `graphify` command installed", "`brainstorming` skill of the [superpowers]"]);
+  has(r, ["`/adapt` needs the `graphify` command installed", "`/next-step` hands the chosen step to `/deepen`"]);
   assert.match(r.split("## License")[1], /\[cursor\/plugins\]\(https:\/\/github\.com\/cursor\/plugins\) \(MIT\)/);
 });
 test("adapt asks how the code prevents each risk; research looks for mechanisms; zones question is plain", () => {
