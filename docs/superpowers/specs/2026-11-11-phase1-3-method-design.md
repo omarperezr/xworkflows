@@ -277,6 +277,10 @@ network); `bin/xworkflows.mjs check` forwards to it.
 - `node .xworkflows/checks/run.mjs --pre-push <remote>` reads git's stdin
   lines, skips deletions, base `<remote sha>`; for a new branch the merge
   base with `<remote>/<mainBranch>`, else the commits on no remote ref.
+  A first push to a remote that has no branch yet judges no history: there
+  is nothing to compare against, and old commits cannot be sealed after the
+  fact. The runner says so in one line (Claude's call, 2026-11-12: this is
+  what the reference does; the brakes that look at the head still run).
 - `node .xworkflows/checks/run.mjs [--only a,b] [<base> [<head>]]`: base
   defaults to the merge base with `mainBranch`, head to `HEAD`.
 - Exit 0: all passed. 1: a brake failed. 2: could not run (not a repo,
