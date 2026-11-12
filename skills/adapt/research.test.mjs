@@ -61,6 +61,7 @@ test("kind agents use sonnet", async () => {
     const v = p.verdicts.items;
     assert.deepEqual(v.properties.verdict.enum, ["enforced", "contradicted", "no-evidence"]);
     assert.deepEqual(v.required, ["id", "verdict"]);
+    assert.equal(p.verdicts.maxItems, 15);
     assert.deepEqual(c.opts.schema.required, ["kind", "status", "verdicts", "rules", "notChecked"]);
   }
 });
@@ -70,8 +71,15 @@ test("kind prompt: written rules first, then one general rule, then at most 3 de
   for (const c of calls.filter((x) => x.opts.agentType === "mechanism")) {
     const p = c.prompt, k = c.opts.label.slice(2);
     assert.ok(p.includes(`\`kinds\` includes \`${k}\``), k);
-    for (const w of ["the first 15 rules", ".xworkflows/rules.json", ".xworkflows/scan.json", "`enforced`", "`contradicted`", "`no-evidence`", "ONE", "`written`", "`code`", "`both`", "at most 3"]) assert.ok(p.includes(w), `${k}: ${w}`);
+    for (const w of ["the first 15 rules", ".xworkflows/rules.json", ".xworkflows/scan.json", "`enforced`", "`contradicted`", "`no-evidence`", "ONE", "`code`", "`both`", "at most 3"]) assert.ok(p.includes(w), `${k}: ${w}`);
     assert.ok(p.indexOf("rules.json") < p.indexOf("scan.json") && p.indexOf("ONE") < p.indexOf("at most 3"), k);
+    assert.ok(p.includes("rules.json order (lowest W id first)"), k);
+    assert.ok(p.includes("Take the first case that applies") && p.indexOf("(a) One or more written rules are `enforced`") < p.indexOf("(b) None is enforced") && p.indexOf("(b) None is enforced") < p.indexOf("(c) Otherwise: no general rule, status `absent`"), k);
+    assert.ok(p.includes("the broadest enforced one") && p.includes("on a tie, the one with the lowest W id"), k);
+    assert.ok(p.includes("A `contradicted` written rule never becomes the general rule."), k);
+    assert.ok(p.includes("It must not name a function, file, table or column."), k);
+    assert.equal(p.split("Anchor it on the pattern applied across files; cite one line where it is applied.").length, 3, k);
+    assert.doesNotMatch(p, /use (that|its) rule's wording|Store amounts exact/);
   }
   const t = calls.slice(0, 6).map((c) => c.prompt);
   for (const p of t.slice(0, 5)) assert.match(p, /\.xworkflows\/rules\.json[\s\S]*empty `kinds`/);
@@ -337,7 +345,7 @@ test("fix round 1: dead topic, path spellings, missing run file", () => {
   assert.match(m.stderr, /write the Workflow result again, unchanged/);
 });
 
-const WR = [{ id: "W1", text: "Amounts are rounded once.", file: "README.md", line: 1, kinds: ["values"] }, { id: "W2", text: "Never store a float. " + "x".repeat(200), file: "README.md", line: 2, kinds: ["values"] }, { id: "W3", text: "Use a lock.", file: "README.md", line: 3, kinds: ["conc"] }];
+const WR = [{ id: "W1", text: "Amounts are rounded once.", file: "README.md", line: 1, kinds: ["values"] }, { id: "W2", text: "Never store a float. " + "x".repeat(200), file: "README.md", line: 2, kinds: ["values"] }, { id: "W3", text: "Use a lock.", file: "README.md", line: 3, kinds: ["values", "snap", "conc"] }];
 
 test("render: general rule, then verdicts, then details; contradicted listed", () => {
   const d = repo();
@@ -358,6 +366,9 @@ test("render: general rule, then verdicts, then details; contradicted listed", (
   const a = renderResearch(d, r, SCAN, WR).md;
   assert.ok(a.includes("- no rule found: snap\n") && !a.includes("- W3 contradicted"), a);
   assert.ok(a.includes("a.js:1\n- snap: W3: Use a lock. a.js:3\n"), a);
+  // an enforced verdict of an absent kind is not shown in its block, but noted
+  r.kinds.snap.verdicts = [{ id: "W3", verdict: "enforced", file: "a.js", line: 3, quote: "line3" }];
+  assert.ok(renderResearch(d, r, SCAN, WR).md.includes("- snap: W3 enforced, but the kind is absent: not shown a.js:3\n"));
   r.kinds.snap.verdicts = [];
   assert.equal(renderResearch(d, r, SCAN, WR).md, o.md);
 });
@@ -369,34 +380,38 @@ test("render: dropped verdict citations become no-evidence; dropped general is u
   r.kinds.values.verdicts = [{ id: "W2", verdict: "contradicted", file: "a.js", line: 2, quote: "nowhere" }, { id: "W1", verdict: "enforced" }, { id: "W9", verdict: "enforced", file: "a.js", line: 2, quote: "round(x)" }];
   const o = renderResearch(d, r, SCAN, WR);
   assert.deepEqual(o.errors, []);
-  assert.match(o.md, /- general: Round once, only when shown \(both\) \(unverified\)\n- W2 no-evidence: Never store a float\. x+\.\.\.\n- W1 no-evidence: Amounts are rounded once\.\n- round once/);
+  assert.match(o.md, /- values: general rule unverified: Round once, only when shown\n- W2 no-evidence: Never store a float\. x+\.\.\.\n- W1 no-evidence: Amounts are rounded once\.\n- round once/);
   assert.doesNotMatch(o.md, /- W9 |## Contradicted/);
-  assert.ok(o.md.includes(['- values: general: a.js:2 "nowhere"', '- values: W2 contradicted, now no-evidence: a.js:2 "nowhere"', "- values: W1 enforced, now no-evidence: no citation", '- values: W9 not in rules.json: a.js:2 "round(x)"'].join("\n")), o.md);
-  // nothing verified left, or no general rule: rendered for the owner, never fatal
+  assert.ok(o.md.includes(['- values: general: a.js:2 "nowhere"', '- values: W2 contradicted, now no-evidence: a.js:2 "nowhere"', "- values: W1 enforced, now no-evidence: no citation", "- values: W9 is not one of this kind's first 15 written rules: a.js:2 \"round(x)\""].join("\n")), o.md);
+  // nothing verified left: the unverified rule is kept for the owner to confirm, never fatal
   r.kinds.values.rules[0].quote = "zzz";
   const m = renderResearch(d, r, SCAN, WR);
   assert.deepEqual(m.errors, []);
-  assert.match(m.md, /- values: general rule missing \(needs the owner\)\n- W2 no-evidence/);
-  assert.equal(JSON.parse(m.kinds).values.status, "absent");
+  assert.match(m.md, /- values: general rule unverified: Round once, only when shown\n- W2 no-evidence/);
+  assert.deepEqual(JSON.parse(m.kinds).values, { general: "Round once, only when shown", status: "found", unverified: true });
   const n = sample();
   delete n.kinds.values.general;
   const nm = renderResearch(d, n, SCAN, WR);
   assert.deepEqual(nm.errors, []);
   assert.match(nm.md, /- values: general rule missing \(needs the owner\)\n- round once \(code\) a\.js:2/);
+  assert.deepEqual(JSON.parse(nm.kinds).values, { general: null, status: "absent", unverified: false });
   // a dropped general with a verified detail stays found, marked unverified
   const u = sample();
   u.kinds.values.general.quote = "nowhere";
   assert.deepEqual(JSON.parse(renderResearch(d, u, SCAN, WR).kinds).values, { general: "Round once, only when shown", status: "found", unverified: true });
 });
 
-test("render shows at most 15 verdicts per kind", () => {
+test("render keeps verdicts on the kind's first 15 tagged rules, once each", () => {
   const d = repo();
   const r = sample();
-  const many = Array.from({ length: 17 }, (_, i) => ({ id: `W${i + 1}`, text: `Rule ${i + 1}.`, file: "README.md", line: i + 1, kinds: ["values"] }));
-  r.kinds.values.verdicts = many.map((w) => ({ id: w.id, verdict: "no-evidence" }));
+  // W1 is tagged for snap only; W2..W18 for values, so W17 and W18 are past values' first 15 (W order, not array order)
+  const many = Array.from({ length: 18 }, (_, i) => ({ id: `W${i + 1}`, text: `Rule ${i + 1}.`, file: "README.md", line: i + 1, kinds: [i ? "values" : "snap"] })).reverse();
+  r.kinds.values.verdicts = [...many, { id: "W2" }].map((w) => ({ id: w.id, verdict: "no-evidence" }));
   const o = renderResearch(d, r, SCAN, many);
   assert.equal((o.md.match(/^- W\d+ no-evidence/gm) || []).length, 15);
-  assert.match(o.md, /- values: 2 verdicts past the first 15 not shown/);
+  assert.ok(!/^- W(1|17|18) no-evidence/m.test(o.md), o.md);
+  for (const id of ["W18", "W17", "W1"]) assert.ok(o.md.includes(`- values: ${id} is not one of this kind's first 15 written rules: no citation\n`), id);
+  assert.ok(o.md.includes("- values: W2 repeated: no citation\n"));
 });
 
 test("render reads rules.json and the sum still covers topics, kinds, skipped", () => {

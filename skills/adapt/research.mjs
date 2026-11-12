@@ -42,6 +42,9 @@ export function renderResearch(root, research, scan, written = []) {
   const contradicted = [];
   const state = {}; // .xworkflows/kinds.json: what the queue reads per kind
   const wtext = new Map(written.map((w) => [w.id, trim(collapse(w.text))]));
+  const wnum = (id) => Number(String(id).slice(1));
+  // Each kind judges only its first MAX_VERDICTS tagged rules, lowest W id first (the kind prompt says the same).
+  const allowed = (k) => new Set(written.filter((w) => (w.kinds || []).includes(k)).sort((a, b) => wnum(a.id) - wnum(b.id)).slice(0, MAX_VERDICTS).map((w) => w.id));
   const kinds = research.kinds || {};
   const skipped = research.skipped || {};
   const byHeading = {};
@@ -67,11 +70,13 @@ export function renderResearch(root, research, scan, written = []) {
     // A verdict stands only with a verified citation; otherwise it counts as no-evidence.
     const verdicts = [];
     const vd = []; // dropped verdict notes, listed after the general rule's
-    const vs = r.verdicts || [];
-    if (vs.length > MAX_VERDICTS) vd.push({ kind: k, note: `${vs.length - MAX_VERDICTS} verdicts past the first ${MAX_VERDICTS} not shown` });
-    for (const v of vs.slice(0, MAX_VERDICTS)) {
+    const ok15 = allowed(k);
+    const seen = new Set();
+    for (const v of r.verdicts || []) {
       const q = v.file ? ` ${v.file}:${v.line} ${JSON.stringify(v.quote)}` : " no citation";
-      if (!wtext.has(v.id)) { vd.push({ kind: k, note: `${v.id} not in rules.json:${q}` }); continue; }
+      if (!ok15.has(v.id)) { vd.push({ kind: k, note: `${v.id} is not one of this kind's first ${MAX_VERDICTS} written rules:${q}` }); continue; }
+      if (seen.has(v.id)) { vd.push({ kind: k, note: `${v.id} repeated:${q}` }); continue; }
+      seen.add(v.id);
       const ok = Boolean(v.file) && cite(v);
       let verdict = v.verdict;
       if (!ok && verdict !== "no-evidence") { vd.push({ kind: k, note: `${v.id} ${verdict}, now no-evidence:${q}` }); verdict = "no-evidence"; }
@@ -79,6 +84,7 @@ export function renderResearch(root, research, scan, written = []) {
       const at = ok ? ` ${v.file}:${v.line}` : "";
       verdicts.push(`- ${v.id} ${verdict}: ${wtext.get(v.id)}${at}`);
       if (verdict === "contradicted") contradicted.push(`- ${k}: ${v.id}: ${wtext.get(v.id)}${at}`);
+      if (verdict === "enforced" && r.status !== "found") vd.push({ kind: k, note: `${v.id} enforced, but the kind is ${r.status}: not shown${at}` });
     }
     if (r.status !== "found") {
       dropped.push(...vd);
@@ -86,7 +92,7 @@ export function renderResearch(root, research, scan, written = []) {
       blocks.push(r.status === "absent" ? `- no rule found: ${k}` : `- ${k}: not-present${skipped[k] ? ` (skipped: ${skipped[k]})` : ""}`);
       continue;
     }
-    // A found kind with no general rule, or nothing verified, renders and counts as absent: the owner is asked (never fatal).
+    // A found kind without a general rule renders and counts as absent; an unverified one is kept for the owner to confirm (never fatal).
     const g = r.general?.rule ? r.general : null;
     const gOk = Boolean(g) && cite(g);
     if (g && !gOk) dropped.push({ kind: k, note: `general: ${g.file}:${g.line} ${JSON.stringify(g.quote)}` });
@@ -96,13 +102,10 @@ export function renderResearch(root, research, scan, written = []) {
       if (cite(x)) details.push(`- ${x.rule} (code) ${x.file}:${x.line}`);
       else dropped.push({ kind: k, file: x.file, line: x.line, quote: x.quote });
     }
-    if (g && (gOk || details.length)) {
-      state[k] = { general: g.rule, status: "found", unverified: !gOk };
-      blocks.push(`- general: ${g.rule} (${g.basis}) ${gOk ? `${g.file}:${g.line}` : "(unverified)"}`);
-    } else {
-      state[k] = { general: null, status: "absent", unverified: false };
-      blocks.push(`- ${k}: general rule missing (needs the owner)`);
-    }
+    state[k] = { general: g ? g.rule : null, status: g ? "found" : "absent", unverified: Boolean(g) && !gOk };
+    if (!g) blocks.push(`- ${k}: general rule missing (needs the owner)`);
+    else if (gOk) blocks.push(`- general: ${g.rule} (${g.basis}) ${g.file}:${g.line}`);
+    else blocks.push(`- ${k}: general rule unverified: ${g.rule}`);
     blocks.push(...verdicts, ...details);
   }
   const out = ["---", `commit: ${scan.commit}`, "---", ""];

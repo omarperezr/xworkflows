@@ -35,13 +35,14 @@ const KIND_SCHEMA = {
     status: { type: "string", enum: ["found", "absent", "not-present"] },
     verdicts: {
       type: "array",
+      maxItems: 15,
       items: {
         type: "object",
         properties: { id: { type: "string" }, verdict: { type: "string", enum: ["enforced", "contradicted", "no-evidence"] }, ...CITE },
         required: ["id", "verdict"],
       },
     },
-    // required when status is found; render fails a found kind without it
+    // required when status is found; render shows a found kind without it as "general rule missing"
     general: {
       type: "object",
       properties: { rule: { type: "string" }, basis: { type: "string", enum: ["written", "code", "both"] }, ...CITE },
@@ -103,18 +104,20 @@ const topics = (zero) => [
 
 const KIND_PROMPT = (kind) => `Mechanism kind \`${kind}\` (${GLOSS[kind]}). Work in this order.
 
-1. Written rules. Read \`.xworkflows/rules.json\` (\`{ rules: [{ id, text, file, line, kinds }] }\`) and take the first 15 rules, in file order, whose \`kinds\` includes \`${kind}\` (at most 15; leave the rest). These are what the project says it does; check each against the code.
+1. Written rules. Read \`.xworkflows/rules.json\` (\`{ rules: [{ id, text, file, line, kinds }] }\`) and take the first 15 rules, in rules.json order (lowest W id first), whose \`kinds\` includes \`${kind}\` (at most 15; leave the rest). These are what the project says it does; check each against the code.
 2. The code. Read \`.xworkflows/scan.json\`: the \`kinds.${kind}.hits\` and the \`sql\` entries. Open the cited files and the files the written rules name. Search beyond the hits with \`graphify query\` and \`grep\`.
 3. verdicts: one per written rule from step 1, with its \`id\`:
    - \`enforced\`: the code does what the rule says. Cite the code line that does it.
    - \`contradicted\`: the code does otherwise. Cite the code line that breaks it.
    - \`no-evidence\`: you found neither, or the rule is not about this mechanism. No citation.
-4. general: ONE rule for the whole project, the rule every change must follow for this kind, worded as how the code must do something (for example "Store amounts exact; round once, only when shown"). Not one function's check, not a list.
-   - A written rule the code enforces says it: use that rule's wording, \`basis\` \`both\`, cite the enforcing code line.
-   - A written rule says it and the code shows neither way: use its wording, \`basis\` \`written\`, cite the rule's own file and line.
-   - No written rule covers it, or the code contradicts the written ones: state what the code does, \`basis\` \`code\`, cite the code line.
+4. general: the kind's ONE project-level rule. Take the first case that applies:
+   (a) One or more written rules are \`enforced\`: the general rule is the broadest enforced one (the one that covers the most places in the code); on a tie, the one with the lowest W id. \`basis\` \`both\`. Anchor it on the pattern applied across files; cite one line where it is applied.
+   (b) None is enforced, but the code follows one consistent pattern for this kind across files: state that pattern. \`basis\` \`code\`. Anchor it on the pattern applied across files; cite one line where it is applied.
+   (c) Otherwise: no general rule, status \`absent\`.
+   A \`contradicted\` written rule never becomes the general rule.
+   State the rule at project level, in your own words if needed: one sentence, how every change of this kind must behave across the project. It must not name a function, file, table or column. For example: "Every write to a shared record goes through one server-side function."
 5. rules: at most 3 details, each narrower than the general rule and not repeating it, worded as how the code must do something, with file, line and \`quote\`.
-6. status: \`found\` (you state a general rule), \`absent\` (the area for this kind exists, no mechanism found; no general rule), \`not-present\` (the project has no such area). Give verdicts whatever the status.
+6. status: \`found\` (case a or b: you state a general rule), \`absent\` (case c: the area for this kind exists, no general rule), \`not-present\` (the project has no such area). Give verdicts whatever the status.
 
 Every citation is \`file\`, \`line\` and \`quote\`: text copied exactly from that line of that file (it is checked; an unmatched citation is dropped and an \`enforced\` or \`contradicted\` verdict without one counts as \`no-evidence\`). List in notChecked the paths you could not open. Read history only as commit messages and file stats.`;
 
