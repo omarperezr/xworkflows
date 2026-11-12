@@ -120,3 +120,56 @@ test("claude: Workflow and PostToolUse normalize", async () => {
   assert.deepEqual([p.event, p.tool, p.input, p.response], ["postTool", "AskUserQuestion", { a: 1 }, { b: 2 }]);
   assert.equal(answer({ decision: "allow" }).stdout, "");
 });
+
+const base = { session_id: "s", cwd: "/p" };
+const pre = (tool_name, tool_input, more = {}) => ({ ...base, hook_event_name: "PreToolUse", tool_name, tool_input, ...more });
+
+test("claude: new events normalize", async () => {
+  const { normalize } = await import("./claude.mjs");
+  const p = normalize({ ...base, hook_event_name: "UserPromptSubmit", prompt: "hola" }, {});
+  assert.deepEqual([p.event, p.prompt, p.fromUser, p.hookEvent], ["prompt", "hola", true, "UserPromptSubmit"]);
+  for (const t of ["  <task-notification>x", "Another Claude session sent a message: y"])
+    assert.equal(normalize({ ...base, hook_event_name: "UserPromptSubmit", prompt: t }, {}).fromUser, false);
+  const s = normalize({ ...base, hook_event_name: "SessionStart", source: "compact", transcript_path: "/t.jsonl" }, {});
+  assert.deepEqual([s.event, s.source, s.transcript], ["sessionStart", "compact", "/t.jsonl"]);
+  assert.equal(normalize({ ...base, hook_event_name: "PreCompact" }, {}).event, "preCompact");
+  assert.equal(normalize({ ...base, hook_event_name: "SessionEnd" }, {}).event, "sessionEnd");
+});
+
+test("claude: new preTool kinds normalize", async () => {
+  const { normalize } = await import("./claude.mjs");
+  const r = normalize(pre("Read", { file_path: "/p/a.js", limit: 10 }), {});
+  assert.deepEqual([r.event, r.kind, r.path, r.limit, r.hookEvent], ["preTool", "read", "/p/a.js", 10, "PreToolUse"]);
+  const a = normalize(pre("Agent", { subagent_type: "explore", prompt: "go" }), {});
+  assert.deepEqual([a.kind, a.agent, a.prompt], ["agent", "explore", "go"]);
+  assert.equal(normalize(pre("WebSearch", {}), {}).kind, "web");
+  assert.equal(normalize(pre("WebFetch", {}), {}).kind, "web");
+  assert.equal(normalize(pre("AskUserQuestion", {}), {}).kind, "ask");
+  const h = normalize(pre("SubagentHandback", { message: "done" }, { agent_type: "review" }), {});
+  assert.deepEqual([h.kind, h.agent, h.message], ["handback", "review", "done"]);
+  assert.equal(normalize(pre("SubagentHandback", {}), {}).message, "");
+});
+
+test("claude: answer carries context, and a deny only on preTool", async () => {
+  const { answer } = await import("./claude.mjs");
+  const ss = { event: "sessionStart", hookEvent: "SessionStart" };
+  assert.deepEqual(JSON.parse(answer({ decision: "allow", context: "hi" }, ss).stdout), { hookSpecificOutput: { hookEventName: "SessionStart", additionalContext: "hi" } });
+  assert.equal(answer({ decision: "deny", reason: "no" }, ss).stdout, "");
+  assert.equal(answer({ decision: "allow", context: "" }, ss).stdout, "");
+  const pt = answer({ decision: "deny", reason: "no" }, { event: "preTool", hookEvent: "PreToolUse" });
+  assert.equal(JSON.parse(pt.stdout).hookSpecificOutput.permissionDecision, "deny");
+  assert.equal(JSON.parse(answer({ decision: "deny", reason: "no" }).stdout).hookSpecificOutput.permissionDecision, "deny");
+});
+
+test("hook log: a deny leaves a deny line, a free skip a free line", () => {
+  const dir = mkdtempSync(join(tmpdir(), "xwf-test-"));
+  const input = load("claude", "write-spec").input;
+  const lines = () => readFileSync(join(dir, "xwf-hooks.log"), "utf8").trim().split("\n");
+  spawn("claude", input, { XWORKFLOWS_STATE_DIR: dir });
+  assert.equal(lines().length, 1);
+  assert.match(lines()[0], new RegExp(`^\\d{4}-\\d\\d-\\d\\dT\\S+ ${input.session_id} design-first deny \\S`));
+  assert.ok(!lines()[0].includes("\n"));
+  spawn("claude", input, { XWORKFLOWS_STATE_DIR: dir, XWORKFLOWS_FREE: "1" });
+  assert.equal(lines().length, 2);
+  assert.match(lines()[1], new RegExp(` ${input.session_id} design-first free ${input.tool_name}$`));
+});

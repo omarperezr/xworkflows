@@ -1,0 +1,84 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { mkdtempSync, readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
+import { tmpdir, homedir } from "node:os";
+import { join } from "node:path";
+import { spawnSync } from "node:child_process";
+import { makeCtx } from "./ctx.mjs";
+import { DEFAULTS } from "./config.mjs";
+
+const tmp = () => mkdtempSync(join(tmpdir(), "xwf-ctx-"));
+const mk = (root = tmp(), stateDir = tmp(), session = "s1") => ({ root, stateDir, c: makeCtx({ root, session }, { env: {}, config: DEFAULTS, stateDir }) });
+
+test("state and save keep a file per key and session", () => {
+  const { c, stateDir } = mk();
+  assert.equal(c.state("k"), null);
+  c.save("k", 42);
+  assert.equal(c.state("k"), "42");
+  assert.equal(readFileSync(join(stateDir, "xwf-k-s1"), "utf8"), "42");
+  assert.equal(makeCtx({ root: "/r", session: "s2" }, { env: {}, config: DEFAULTS, stateDir }).state("k"), null);
+});
+
+test("save to a missing folder is ignored", () => {
+  const { c } = mk(tmp(), join(tmp(), "nope", "deeper"));
+  c.save("k", 1);
+  assert.equal(c.state("k"), null);
+});
+
+test("now and home", () => {
+  const { c } = mk();
+  assert.ok(Math.abs(c.now() - Date.now()) < 1000);
+  assert.equal(c.home, homedir());
+});
+
+test("file helpers resolve a relative path against the root", () => {
+  const { c, root } = mk();
+  assert.equal(c.exists("a/b.txt"), false);
+  assert.equal(c.mtime("a/b.txt"), null);
+  assert.deepEqual(c.listDir("a"), []);
+  c.writeFile("a/b.txt", "hi");
+  assert.equal(readFileSync(join(root, "a", "b.txt"), "utf8"), "hi");
+  assert.equal(c.exists("a/b.txt"), true);
+  assert.equal(c.readFile(join(root, "a", "b.txt")), "hi");
+  assert.ok(Math.abs(c.mtime(join(root, "a", "b.txt")) - Date.now()) < 5000);
+  assert.deepEqual(c.listDir("a"), ["b.txt"]);
+});
+
+test("git runs in the root: trimmed stdout, null on failure", () => {
+  const { c, root } = mk();
+  assert.equal(c.git("rev-parse", "--git-dir"), null);
+  const env = { ...process.env, GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_SYSTEM: "/dev/null" };
+  spawnSync("git", ["init", "-q"], { cwd: root, env });
+  writeFileSync(join(root, "f"), "x");
+  spawnSync("git", ["add", "f"], { cwd: root, env });
+  assert.equal(c.git("ls-files"), "f");
+});
+
+test("exec returns code, out and err; null code when it cannot run or times out", () => {
+  const { c, root } = mk();
+  const node = process.execPath;
+  assert.deepEqual(c.exec(node, ["-e", "process.stdout.write(process.cwd()===require('fs').realpathSync(process.argv[1])?'ok':'no');process.stderr.write('e');process.exit(3)", root]), { code: 3, out: "ok", err: "e" });
+  assert.equal(c.exec(node, ["-e", "process.stdout.write(require('fs').readFileSync(0,'utf8'))"], { input: "in" }).out, "in");
+  assert.equal(c.exec("xwf-no-such-command", []).code, null);
+  assert.equal(c.exec(node, ["-e", "setTimeout(()=>{},5000)"], { timeout: 100 }).code, null);
+});
+
+test("background starts a process and never throws", async () => {
+  const { c, root } = mk();
+  c.background(process.execPath, ["-e", "require('fs').writeFileSync('bg.txt','done')"]);
+  for (let i = 0; i < 50 && !existsSync(join(root, "bg.txt")); i++) await new Promise((r) => setTimeout(r, 100));
+  assert.equal(readFileSync(join(root, "bg.txt"), "utf8"), "done");
+  assert.doesNotThrow(() => c.background("xwf-no-such-command", []));
+});
+
+test("config, marked, skillName and runCheck keep working", () => {
+  const { c, root, stateDir } = mk();
+  assert.equal(c.config.owner, "the owner");
+  assert.equal(c.marked("grill"), false);
+  writeFileSync(join(stateDir, "xwf-mark-grill-s1"), "");
+  assert.equal(c.marked("grill"), true);
+  assert.equal(c.skillName("adapt"), "adapt");
+  mkdirSync(join(root, ".claude", "skills", "adapt"), { recursive: true });
+  writeFileSync(join(root, ".claude", "skills", "adapt", "research.mjs"), "console.log('x');process.exit(0)");
+  assert.deepEqual(c.runCheck([]), { code: 0, out: "x\n", err: "" });
+});

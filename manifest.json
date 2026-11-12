@@ -16,15 +16,17 @@
         "gemini"
       ],
       "files": {
-        "hooks/run.mjs": "0b6ed3e0dd4a8731cd166ccb6d90b73ab5f1981cbfa9fa867419c1a97f56bc62",
+        "hooks/run.mjs": "f22b05807f00614995c0429d36c5139be47a9cd0f26b5228cb2242773b340686",
         "hooks/mark.mjs": "f2ecad21dedeb1515287063237e6852b9374781f71ce876f13b57324bfcb88a5",
         "hooks/core/marks.mjs": "9f52d052c8fb1275e92335d1dd5664be0f1bff7d43a4a9432268bac01d61a2b7",
-        "hooks/adapters/claude.mjs": "c9a915f88eda53a9c505c0e4bb76d746db76242aa0cf944318f685d95f866af1",
+        "hooks/adapters/claude.mjs": "dcba638334e4447a339907005f6723580b64517b5278af047c0cce64c5e6ad80",
         "hooks/adapters/codex.mjs": "0589bf97b5cec7e06fee8a70bd92d8a0f51e8bb082cc241f743a80308e44d059",
         "hooks/adapters/cursor.mjs": "394c1a81f4040089b67f0fbf1131012bbb5883bdf705ce3af12dff66d9b3cbd5",
-        "hooks/adapters/gemini.mjs": "eff8f29bce46d7c4a7c62845f3762a16c6fd38e831e6c4a5d6b54361ec599175"
+        "hooks/adapters/gemini.mjs": "eff8f29bce46d7c4a7c62845f3762a16c6fd38e831e6c4a5d6b54361ec599175",
+        "hooks/core/config.mjs": "bbb179d4b8d1c5b907650acd81407d3446d12fee8a1fa363dba830e53b225433",
+        "hooks/core/ctx.mjs": "5aaddad92b5352761a18fecdb908ac4c57d9e5fbc2156317977e89cfecd45ee7"
       },
-      "sha256": "5950c23e96699698aee7a6cbadc4b47afe7547cc91dd54a7473c0c33efee0a5c"
+      "sha256": "488726bb25bc405610005e43afab5c715d8e8aa0513caa50ac8e1c7b584d26d9"
     },
     {
       "id": "design-first",
