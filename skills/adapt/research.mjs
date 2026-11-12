@@ -31,36 +31,63 @@ export function verifyCitation(root, c) {
   return false;
 }
 
-export function renderResearch(root, research, scan) {
+const trim = (t, n = 160) => (t.length > n ? t.slice(0, n - 3) + "..." : t);
+
+// `written` is the `rules` list of .xworkflows/rules.json.
+export function renderResearch(root, research, scan, written = []) {
   const errors = [];
   const dropped = [];
   const notChecked = new Set();
+  const contradicted = [];
+  const wtext = new Map(written.map((w) => [w.id, trim(collapse(w.text))]));
   const kinds = research.kinds || {};
   const skipped = research.skipped || {};
   const byHeading = {};
   const add = (h, l) => ((byHeading[h] ||= []).push(l));
   const tag = (l) => `${l.text} (${l.tag})`;
   const config = [];
-  const written = [];
+  const writtenDown = [];
   for (const t of ["t1", "t2", "t3", "t4", "t5", "t6"]) {
     if (!(research.topics || {})[t]) { errors.push(`topic ${t}: agent returned nothing, rerun the Workflow`); continue; }
     for (const l of research.topics[t].lines || []) {
       if (l.heading === "config") config.push(`- ${l.key ? `\`${l.key}\`: ` : ""}${tag(l)}`);
-      else if (l.heading === "written") written.push(`- ${tag(l)}`);
+      else if (l.heading === "written") writtenDown.push(`- ${tag(l)}`);
       else add(l.heading, `- ${tag(l)}`);
     }
   }
+  const cite = (x) => verifyCitation(root, { file: x.file, line: x.line, quote: x.quote });
   const blocks = [];
   for (const k of KINDS) {
     const r = kinds[k];
     if (!r) { errors.push(`${k}: agent returned nothing`); continue; }
     if (!["found", "absent", "not-present"].includes(r.status)) { errors.push(`${k}: invalid status ${JSON.stringify(r.status)}`); continue; }
     for (const p of r.notChecked || []) notChecked.add(`${k}: ${norm(p)}`); // listed, never fatal (ruling 2026-11-12)
+    // A verdict stands only with a verified citation; otherwise it counts as no-evidence.
+    const verdicts = [];
+    const vd = []; // dropped verdict notes, listed after the general rule's
+    for (const v of r.verdicts || []) {
+      const q = v.file ? ` ${v.file}:${v.line} ${JSON.stringify(v.quote)}` : " no citation";
+      if (!wtext.has(v.id)) { vd.push({ kind: k, note: `${v.id} not in rules.json:${q}` }); continue; }
+      const ok = Boolean(v.file) && cite(v);
+      let verdict = v.verdict;
+      if (!ok && verdict !== "no-evidence") { vd.push({ kind: k, note: `${v.id} ${verdict}, now no-evidence:${q}` }); verdict = "no-evidence"; }
+      else if (!ok && v.file) vd.push({ kind: k, note: `${v.id} ${verdict}:${q}` });
+      const at = ok ? ` ${v.file}:${v.line}` : "";
+      verdicts.push(`- ${v.id} ${verdict}: ${wtext.get(v.id)}${at}`);
+      if (verdict === "contradicted") contradicted.push(`- ${k}: ${v.id}: ${wtext.get(v.id)}${at}`);
+    }
+    if (r.status !== "found") dropped.push(...vd);
     if (r.status === "absent") { blocks.push(`- no rule found: ${k}`); continue; }
     if (r.status === "not-present") { blocks.push(`- ${k}: not-present${skipped[k] ? ` (skipped: ${skipped[k]})` : ""}`); continue; }
     let kept = 0;
+    const g = r.general;
+    if (!g?.rule) errors.push(`${k}: found, but no general rule`);
+    else if (cite(g)) { kept++; blocks.push(`- general: ${g.rule} (${g.basis}) ${g.file}:${g.line}`); }
+    else { blocks.push(`- general: ${g.rule} (${g.basis}) (unverified)`); dropped.push({ kind: k, note: `general: ${g.file}:${g.line} ${JSON.stringify(g.quote)}` }); }
+    dropped.push(...vd);
+    blocks.push(...verdicts);
     for (const x of r.rules || []) {
-      if (verifyCitation(root, { file: x.file, line: x.line, quote: x.quote })) { kept++; blocks.push(`- ${x.rule} (code) ${x.file}:${x.line}`); }
+      if (cite(x)) { kept++; blocks.push(`- ${x.rule} (code) ${x.file}:${x.line}`); }
       else dropped.push({ kind: k, file: x.file, line: x.line, quote: x.quote });
     }
     if (!kept) errors.push(`${k}: found, but no citation survived verification`);
@@ -69,9 +96,10 @@ export function renderResearch(root, research, scan) {
   HEADINGS.forEach((h, i) => {
     out.push(`## ${i + 1}. ${h}`, "", ...(byHeading[i + 1] || []), ...(i === 4 ? blocks : []), "");
   });
+  if (contradicted.length) out.push("## Contradicted written rules", "", ...contradicted, "");
   out.push("## Existing checks", "", ...(scan.checks || []).map((c) => `- ${c}`), "");
-  out.push("## Config", "", ...config, "", "## Written down", "", ...written, "");
-  if (dropped.length) out.push("## Dropped citations", "", ...dropped.map((d) => `- ${d.kind}: ${d.file}:${d.line} ${JSON.stringify(d.quote)}`), "");
+  out.push("## Config", "", ...config, "", "## Written down", "", ...writtenDown, "");
+  if (dropped.length) out.push("## Dropped citations", "", ...dropped.map((d) => `- ${d.kind}: ${d.note ?? `${d.file}:${d.line} ${JSON.stringify(d.quote)}`}`), "");
   if (notChecked.size) out.push("## Not checked", "", ...[...notChecked].sort().map((l) => `- ${l}`), "");
   return { md: out.join("\n"), errors, dropped };
 }
@@ -181,7 +209,8 @@ function cli(cmd, root) {
       console.error(n >= 2 ? STOP : "research.json was altered after the Workflow returned it: rm -f it and write the Workflow result again, unchanged.");
       process.exit(1);
     }
-    const { md, errors } = renderResearch(root, research, scan);
+    const rules = existsSync(join(dir, "rules.json")) ? readJson(join(dir, "rules.json")).rules || [] : [];
+    const { md, errors } = renderResearch(root, research, scan, rules);
     if (errors.length) { console.error(errors.join("\n")); process.exit(1); }
     writeFileSync(join(dir, "research.md"), md);
   } else if (cmd === "queue" || cmd === "check") {

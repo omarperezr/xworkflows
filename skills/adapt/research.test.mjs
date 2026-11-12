@@ -55,8 +55,27 @@ test("kind agents use sonnet", async () => {
     assert.equal(c.opts.model, "sonnet");
     const p = c.opts.schema.properties;
     assert.deepEqual(p.status.enum, ["found", "absent", "not-present"]);
-    assert.equal(p.rules.maxItems, 5);
+    assert.equal(p.rules.maxItems, 3);
+    assert.deepEqual(p.general.properties.basis.enum, ["written", "code", "both"]);
+    assert.deepEqual(p.general.required, ["rule", "basis", "file", "line", "quote"]);
+    const v = p.verdicts.items;
+    assert.deepEqual(v.properties.verdict.enum, ["enforced", "contradicted", "no-evidence"]);
+    assert.deepEqual(v.required, ["id", "verdict"]);
+    assert.deepEqual(c.opts.schema.required, ["kind", "status", "verdicts", "rules", "notChecked"]);
   }
+});
+
+test("kind prompt: written rules first, then one general rule, then at most 3 details", async () => {
+  const { calls } = await run({ root: ".", zeroHits: [] });
+  for (const c of calls.filter((x) => x.opts.agentType === "mechanism")) {
+    const p = c.prompt, k = c.opts.label.slice(2);
+    assert.ok(p.includes(`\`kinds\` includes \`${k}\``), k);
+    for (const w of [".xworkflows/rules.json", ".xworkflows/scan.json", "`enforced`", "`contradicted`", "`no-evidence`", "ONE", "`written`", "`code`", "`both`", "at most 3"]) assert.ok(p.includes(w), `${k}: ${w}`);
+    assert.ok(p.indexOf("rules.json") < p.indexOf("scan.json") && p.indexOf("ONE") < p.indexOf("at most 3"), k);
+  }
+  const t = calls.slice(0, 6).map((c) => c.prompt);
+  for (const p of t.slice(0, 5)) assert.match(p, /\.xworkflows\/rules\.json[\s\S]*empty `kinds`/);
+  assert.doesNotMatch(t[5], /rules\.json/);
 });
 
 test("topic 6 skips .xworkflows, graphify-out and installer files", async () => {
@@ -129,7 +148,7 @@ const X = (d, f) => join(d, ".xworkflows", f);
 function sample(over = {}) {
   const kinds = {};
   for (const k of KINDS) kinds[k] = { kind: k, status: "absent", rules: [], notChecked: [] };
-  kinds.values = { kind: "values", status: "found", rules: [{ rule: "round once", file: "a.js", line: 2, quote: "const total = round(x);" }], notChecked: [] };
+  kinds.values = { kind: "values", status: "found", general: { rule: "Round once, only when shown", basis: "both", file: "a.js", line: 2, quote: "round(x)" }, verdicts: [], rules: [{ rule: "round once", file: "a.js", line: 2, quote: "const total = round(x);" }], notChecked: [] };
   kinds.conc = { kind: "conc", status: "not-present", rules: [], notChecked: [] };
   const topics = { t1: { lines: [{ heading: "1", text: "a tool", tag: "code" }, { heading: "config", key: "tests.run", text: "node --test", tag: "code" }] }, t6: { lines: [{ heading: "written", text: "todo", tag: "git" }] } };
   for (const t of ["t2", "t3", "t4", "t5"]) topics[t] = { lines: [] };
@@ -254,7 +273,7 @@ test("render failure conditions", () => {
   };
   bad((r) => { r.kinds.snap = null; }, /snap/);
   bad((r) => { r.kinds.txn.status = "maybe"; }, /txn/);
-  bad((r) => { r.kinds.values.rules[0].quote = "zzz"; }, /values/);
+  bad((r) => { r.kinds.values.rules[0].quote = "zzz"; r.kinds.values.general.quote = "zzz"; }, /values/);
   const r = sample();
   r.kinds.values.notChecked = ["./b.js", "a.js"];
   r.kinds.idem.notChecked = ["a.js", "db.sql", "other/x.js", "a.js"];
@@ -317,6 +336,62 @@ test("fix round 1: dead topic, path spellings, missing run file", () => {
   const m = cli(d, "render");
   assert.equal(m.status, 1);
   assert.match(m.stderr, /write the Workflow result again, unchanged/);
+});
+
+const WR = [{ id: "W1", text: "Amounts are rounded once.", file: "README.md", line: 1, kinds: ["values"] }, { id: "W2", text: "Never store a float. " + "x".repeat(200), file: "README.md", line: 2, kinds: ["values"] }, { id: "W3", text: "Use a lock.", file: "README.md", line: 3, kinds: ["conc"] }];
+
+test("render: general rule, then verdicts, then details; contradicted listed", () => {
+  const d = repo();
+  const r = sample();
+  r.kinds.values.verdicts = [
+    { id: "W1", verdict: "enforced", file: "a.js", line: 2, quote: "round(x)" },
+    { id: "W2", verdict: "contradicted", file: "a.js", line: 1, quote: "line1" },
+    { id: "W3", verdict: "no-evidence" },
+  ];
+  const o = renderResearch(d, r, SCAN, WR);
+  assert.deepEqual(o.errors, []);
+  const w2 = "Never store a float. " + "x".repeat(200);
+  assert.ok(o.md.includes(["- general: Round once, only when shown (both) a.js:2", "- W1 enforced: Amounts are rounded once. a.js:2", `- W2 contradicted: ${w2.slice(0, 157)}... a.js:1`, "- W3 no-evidence: Use a lock.", "- round once (code) a.js:2", "- no rule found: snap"].join("\n")), o.md);
+  assert.ok(o.md.includes(`## Contradicted written rules\n\n- values: W2: ${w2.slice(0, 157)}... a.js:1\n`), o.md);
+  assert.ok(!renderResearch(d, sample(), SCAN, WR).md.includes("## Contradicted written rules"));
+  // an absent kind keeps its block, but its contradicted rule is still listed
+  r.kinds.snap.verdicts = [{ id: "W3", verdict: "contradicted", file: "a.js", line: 3, quote: "line3" }];
+  const a = renderResearch(d, r, SCAN, WR).md;
+  assert.ok(a.includes("- no rule found: snap\n") && !a.includes("- W3 contradicted"), a);
+  assert.ok(a.includes("a.js:1\n- snap: W3: Use a lock. a.js:3\n"), a);
+  r.kinds.snap.verdicts = [];
+  assert.equal(renderResearch(d, r, SCAN, WR).md, o.md);
+});
+
+test("render: dropped verdict citations become no-evidence; dropped general is unverified", () => {
+  const d = repo();
+  const r = sample();
+  r.kinds.values.general.quote = "nowhere";
+  r.kinds.values.verdicts = [{ id: "W2", verdict: "contradicted", file: "a.js", line: 2, quote: "nowhere" }, { id: "W1", verdict: "enforced" }, { id: "W9", verdict: "enforced", file: "a.js", line: 2, quote: "round(x)" }];
+  const o = renderResearch(d, r, SCAN, WR);
+  assert.deepEqual(o.errors, []);
+  assert.match(o.md, /- general: Round once, only when shown \(both\) \(unverified\)\n- W2 no-evidence: Never store a float\. x+\.\.\.\n- W1 no-evidence: Amounts are rounded once\.\n- round once/);
+  assert.doesNotMatch(o.md, /- W9 |## Contradicted/);
+  assert.ok(o.md.includes(['- values: general: a.js:2 "nowhere"', '- values: W2 contradicted, now no-evidence: a.js:2 "nowhere"', "- values: W1 enforced, now no-evidence: no citation", '- values: W9 not in rules.json: a.js:2 "round(x)"'].join("\n")), o.md);
+  // nothing verified left, or no general rule, fails a found kind
+  r.kinds.values.rules[0].quote = "zzz";
+  assert.match(renderResearch(d, r, SCAN, WR).errors.join("\n"), /values: found, but no citation survived verification/);
+  const n = sample();
+  delete n.kinds.values.general;
+  assert.match(renderResearch(d, n, SCAN, WR).errors.join("\n"), /values: found, but no general rule/);
+});
+
+test("render reads rules.json and the sum still covers topics, kinds, skipped", () => {
+  const d = repo();
+  const r = sample();
+  r.kinds.values.verdicts = [{ id: "W2", verdict: "contradicted", file: "a.js", line: 1, quote: "line1" }];
+  r.sum = sum(JSON.stringify({ topics: r.topics, kinds: r.kinds, skipped: r.skipped }));
+  put(d, r);
+  writeFileSync(X(d, "rules.json"), JSON.stringify({ rules: WR }));
+  assert.equal(cli(d, "render").status, 0);
+  assert.match(readFileSync(X(d, "research.md"), "utf8"), /## Contradicted written rules\n\n- values: W2: Never store/);
+  writeFileSync(X(d, "research.json"), JSON.stringify({ ...r, kinds: { ...r.kinds, values: { ...r.kinds.values, verdicts: [] } } }));
+  assert.equal(cli(d, "render").status, 1);
 });
 
 // ---- queue and check

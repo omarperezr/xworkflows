@@ -247,10 +247,10 @@
         "skills/adapt/SKILL.md": "faa1c812b82f8460e396bad55347aee919a9b7f4156554702dd1fc575904fe96",
         "skills/adapt/scan.mjs": "cff7acc757c1c1a8fd324aca159cbd4b0b9556f9508bbc985c4a5b27f921ddb4",
         "skills/adapt/rules.mjs": "ac69385ce07d93b2d154efdd03312d91cd66446f73da2480c128073ccb7d0d6b",
-        "skills/adapt/research.workflow.js": "d0d8f9bce1f40bb8bec57a3b37eeaf780534a6178f46265a007ea72f211a4217",
-        "skills/adapt/research.mjs": "cad0e591a7c9a2dcba50b08601df778ee3f5366f6d6c47bd4811a3f10083bd91"
+        "skills/adapt/research.workflow.js": "d8dd3aab5409ea2dc79d484af1d2359d1b9122e325868e46bce8db6eb7acd67a",
+        "skills/adapt/research.mjs": "8c2355eb3659b739620bf73f8d369f1dea11fcb3f8f431b71cc223ee474a9502"
       },
-      "sha256": "a5ce18250c8d8a71e20225c9d2c4b08c10ca95baaf9d62d018c35036cf9237d9"
+      "sha256": "3d8115244dd4fc785196d2139be30f081fafd08cf0cba8f5300af1c5265e3b99"
     },
     {
       "id": "full-review",
