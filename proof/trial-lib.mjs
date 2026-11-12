@@ -3,6 +3,9 @@ import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync 
 import { join } from "node:path";
 import { stripLeft, stripPlan } from "./answers.mjs";
 
+// Files a run leaves in the copy's .xworkflows that the harness keeps.
+export const KEPT_FILES = ["research.md", "research.json", "scan.json", "interview.log.jsonl", "screens.json", "details.md"];
+
 export const GIT = ["-c", "user.name=proof", "-c", "user.email=proof@example.invalid"];
 
 // Order per spec 7: copy, strip, install, build the graph. exec(cmd, args, cwd, timeoutMs) returns stdout.

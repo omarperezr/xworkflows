@@ -6,6 +6,7 @@ Spec: `docs/superpowers/specs/2026-11-12-adapt-general-design.md`
 
 ## Global Constraints
 
+- "Arreglar y medir": after the first run on the reference, each sentence carries the citation of its own idea before the measure goes on.
 - "Sí, la nueva": built with three fixes, short sentences on the screen, the detail the shipped version has, and the question "this rule may be wrong".
 - "32 are way too many, and the language that you're using is not easy to understand and it's not concise."
 - "Aparte, si lo pides": the detail is not on the screen.
@@ -56,13 +57,33 @@ About 700 code lines: the Workflow script is rewritten whole and cannot be cut s
 
 ### Batch 2: `adapt-general-2`
 
-About 40 code lines.
+About 40 code lines for T7, and about 150 for T9 and T10, added on 2026-11-12 after the first run.
 
 **T7: the harness keeps the new files of a run**
-- Files: `proof/harness.mjs`, `proof/proof.test.mjs`
+- Files: `proof/harness.mjs`, `proof/trial-lib.mjs`, `proof/proof.test.mjs`
 - Role: implement
-- A research-only trial also copies `screens.json` and `details.md`.
+- A research-only trial also copies `screens.json` and `details.md`. The list of kept files moves to `proof/trial-lib.mjs`, which a test can import; the harness itself starts a trial when imported.
 - Done: `node --test proof/proof.test.mjs` passes.
+
+**T9: each area returns its ideas with their own citation; the plain agent only merges and translates** (spec "Research", "Data")
+- Files: `skills/adapt/research.workflow.js`, `skills/adapt/workflow.test.mjs`
+- Role: implement
+- Done: `node --test skills/adapt/workflow.test.mjs` passes.
+
+**T10: a sentence is shown with the citation of its own idea** (spec "Render", "Data")
+- Files: `skills/adapt/screens.mjs`, `skills/adapt/screens.test.mjs`, `skills/adapt/research.mjs`, `skills/adapt/research.test.mjs`
+- Role: implement
+- Done: `node --test skills/adapt/screens.test.mjs skills/adapt/research.test.mjs` passes.
+
+**T11: each area gives its general rule in a short form; the plain agent puts the general rules first** (spec "Research", "Data")
+- Files: `skills/adapt/research.workflow.js`, `skills/adapt/workflow.test.mjs`
+- Role: implement
+- Done: `node --test skills/adapt/workflow.test.mjs` passes.
+
+**T12: a sentence from a general rule shows an example and in how many more places the rule was seen** (spec "Render", "Data")
+- Files: `skills/adapt/screens.mjs`, `skills/adapt/screens.test.mjs`
+- Role: implement
+- Done: `node --test skills/adapt/screens.test.mjs skills/adapt/research.test.mjs` passes.
 
 **T8: the measure** (spec "Measure")
 - Files: none with tracking; the numbers go in the private ledger.
@@ -84,3 +105,6 @@ About 40 code lines.
 ## Seals
 
 risk-review ok at a00d4db
+risk-review ok at 64f03dc
+review ok at d1ef742
+review ok at 241d3c5

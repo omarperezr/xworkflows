@@ -5,7 +5,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync, mkdirSync, rmSync, copyFileSync, statSync, lstatSync } from "node:fs";
 import { join, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
-import { screens, render, details, mechanism } from "./screens.mjs";
+import { screens, render, details, mechanism, seen } from "./screens.mjs";
 
 const STOP = "Research could not be copied unchanged twice: stop and tell the owner.";
 
@@ -65,7 +65,7 @@ export function buildQueue(s, research = {}, scan = {}, prev = null, cfg = {}) {
     item("H8-budget", "8", "What model budget per session or month should I keep to?"),
   ];
   return [
-    ...s.drawer1.map((x, i) => item(`S1-${i + 1}`, "1", `${x.text} (${x.at})`, SENTENCE)),
+    ...s.drawer1.map((x, i) => item(`S1-${i + 1}`, "1", `${x.text} (${x.at})${seen(x)}`, SENTENCE)),
     ...s.drawer2.map((g) => item(g.id, "2", g.text, g.options)),
     ...s.drawer3.map((q) => {
       const opts = q.options.slice(0, 3).map((x) => ({ label: label(collapse(x.label)), description: `${collapse(x.description)}${x.at ? ` (${x.at})` : ""}` }));

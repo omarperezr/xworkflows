@@ -47,15 +47,17 @@ The profile agent runs first. Then, at once: the readers of the docs, the reader
 
 - The mechanism agents are the shipped ones (decision 4, the method already measured). Their rules feed the detail only, never screen 1.
 - An area's answer gains `doubted`: at most one rule the code follows that the agent has a reason to doubt, with the reason and one citation.
-- The `plain` agent (way A) reads the areas' rules and returns sentences in the owner's language: one idea, 14 words at most, each naming the rules it comes from. It never widens a rule. Ideas beyond 12 are returned in a second list, never dropped.
+- An area's answer also carries `ideas`, four at most: each is one thing the code does, in one sentence of 14 words at most, with its own citation, and says no more than the cited line and the few lines around it show. An idea about every case names the one place that enforces it for all; otherwise it says where it holds (way B; owner, 2026-11-12, after the first run on the reference: 7 of 8 sentences cited a line that did not prove them).
+- An area's general rule also comes in a short form, `general.short`: the same claim in one plain sentence of 14 words at most, no wider than the rule (owner's order to fix and measure, second tuning round, 2026-11-12: with ideas alone the screen held local facts and lost the rules that matter, 1 invariant of 8 against 3).
+- The `plain` agent reads the areas' short general rules and ideas and nothing else. It merges the items that say the same thing and writes each in the owner's language. It never splits an item and never widens one. Each sentence names the items it comes from. The general rules come first, by risk; the ideas fill the places that are left. Sentences beyond 12 are returned in a second list, never dropped.
 - The six topic agents of the prototype stay, under `topics`: three of them propose the values of the config keys, and their lines feed `H2-pays` and the questions of screen 3. Their cost is judged in the measure.
 - Agents judge. Scripts verify, cap and order; they judge nothing.
 
 ### Render
 
-- `screens.json` and `research.md`: screen 1 is the short sentences, each with the first verified citation of a rule it names, then the line that says how many were left out and why.
+- `screens.json` and `research.md`: screen 1 is the short sentences, each with the verified citation of an item it comes from, then the line that says how many were left out and why. A sentence that comes from a general rule shows that rule's citation as an example and says in how many more places the rule was seen (its verified `support`): a general rule is a pattern, and no single line proves it.
 - `details.md`, apart (decision 3): under each sentence the full rules it comes from with every verified citation; then the mechanism rules; then the rules found in comments.
-- A sentence is shown only when a rule it names has a verified citation. One over 14 words, or naming no rule, goes under "Dropped" with its reason.
+- A sentence is shown only when an item it names has a verified citation. One over 14 words, or naming no item, goes under "Dropped" with its reason.
 - Screen 2, in this order: a written rule the code contradicts; a doubted rule; a rule with exceptions; a risk with no protection. Six at most, then the left-out line.
 - Screen 3: the nine questions of the prototype, each with the options research proposes.
 - Nothing verified is lost without a line: a verified rule that no shown sentence names is listed in the detail file, and when screen 1 has free places the verified sentences of `rest` fill them.
@@ -82,7 +84,9 @@ The Workflow returns what the prototype's script returns (branch `phase-1-adapt-
 
 - `areas[k].doubted`: a list of at most one `{ rule, why, file, line, quote }`.
 - `kinds`: the mechanism agents' answers, in the shipped shape.
-- `plain`: `{ claims: [{ text, from }], rest: [{ text, from }] }`. `from` lists rule ids: an area's key for its general rule, `<key>#2` for its second rule.
+- `areas[k].ideas`: a list of at most four `{ text, file, line, quote }`.
+- `plain`: `{ claims: [{ text, from }], rest: [{ text, from }] }`. `from` lists item ids: `<key>` for an area's general rule, `<key>.<n>` for the idea at place n of its list, from 1.
+- `areas[k].general.short`: the general rule in one sentence of 14 words at most.
 
 `screens.json` is what the prototype's `screens()` returns (`skills/adapt/research2.mjs` on that branch), with `drawer1` holding the sentences as `{ text, from, at, risk }` and a gap of kind `doubted` in `drawer2`.
 
@@ -94,7 +98,7 @@ The queue built from topics and kinds, and the questions about mechanism kinds. 
 
 ## Measure
 
-- Reference copy, research only, 3 runs: screen 1 within its caps in every run; of the 8 invariants the code proves, 6 or more counting the detail in every run (shipped version: 6, 7, 6) and 3 or more on the screen (both versions: 3 to 5); 2.50 USD or less per run.
+- Reference copy, research only, 3 runs (the first one before the ideas carried their own citation): screen 1 within its caps in every run; a judge outside `/adapt` opens each sentence's citation: a sentence from an idea must be shown by its line, a sentence from a general rule must have its example and its other places as true cases of it, and at most one sentence in a run fails that; of the 8 invariants the code proves, 6 or more counting the detail in every run (shipped version: 6, 7, 6) and 3 or more on the screen (both versions: 3 to 5); 2.50 USD per run was the target; the first run cost 2.73 and the owner went on at that price (2026-11-12). A later run above 3.00 is reported before the next one.
 - Exam project C, 3 runs, once: the owner marks the short sentences blind; the target is none invented. A key of its written rules, made by an agent from the instruction files removed from the copy, splits the missed rules into "in the code" and "only in the owner's head".
 - The interview is measured afterwards, on the owner's word: one live interview and three replays.
 - Tuning uses the reference only, two rounds at most. Exam project C is run once.

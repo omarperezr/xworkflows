@@ -1,7 +1,7 @@
 // Development-only: runs /adapt in fresh repo copies through the Claude Agent SDK.
 // usage: node proof/harness.mjs --source <dir> --commit <sha> [--init] [--strip a,b] --answers <file|none> --trials <n> --mode full|research-only --out <dir> [--spend-file <file>]
 // Spending is summed across runs in --spend-file (default <out>/../proof-spend.json); --max-usd-total caps that sum.
-import { addSpend, apiKeyGuard, budgetStop, countedCost, prepareCopy, readLedger, acquireLock, releaseLock, restoreOwner, stopFor, withOwnerBackup } from "./trial-lib.mjs";
+import { KEPT_FILES, addSpend, apiKeyGuard, budgetStop, countedCost, prepareCopy, readLedger, acquireLock, releaseLock, restoreOwner, stopFor, withOwnerBackup } from "./trial-lib.mjs";
 import { answerFor, loadAnswers } from "./answers.mjs";
 import { execFileSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -88,7 +88,7 @@ function save(n, r) {
   mkdirSync(dir, { recursive: true });
   const X = join(r.cwd, ".xworkflows");
   const copy = (from, to, opts) => { if (existsSync(from)) { mkdirSync(join(to, ".."), { recursive: true }); cpSync(from, to, opts); } };
-  for (const f of ["research.md", "research.json", "scan.json", "interview.log.jsonl"]) copy(join(X, f), join(dir, f));
+  for (const f of KEPT_FILES) copy(join(X, f), join(dir, f));
   copy(join(r.cwd, "AGENTS.md"), join(dir, "AGENTS.md"));
   copy(join(r.cwd, ".claude/rules"), join(dir, ".claude/rules"), { recursive: true });
   copy(join(r.cwd, ".claude/agents/risk-review.md"), join(dir, ".claude/agents/risk-review.md"));

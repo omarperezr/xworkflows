@@ -17,8 +17,8 @@ One living list. The `pending` brake checks these rules:
 - **P-6** — `skills/adapt/scan.mjs`: whole files are read only to get their size and every text stays in memory. Origin: review of branch 1.2b, 2026-11-12. Status: unscheduled.
 - **P-7** — `skills/adapt/research.workflow.js`: agents are called by their unrenamed names, so a project that already has its own `mechanism` or `explore` agent runs the project's agent, not ours. Origin: review of branch 1.2b, 2026-11-12. Status: unscheduled.
 - **P-29** — `skills/adapt/scan.mjs` `projectFiles`: a folder with no repository of its own that sits under an unrelated parent repository is scanned through the parent's file list, so its untracked files give an empty scan with no warning. Origin: review of the 1.2b safety fixes, 2026-11-12. Status: unscheduled.
-- **P-63** — `proof/`: measure the new `/adapt` on the reference copy and on exam project C, batch 2 of the plan. Origin: docs/superpowers/plans/2026-11-12-adapt-general.md. Status: scheduled.
 - **P-73** — `skills/adapt/research.mjs` `verifyCitation` and `skills/adapt/screens.mjs` `checker`: a citation whose absolute path is spelled through a symlink of the project root does not verify, so paid research is dropped (on macOS, any project under a linked temp folder). Compare real paths on both sides. The same defect had a card closed by mistake when its function was renamed. Origin: review of adapt-general-1, 2026-11-12. Status: unscheduled.
+- **P-82** — `skills/adapt/SKILL.md`, `skills/adapt/research.workflow.js`: with `research-only` the language of the sentences is not fixed: of six runs of 2026-11-12, two came out in Spanish and four in English. Say which language `args.language` takes when nobody is interviewed. Origin: the measure of batch 2 of the plan docs/superpowers/plans/2026-11-12-adapt-general.md. Status: unscheduled.
 
 ## Adapt: render, queue, run
 
@@ -54,6 +54,7 @@ One living list. The `pending` brake checks these rules:
 - **P-25** — `proof/trial-lib.mjs`: the ledger write is not atomic and the total is never checked against the entries. Origin: review of branch 1.2b, 2026-11-12. Status: unscheduled.
 - **P-65** — `proof/`: the driver that ran the end-to-end proof of 2026-11-12 (one real session from deepen to the seal, each question answered with its first option) is not in the repository; add it with a test, so the proof can be run again. Origin: the end-to-end proof, 2026-11-12. Status: unscheduled.
 - **P-70** — `proof/grade.mjs`: the grader reads the layout the old research.md had (its heading 5 and its list of dropped citations); a version 3 research.md has neither, so a graded trial of the new `/adapt` counts nothing. Origin: review of adapt-general-1, 2026-11-12. Status: unscheduled.
+- **P-81** — `proof/proof.test.mjs`: the test of the kept files only repeats the list; it stays green if the harness stops using the list or if a missing file stops the save. Move the copy loop into `proof/trial-lib.mjs` as one function and test it on a temp folder. Origin: review of adapt-general-2, 2026-11-12. Status: unscheduled.
 
 ## Installer and docs
 
