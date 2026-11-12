@@ -1,0 +1,26 @@
+{
+  "label": "recorded",
+  "note": "Claude Code 2.1.322, claude -p, 2026-11-12; the project path was replaced by /home/user/sandbox",
+  "input": {
+    "session_id": "4661c0a2-6f14-40a6-9f4b-740fd0274f08",
+    "transcript_path": "/home/user/.claude/projects/-home-user-sandbox/4661c0a2-6f14-40a6-9f4b-740fd0274f08.jsonl",
+    "cwd": "/home/user/sandbox",
+    "prompt_id": "08427c80-bdf8-4e63-ab7b-ab7fa66c0c5b",
+    "permission_mode": "auto",
+    "agent_id": "adcce7b0783308ffe",
+    "agent_type": "implement",
+    "effort": {
+      "level": "medium"
+    },
+    "hook_event_name": "PreToolUse",
+    "tool_name": "SubagentHandback",
+    "tool_input": {
+      "message": "done"
+    },
+    "tool_use_id": "toolu_01YQ5p55EkdjW6GLCQ1qbhd3"
+  },
+  "output": {
+    "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Missing from the final report: red:, green:, skipped:, sha:. Each key at the start of a line, plain text, no bold or numbering. Each line: `red: <test file>::<case> - <the line that fails>`, run BEFORE the fix; `green: <test file>::<case>`, the same test passing after; `skipped: <what was left out and why>` (or `skipped: nothing`); `sha: <commit>`. A change with no logic may use `no-test: <reason>` in place of red and green. If you cannot do the task, hand back `blocked: <question for the owner>` (or `needs judgment` / `cannot test`).\"}}",
+    "exitCode": 0
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "label": "recorded",
+  "note": "Claude Code 2.1.322, claude -p, 2026-11-12; the project path was replaced by /home/user/sandbox",
+  "input": {
+    "session_id": "0973c9e3-e226-45db-832b-101421a1b580",
+    "transcript_path": "/home/user/.claude/projects/-home-user-sandbox/0973c9e3-e226-45db-832b-101421a1b580.jsonl",
+    "cwd": "/home/user/sandbox",
+    "hook_event_name": "SessionStart",
+    "source": "startup"
+  },
+  "output": {
+    "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"SessionStart\",\"additionalContext\":\"About the owner (from ~/.xworkflows/owner.md):\\nReplies: short and direct.\\nLanguage: Spanish.\\n\"}}",
+    "exitCode": 0
+  }
+}
