@@ -80,6 +80,7 @@ test("kind prompt: written rules first, then one general rule, then at most 3 de
     assert.ok(p.includes("It must not name a function, file, table or column."), k);
     assert.equal(p.split("Anchor it on the pattern applied across files; cite one line where it is applied.").length, 3, k);
     assert.doesNotMatch(p, /use (that|its) rule's wording|Store amounts exact/);
+    assert.ok(p.includes('For example: "Every label a user sees comes from the translation files."'), k);
   }
   const t = calls.slice(0, 6).map((c) => c.prompt);
   for (const p of t.slice(0, 5)) assert.match(p, /\.xworkflows\/rules\.json[\s\S]*empty `kinds`/);

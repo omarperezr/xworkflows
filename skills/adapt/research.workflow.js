@@ -115,7 +115,7 @@ const KIND_PROMPT = (kind) => `Mechanism kind \`${kind}\` (${GLOSS[kind]}). Work
    (b) None is enforced, but the code follows one consistent pattern for this kind across files: state that pattern. \`basis\` \`code\`. Anchor it on the pattern applied across files; cite one line where it is applied.
    (c) Otherwise: no general rule, status \`absent\`.
    A \`contradicted\` written rule never becomes the general rule.
-   State the rule at project level, in your own words if needed: one sentence, how every change of this kind must behave across the project. It must not name a function, file, table or column. For example: "Every write to a shared record goes through one server-side function."
+   State the rule at project level, in your own words if needed: one sentence, how every change of this kind must behave across the project. It must not name a function, file, table or column. For example: "Every label a user sees comes from the translation files."
 5. rules: at most 3 details, each narrower than the general rule and not repeating it, worded as how the code must do something, with file, line and \`quote\`.
 6. status: \`found\` (case a or b: you state a general rule), \`absent\` (case c: the area for this kind exists, no general rule), \`not-present\` (the project has no such area). Give verdicts whatever the status.
 
