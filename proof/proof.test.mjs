@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { grade, stats, kindsFound, noMoneyCheck, recommendedReport } from "./grade.mjs";
 import { spawnSync, execFileSync } from "node:child_process";
 import { answerFor, toAnswers, stripPlan, stripLeft, loadAnswers } from "./answers.mjs";
-import { prepareCopy, stopFor, withOwnerBackup, apiKeyGuard, budgetStop, countedCost, restoreOwner, readLedger, addSpend, acquireLock, releaseLock } from "./trial-lib.mjs";
+import { prepareCopy, stopFor, withOwnerBackup, apiKeyGuard, budgetStop, countedCost, restoreOwner, readLedger, addSpend, acquireLock, releaseLock, KEPT_FILES } from "./trial-lib.mjs";
 
 const FX = new URL("../test/fixtures/proof/", import.meta.url).pathname;
 const TRIAL = FX + "trial";
@@ -252,4 +252,8 @@ test("harness lock: empty or zero lock file is stale and taken over", () => {
     assert.equal(acquireLock(home).ok, true, `lock holding ${JSON.stringify(body)}`);
     releaseLock(home);
   }
+});
+
+test("the harness keeps the files the new adapt writes", () => {
+  for (const f of ["research.md", "research.json", "scan.json", "interview.log.jsonl", "screens.json", "details.md"]) assert.ok(KEPT_FILES.includes(f), f);
 });
