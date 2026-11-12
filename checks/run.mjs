@@ -1,8 +1,9 @@
-import { readFileSync, realpathSync } from "node:fs";
+import { lstatSync, readFileSync, readdirSync, realpathSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { load as loadConfig, missing } from "../hooks/core/config.mjs";
+import { buildIndex } from "../hooks/core/memory-index.mjs";
 
 export const TABLE = ["signature", "review-seal", "goal-cited", "pending", "fix-has-test", "change-size",
   "comment-ratio", "skills-travel", "patterns", "ratchet", "graph-current", "stale-memory", "index-current", "project"];
@@ -40,6 +41,21 @@ export function rangeFor(ctx, { base, head, ref = null, remote = null, manual = 
 
 export async function main(argv, io = {}) {
   const { cwd = process.cwd(), stdin = "", print = console.log, load = (n) => import(`./${n}.mjs`) } = io;
+  if (argv[0] === "index") {
+    try {
+      const top = makeCtx(cwd, null).tryGit("rev-parse", "--show-toplevel");
+      if (top.code !== 0) throw new Error("not a git repository");
+      const dir = join(top.out, loadConfig(top.out).memory.dir);
+      const files = readdirSync(dir).filter((f) => f.endsWith(".md") && f !== "MEMORY.md")
+        .map((file) => ({ file, text: readFileSync(join(dir, file), "utf8") }));
+      const target = join(dir, "MEMORY.md");
+      if (lstatSync(target, { throwIfNoEntry: false })?.isSymbolicLink()) throw new Error(`${target} is a symlink, not writing through it`);
+      writeFileSync(target, buildIndex(files));
+    } catch (e) {
+      if (e.code !== "ENOENT") { print(`xworkflows check: ${e.message}`); return 2; }
+    }
+    return 0;
+  }
   let ctx, only = null, ranges = [];
   try {
     let remote = null;
