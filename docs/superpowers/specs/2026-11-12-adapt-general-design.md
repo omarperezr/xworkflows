@@ -49,7 +49,7 @@ The profile agent runs first. Then, at once: the readers of the docs, the reader
 - An area's answer gains `doubted`: at most one rule the code follows that the agent has a reason to doubt, with the reason and one citation.
 - An area's answer also carries `ideas`, four at most: each is one thing the code does, in one sentence of 14 words at most, with its own citation, and says no more than the cited line and the few lines around it show. An idea about every case names the one place that enforces it for all; otherwise it says where it holds (way B; owner, 2026-11-12, after the first run on the reference: 7 of 8 sentences cited a line that did not prove them).
 - An area's general rule also comes in a short form, `general.short`: the same claim in one plain sentence of 14 words at most, no wider than the rule (owner's order to fix and measure, second tuning round, 2026-11-12: with ideas alone the screen held local facts and lost the rules that matter, 1 invariant of 8 against 3).
-- The `plain` agent reads the areas' short general rules and ideas and nothing else. It merges the items that say the same thing and writes each in the owner's language. It never splits an item and never widens one. Each sentence names the items it comes from. The general rules come first, by risk; the ideas fill the places that are left. Sentences beyond 12 are returned in a second list, never dropped.
+- The `plain` agent reads the short general rules of the areas and of the mechanism kinds, and the ideas, and nothing else. It merges the items that say the same thing and writes each in the owner's language. It never splits an item and never widens one. Each sentence names the items it comes from. It returns every sentence in one list; the script orders them and picks the pages.
 - The six topic agents of the prototype stay, under `topics`: three of them propose the values of the config keys, and their lines feed `H2-pays` and the questions of screen 3. Their cost is judged in the measure.
 - Before an area agent writes its general rule it looks for the case that contradicts it: the same operation done without the guard. When it finds one it narrows the rule to where it holds, or keeps the rule and returns that case under `exceptions`, which becomes a question of screen 2. The short form says the thing protected and the constraint in the words of the business (what the thing is called by the people who use the product), never a code name: no name of a function, table, column, constant or file, which belong in the detail (third round: with "key words" half the sentences needed a programmer). It and carries no "all", "always", "never" or "every" unless one place enforces it for every case (owner, 2026-11-12: "Y si hacemos ambas?", the second page and a third round on the instructions).
 - With `research-only` nobody is interviewed: the sentences are written in English.
@@ -62,7 +62,7 @@ The profile agent runs first. Then, at once: the readers of the docs, the reader
 - A sentence is shown only when an item it names has a verified citation. One over 14 words, or naming no item, goes under "Dropped" with its reason.
 - Screen 2, in this order: a written rule the code contradicts; a doubted rule; a rule with exceptions; a risk with no protection. Six at most, then the left-out line.
 - Screen 3: the nine questions of the prototype, each with the options research proposes.
-- Nothing verified is lost without a line: a verified rule that no shown sentence names is listed in the detail file, and when screen 1 has free places the verified sentences of `rest` fill them.
+- Nothing verified is lost without a line: a verified rule that no shown sentence names is listed in the detail file.
 - What did not verify never counts as found: a mechanism rule whose citation fails makes its kind absent and gets a line under "Dropped"; a doubted rule with no reason is dropped; an agent that returned nothing stops `render`.
 
 ### Interview
@@ -70,11 +70,13 @@ The profile agent runs first. Then, at once: the readers of the docs, the reader
 - Screen 1: one question per sentence, four per dialog call: `Right`, `Real, but a bad rule`, `Not how it works`, `I don't know`.
 - A second page: when sentences were left out of screen 1, the item `S1-more` says how many and asks whether to see them: `Yes, show them`, `No, skip them`. On yes, up to 12 of them are asked the same way, as `S1-13` and on; the ones beyond those 12 are counted in one line. On no, none of them is asked and none is written.
 - `Right` writes only the items the sentence names. A general rule the owner did not see is never written: in the detail file it is listed under the rules no sentence shows, not under a sentence of its area.
-- A sentence that names an area whose general rule did not verify is dropped; that area's verified ideas stay in the detail.
+- A sentence that names general rules (of an area or of a mechanism kind) is shown when at least one of them verified, with that one's citation; when none verified it is dropped, and its verified ideas stay in the detail. Each named rule that failed gets its line under "Dropped".
+- A mechanism kind's general rule shows only its own citation, with no count of other places: nobody counted them, and its other rules are other rules, not other places of it.
+- The script, not an agent, picks the first page: it takes every sentence the plain agent returned, puts the ones from general rules first, alternating one that names a mechanism kind with one that names only an area, each of the two lists by risk and then by the script's own order of kinds and areas, never by the order the agent returned, then the ones from ideas; the first 12 are the first page, the next 12 the second.
 - Screens 2 and 3: the questions as rendered; the dialog's free text takes the owner's own answer.
 - What an answer writes: `Right` writes the full rule from the detail. `Real, but a bad rule` and `You are right` write a card with the `pending` skill and no rule. `Keep it, because ...` writes the rule with the reason. `Not how it works` writes nothing and is logged.
 - What a screen 2 answer writes: `The written rule` writes that rule and a card to change the code; `The code` writes the code's rule and a card to change the doc; `Mistake: fix it` writes the rule and one card per place; `Exception: keep it` writes the rule with its exceptions named; `Not on purpose: protect it` writes a card; `On purpose` and `I don't know` write nothing and are logged. `Keep it, because ...` with no reason asks for the reason once.
-- The mechanism kinds are detail only: no question and no summary line per kind, and the gate asks for none.
+- A mechanism kind's general rule can be a screen 1 sentence, asked like any other; its other rules stay in the detail, with no question and no summary line per kind, and the gate asks for none.
 - A re-adaptation asks the three screens again; it skips only the config keys that already have a value.
 - Research proposes a value for every required config key, with its evidence; the playback shows them, and the interview does not end while one is missing.
 - After the three screens come the shipped questions that no screen asks, unchanged, with their follow-ups: `H1-what`, `H2-pays`, the zones (`H6-zones`, `H6-r<n>`), the way of working (`H7-*`), the reply preferences and the budget (`H8-*`) and the config keys (`C<n>`). The shipped questions the screens replace go away: `H2-refused`, `H3-*`, `H4-*`, `H5-*`.
@@ -90,8 +92,8 @@ The Workflow returns what the prototype's script returns (branch `phase-1-adapt-
 - `areas[k].doubted`: a list of at most one `{ rule, why, file, line, quote }`.
 - `kinds`: the mechanism agents' answers, in the shipped shape.
 - `areas[k].ideas`: a list of at most four `{ text, file, line, quote }`.
-- `plain`: `{ claims: [{ text, from }], rest: [{ text, from }] }`. `from` lists item ids: `<key>` for an area's general rule, `<key>.<n>` for the idea at place n of its list, from 1, and `kind:<kind>` for a mechanism kind's general rule.
-- `kinds[k].short`: the kind's general rule in one sentence of 14 words at most.
+- `plain`: `{ claims: [{ text, from }] }`: every sentence, in no order. `from` lists item ids: `<key>` for an area's general rule, `<key>.<n>` for the idea at place n of its list, from 1, and `kind:<kind>` for a mechanism kind's general rule.
+- `kinds[k].general.short`: the kind's general rule in one sentence of 14 words at most.
 - `areas[k].general.short`: the general rule in one sentence of 14 words at most.
 
 `screens.json` is what the prototype's `screens()` returns (`skills/adapt/research2.mjs` on that branch), with `drawer1` holding the sentences as `{ text, from, at, risk }` and a gap of kind `doubted` in `drawer2`.
