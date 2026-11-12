@@ -24,9 +24,9 @@
         "hooks/adapters/cursor.mjs": "394c1a81f4040089b67f0fbf1131012bbb5883bdf705ce3af12dff66d9b3cbd5",
         "hooks/adapters/gemini.mjs": "eff8f29bce46d7c4a7c62845f3762a16c6fd38e831e6c4a5d6b54361ec599175",
         "hooks/core/config.mjs": "bbb179d4b8d1c5b907650acd81407d3446d12fee8a1fa363dba830e53b225433",
-        "hooks/core/ctx.mjs": "5aaddad92b5352761a18fecdb908ac4c57d9e5fbc2156317977e89cfecd45ee7"
+        "hooks/core/ctx.mjs": "c22dcf699c63ba862812b0679f7816be14d6aa1dca024a1f35addd4ab875a764"
       },
-      "sha256": "488726bb25bc405610005e43afab5c715d8e8aa0513caa50ac8e1c7b584d26d9"
+      "sha256": "a467649b2b77ce8e4d34e6b659f5999c84d5792a5bea72215abf6585bd1b7c5b"
     },
     {
       "id": "design-first",
@@ -289,6 +289,147 @@
         "skills/next-step/SKILL.md": "d85fc8030eb6a0265ae45c59f1bc2831f0c2d7a1d90b2b36fc00490403bb4c35"
       },
       "sha256": "20c1ba9df7e0c643ac4c30b053fc70dcc9535b4a8d5b83f8e3db62e471404797"
+    },
+    {
+      "id": "orchestrator",
+      "kind": "hook",
+      "origin": "own",
+      "version": "0.1.0",
+      "license": "MIT",
+      "scope": "project",
+      "tools": [
+        "claude"
+      ],
+      "claude": [
+        {
+          "event": "PreToolUse",
+          "matcher": "Agent|Workflow|Read|Bash|WebSearch|WebFetch|AskUserQuestion|Write|Edit|MultiEdit"
+        },
+        {
+          "event": "UserPromptSubmit"
+        }
+      ],
+      "files": {
+        "hooks/core/orchestrator.mjs": "f1f1ca6c23e7c10a7c76cf5f4af1f2366496f0fd129daaf117590198f56db49f"
+      },
+      "sha256": "899ab41819f68ac008c4bb07911502eb5f3bb0a24046569bc365b348854df798"
+    },
+    {
+      "id": "handback",
+      "kind": "hook",
+      "origin": "own",
+      "version": "0.1.0",
+      "license": "MIT",
+      "scope": "project",
+      "tools": [
+        "claude"
+      ],
+      "claude": [
+        {
+          "event": "PreToolUse",
+          "matcher": "SubagentHandback"
+        }
+      ],
+      "files": {
+        "hooks/core/handback.mjs": "4ee10ac11966ae64c7371b0fd7278612545c2e8d53be2d6c8b8c8b1aa8235145"
+      },
+      "sha256": "97dfa39db09105beb678e121485f1e76a48fb040783f9170225d578b83750505"
+    },
+    {
+      "id": "memory",
+      "kind": "hook",
+      "origin": "own",
+      "version": "0.1.0",
+      "license": "MIT",
+      "scope": "project",
+      "tools": [
+        "claude"
+      ],
+      "claude": [
+        {
+          "event": "PreToolUse",
+          "matcher": "Write|Edit|MultiEdit"
+        },
+        {
+          "event": "SessionStart"
+        },
+        {
+          "event": "PreCompact"
+        },
+        {
+          "event": "SessionEnd"
+        }
+      ],
+      "files": {
+        "hooks/core/memory.mjs": "31d53c58d1eff8d87ed03106e4cb332429aef6477f4bb6b02cf2ecf8aa639e15",
+        "hooks/core/memory-index.mjs": "ed9d990262ae86bfb68b63b7c34e6594e3239460136907fbb376011990898006"
+      },
+      "sha256": "8649dbe0a0db420f694571ca7545b79d3d9324d62c81909f6f3d97ff38affce7"
+    },
+    {
+      "id": "modes",
+      "kind": "hook",
+      "origin": "own",
+      "version": "0.1.0",
+      "license": "MIT",
+      "scope": "project",
+      "tools": [
+        "claude"
+      ],
+      "claude": [
+        {
+          "event": "SessionStart"
+        }
+      ],
+      "files": {
+        "hooks/core/modes.mjs": "b07109cb1c24818c5e9562e9b9acf033bd996430ca37d57b480b7d53f0e380ec"
+      },
+      "sha256": "4739f4bd94ebbcd336f1aa9a58c9610e21aa606fedc7d6bea6b277f9d0d15941"
+    },
+    {
+      "id": "implement",
+      "kind": "agent",
+      "origin": "own",
+      "version": "0.1.0",
+      "license": "MIT",
+      "scope": "project",
+      "tools": [
+        "claude"
+      ],
+      "files": {
+        "agents/implement.md": "ec40e65a434fa38f45fbd005bf7809f470558a451df20c10e584c60b7d866c0a"
+      },
+      "sha256": "5744a15a0549222b5c7f076cf86da376a65e2470426813fcbbf0a36878ed2c43"
+    },
+    {
+      "id": "mechanical",
+      "kind": "agent",
+      "origin": "own",
+      "version": "0.1.0",
+      "license": "MIT",
+      "scope": "project",
+      "tools": [
+        "claude"
+      ],
+      "files": {
+        "agents/mechanical.md": "c7f827c126687689980467decb2734eafff8fdcfc7413ab0f2f84c3f324a851c"
+      },
+      "sha256": "b3b453be5e342669893b093b56e9c63070dae7c1dfcd37b173250f44162324c6"
+    },
+    {
+      "id": "review",
+      "kind": "agent",
+      "origin": "own",
+      "version": "0.1.0",
+      "license": "MIT",
+      "scope": "project",
+      "tools": [
+        "claude"
+      ],
+      "files": {
+        "agents/review.md": "cc664745c387c9b0fd4f6041bfb17e2a2ac5832c559ffaa418c22cd177646ba8"
+      },
+      "sha256": "244c129220da386ae3c84d1670d20d2226b0490ac18db984e6c88a59e74cff06"
     }
   ]
 }

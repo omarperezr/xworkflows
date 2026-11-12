@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -241,4 +241,36 @@ test("an extra argument: exit 2", withRepo({}, async (repo) => {
 test("needs that are not key names: could not run", withRepo({}, async (repo) => {
   const r = await check(repo, ["--only", "ratchet"], { ratchet: { needs: [5], run: () => ({ ok: true, lines: [] }) } });
   assert.deepEqual(r, { code: 2, out: ["ratchet: could not run: its needs must be config key names", "xworkflows check: 1 of 1 failed"] });
+}));
+
+test("index: a symlinked MEMORY.md is refused, nothing is written through it", withRepo({}, async (repo) => {
+  repo.write("docs/memory/a.md", "---\ndescription: one\n---\n");
+  const outside = join(mkdtempSync(join(tmpdir(), "xwf-out-")), "t.md");
+  writeFileSync(outside, "keep");
+  symlinkSync(outside, join(repo.root, "docs/memory/MEMORY.md"));
+  const r = await check(repo, ["index"]);
+  assert.equal(r.code, 2);
+  assert.match(r.out[0], /^xworkflows check: .*symlink/);
+  assert.equal(readFileSync(outside, "utf8"), "keep");
+  rmSync(join(outside, ".."), { recursive: true, force: true });
+}));
+
+test("index: writes MEMORY.md from the memory files, prints nothing; not a repository or a bad config: exit 2", withRepo({}, async (repo) => {
+  repo.write("docs/memory/b.md", "---\nname: Beta\ndescription: two\n---\n");
+  repo.write("docs/memory/a.md", "---\ndescription: one\n---\n");
+  const r = await check(repo, ["index"]);
+  assert.deepEqual(r, { code: 0, out: [] });
+  assert.equal(readFileSync(join(repo.root, "docs/memory/MEMORY.md"), "utf8"), "- [a](a.md) — one\n- [Beta](b.md) — two\n");
+  assert.equal((await check(repo, ["index"])).code, 0); // the index file itself is not indexed
+  assert.match(readFileSync(join(repo.root, "docs/memory/MEMORY.md"), "utf8"), /^- \[a\]/);
+  repo.write(".xworkflows/config.json", "{");
+  const bad = await check(repo, ["index"]);
+  assert.equal(bad.code, 2);
+  assert.match(bad.out[0], /^xworkflows check: .*does not parse/);
+  const dir = mkdtempSync(join(tmpdir(), "xwf-norepo-"));
+  try {
+    const out = [];
+    assert.equal(await main(["index"], { cwd: dir, print: (l) => out.push(l) }), 2);
+    assert.match(out[0], /^xworkflows check: not a git repository/);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
 }));

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync, mkdirSync, existsSync, symlinkSync } from "node:fs";
 import { tmpdir, homedir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
@@ -81,4 +81,26 @@ test("config, marked, skillName and runCheck keep working", () => {
   mkdirSync(join(root, ".claude", "skills", "adapt"), { recursive: true });
   writeFileSync(join(root, ".claude", "skills", "adapt", "research.mjs"), "console.log('x');process.exit(0)");
   assert.deepEqual(c.runCheck([]), { code: 0, out: "x\n", err: "" });
+});
+
+test("agentName and skillName read only their own folder of renamed", () => {
+  const { c, root } = mk();
+  mkdirSync(join(root, ".xworkflows"));
+  writeFileSync(join(root, ".xworkflows", "installed.json"), JSON.stringify({ renamed: { ".claude/agents/xwf-review.md": "review", ".claude/skills/xwf-grill": "grill", ".claude/skills/xwf-review": "review" } }));
+  assert.equal(c.agentName("review"), "xwf-review");
+  assert.equal(c.agentName("grill"), "grill");
+  assert.equal(c.skillName("review"), "xwf-review");
+  assert.equal(c.skillName("grill"), "xwf-grill");
+  assert.equal(mk().c.agentName("review"), "review");
+});
+
+test("writeFile refuses a symlink and says so", () => {
+  const { c, root } = mk();
+  const out = join(tmp(), "outside.txt");
+  writeFileSync(out, "keep");
+  symlinkSync(out, join(root, "idx.md"));
+  assert.equal(c.writeFile("idx.md", "new"), false);
+  assert.equal(readFileSync(out, "utf8"), "keep");
+  assert.equal(c.writeFile("plain.md", "x"), true);
+  assert.equal(readFileSync(join(root, "plain.md"), "utf8"), "x");
 });
