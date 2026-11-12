@@ -64,7 +64,7 @@ test("output is byte-identical twice and the CLI prints the count", () => {
 test("capped at 400 with docs first", () => {
   const d = tmp();
   put(d, "docs/a.md", Array.from({ length: 300 }, (_, i) => `- Rule ${i} must hold.`).join("\n") + "\n");
-  put(d, "src.js", Array.from({ length: 300 }, (_, i) => `// code ${i} must hold`).join("\n") + "\n");
+  put(d, "src.js", Array.from({ length: 300 }, (_, i) => `// code ${i} must hold\nconst v${i} = 1;`).join("\n") + "\n");
   commit(d);
   const r = collectRules(d);
   assert.equal(r.rules.length, 400);
@@ -98,7 +98,8 @@ test("long sentences are trimmed to 300 characters", () => {
   const d = tmp();
   put(d, "README.md", `${"word ".repeat(100)}must end.\n`);
   commit(d);
-  assert.equal(collectRules(d).rules[0].text.length, 300);
+  const t = collectRules(d).rules[0].text;
+  assert.ok(t.length <= 300 && t.endsWith("…") && !t.endsWith(" …"));
 });
 
 test("no docs gives an empty list", () => {
@@ -106,4 +107,63 @@ test("no docs gives an empty list", () => {
   put(d, "a.js", "const x = 1;\n");
   commit(d);
   assert.deepEqual(collectRules(d), { rules: [] });
+});
+
+test("wrapped paragraph, Spanish bullet and two-line comment give one whole rule each", () => {
+  const d = tmp();
+  put(d, "docs/wrap.md", "Totals are stored in cents and\nthe app must never use floats\nfor money.\n\n- El stock debe ser\n  siempre un entero\n  al escribir.\n");
+  put(d, "a.js", "const a = 1;\n// A retry must never\n// create a duplicate.\nconst b = 2;\n");
+  commit(d);
+  const r = collectRules(d).rules;
+  assert.deepEqual(r.map((x) => [x.text, x.line]), [
+    ["Totals are stored in cents and the app must never use floats for money.", 1],
+    ["El stock debe ser siempre un entero al escribir.", 5],
+    ["A retry must never create a duplicate.", 2],
+  ]);
+});
+
+test("a sentence starts on its own line inside a paragraph", () => {
+  const d = tmp();
+  put(d, "README.md", "Intro text here.\nIt must work.\nAnd it never fails.\n");
+  commit(d);
+  assert.deepEqual(collectRules(d).rules.map((x) => [x.text, x.line]), [["It must work.", 2], ["And it never fails.", 3]]);
+});
+
+test("tables, fences, front matter and headings are not rules", () => {
+  const d = tmp();
+  put(d, "docs/x.md", "---\ntitle: it must be\n---\n# It must be a heading\n| a | must |\n```\nnever in code\n```\nReal one must stay.\n");
+  commit(d);
+  assert.deepEqual(collectRules(d).rules.map((x) => x.text), ["Real one must stay."]);
+});
+
+test("abbreviations do not split a sentence", () => {
+  const d = tmp();
+  put(d, "README.md", "Use ids, e.g. uuids, and so on, i.e. never counters. Also vs. others it must hold, etc. and p. ej. esto debe ser.\n");
+  commit(d);
+  assert.equal(collectRules(d).rules.length, 2);
+});
+
+test("realistic sentences get their kinds", () => {
+  const d = tmp();
+  const cases = [
+    ["The price must always be stored in cents.", "values"],
+    ["El saldo debe ser siempre exacto.", "values"],
+    ["A webhook must be applied once.", "idem"],
+    ["Cada pedido se aplica una sola vez, nunca dos.", "idem"],
+    ["Only the owner may log in to the admin area.", "access"],
+    ["Solo el dueño tiene acceso.", "access"],
+    ["A failed step must rollback: all or nothing.", "txn"],
+    ["Todo o nada: debe ser una transacción.", "txn"],
+    ["Process each item in a batch, never one by one.", "batch"],
+    ["Se debe procesar por lote.", "batch"],
+    ["History must never change past rows.", "snap"],
+    ["Se guarda al escribir; el histórico nunca cambia.", "snap"],
+    ["Every invoice must follow accounting law.", "domain"],
+    ["La factura debe cumplir la norma contable.", "domain"],
+  ];
+  put(d, "docs/k.md", cases.map(([t]) => `- ${t}`).join("\n") + "\n- A refresh rate must never be below 30. Each unit must be tested.\n");
+  commit(d);
+  const r = collectRules(d).rules;
+  for (const [t, k] of cases) assert.ok(r.find((x) => x.text === t)?.kinds.includes(k), t);
+  assert.deepEqual(r.find((x) => /refresh rate/.test(x.text)).kinds, []);
 });

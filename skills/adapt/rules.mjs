@@ -12,18 +12,18 @@ const W = (s) => new RegExp(`(?<![\\p{L}\\p{N}_])(?:${s})(?![\\p{L}\\p{N}_])`, "
 const NORMATIVE = W("must|never|always|only|do not|don['’]t|required|forbidden|debe|debes|deben|nunca|siempre|solo|sólo|no se|prohibido");
 // Fixed keyword table, English and Spanish, in the kind order of the scan.
 const KIND_WORDS = [
-  ["values", L("currenc|rate|round|decimal|precision|unit|moneda|tasa|redondeo|c[eé]ntimo|cents")],
-  ["snap", L("snapshot|at the time|frozen|sealed|congelad|sellad")],
+  ["values", L("currenc|exchange rate|tasa|round|decimal|precision|unit of measure|units? of|kg\\b|unidad de medida|moneda|redondeo|c[eé]ntimo|cents?\\b|price|amount|money|total|balance|precio|monto|dinero|saldo|importe")],
+  ["snap", L("snapshot|at the time|frozen|sealed|congelad|sellad|history|histor[ií]c|past rows?|at write|when written|al escribir|hist[oó]rico")],
   ["srvw", L("server function|rpc|only through|solo por|s[oó]lo por|server-side|funci[oó]n de servidor")],
   ["delta", L("delta|increment|decrement|relativ")],
-  ["idem", L("idempoten|retry|retries|duplicate|replay|outbox|reintent|duplicad")],
-  ["txn", L("transaction|one request|atomic|transacci[oó]n|una sola")],
-  ["access", W("roles?|permissions?|rls|policy|policies|rol(es)?|permisos?|pol[ií]ticas?")],
-  ["batch", L("per row|per item|loop|n\\+1|por fila|por [ií]tem|en bucle|bulk")],
-  ["domain", W("tax(es)?|laws?|legal|iva|impuestos?|ley(es)?|fiscal|regulations?")],
+  ["idem", L("idempoten|retry|retries|duplicate|replay|outbox|reintent|duplicad|once\\b|twice|at most once|webhook|applied|una vez|una sola vez|dos veces")],
+  ["txn", L("transaction|one request|atomic|transacci[oó]n|una sola|all or nothing|rollback|roll back|todo o nada")],
+  ["access", W("roles?|permissions?|rls|policy|policies|rol(es)?|permisos?|pol[ií]ticas?|owners?|admins?|administrators?|auth\\w*|log ?in|acceso|due[ñn]o|administrador")],
+  ["batch", L("per row|per item|loop|n\\+1|por fila|por [ií]tem|en bucle|bulk|batch|each item|cada uno|cada [ií]tem|lote")],
+  ["domain", W("tax(es)?|laws?|legal|iva|impuestos?|ley(es)?|fiscal|regulations?|invoices?|ledger|accounting|bookkeeping|facturas?|libro|contable")],
   ["compat", W("api|formats?|schema|compatible|compatibility|versions?|formato|versi[oó]n")],
   ["conc", L("lock|concurren|race|bloqueo|mutex")],
-  ["input", L("validat|sanitiz|input|validar|entrada|sanitiz")],
+  ["input", L("validat|sanitiz|input|validar|entrada")],
 ];
 const DOCS = /^(README|PRODUCT|DESIGN|ARCHITECTURE|CONTRIBUTING)[^/]*$|^docs\//i;
 const DOC_EXT = [".md", ".mdx", ".markdown", ".rst", ".txt", ""];
@@ -31,18 +31,67 @@ const CODE_EXT = [".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs", ".mts", ".cts", 
 // shortcut: comments are line comments or block-comment lines only; a "#" or "--" inside a string counts as a comment. Upgrade with a tokenizer if noise shows.
 const COMMENT = /^\s*(?:\/\*+|\*+(?!\/)|\/\/+|#(?!!)|--)\s?(.*)$|\s(?:\/\/|#|--)\s(.*)$/;
 
-const sentences = (s) => s.replace(/^\s*(?:[-*+>]\s+|\d+[.)]\s+|#+\s+)+/, "").split(/(?<=[.!?])\s+/).map((x) => x.trim()).filter(Boolean);
+const ABBR = /(?:\be\.g\.|\bi\.e\.|\betc\.|\bvs\.|\bp\. ej\.)$/i;
+const LIST = /^\s*(?:[-*+]\s+|\d+[.)]\s+)/;
+
+// Sentences of a block of {text,line} parts joined by spaces; each keeps the line it starts on.
+function split(parts) {
+  const text = parts.map((p) => p.text).join(" ");
+  const at = (i) => { let n = 0, last = parts[0].line; for (const p of parts) { if (i < n + p.text.length + 1) return p.line; n += p.text.length + 1; last = p.line; } return last; };
+  const out = []; let from = 0;
+  const emit = (end) => { const raw = text.slice(from, end); const t = raw.trim(); if (t) out.push({ text: t, line: at(from + raw.length - raw.trimStart().length) }); };
+  for (const m of text.matchAll(/[.!?]+\s+/g)) {
+    const end = m.index + m[0].length, rest = text.slice(end);
+    if (ABBR.test(text.slice(0, m.index + m[0].trimEnd().length)) || (/\bp\.$/i.test(text.slice(0, m.index + 1)) && /^ej\./i.test(rest))) continue;
+    emit(end); from = end;
+  }
+  emit(text.length);
+  return out;
+}
+
+// Markdown blocks: paragraphs and list items (with their continuation lines); tables, fences, front matter and headings are not rules.
+function docBlocks(lines) {
+  const blocks = []; let cur = null, fence = false;
+  lines.forEach((raw, i) => {
+    const t = raw.trim();
+    if (i === 0 && t === "---") fence = "fm";
+    else if (fence === "fm") { if (t === "---") fence = false; cur = null; return; }
+    if (fence === "fm") return;
+    if (/^(```|~~~)/.test(t)) { fence = !fence; cur = null; return; }
+    if (fence || !t || t.startsWith("|") || t.startsWith("#")) { cur = null; return; }
+    if (LIST.test(raw) || !cur) blocks.push((cur = []));
+    cur.push({ text: t.replace(LIST, ""), line: i + 1 });
+  });
+  return blocks;
+}
+
+// Code comments: consecutive comment lines of one style are one block; a trailing comment is its own.
+function codeBlocks(lines) {
+  const blocks = []; let cur = null, style = "";
+  lines.forEach((raw, i) => {
+    const m = COMMENT.exec(raw);
+    if (!m) { cur = null; return; }
+    const text = (m[1] ?? m[2] ?? "").replace(/\*\/\s*$/, "").trim();
+    const st = m[1] === undefined ? "end" + i : /^\s*(?:\/\*|\*)/.test(raw) ? "*" : /^\s*\/\//.test(raw) ? "//" : /^\s*#/.test(raw) ? "#" : "--";
+    if (!text) { cur = null; return; }
+    if (!cur || st !== style) { blocks.push((cur = [])); style = st; }
+    cur.push({ text, line: i + 1 });
+  });
+  return blocks;
+}
+
+function cut(s) {
+  if (s.length <= CUT) return s;
+  const h = s.slice(0, CUT - 1), sp = h.lastIndexOf(" ");
+  return (sp > 0 ? h.slice(0, sp) : h).trimEnd() + "…";
+}
 
 function fromFile(path, text, isDoc) {
-  const out = [];
-  text.split("\n").forEach((raw, i) => {
-    let line = raw;
-    if (!isDoc) { const m = COMMENT.exec(raw); if (!m) return; line = (m[1] ?? m[2] ?? "").replace(/\*\/\s*$/, ""); }
-    for (const s of sentences(line)) if (NORMATIVE.test(s)) {
-      const t = s.slice(0, CUT);
-      out.push({ text: t, file: path, line: i + 1, kinds: KIND_WORDS.filter(([, re]) => re.test(t)).map(([k]) => k) });
-    }
-  });
+  const lines = text.split("\n"), out = [];
+  for (const b of isDoc ? docBlocks(lines) : codeBlocks(lines)) for (const s of split(b)) if (NORMATIVE.test(s.text)) {
+    const t = cut(s.text);
+    out.push({ text: t, file: path, line: s.line, kinds: KIND_WORDS.filter(([, re]) => re.test(s.text)).map(([k]) => k) });
+  }
   return out;
 }
 
