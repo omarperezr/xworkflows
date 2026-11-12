@@ -14,7 +14,7 @@
     },
     "adapt-gates": {
       "version": "0.1.0",
-      "sha256": "6607ca97eadff22f56ce43c8f8f374d3a51bb40ab96e7c455cca171b0e42d845"
+      "sha256": "986c5468a064660aa758935fbf8a5f716b55e6af5f4495617a81fd3585fc1e67"
     },
     "adapt-record": {
       "version": "0.1.0",
@@ -50,7 +50,7 @@
     },
     "adapt": {
       "version": "0.1.0",
-      "sha256": "537786389cc18f4bbc18f228123f7423553afa2041c65f57f971d93668afc497"
+      "sha256": "cedf0d2f8db1fa5b126667d24f61c103034726381cce035963524201e51e3a86"
     },
     "full-review": {
       "version": "0.1.0",
@@ -168,7 +168,7 @@
     },
     ".xworkflows/hooks/core/adapt-gates.mjs": {
       "piece": "adapt-gates",
-      "sha256": "dc370e82bc4c845195a57272d0c9879bb8b0346d0f9fd7ffb3a4f59a76cf8d73"
+      "sha256": "439a609adabbf78a1841b4b41ba0c7013728d3ddf7265fe8b90c524df6eaa025"
     },
     ".xworkflows/hooks/core/adapt-record.mjs": {
       "piece": "adapt-record",
@@ -328,7 +328,7 @@
     },
     ".claude/skills/adapt/SKILL.md": {
       "piece": "adapt",
-      "sha256": "8c9105226dfe62538362545152db93f6522eef9d490d60fb49ace1d87113d2ef"
+      "sha256": "e104474cf5681c8fa9ea8d00febba855a1732ce1f308a3a1d3288cfc648c8782"
     },
     ".claude/skills/adapt/scan.mjs": {
       "piece": "adapt",
@@ -340,15 +340,15 @@
     },
     ".claude/skills/adapt/research.workflow.js": {
       "piece": "adapt",
-      "sha256": "e1db6bb384d212440f59e62a6a89466ac3359f44fe4377977534037314c74717"
+      "sha256": "00188a8354f0b6d44b57894acf6b71ab0e31c7c4666380344c768c8d892c5222"
     },
     ".claude/skills/adapt/research.mjs": {
       "piece": "adapt",
-      "sha256": "b70a7b9956cf3ed765173aa556def62468c8f4ab38f70394c939cf2f477a1ae4"
+      "sha256": "dbe5b5e52b19a50c6501f9e68ce6f776b5ab4d293edaf96ab57ddd52d9f0ae7e"
     },
     ".claude/skills/adapt/screens.mjs": {
       "piece": "adapt",
-      "sha256": "cbe7781bc3b225dce8ca96e01501b878961c68c3037174bfe3dd869f95aba8aa"
+      "sha256": "e4e57be688696791b89784e582b993fd5bdc7e2eb52dba9fe75d096b4785d285"
     },
     ".claude/skills/full-review/SKILL.md": {
       "piece": "full-review",

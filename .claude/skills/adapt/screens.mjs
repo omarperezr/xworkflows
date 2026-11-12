@@ -45,6 +45,9 @@ function ruleIndex(root, r) {
 export function screens(root, r) {
   const { ok, at } = checker(root);
   const dropped = [], gaps = [], noRule = [], notPresent = [], errors = [];
+  if (!r.plain) errors.push("plain: agent returned nothing, rerun the Workflow");
+  if (!r.questions) errors.push("questions: agent returned nothing, rerun the Workflow");
+  for (const [t, x] of Object.entries(r.topics || {})) if (!x) errors.push(`topic ${t}: agent returned nothing, rerun the Workflow`);
   for (const key of r.areaOrder || []) {
     const a = r.areas?.[key];
     if (!a) { errors.push(`${key}: agent returned nothing, rerun the Workflow`); continue; }
@@ -59,17 +62,17 @@ export function screens(root, r) {
     if (s2 && !ok(s2)) dropped.push({ area: key, what: `second rule: ${s2.rule}`, at: at(s2), quote: s2.quote });
     // A written rule counts as contradicted only when both its doc line and the code line hold.
     for (const c of a.contradicted || []) {
-      if (ok(c) && ok({ file: c.wfile, line: c.wline, quote: c.wquote })) gaps.push({ kind: "contradicted", area: key, risk, text: `The docs say: "${c.written}" (${c.wfile}:${c.wline}). The code does otherwise at ${at(c)}: ${c.how}. Which one is right?`, options: ["The written rule", "The code", "I don't know"] });
+      if (ok(c) && ok({ file: c.wfile, line: c.wline, quote: c.wquote })) gaps.push({ kind: "contradicted", area: key, risk, text: `The docs say: "${c.written}" (${at({ file: c.wfile, line: c.wline })}). The code does otherwise at ${at(c)}: ${c.how}. Which one is right?`, options: ["The written rule", "The code", "I don't know"] });
       else dropped.push({ area: key, what: `contradicted: ${c.written}`, at: at(c), quote: c.quote });
     }
-    for (const d of keep(a.doubted, "doubted")) gaps.push({ kind: "doubted", area: key, risk, text: `The code follows this rule: "${d.rule}" (${at(d)}). Research doubts it: ${d.why}. What do you say?`, options: ["You are right: a pending card", "Keep it, because ...", "I don't know"] });
+    for (const d of keep(a.doubted, "doubted")) if (!String(d.why ?? "").trim()) dropped.push({ area: key, what: `doubted: ${d.rule}`, reason: "no written reason" }); else gaps.push({ kind: "doubted", area: key, risk, text: `The code follows this rule: "${d.rule}" (${at(d)}). Research doubts it: ${d.why}. What do you say?`, options: ["You are right: a pending card", "Keep it, because ...", "I don't know"] });
     if (g && ok(g) && exceptions.length) gaps.push({ kind: "exceptions", area: key, risk, text: `Rule: "${g.rule}". Done differently in ${exceptions.length} place${exceptions.length > 1 ? "s" : ""}: ${exceptions.map((e) => `${at(e)} (${e.how})`).join("; ")}. Mistake or exception?`, options: ["Mistake: fix it", "Exception: keep it", "I don't know"] });
     for (const u of keep(a.unprotected, "unprotected")) gaps.push({ kind: "unprotected", area: key, risk, text: `Nothing protects this: ${u.risk} (${at(u)}). Is that on purpose?`, options: ["On purpose", "Not on purpose: protect it", "I don't know"] });
   }
   // A sentence shows only with a verified rule behind it, and short; its citation is the first verified one of the rules it names.
   const index = ruleIndex(root, r);
   const sentences = [];
-  for (const c of r.plain?.claims || []) {
+  for (const c of [...(r.plain?.claims || []), ...(r.plain?.rest || [])]) {
     const from = (c.from || []).filter((id) => index.has(id));
     const n = words(c.text);
     const why = !from.length ? "names no rule with a verified citation" : n > MAX_WORDS ? `${n} words, more than ${MAX_WORDS}` : null;
@@ -84,7 +87,7 @@ export function screens(root, r) {
   const drawer3 = Object.entries(ASK).map(([id, text]) => ({ id, text, lead: byId[id]?.lead ?? "Research found nothing on this.", options: (byId[id]?.options || []).map((o) => ({ label: o.label, description: o.description, ...(ok(o) && { at: at(o) }) })) }));
   return {
     errors, dropped, noRule, notPresent,
-    drawer1: sentences.slice(0, MAX_RULES), drawer1LeftOut: [...sentences.slice(MAX_RULES), ...(r.plain?.rest || [])],
+    drawer1: sentences.slice(0, MAX_RULES), drawer1LeftOut: sentences.slice(MAX_RULES),
     drawer2: gaps.slice(0, MAX_GAPS).map((g, i) => ({ id: `X${i + 1}`, ...g })), drawer2LeftOut: gaps.slice(MAX_GAPS),
     drawer3,
   };
@@ -93,19 +96,21 @@ export function screens(root, r) {
 // The mechanism agents' answers: kinds.json (hooks read it), and the lines of the detail file. A kind the Workflow did not run is skipped.
 export function mechanism(root, r) {
   const { ok, at } = checker(root);
-  const errors = [], lines = [], state = {};
+  const errors = [], lines = [], dropped = [], state = {};
   for (const k of Object.keys(r.kinds || {}).sort()) {
     const x = r.kinds[k];
     if (!x) { errors.push(`${k}: agent returned nothing`); continue; }
     if (!["found", "absent", "not-present"].includes(x.status)) { errors.push(`${k}: invalid status ${JSON.stringify(x.status)}`); continue; }
-    if (x.status !== "found") { state[k] = { general: null, status: x.status, unverified: false }; continue; }
-    // A found kind without a general rule counts as absent; an unverified one is kept for the owner to confirm.
-    const g = x.general?.rule ? x.general : null;
-    state[k] = { general: g ? g.rule : null, status: g ? "found" : "absent", unverified: Boolean(g) && !ok(g) };
-    const rules = (x.rules || []).filter(ok);
-    if ((g && ok(g)) || rules.length) lines.push(`### ${k}`, "", ...(g && ok(g) ? [`- general: ${g.rule} (${g.basis}) ${at(g)}`] : []), ...rules.map((y) => `- ${y.rule} (code) ${at(y)}`), "");
+    if (x.status !== "found") { state[k] = { general: null, status: x.status }; continue; }
+    // A found kind whose general rule is missing or does not verify counts as absent; what failed gets a line.
+    const g = x.general?.rule && ok(x.general) ? x.general : null;
+    if (x.general?.rule && !g) dropped.push({ area: k, what: `general rule: ${x.general.rule}`, at: at(x.general), quote: x.general.quote });
+    state[k] = { general: g ? g.rule : null, status: g ? "found" : "absent" };
+    const rules = (x.rules || []).filter((y) => ok(y) || (dropped.push({ area: k, what: `rule: ${y.rule}`, at: at(y), quote: y.quote }), false));
+    for (const v of x.verdicts || []) if (v.verdict !== "no-evidence" && !ok(v)) dropped.push({ area: k, what: `verdict ${v.id} ${v.verdict}`, at: at(v), quote: v.quote });
+    if (g || rules.length) lines.push(`### ${k}`, "", ...(g && ok(g) ? [`- general: ${g.rule} (${g.basis}) ${at(g)}`] : []), ...rules.map((y) => `- ${y.rule} (code) ${at(y)}`), "");
   }
-  return { state: JSON.stringify(state, null, 2) + "\n", lines, errors };
+  return { state: JSON.stringify(state, null, 2) + "\n", lines, errors, dropped };
 }
 
 const norm = (p) => posix.normalize(String(p).replace(/^(\.\/)+/, "")).replace(/\/$/, "");
@@ -115,11 +120,11 @@ export function render(r, s, commit) {
   const out = ["---", `commit: ${commit}`, "version: 3", "---", "", "## What it is", "", r.profile.what, ""];
   out.push("## Screen 1: what the code shows", "", "Strike what is habit and not rule; correct the level where a rule is stated too narrowly.", "");
   s.drawer1.forEach((x, i) => out.push(`${i + 1}. ${x.text} (${x.at}) Risk ${x.risk}.`));
-  if (s.drawer1LeftOut.length) out.push("", `Left out of this screen: ${s.drawer1LeftOut.length} sentence(s), the ones past ${MAX_RULES} and the ones the plain pass left over; they are in the research, not asked.`);
+  if (s.drawer1LeftOut.length) out.push("", `Left out of this screen: ${s.drawer1LeftOut.length} sentence(s), the ones past ${MAX_RULES}; they are in the research, not asked.`);
   out.push("", "## Screen 2: where the code contradicts itself or leaves a gap", "");
   for (const g of s.drawer2) out.push(`- ${g.id} [${g.area}] ${g.text}`, `  Options: ${g.options.join(" / ")}`);
   if (!s.drawer2.length) out.push("(nothing found)");
-  if (s.drawer2LeftOut.length) out.push("", `Left out of this screen: ${s.drawer2LeftOut.length} question(s), the least risky ones (${s.drawer2LeftOut.map((g) => `${g.kind} in ${g.area}`).join(", ")}).`);
+  if (s.drawer2LeftOut.length) out.push("", `Left out of this screen: ${s.drawer2LeftOut.length} question(s), the last in this order: contradicted, doubted, exceptions, unprotected, then the least risky (${s.drawer2LeftOut.map((g) => `${g.kind} in ${g.area}`).join(", ")}).`);
   out.push("", "## Screen 3: what no file says", "");
   for (const q of s.drawer3) {
     out.push(`- ${q.id} ${q.text}`, `  ${q.lead}`);
@@ -151,6 +156,9 @@ export function details(r, s, m, root, written = []) {
     }
     out.push("");
   });
+  const shown = new Set(s.drawer1.flatMap((x) => x.from));
+  const unnamed = [...index].filter(([id]) => !shown.has(id));
+  if (unnamed.length) out.push("## Rules no sentence shows", "", ...unnamed.map(([id, y]) => `- [${id}] ${y.rule} (${y.basis}; risk ${y.risk}: ${y.cost}) ${y.at.join(", ")}`), "");
   out.push("## Mechanism rules", "", ...(m.lines.length ? m.lines : ["(none)", ""]));
   // Each written rule with the verdict a mechanism agent gave it; a verdict stands only with a verified citation, else no-evidence.
   const wtext = new Map(written.map((w) => [w.id, collapse(w.text)]));
