@@ -247,9 +247,9 @@
         "skills/adapt/SKILL.md": "1b255fd8fe25b18e94a2de29885b541290b60cc649b73815b6a71d4aa17c199b",
         "skills/adapt/scan.mjs": "8f033eb3dd79b16538b83308fe4284e8860006e8ab60e14bc154b3b606e40fca",
         "skills/adapt/research.workflow.js": "d0d8f9bce1f40bb8bec57a3b37eeaf780534a6178f46265a007ea72f211a4217",
-        "skills/adapt/research.mjs": "303b9e0681b40efb6d22653c35820bddedfb787a552008f9070b1cd3c5237c34"
+        "skills/adapt/research.mjs": "82ded3e88ca880f030c83dbaafdb51ecee0db5dcbf6f4c9d42b549fd797d4f7e"
       },
-      "sha256": "bba31929cc300cabf6691b2932f12d0338156c71eb81d99a68c7badd969e343f"
+      "sha256": "83efeafffde9e0f7121eb6530cc7787b7f6d613ac1709209d371fb2cf19df90a"
     },
     {
       "id": "full-review",

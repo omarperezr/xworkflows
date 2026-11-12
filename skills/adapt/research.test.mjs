@@ -255,10 +255,9 @@ test("render failure conditions", () => {
   bad((r) => { r.kinds.snap = null; }, /snap/);
   bad((r) => { r.kinds.txn.status = "maybe"; }, /txn/);
   bad((r) => { r.kinds.values.rules[0].quote = "zzz"; }, /values/);
-  bad((r) => { r.kinds.idem.notChecked = ["a.js"]; }, /idem/);
-  bad((r) => { r.kinds.idem.notChecked = ["db.sql"]; }, /idem/);
+  bad((r) => { r.kinds.values.notChecked = ["a.js"]; }, /values: notChecked lists a\.js, one of this kind's scan hits/);
   const r = sample();
-  r.kinds.idem.notChecked = ["other/x.js"];
+  r.kinds.idem.notChecked = ["a.js", "db.sql", "other/x.js"];
   assert.equal(renderResearch(d, r, SCAN).errors.length, 0);
   put(d, { ...sample(), kinds: { ...sample().kinds, snap: null } });
   assert.equal(cli(d, "render").status, 1);
@@ -300,10 +299,10 @@ test("fix round 1: dead topic, path spellings, missing run file", () => {
   const r = sample();
   r.topics.t3 = null;
   assert.match(renderResearch(d, r, SCAN).errors.join("\n"), /topic t3: agent returned nothing, rerun the Workflow/);
-  for (const p of ["./a.js", "x/../a.js", "db.sql/"]) {
+  for (const p of ["./a.js", "x/../a.js", "a.js/"]) {
     const q = sample();
-    q.kinds.idem.notChecked = [p];
-    assert.match(renderResearch(d, q, SCAN).errors.join("\n"), /idem/, p);
+    q.kinds.values.notChecked = [p];
+    assert.match(renderResearch(d, q, SCAN).errors.join("\n"), /values/, p);
   }
   writeFileSync(X(d, "summary.md"), "---\nstatus: draft\n---\n");
   cli(d, "start");

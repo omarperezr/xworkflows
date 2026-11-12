@@ -36,7 +36,6 @@ export function renderResearch(root, research, scan) {
   const dropped = [];
   const kinds = research.kinds || {};
   const skipped = research.skipped || {};
-  const hitFiles = new Set([...Object.values(scan.kinds || {}).flatMap((k) => (k.hits || []).map((h) => norm(h.file))), ...Object.values(scan.sql || {}).flat().map((x) => norm(x.file))]);
   const byHeading = {};
   const add = (h, l) => ((byHeading[h] ||= []).push(l));
   const tag = (l) => `${l.text} (${l.tag})`;
@@ -55,7 +54,8 @@ export function renderResearch(root, research, scan) {
     const r = kinds[k];
     if (!r) { errors.push(`${k}: agent returned nothing`); continue; }
     if (!["found", "absent", "not-present"].includes(r.status)) { errors.push(`${k}: invalid status ${JSON.stringify(r.status)}`); continue; }
-    for (const p of r.notChecked || []) if (hitFiles.has(norm(p))) errors.push(`${k}: notChecked lists ${p}, a file that matters for mechanisms`);
+    const own = new Set(((scan.kinds || {})[k]?.hits || []).map((h) => norm(h.file)));
+    for (const p of r.notChecked || []) if (own.has(norm(p))) errors.push(`${k}: notChecked lists ${p}, one of this kind's scan hits`);
     if (r.status === "absent") { blocks.push(`- no rule found: ${k}`); continue; }
     if (r.status === "not-present") { blocks.push(`- ${k}: not-present${skipped[k] ? ` (skipped: ${skipped[k]})` : ""}`); continue; }
     let kept = 0;
