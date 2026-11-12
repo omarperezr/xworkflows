@@ -10,7 +10,7 @@ Methods: A mechanical replacement. The folder's name becomes `work`. A hook file
 
 ## Also in this change
 
-The owner's ruling of 2026-11-12 on design section 3 ("sólo los bloqueantes"): only a blocking finding must be reproduced by a failing test before it enters a plan. Every other finding becomes a card.
+The owner's ruling of 2026-11-12 on design section 3 ("sólo los bloqueantes"): only a blocking finding must be reproduced by a failing test before it enters a plan. Every other finding becomes a card, or a question to the owner when its remedy is the owner's call.
 
 ## Questions for the owner
 
