@@ -75,6 +75,16 @@ About 40 code lines for T7, and about 150 for T9 and T10, added on 2026-11-12 af
 - Role: implement
 - Done: `node --test skills/adapt/screens.test.mjs skills/adapt/research.test.mjs` passes.
 
+**T11: each area gives its general rule in a short form; the plain agent puts the general rules first** (spec "Research", "Data")
+- Files: `skills/adapt/research.workflow.js`, `skills/adapt/workflow.test.mjs`
+- Role: implement
+- Done: `node --test skills/adapt/workflow.test.mjs` passes.
+
+**T12: a sentence from a general rule shows an example and in how many more places the rule was seen** (spec "Render", "Data")
+- Files: `skills/adapt/screens.mjs`, `skills/adapt/screens.test.mjs`
+- Role: implement
+- Done: `node --test skills/adapt/screens.test.mjs skills/adapt/research.test.mjs` passes.
+
 **T8: the measure** (spec "Measure")
 - Files: none with tracking; the numbers go in the private ledger.
 - Role: main session
