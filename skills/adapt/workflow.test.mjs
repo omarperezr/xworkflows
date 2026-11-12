@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { sum } from "./research.mjs";
+import { screens } from "./screens.mjs";
 
 const KINDS = ["values", "snap", "srvw", "delta", "idem", "txn", "access", "batch", "domain", "compat", "conc", "input"];
 const text = readFileSync(new URL("./research.workflow.js", import.meta.url), "utf8");
@@ -138,4 +139,29 @@ test("every agent that reads the repository carries the index rule and the histo
     assert.ok(c.prompt.includes("Ask `graphify query` before opening files."), c.opts.label);
     assert.ok(c.prompt.includes("no `git show <sha>:<path>`, no `git log -p`; `git diff` and `git stash show` only with `--stat` or `--name-only`."), c.opts.label);
   }
+});
+
+// The ids the questions agent may answer must be the ids screens() looks up.
+test("every question id the workflow asks is a drawer3 id", () => {
+  const ids = [...text.match(/const QUESTIONS = \{([\s\S]*?)\n\};/)[1].matchAll(/^\s*"([^"]+)":/gm)].map((m) => m[1]);
+  const drawer3 = screens(process.cwd(), { areas: {}, areaOrder: [], plain: { claims: [], rest: [] }, questions: [] }).drawer3.map((q) => q.id);
+  assert.deepEqual(ids, drawer3);
+});
+
+test("the questions agent schema and prompt carry exactly the drawer3 ids", async () => {
+  const drawer3 = screens(process.cwd(), { areas: {}, areaOrder: [], plain: { claims: [], rest: [] }, questions: [] }).drawer3.map((q) => q.id);
+  const { calls } = await run({ root: ".", zeroHits: [] });
+  const q = calls.find((c) => c.opts.label === "questions");
+  assert.deepEqual(q.opts.schema.properties.questions.items.properties.id.enum, drawer3);
+  for (const id of drawer3) assert.ok(q.prompt.includes(`\`${id}\``), id);
+  assert.ok(!q.prompt.includes("G-provisional"));
+});
+
+test("the six topic agents run as t1 to t6, only t1 to t3 name config keys", async () => {
+  const { calls, result } = await run({ root: ".", zeroHits: [] });
+  const t = calls.filter((c) => /^t\d+$/.test(c.opts.label));
+  const labels = ["t1", "t2", "t3", "t4", "t5", "t6"];
+  assert.deepEqual(t.map((c) => c.opts.label), labels);
+  assert.deepEqual(Object.keys(result.topics), labels);
+  for (const c of t) assert.equal(/Also return one line per key with heading "config"/.test(c.prompt), ["t1", "t2", "t3"].includes(c.opts.label), c.opts.label);
 });

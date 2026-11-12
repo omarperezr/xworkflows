@@ -110,7 +110,12 @@ function cli(cmd, root) {
     for (const f of [dir, join(dir, "interview.log.jsonl")]) if (isLink(f)) refuse(f);
     mkdirSync(dir, { recursive: true });
     // The owner's answers land here from the first question; ignore them now, not at step 4.
-    try { writeFileSync(join(dir, ".gitignore"), [".gitignore", "research.md", "research.json", "research.prev.json", "scan.json", "interview.json", "interview.log.jsonl", "adapt-run.json", "rules.json", "kinds.json", "screens.json", "details.md"].join("\n") + "\n", { flag: "wx" }); } catch {}
+    // An ignore file that exists (the shipped one, or the owner's) gets the run files it lacks.
+    const ign = join(dir, ".gitignore");
+    let have = "";
+    try { have = readFileSync(ign, "utf8"); } catch {}
+    const lack = [".gitignore", "research.md", "research.json", "research.prev.json", "scan.json", "interview.json", "interview.log.jsonl", "adapt-run.json", "rules.json", "kinds.json", "screens.json", "details.md"].filter((f) => !have.split("\n").includes(f));
+    if (lack.length && !isLink(ign)) writeFileSync(ign, have + (have && !have.endsWith("\n") ? "\n" : "") + lack.join("\n") + "\n");
     const commit = git(root, ["rev-parse", "HEAD"]);
     const status = statusOf(summary);
     let old = null;
@@ -148,6 +153,7 @@ function cli(cmd, root) {
     try { rules = readJson(join(dir, "rules.json")).rules || []; } catch {}
     const s = screens(root, research);
     const m = mechanism(root, research);
+    s.dropped.push(...m.dropped);
     const errors = [...s.errors, ...m.errors];
     if (errors.length) { console.error(errors.join("\n")); process.exit(1); }
     const out = [["research.md", render(research, s, scan.commit)], ["screens.json", JSON.stringify(s, null, 2) + "\n"], ["details.md", details(research, s, m, root, rules)], ["kinds.json", m.state]];

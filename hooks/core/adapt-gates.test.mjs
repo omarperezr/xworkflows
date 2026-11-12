@@ -44,21 +44,16 @@ test("screens.json and details.md writes denied during a run", () => {
   deny(decide(wr([{ path: "/r/.xworkflows/screens.json", content: "{}" }]), ctx()), /screens\.json is written by node \.claude\/skills\/adapt\/research\.mjs render\./);
   deny(decide(wr([{ path: "/r/.xworkflows/details.md", content: "x" }]), ctx()), /details\.md is written by node \.claude\/skills\/adapt\/research\.mjs render\./);
 });
-test("heading 5 needs a line for each kind absent in kinds.json, when it exists", () => {
+test("draft summary with the eight headings passes when a kind is absent in kinds.json", () => {
   const f = { ...files(), "/r/.xworkflows/kinds.json": JSON.stringify({ snap: { status: "found", general: "x", unverified: false }, idem: { status: "absent", general: null, unverified: false } }) };
-  deny(decide(sw(summary("draft", FIVE)), ctx(f)), /not applicable": idem\. /);
-  ok(decide(sw(summary("draft", "- idem: unprotected: double writes\n")), ctx(f)));
-  ok(decide(sw(summary("draft", "- idem: unconfirmed: one key per write (code)\n- snap: unconfirmed: rows keep their price (code)\n")), ctx(f)));
+  ok(decide(sw(summary("draft", FIVE)), ctx(f)));
 });
 test("draft summary denied while ids are missing", () => {
   deny(decide(sw(summary("draft", FIVE)), ctx(files(), missing("H1-a\nH2-b"))), /Ask these first: H1-a, H2-b/);
   ok(decide(sw(summary("draft", FIVE)), ctx()));
   deny(decide(sw(summary("draft", FIVE).replace("## 8. About you", "## x")), ctx()), /About you/);
 });
-test("draft summary denied without a line for an absent kind", () => {
-  deny(decide(sw(summary("draft")), ctx()), /snap/);
-  ok(decide(sw(summary("draft", "- snap: unprotected: stale reads\n")), ctx()));
-});
+test("draft summary passes without a line for an absent kind", () => ok(decide(sw(summary("draft")), ctx())));
 test("approved summary denied until P-H1..P-H7 are Right", () => {
   const c = (code, out) => ctx(files(), (a) => (a.includes("--approved") ? { code, out } : { code: 0, out: "" }));
   deny(decide(sw(summary("approved")), c(1, "P-H1\nP-H2")), /P-H1, P-H2/);

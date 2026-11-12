@@ -76,7 +76,7 @@ test("adapt pins its questions, headings, keys and outputs", () => {
 });
 test("adapt leaves the tree clean on an unchanged re-run and commits only its files", () => {
   const s = read("skills/adapt/SKILL.md");
-  assert.ok(s.includes("If research changes no line of the approved summary, say so and stop before any playback"));
+  assert.ok(s.includes("the three screens are asked again and only config keys that already have a value are skipped"));
   assert.ok(s.includes('git commit -m "chore: adapt xworkflows to this project" -- <the same paths>'));
 });
 
@@ -167,7 +167,7 @@ test("README names graphify, the hand-off to deepen and the cursor/plugins credi
 });
 test("adapt asks how the code prevents each risk; research looks for mechanisms; zones question is plain", () => {
   const s = read("skills/adapt/SKILL.md");
-  has(s, ["mechanisms research found go straight under heading 5", "up to 4 per call", "`unprotected: <risk>`", "Screen 1 (`S1-<n>`)", "`Real, but a bad rule`", "`Not how it works`", "`G-interim`",
+  has(s, ["Mechanism rules are read from `details.md` only when the owner asks for detail", "up to 4 per call", "Screen 1 (`S1-<n>`)", "`Real, but a bad rule`", "`Not how it works`", "`G-interim`",
     "Heading 5 groups its rule lines under the risk they prevent, costliest risk first, then `rules tied to no risk`.", "grouped under the risk it prevents",
     "in heading 5's order: each risk, then the rules that prevent it", "whose path in `research.md` is in the zone's paths", "one line per heading 5 mechanism rule"]);
   // the per-kind question is gone: a screen 1 sentence is judged with four options, written in one place
@@ -182,10 +182,11 @@ test("adapt asks how the code prevents each risk; research looks for mechanisms;
 test("adapt question rules", () => {
   const s = read("skills/adapt/SKILL.md");
   const rules = s.split("## Step 1")[0];
-  has(rules, ["`open`", "`confirm`", "`mechanism`", "`choice`", "One item per question: Yes, No, I don't know.",
+  has(rules, ["`open`", "`confirm`", "`choice`", "One item per question: Yes, No, I don't know.",
     "If none fits, or it is something else, type it in Type something.", "`(Recommended)` only on an option backed by a verified `file:line` citation in `research.md`",
     "What the owner types in `Type something` wins over research and over every drafted option.", "`I don't know` settles the item"]);
   assert.doesNotMatch(s, /multiSelect/);
+  assert.doesNotMatch(s, /`mechanism`|Type the mechanism|`unprotected:|`unconfirmed:|## Contradicted written rules|## Dropped citations|per kind|each found kind|`absent`/);
   assert.doesNotMatch(rules, /multi-select answer/);
   assert.doesNotMatch(s.split("## Step 3")[1].split("### Zones")[0], /marked `\(Recommended\)`\./);
   has(s, ["No other options, and no `Type something` note.", "never `(Recommended)` (a proposal is not a citation), with the `Type something` note"]);
@@ -193,7 +194,7 @@ test("adapt question rules", () => {
 });
 test("fixed labels stay English", () => {
   const rules = read("skills/adapt/SKILL.md").split("## Step 1")[0];
-  has(rules, ["`Yes`", "`No`", "`I don't know`", "`Skip: not relevant here`", "`Nothing does today`", "`Right`", "`Wrong`", "`Missing something`",
+  has(rules, ["`Yes`", "`No`", "`I don't know`", "`Skip: not relevant here`", "`Right`", "`Wrong`", "`Missing something`",
     "`Money`", "`Data`", "`Access`", "`No risk`", "Only these stay in English: send them verbatim", "translation in the option `description`",
     "translated into the owner's language, label and description", "the line Claude Code shows", "(in English it reads \"Type something\")"]);
 });
@@ -221,13 +222,15 @@ test("adapt interview follows the queue", () => {
 });
 test("playback by section", () => {
   const s = step(3);
-  has(s, ["`## Not checked`", "`## Contradicted written rules`", "`## Dropped citations`"]);
+  has(s, ["`## Not checked`", "`## Dropped`", "the questions of screen 2 left out"]);
   inOrder(s, ["`Hotspots`", "`P-H1`", "`Right`", "`Wrong`", "`Missing something`", "`P-H<n>-fix`"]);
   has(read("skills/adapt/SKILL.md"), ["research.mjs check --approved"]);
   assert.ok(!read("skills/adapt/SKILL.md").includes("Did I understand correctly?"));
 });
-test("heading 5 names every found and absent kind", () => {
-  has(step(3), ["`<kind>: <rule | unprotected: <risk> | not applicable>`", "`.xworkflows/kinds.json`"]);
+test("screen 2 answers say what they write; a re-adapt asks the three screens again", () => {
+  has(step(4), ["`The written rule`: that rule and a card to change the code", "`The code`: the code's rule and a card to change the doc", "`Mistake: fix it`: the rule and one card per place",
+    "`Exception: keep it`: the rule with its exceptions named", "`Not on purpose: protect it`: a card", "`On purpose` and `I don't know`: nothing; the log keeps them", "with no reason, ask for the reason once"]);
+  has(step(1).split("\n").find((x) => x.includes("`status: approved`")), ["the three screens are asked again", "only config keys that already have a value are skipped"]);
 });
 test("step 5 question id", () => has(step(5), ["header `S5-next`"]));
 test("resume runs start", () => {
@@ -240,7 +243,7 @@ test("research-only stops after render", () => {
 });
 test("re-adapt reruns research", () => {
   const l = step(1).split("\n").find((x) => x.includes("`status: approved`"));
-  inOrder(l, ["step 2 in full", "research.mjs queue", "only what changed"]);
+  inOrder(l, ["step 2 in full", "research.mjs queue", "asked again"]);
 });
 test("rule without a path goes to AGENTS.md", () => {
   const l = step(4).split("\n").find((x) => x.startsWith("| `AGENTS.md`"));
@@ -299,13 +302,11 @@ test("revision 2: written rules first, coherent questions", () => {
   const c = q.split("\n").find((x) => x.startsWith("- `C<n>`"));
   has(c, ["on a bare `No`, ask the follow-up `C<n>-fix`, `open`: `What should it be?`", "Its answer is the key's value."]);
   has(s.split("## Step 1")[0], ["except `H6-r<n>`, whose text already says it"]);
-  has(q, ["`unconfirmed:` lines"]);
   has(q, ["`H1-what`", "`H2-pays`"]);
   has(s.split("## Step 1")[0], ["Drafted options are suggestions from research"]);
   has(q, ["asks each heading in the owner's language", "the canonical English heading stays in `summary.md`",
     "for each zone, why it is or is not a risk path: the `H6-r<n>` answer"]);
-  has(q, ["each contradicted rule: the written rule and the code that contradicts it"]);
-  has(q, ["For each found kind, heading 5 has one line `<kind>: <confirmed general rule>`"]);
+  has(q, ["research's `## Dropped` lines, the questions of screen 2 left out"]);
 });
 test("next-step cannot-run-here keeps or creates a card", () => {
   const l = read("skills/next-step/SKILL.md").split("\n").find((x) => x.includes("`discarded: cannot run here"));

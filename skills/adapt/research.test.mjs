@@ -157,7 +157,7 @@ test("render writes research.md, screens.json, details.md and kinds.json; an unv
   assert.match(det, /## Rules found in comments[\s\S]*- \[truth\] Never round twice\. a\.js:1/);
   for (const bad of ["fake rule", "A made up claim", "absent text"]) assert.ok(!det.includes(bad), bad);
   assert.ok(!JSON.stringify(s.drawer1).includes("made up"));
-  assert.deepEqual(rj(d, "kinds.json"), { conc: { general: null, status: "not-present", unverified: false }, values: { general: "Round once, only when shown", status: "found", unverified: false } });
+  assert.deepEqual(rj(d, "kinds.json"), { conc: { general: null, status: "not-present" }, values: { general: "Round once, only when shown", status: "found" } });
   const before = [md, rt(d, "details.md"), rt(d, "kinds.json")];
   cli(d, "render");
   assert.deepEqual([rt(d, "research.md"), rt(d, "details.md"), rt(d, "kinds.json")], before);
@@ -186,6 +186,23 @@ test("render fails with one line when an area or a mechanism agent returned noth
   assert.match(cli(d, "render").stderr, /snap: agent returned nothing/);
   put(d, sample({ profile: null }));
   assert.match(cli(d, "render").stderr, /profile: agent returned nothing/);
+});
+
+test("render fails with one line when the plain agent returned nothing", () => {
+  const d = repo();
+  put(d, sample({ plain: null }));
+  const out = cli(d, "render");
+  assert.equal(out.status, 1);
+  assert.match(out.stderr, /plain: agent returned nothing, rerun the Workflow/);
+});
+
+test("the printed dropped count includes the mechanism drops, and the line is in research.md", () => {
+  const d = repo();
+  put(d, sample({ kinds: { snap: { kind: "snap", status: "found", general: { rule: "Prices never change.", basis: "code", file: "a.js", line: 2, quote: "nope" }, rules: [], verdicts: [], notChecked: [] } } }));
+  const out = cli(d, "render");
+  assert.match(out.stdout, /dropped: 2$/m); // the made up sentence and the mechanism rule
+  assert.match(rt(d, "research.md"), /- snap: general rule: Prices never change\. a\.js:2/);
+  assert.ok(!rt(d, "kinds.json").includes("Prices never change"));
 });
 
 // ---- queue and check
@@ -340,7 +357,11 @@ test("start git-ignores the run's private files from the first question", async 
   g(r2, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "a");
   mkdirSync(join(r2, ".xworkflows")); writeFileSync(join(r2, ".xworkflows", ".gitignore"), "mine\n");
   start(r2);
-  assert.equal(readFileSync(join(r2, ".xworkflows", ".gitignore"), "utf8"), "mine\n");
+  const own = readFileSync(join(r2, ".xworkflows", ".gitignore"), "utf8");
+  assert.match(own, /^mine\n/);
+  for (const f of ["screens.json", "details.md", "kinds.json", "adapt-run.json"]) assert.ok(own.split("\n").includes(f), f);
+  start(r2);
+  assert.equal(readFileSync(join(r2, ".xworkflows", ".gitignore"), "utf8"), own);
 });
 
 test("a tracked symlink under .xworkflows is never written through, and render writes nothing when any output is a link", () => {

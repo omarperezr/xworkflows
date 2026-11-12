@@ -116,7 +116,7 @@ test("research.md is version 3 and carries no detail; details.md holds every ver
   for (const bad of ["Fake rule.", "Made up comment.", "nope", "src/a.js:9"]) assert.ok(!d.includes(bad), bad);
 });
 
-test("mechanism keeps the shape of kinds.json: general, status, unverified, sorted by kind", () => {
+test("mechanism keeps the shape of kinds.json: general, status, sorted by kind", () => {
   const m = mechanism(root, research({}, undefined, { kinds: {
     values: { status: "found", general: { rule: "Round once.", basis: "code", ...c(1, "days(loan)") }, rules: [] },
     snap: { status: "found", general: { rule: "Unproven.", basis: "code", ...c(1, "zzz") }, rules: [] },
@@ -125,10 +125,10 @@ test("mechanism keeps the shape of kinds.json: general, status, unverified, sort
   } }));
   assert.deepEqual(m.errors, []);
   assert.deepEqual(JSON.parse(m.state), {
-    conc: { general: null, status: "not-present", unverified: false },
-    idem: { general: null, status: "absent", unverified: false },
-    snap: { general: "Unproven.", status: "found", unverified: true },
-    values: { general: "Round once.", status: "found", unverified: false },
+    conc: { general: null, status: "not-present" },
+    idem: { general: null, status: "absent" },
+    snap: { general: null, status: "absent" },
+    values: { general: "Round once.", status: "found" },
   });
   assert.match(mechanism(root, research({}, undefined, { kinds: { txn: null, access: { status: "maybe" } } })).errors.join("\n"), /access[\s\S]*txn/);
 });
@@ -143,4 +143,71 @@ test("details.md lists each written rule with the kinds' verdict; a verdict with
   const d = details(r, screens(root, r), mechanism(root, r), root, written);
   assert.match(d, /## Written rules and their verdicts\n\n- values W1 enforced: Round once\. src\/a\.js:1\n- values W2 no-evidence: Never count hours\.\n/);
   assert.ok(!d.includes("W9") && !d.includes("Unjudged") && !d.includes("src/a.js:2 "));
+});
+
+test("kinds.json never holds the text of a mechanism rule whose citation failed; its drop is a line", () => {
+  const m = mechanism(root, { kinds: { snap: { status: "found", general: { rule: "Prices never change after the sale.", basis: "code", ...c(1, "not in the file") }, rules: [{ rule: "Fake detail.", ...c(2, "zzz") }] } } });
+  const snap = JSON.parse(m.state).snap;
+  assert.deepEqual(snap, { general: null, status: "absent" });
+  assert.ok(!m.state.includes("Prices never change") && !m.lines.join("").includes("Prices never change"));
+  assert.deepEqual(m.dropped.map((d) => [d.area, d.what]), [["snap", "general rule: Prices never change after the sale."], ["snap", "rule: Fake detail."]]);
+});
+
+test("a verdict turned into no-evidence gets a dropped line; one that verifies, or was no-evidence, gets none", () => {
+  const m = mechanism(root, research({}, undefined, { kinds: { values: { status: "found", rules: [], verdicts: [
+    { id: "W1", verdict: "enforced", ...c(1, "days(loan)") },
+    { id: "W2", verdict: "contradicted", ...c(2, "zzz") },
+    { id: "W3", verdict: "no-evidence", ...c(2, "zzz") },
+  ] } } }));
+  assert.deepEqual(m.dropped.map((d) => [d.area, d.what]), [["values", "verdict W2 contradicted"]]);
+});
+
+test("render stops when the plain agent, the questions agent or a config agent returned nothing", () => {
+  const a = { truth: area({ general: general("r", "low", c(1, "days(loan)")) }) };
+  assert.match(screens(root, research(a, null)).errors.join("\n"), /plain: agent returned nothing, rerun the Workflow/);
+  assert.match(screens(root, research(a, undefined, { questions: null })).errors.join("\n"), /questions: agent returned nothing, rerun the Workflow/);
+  assert.match(screens(root, research(a, undefined, { topics: { t3: null } })).errors.join("\n"), /topic t3: agent returned nothing, rerun the Workflow/);
+  assert.deepEqual(screens(root, research(a)).errors, []);
+});
+
+test("a verified rule that no shown sentence names is listed in details.md under its own heading", () => {
+  const r = research({
+    truth: area({ general: general("Loans count whole days.", "high", c(1, "days(loan)")) }),
+    state: area({ general: general("Every save goes through one function.", "high", c(2, "late(loan)")), second: { rule: "Second unnamed.", risk: "low", cost: "x", ...c(3, "old(loan)") } }),
+  }, { claims: [claim("Loans count whole days.", "truth")], rest: [] });
+  const s = screens(root, r);
+  const d = details(r, s, mechanism(root, r), root);
+  assert.match(d, /## Rules no sentence shows\n\n- \[state\] Every save goes through one function\..*src\/a\.js:2\n- \[state#2\] Second unnamed\./);
+  assert.ok(!d.split("## Rules no sentence shows")[1].includes("Loans count whole days."));
+});
+
+test("verified sentences of plain.rest fill the free places of screen 1; the left-out line counts what remains", () => {
+  const r = research({ truth: area({ general: general("r", "low", c(1, "days(loan)")) }) }, {
+    claims: [claim("Made up.", "ghost"), claim("Good one.", "truth")],
+    rest: [claim("Spare verified.", "truth"), claim("Spare made up.", "ghost")],
+  });
+  const s = screens(root, r);
+  assert.deepEqual(s.drawer1.map((x) => x.text), ["Good one.", "Spare verified."]);
+  assert.equal(s.drawer1LeftOut.length, 0);
+  assert.equal(s.dropped.filter((d) => d.area === "plain").length, 2);
+});
+
+test("the left-out line of screen 2 says the cut is by kind, then by risk", () => {
+  const low = Array.from({ length: 3 }, (_, i) => [`l${i}`, area({ general: general("r", "low", c(1, "days(loan)")), doubted: [{ rule: "d", why: "w", ...c(2, "late(loan)") }], exceptions: [c(3, "old(loan)", { how: "h" })] })]);
+  const r = research({ ...Object.fromEntries(low), pay: area({ unprotected: [c(2, "late(loan)", { risk: "a charge taken twice" })] }) });
+  const md = render(r, screens(root, r), "abc");
+  assert.match(md, /Left out of this screen: 1 question\(s\), the last in this order: contradicted, doubted, exceptions, unprotected, then the least risky \(unprotected in pay\)/);
+  assert.doesNotMatch(md, /the least risky ones/);
+});
+
+test("a doubted rule with a blank reason is dropped with a line; a doc path in screen 2 is repo-relative", () => {
+  const s = screens(root, research({ truth: area({
+    general: general("r", "low", c(1, "days(loan)")),
+    doubted: [{ rule: "Totals are rounded.", why: "  ", ...c(2, "late(loan)") }],
+    contradicted: [c(2, "late(loan)", { written: "Whole days.", wfile: join(root, "README.md"), wline: 1, wquote: "whole days", how: "hours" })],
+  }) }));
+  assert.deepEqual(s.drawer2.map((g) => g.kind), ["contradicted"]);
+  assert.match(s.dropped.find((d) => /doubted/.test(d.what)).reason, /reason/);
+  assert.ok(!s.drawer2[0].text.includes(root));
+  assert.match(s.drawer2[0].text, /\(README\.md:1\)/);
 });

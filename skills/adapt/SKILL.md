@@ -9,23 +9,22 @@ Before anything else, run `node .xworkflows/mark.mjs adapt` in the shell.
 
 Talk to the owner in the owner's language. Headings in files, config keys and file contents stay in English. Ask the fixed questions below with exactly their meaning; in English, use the exact words.
 
-All questions go through `AskUserQuestion`; the `header` is the item id. You do not know this project yet: research's options are guesses, never a forced choice. The owner can always type a free answer in the line Claude Code shows below the options (in English it reads "Type something"); name it as Claude Code shows it to the owner. `Type something` below means that line. Five styles:
+All questions go through `AskUserQuestion`; the `header` is the item id. You do not know this project yet: research's options are guesses, never a forced choice. The owner can always type a free answer in the line Claude Code shows below the options (in English it reads "Type something"); name it as Claude Code shows it to the owner. `Type something` below means that line. Four styles:
 
 - `open`: options `I don't know` and `Skip: not relevant here`. The question says: `Type your answer in Type something.`
 - `confirm`: One item per question: Yes, No, I don't know. Options `Yes`, `No`, `I don't know`; up to 4 questions per call. Never a multi-select list. Text typed in `Type something` corrects what the question shows.
-- `mechanism`: options `Nothing does today` and `I don't know`. The question says: `Type the mechanism in Type something.`
 - `choice`: the item's `options` when it has them (a drafted option is `{label, description}`: send both), otherwise 2 to 4 options drafted from research or earlier answers.
 - Playback (`Right`, `Wrong`, `Missing something`) is asked where a step says so.
 
 - Every question that is not `confirm` ends with one short note, in the owner's language: `If none fits, or it is something else, type it in Type something.` This includes `choice`, except `H6-r<n>`, whose text already says it: one free-text note per question.
 - Drafted options are suggestions from research, not answers: present them as suggestions, translated into the owner's language, label and description. `(Recommended)` only on an option backed by a verified `file:line` citation in `research.md`, on any style. A guess is never recommended.
-- What the owner types in `Type something` wins over research and over every drafted option. `I don't know` settles the item; so does `Skip: not relevant here`. `I don't know` on a mechanism writes `unprotected: <risk>`.
-- The fixed labels are `Yes`, `No`, `I don't know`, `Skip: not relevant here`, `Nothing does today`, `Right`, `Real, but a bad rule`, `Not how it works`, `Wrong`, `Missing something`, and the `H6-r<n>` labels `Money`, `Data`, `Access`, `No risk`. Only these stay in English: send them verbatim, with the translation in the option `description`.
+- What the owner types in `Type something` wins over research and over every drafted option. `I don't know` settles the item; so does `Skip: not relevant here`.
+- The fixed labels are `Yes`, `No`, `I don't know`, `Skip: not relevant here`, `Right`, `Real, but a bad rule`, `Not how it works`, `Wrong`, `Missing something`, and the `H6-r<n>` labels `Money`, `Data`, `Access`, `No risk`. Only these stay in English: send them verbatim, with the translation in the option `description`.
 
 ## Step 1: Resume
 
 - `.xworkflows/summary.md` has `status: draft`: run `node <base>/research.mjs start` first (it keeps the run), then `node <base>/research.mjs check`. Resume from the draft: skip research, read `.xworkflows/research.md` and `.xworkflows/interview.json`, ask only the ids `check` lists, then heading 8 (`H8-*`) again, then go to step 3's playback.
-- `.xworkflows/summary.md` has `status: approved`: re-adapt. Run step 2 in full (`research.prev.json` holds the research of the last approved summary; `research.mjs done` saved it when that summary was written); `research.mjs queue` then asks only what changed since that run, and missing config keys. Ask them as in step 3. If research changes no line of the approved summary, say so and stop before any playback: no draft, no write, no commit; leave `summary.md` as it is; run `node <base>/research.mjs done`. Otherwise ask heading 8 (`H8-*`) again, as on a first adapt, and write a draft from the approved summary with all eight headings, each changed line marked `(changed)`; play it back as in step 3. In step 4, rewrite only the files whose content changes.
+- `.xworkflows/summary.md` has `status: approved`: re-adapt. Run step 2 in full (`research.prev.json` holds the research of the last approved summary; `research.mjs done` saved it when that summary was written); `research.mjs queue` then the three screens are asked again and only config keys that already have a value are skipped. Ask them as in step 3, then ask heading 8 (`H8-*`) again, as on a first adapt, and write a draft from the approved summary with all eight headings, each changed line marked `(changed)`; play it back as in step 3. In step 4, rewrite only the files whose content changes.
 - No `summary.md`, but `.xworkflows/research.md` has `commit:` equal to `HEAD` (as after `/adapt research-only`): reuse it. With `research-only`, give its path and stop; otherwise run `node <base>/research.mjs start` (it keeps the run of an interrupted first adapt, so its answers count), then `node <base>/research.mjs queue`, then `node <base>/research.mjs check`, and go to step 3: ask only the ids `check` lists.
 - Otherwise: start at step 2.
 
@@ -76,11 +75,9 @@ Questions:
 
 Heading 5:
 
-- The mechanisms research found go straight under heading 5, tagged `(code)` with their `file:line`, and are confirmed in the playback.
+- Mechanism rules are read from `details.md` only when the owner asks for detail: no question and no summary line for them.
 - Each answer becomes a rule line under heading 5, worded as how the code must do something (`stored values stay exact; round once, only when shown`), not only as the outcome to avoid (`never miscalculate money`).
 - Heading 5 groups its rule lines under the risk they prevent, costliest risk first, then `rules tied to no risk`. A risk may be a `###` sub-heading; no `#` or `##` heading inside heading 5.
-- For each found kind, heading 5 has one line `<kind>: <confirmed general rule>`.
-- For each kind `absent` in `.xworkflows/kinds.json` (`no rule found` or `general rule missing` in `research.md`), heading 5 has one line `<kind>: <rule | unprotected: <risk> | not applicable>`. The draft write is denied without it.
 
 ### Zones
 
@@ -106,7 +103,7 @@ The zones question, in plain words:
 
 1. Write the whole summary: the eight headings as `## <n>. <heading>`, plain words, one line per item, as short as it can be without dropping a detail. No line cap. Heading 5 lists every rule, one per line, grouped under the risk it prevents, so the owner can confirm or correct each. Each line ends `(code)`, `(git)` or `(you)`. Heading 6 says, for each zone, why it is or is not a risk path: the `H6-r<n>` answer (`Money`, `Data`, `Access` or `No risk`). After heading 8, a `## Config` block lists each required key and its value. If `docs/BUSINESS.md`, a `.claude/rules/<key>.md` or a `## Project rules` section already exists, then add `## Changes to existing files`: per file, the lines step 4 adds or changes.
 2. Save it to `.xworkflows/summary.md` with front matter `status: draft` and `commit: <sha research read>`. The saved draft leaves heading 8 empty; on resume, ask heading 8 again. A denied write names what is missing: fix that and save again.
-3. Show the owner the summary with a `Hotspots` list first: open doubts, `unprotected:` lines, `unconfirmed:` lines, research's `## Contradicted written rules` (each contradicted rule: the written rule and the code that contradicts it), research's `## Dropped citations` and research's `## Not checked` (one line per kind: the count and the first paths).
+3. Show the owner the summary with a `Hotspots` list first: open doubts, research's `## Dropped` lines, the questions of screen 2 left out, and research's `## Not checked` (the first lines).
 4. Ask `P-H1` to `P-H7`, one per heading 1 to 7, 4 per call: header = the id, question `<heading>: right, wrong, or missing something?`, options `Right`, `Wrong`, `Missing something`, none recommended. The playback asks each heading in the owner's language; the canonical English heading stays in `summary.md`. No other options, and no `Type something` note. `P-H6` also covers the zones, the risk paths and the `## Config` block.
 5. On `Wrong`, `Missing something` or text typed in `Type something`: ask `P-H<n>-fix`, `open`: `What should change under <heading>?`. Fix the heading from that answer, save the draft, show that heading again with each changed line marked `(changed)`, and ask `P-H<n>` again. No cap.
 6. When the last answer of each of `P-H1` to `P-H7` is `Right`, run `node <base>/research.mjs check --approved`. If it lists ids, ask them and run it again. When it exits 0, the interview ends. Go to step 4.
@@ -151,8 +148,13 @@ What each answer writes (the playback shows it, step 4 writes it):
 
 - `Right`: the full rule from `details.md`, under heading 5.
 - `Real, but a bad rule` and `You are right` (on a doubted rule): a card through the `pending` skill, and no rule.
-- `Keep it, because ...`: the rule, with the reason.
-- `Not how it works`: nothing is written; the log keeps the answer.
+- `Keep it, because ...`: the rule, with the reason; with no reason, ask for the reason once.
+- `The written rule`: that rule and a card to change the code.
+- `The code`: the code's rule and a card to change the doc.
+- `Mistake: fix it`: the rule and one card per place.
+- `Exception: keep it`: the rule with its exceptions named.
+- `Not on purpose: protect it`: a card.
+- `Not how it works`, `On purpose` and `I don't know`: nothing; the log keeps them.
 
 Then commit, without asking (the owner already approved the content):
 

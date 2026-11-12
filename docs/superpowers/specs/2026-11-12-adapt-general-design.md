@@ -48,6 +48,7 @@ The profile agent runs first. Then, at once: the readers of the docs, the reader
 - The mechanism agents are the shipped ones (decision 4, the method already measured). Their rules feed the detail only, never screen 1.
 - An area's answer gains `doubted`: at most one rule the code follows that the agent has a reason to doubt, with the reason and one citation.
 - The `plain` agent (way A) reads the areas' rules and returns sentences in the owner's language: one idea, 14 words at most, each naming the rules it comes from. It never widens a rule. Ideas beyond 12 are returned in a second list, never dropped.
+- The six topic agents of the prototype stay, under `topics`: three of them propose the values of the config keys, and their lines feed `H2-pays` and the questions of screen 3. Their cost is judged in the measure.
 - Agents judge. Scripts verify, cap and order; they judge nothing.
 
 ### Render
@@ -57,12 +58,17 @@ The profile agent runs first. Then, at once: the readers of the docs, the reader
 - A sentence is shown only when a rule it names has a verified citation. One over 14 words, or naming no rule, goes under "Dropped" with its reason.
 - Screen 2, in this order: a written rule the code contradicts; a doubted rule; a rule with exceptions; a risk with no protection. Six at most, then the left-out line.
 - Screen 3: the nine questions of the prototype, each with the options research proposes.
+- Nothing verified is lost without a line: a verified rule that no shown sentence names is listed in the detail file, and when screen 1 has free places the verified sentences of `rest` fill them.
+- What did not verify never counts as found: a mechanism rule whose citation fails makes its kind absent and gets a line under "Dropped"; a doubted rule with no reason is dropped; an agent that returned nothing stops `render`.
 
 ### Interview
 
 - Screen 1: one question per sentence, four per dialog call: `Right`, `Real, but a bad rule`, `Not how it works`, `I don't know`.
 - Screens 2 and 3: the questions as rendered; the dialog's free text takes the owner's own answer.
 - What an answer writes: `Right` writes the full rule from the detail. `Real, but a bad rule` and `You are right` write a card with the `pending` skill and no rule. `Keep it, because ...` writes the rule with the reason. `Not how it works` writes nothing and is logged.
+- What a screen 2 answer writes: `The written rule` writes that rule and a card to change the code; `The code` writes the code's rule and a card to change the doc; `Mistake: fix it` writes the rule and one card per place; `Exception: keep it` writes the rule with its exceptions named; `Not on purpose: protect it` writes a card; `On purpose` and `I don't know` write nothing and are logged. `Keep it, because ...` with no reason asks for the reason once.
+- The mechanism kinds are detail only: no question and no summary line per kind, and the gate asks for none.
+- A re-adaptation asks the three screens again; it skips only the config keys that already have a value.
 - Research proposes a value for every required config key, with its evidence; the playback shows them, and the interview does not end while one is missing.
 - After the three screens come the shipped questions that no screen asks, unchanged, with their follow-ups: `H1-what`, `H2-pays`, the zones (`H6-zones`, `H6-r<n>`), the way of working (`H7-*`), the reply preferences and the budget (`H8-*`) and the config keys (`C<n>`). The shipped questions the screens replace go away: `H2-refused`, `H3-*`, `H4-*`, `H5-*`.
 - Every agent that reads the repository keeps the shipped rules for it: the code index first, and history without content (`git show <sha>:<path>`, never a content diff).
@@ -84,7 +90,7 @@ The Workflow returns what the prototype's script returns (branch `phase-1-adapt-
 
 ### Removed
 
-The six topic agents and the queue built from topics and kinds. Their tests are replaced in the same commit, never left failing.
+The queue built from topics and kinds, and the questions about mechanism kinds. Their tests are replaced in the same commit, never left failing.
 
 ## Measure
 

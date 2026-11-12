@@ -97,7 +97,7 @@ const QUESTIONS = {
   "G-3m": "where the project should be in about 3 months",
   "G-12m": "where it should be in about 12 months",
   "G-36m": "where it should be in about 36 months",
-  "G-provisional": "which part of today's code is provisional because of those goals",
+  "G-interim": "given those goals, which part of today's code is provisional",
 };
 const QUESTION_SCHEMA = {
   type: "object",
