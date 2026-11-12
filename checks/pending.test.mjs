@@ -118,7 +118,7 @@ test("a missing pending file with nothing to check passes", withRepo({}, async (
   assert.deepEqual(await r.run(pending), { ok: true, lines: [] });
 }));
 
-for (const name of ["migración.md", "con espacio.md"]) {
+for (const name of ["mïgration.md", "with space.md"]) {
   test(`rule 3 fails for a plan named "${name}" without the list`, withRepo({}, async (r) => {
     r.commit("write plan", { files: { [`docs/superpowers/plans/${name}`]: "plan\n" } });
     const res = await r.run(pending);

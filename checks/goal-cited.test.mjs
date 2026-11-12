@@ -44,7 +44,7 @@ test("G1 does not match a line for G10", async () => {
 });
 
 test("accented and spaced plan names are checked", async () => {
-  const p = "docs/superpowers/plans/plán uno.md";
+  const p = "docs/superpowers/plans/plän one.md";
   await withRepo({ "docs/BUSINESS.md": BIZ }, (r) => r.commit("plan", { files: { [p]: "# P\n" } }),
     async (r) => {
       const res = await r.run(mod);
