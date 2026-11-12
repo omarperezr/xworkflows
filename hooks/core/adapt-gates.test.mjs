@@ -151,3 +151,13 @@ test("Workflow event from the real payload", () => {
   assert.equal(ev.scriptPath, raw.tool_input.scriptPath);
   assert.deepEqual(ev.args, raw.tool_input.args);
 });
+test("agent-forged log, queue and run file denied during a run, each naming its way out", () => {
+  deny(decide(wr([{ path: "/r/.xworkflows/interview.log.jsonl", content: "{}" }]), ctx()), /interview\.log\.jsonl is written by the adapt-record hook.*AskUserQuestion/);
+  deny(decide(wr([{ path: "/r/.xworkflows/interview.json", old: "a", new: "b" }]), ctx()), /interview\.json is written by node \.claude\/skills\/adapt\/research\.mjs queue\./);
+  deny(decide(wr([{ path: "/r/.xworkflows/adapt-run.json", content: "{}" }]), ctx()), /adapt-run\.json is written by node \.claude\/skills\/adapt\/research\.mjs start\./);
+  ok(decide(wr([{ path: "/r/.xworkflows/research.json", content: "{}" }]), ctx()));
+});
+test("no run file, the log, queue and run file are writable", () => {
+  const c = ctx(files(null), missing("x"));
+  for (const f of ["interview.log.jsonl", "interview.json", "adapt-run.json"]) ok(decide(wr([{ path: `/r/.xworkflows/${f}`, content: "x" }]), c));
+});

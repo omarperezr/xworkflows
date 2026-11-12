@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { cpSync, mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync, existsSync } from "node:fs";
+import { cpSync, mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync, existsSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname, extname } from "node:path";
 import { execFileSync } from "node:child_process";
@@ -384,4 +384,61 @@ test("test files never give kind hits", () => {
   const files = new Set(allHits(scan(d)).map((h) => h.file));
   for (const p of T) assert.ok(!files.has(p), p);
   assert.ok(files.has(src));
+});
+
+const cli = (d) => { try { execFileSync("node", [join(HERE, "scan.mjs"), d], { stdio: "pipe", timeout: 15000 }); return 0; } catch (e) { return e.status; } };
+
+test("a .graphifyignore symlink is neither read nor written", () => {
+  const d = tmp(), out = tmp();
+  put(out, "outside", "keep\n");
+  put(d, "node_modules/a/i.js", "x\n");
+  put(d, "a.js", "x.toFixed(2);\n");
+  symlinkSync(join(out, "outside"), join(d, ".graphifyignore"));
+  commit(d);
+  scan(d);
+  assert.equal(readFileSync(join(out, "outside"), "utf8"), "keep\n");
+});
+
+test("an owner's .graphifyignore keeps its bytes; new entries are appended", () => {
+  const d = tmp();
+  const own = "# mine\n\n  docs/  \ndocs/\n\nvendor2";
+  put(d, ".graphifyignore", own);
+  put(d, "node_modules/a/i.js", "x\n");
+  commit(d);
+  scan(d);
+  const got = readFileSync(join(d, ".graphifyignore"), "utf8");
+  assert.ok(got.startsWith(own + "\n"));
+  assert.ok(got.includes("node_modules/"));
+});
+
+test("scan refuses to write through a .xworkflows symlink", () => {
+  const d = tmp(), out = tmp();
+  put(d, "a.js", "x.toFixed(2);\n");
+  symlinkSync(out, join(d, ".xworkflows"));
+  assert.equal(cli(d), 1);
+  assert.equal(existsSync(join(out, "scan.json")), false);
+});
+
+test("tracked symlinks are not read", () => {
+  const d = tmp(), out = tmp();
+  put(out, "o.js", "x.toFixed(2);\n");
+  put(d, "a.js", "x.toFixed(2);\n");
+  symlinkSync(join(out, "o.js"), join(d, "link.js"));
+  commit(d);
+  assert.deepEqual(scan(d).kinds.values.hits.map((h) => h.file), ["a.js"]);
+  execFileSync("mkfifo", [join(out, "pipe")]);
+  symlinkSync(join(out, "pipe"), join(d, "pipe.js"));
+  git(d, "add", "-A");
+  git(d, "commit", "-q", "-m", "y");
+  assert.equal(cli(d), 0);
+});
+
+test("a package folder inside a repository honors git ignore and stays relative", () => {
+  const top = tmp(), d = join(top, "pkg");
+  put(top, ".gitignore", "secret.js\n");
+  put(d, "a.js", "x.toFixed(2);\n");
+  put(d, "secret.js", "x.toFixed(2);\n");
+  put(top, "other.js", "x.toFixed(2);\n");
+  git(top, "init", "-q"); git(top, "add", "-A"); git(top, "commit", "-q", "-m", "x");
+  assert.deepEqual(scan(d).kinds.values.hits.map((h) => h.file), ["a.js"]);
 });

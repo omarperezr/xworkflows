@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { cpSync, mkdtempSync, mkdirSync, writeFileSync, readFileSync } from "node:fs";
+import { cpSync, mkdtempSync, mkdirSync, writeFileSync, readFileSync, symlinkSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { execFileSync } from "node:child_process";
@@ -217,4 +217,30 @@ test("utility-class sentences are not mechanism rules", () => {
   const r = collectRules(d);
   assert.deepEqual(find(r, /panel/).kinds, []);
   assert.ok(find(r, /owner role/).kinds.includes("access"));
+});
+
+test("tracked symlinks and files outside a git top are not read", () => {
+  const d = tmp(), out = tmp();
+  put(out, "n.md", "Every write must run in one transaction.\n");
+  put(d, "docs/a.md", "Every write must run in one transaction.\n");
+  symlinkSync(join(out, "n.md"), join(d, "docs/notes.md"));
+  commit(d);
+  assert.deepEqual(collectRules(d).rules.map((x) => x.file), ["docs/a.md"]);
+});
+
+test("a package folder inside a repository skips git-ignored files", () => {
+  const top = tmp(), d = join(top, "pkg");
+  put(top, ".gitignore", "secret.md\n");
+  put(d, "docs/a.md", "Every write must run in one transaction.\n");
+  put(d, "docs/secret.md", "Every write must run in one transaction.\n");
+  git(top, "init", "-q"); git(top, "add", "-A"); git(top, "commit", "-q", "-m", "x");
+  assert.deepEqual(collectRules(d).rules.map((x) => x.file), ["docs/a.md"]);
+});
+
+test("rules refuses to write through a .xworkflows symlink", () => {
+  const d = tmp(), out = tmp();
+  put(d, "docs/a.md", "Every write must run in one transaction.\n");
+  symlinkSync(out, join(d, ".xworkflows"));
+  assert.throws(() => execFileSync("node", [join(HERE, "rules.mjs"), d], { stdio: "pipe" }));
+  assert.equal(existsSync(join(out, "rules.json")), false);
 });

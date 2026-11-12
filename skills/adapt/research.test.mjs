@@ -740,3 +740,26 @@ test("absolute citations inside the root render repo-relative", () => {
   assert.match(out.md, /- general: Round once, only when shown \(both\) a\.js:2/);
   assert.ok(!out.md.includes(d));
 });
+
+test("start git-ignores the run's private files from the first question", async () => {
+  const { execFileSync } = await import("node:child_process");
+  const { mkdtempSync, mkdirSync, writeFileSync, appendFileSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const g = (r, ...a) => execFileSync("git", a, { cwd: r, encoding: "utf8" });
+  const start = (r) => execFileSync("node", [new URL("./research.mjs", import.meta.url).pathname, "start", r], { cwd: r, encoding: "utf8" });
+  const r = mkdtempSync(join(tmpdir(), "adapt-ign-"));
+  g(r, "init", "-q"); writeFileSync(join(r, "a.txt"), "a");
+  g(r, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qam", "x", "--allow-empty"); g(r, "add", "a.txt");
+  g(r, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "a");
+  start(r);
+  for (const f of ["research.md", "research.json", "research.prev.json", "scan.json", "interview.json", "rules.json", "kinds.json"]) writeFileSync(join(r, ".xworkflows", f), "{}");
+  appendFileSync(join(r, ".xworkflows", "interview.log.jsonl"), '{"run":"x"}\n');
+  assert.equal(g(r, "status", "--porcelain", "--untracked-files=all"), "");
+  const r2 = mkdtempSync(join(tmpdir(), "adapt-ign-"));
+  g(r2, "init", "-q"); writeFileSync(join(r2, "a.txt"), "a"); g(r2, "add", "a.txt");
+  g(r2, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "a");
+  mkdirSync(join(r2, ".xworkflows")); writeFileSync(join(r2, ".xworkflows", ".gitignore"), "mine\n");
+  start(r2);
+  assert.equal(readFileSync(join(r2, ".xworkflows", ".gitignore"), "utf8"), "mine\n");
+});

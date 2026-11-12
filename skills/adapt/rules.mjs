@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 // No-LLM collection of the rules a project wrote down: normative sentences from docs and code comments.
 // Standalone: node: built-ins and ./scan.mjs only (it is copied into projects beside scan.mjs).
-import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { join, extname } from "node:path";
 import { pathToFileURL } from "node:url";
-import { projectFiles } from "./scan.mjs";
+import { projectFiles, isFile, outDir } from "./scan.mjs";
 
 const MAX = 400, CUT = 300, PER_FILE = 40, PER_KIND = 15; // PER_KIND: the kind prompt and render read the same cap
 const RANK = ["PRODUCT", "DESIGN", "ARCHITECTURE", "CONTRIBUTING", "AGENTS|CLAUDE", "docs/", "README", ""];
@@ -112,6 +112,7 @@ export function collectRules(root) {
     const isDoc = DOCS.test(p) && DOC_EXT.includes(ext);
     if (!isDoc && !CODE_EXT.includes(ext)) continue;
     let buf;
+    if (!isFile(join(root, p))) continue;
     try { buf = readFileSync(join(root, p)); } catch { continue; }
     if (buf.subarray(0, 8000).includes(0) || buf.length > 1 << 20) continue;
     const text = buf.toString("utf8");
@@ -133,7 +134,7 @@ export function collectRules(root) {
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const root = process.argv[2] || ".";
   const r = collectRules(root);
-  mkdirSync(join(root, ".xworkflows"), { recursive: true });
+  outDir(root);
   writeFileSync(join(root, ".xworkflows/rules.json"), JSON.stringify(r, null, 2) + "\n");
   console.log(`rules: ${r.rules.length}`);
 }

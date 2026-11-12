@@ -221,6 +221,8 @@ function cli(cmd, root) {
   const prev = join(dir, "research.prev.json");
   if (cmd === "start") {
     mkdirSync(dir, { recursive: true });
+    // The owner's answers land here from the first question; ignore them now, not at step 4.
+    try { writeFileSync(join(dir, ".gitignore"), [".gitignore", "research.md", "research.json", "research.prev.json", "scan.json", "interview.json", "interview.log.jsonl", "adapt-run.json", "rules.json", "kinds.json"].join("\n") + "\n", { flag: "wx" }); } catch {}
     const commit = git(root, ["rev-parse", "HEAD"]);
     const status = statusOf(summary);
     let old = null;
