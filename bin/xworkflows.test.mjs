@@ -1504,3 +1504,40 @@ test("install: a second install after the marker was written changes nothing", (
   assert.equal(tree(r), before);
   assert.equal(readFileSync(join(r, ".xworkflows/installed.json"), "utf8"), rec);
 });
+
+test("install does not write the .qmd/xworkflows marker through a symlink", () => {
+  const o = tmp("xwf-out-"); writeFileSync(join(o, "outside.txt"), "mine\n");
+  const r = repo(); mkdirSync(join(r, ".qmd")); symlinkSync(join(o, "outside.txt"), join(r, ".qmd/xworkflows"));
+  const out = cli(r, ["install", "--yes"]);
+  assert.equal(readFileSync(join(o, "outside.txt"), "utf8"), "mine\n");
+  assert.match(out.stdout, /^not written \(symlink\): \.qmd\/xworkflows$/m);
+});
+test("install: a plain .qmd/xworkflows the user already has is left byte for byte", () => {
+  const r = repo({ ".qmd/xworkflows": "mine\r\n" });
+  assert.equal(inst(r).status, 0);
+  assert.equal(readFileSync(join(r, ".qmd/xworkflows"), "utf8"), "mine\r\n");
+});
+test("uninstall: a .qmd linked out of the repository keeps its marker, yml and database", () => {
+  const o = tmp("xwf-out-");
+  for (const f of ["xworkflows", "index.yml", "index.sqlite"]) writeFileSync(join(o, f), "x");
+  const r = repo(); inst(r); rmSync(join(r, ".qmd"), { recursive: true }); symlinkSync(o, join(r, ".qmd"));
+  assert.equal(cli(r, ["uninstall"]).status, 0);
+  for (const f of ["xworkflows", "index.yml", "index.sqlite"]) assert.ok(existsSync(join(o, f)), f);
+});
+test("uninstall: with no marker an empty yml named by the record stays and is reported", () => {
+  const r = repo(); inst(r);
+  rmSync(join(r, ".qmd/xworkflows")); writeFileSync(join(r, ".qmd/index.yml"), "{}\n");
+  const f = join(r, ".xworkflows/installed.json"), rec = JSON.parse(readFileSync(f, "utf8"));
+  rec.created.push(".qmd/index.yml"); writeFileSync(f, JSON.stringify(rec));
+  const out = cli(r, ["uninstall"]);
+  assert.match(out.stdout, /^kept \(not ours\): \.qmd\/index\.yml$/m);
+  assert.ok(existsSync(join(r, ".qmd/index.yml")));
+});
+test("uninstall: a plain file .qmd stops nothing and stays", () => {
+  const r = repo({ ".xworkflows/config.json": JSON.stringify({ memory: { index: "mine" } }), ".qmd": "mine\n" });
+  assert.equal(inst(r).status, 0);
+  const out = cli(r, ["uninstall"]);
+  assert.equal(out.status, 0, out.stderr);
+  assert.ok(!existsSync(join(r, ".xworkflows/installed.json")));
+  assert.equal(readFileSync(join(r, ".qmd"), "utf8"), "mine\n");
+});

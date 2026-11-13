@@ -407,7 +407,8 @@ export function plan(manifest, root, record, ans = {}) {
     if (!existsSync(join(root, md)) && !off(md)) merges.push({ path: md, text: null, dir: true, verb: "create", rec: { created: [md] } });
     qmd = !mem.index && !localYml(root) && !off(YML);
     if (qmd) merges.push({ path: YML, text: `collections:\n  memory:\n    path: ${JSON.stringify(resolve(root, md))}\n    pattern: "**/*.md"\n`, verb: "write", rec: {} });
-    if (qmd) merges.push({ path: QMARK, text: MARK_TEXT, verb: "write", rec: {} });
+    // the marker passes the yml's test and is never written over something that is there
+    if (qmd && !off(QMARK) && !lstatSync(join(root, QMARK), { throwIfNoEntry: false })) merges.push({ path: QMARK, text: MARK_TEXT, verb: "write", rec: {} });
   }
   if (!off(SETTINGS)) merges.push(mergeSettings(root, manifest, record));
   if (!off(LOCAL)) { const local = mergeLocal(root); if (local.note) notes.push(local.note); merges.push(local); }
@@ -727,7 +728,7 @@ function uninstall() {
     scalars: (x) => (x.file === SETTINGS && isDeepStrictEqual(x.key, ["attribution"])) || (x.file === LOCAL && isDeepStrictEqual(x.key, [LOCAL_KEY])),
     blocks: (b) => b.file === "AGENTS.md",
     imports: (i) => !!LINES.get(i.file)?.includes(i.line),
-    created: (p) => FIVE.includes(p) || p === YML || p === md,
+    created: (p) => FIVE.includes(p) || p === md,
     chained: (c) => hookSet.has(c.file) && c.to === c.file + ".before-xworkflows",
   };
   const said = new Set();
@@ -827,7 +828,9 @@ function uninstall() {
     if (empty && !rec.kept.includes(p)) { rm(p); out.push(`deleted ${p}`); }
   }
   // the marker, not the record, says this checkout's install wrote the yml
-  if (lstatSync(join(ROOT, QMARK), { throwIfNoEntry: false })?.isFile() && clean(ROOT, QMARK)) {
+  let marked = false;
+  try { marked = lstatSync(join(ROOT, QMARK), { throwIfNoEntry: false })?.isFile() && clean(ROOT, QMARK); } catch {} // .qmd is a plain file
+  if (marked) {
     for (const f of [YML, ".qmd/index.sqlite", ".qmd/index.sqlite-wal", ".qmd/index.sqlite-shm", QMARK]) if (lstatSync(join(ROOT, f), { throwIfNoEntry: false })?.isFile()) rm(f);
   }
   const ir = ".xworkflows/installed.json";
