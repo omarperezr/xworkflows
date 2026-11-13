@@ -1,10 +1,13 @@
-import { mkdtempSync, readFileSync } from "node:fs";
+import { mkdtempSync as makeTmp, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { makeRepo } from "../test/helpers/repo.mjs";
 import * as brake from "./project.mjs";
+const madeTmp = [];
+const mkdtempSync = (p) => { const d = makeTmp(p); madeTmp.push(d); return d; };
+test.after(() => { for (const d of madeTmp) rmSync(d, { recursive: true, force: true }); });
 
 const withRepo = async (list, fn, files) => {
   const repo = makeRepo({ config: { checks: { project: list } }, files });

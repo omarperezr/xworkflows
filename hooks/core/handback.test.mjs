@@ -1,11 +1,14 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, readdirSync } from "node:fs";
+import { mkdtempSync as makeTmp, readFileSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { decide } from "./handback.mjs";
 import { DEFAULTS } from "./config.mjs";
+const madeTmp = [];
+const mkdtempSync = (p) => { const d = makeTmp(p); madeTmp.push(d); return d; };
+test.after(() => { for (const d of madeTmp) rmSync(d, { recursive: true, force: true }); });
 
 const config = { ...DEFAULTS, owner: "Ana", roles: { ...DEFAULTS.roles, implementers: ["implement", "mechanical"], reviewer: "review", riskReviewer: "risk-review", verifier: "verify-finding" } };
 const fake = () => { const m = new Map(); return { config, state: (k) => m.get(k) ?? null, save: (k, v) => m.set(k, String(v)), m }; };

@@ -1,11 +1,14 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, writeFileSync, mkdirSync, existsSync, symlinkSync, realpathSync } from "node:fs";
+import { mkdtempSync as makeTmp, readFileSync, writeFileSync, mkdirSync, existsSync, symlinkSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir, homedir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { makeCtx, outsideLine } from "./ctx.mjs";
 import { DEFAULTS } from "./config.mjs";
+const madeTmp = [];
+const mkdtempSync = (p) => { const d = makeTmp(p); madeTmp.push(d); return d; };
+test.after(() => { for (const d of madeTmp) rmSync(d, { recursive: true, force: true }); });
 
 const tmp = () => mkdtempSync(join(tmpdir(), "xwf-ctx-"));
 const mk = (root = tmp(), stateDir = tmp(), session = "s1") => ({ root, stateDir, c: makeCtx({ root, session }, { env: {}, config: DEFAULTS, stateDir }) });

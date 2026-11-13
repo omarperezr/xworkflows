@@ -1,10 +1,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, symlinkSync, renameSync } from "node:fs";
+import { mkdtempSync as makeTmp, mkdirSync, writeFileSync, readFileSync, existsSync, symlinkSync, renameSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { decide } from "./adapt-record.mjs";
 import { normalize } from "../adapters/claude.mjs";
+const madeTmp = [];
+const mkdtempSync = (p) => { const d = makeTmp(p); madeTmp.push(d); return d; };
+test.after(() => { for (const d of madeTmp) rmSync(d, { recursive: true, force: true }); });
 
 const raw = JSON.parse(readFileSync(join(import.meta.dirname, "..", "fixtures/claude/ask-post-real.json"), "utf8")).input;
 const setup = (run) => {

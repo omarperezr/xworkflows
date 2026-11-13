@@ -1,11 +1,14 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { cpSync, mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync, existsSync, symlinkSync, truncateSync } from "node:fs";
+import { cpSync, mkdtempSync as makeTmp, mkdirSync, writeFileSync, readFileSync, readdirSync, existsSync, symlinkSync, truncateSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname, extname, relative, sep } from "node:path";
 import { execFileSync, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { KINDS, scan, proposeZones, sqlInventory } from "./scan.mjs";
+const madeTmp = [];
+const mkdtempSync = (p) => { const d = makeTmp(p); madeTmp.push(d); return d; };
+test.after(() => { for (const d of madeTmp) rmSync(d, { recursive: true, force: true }); });
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = join(HERE, "../..");

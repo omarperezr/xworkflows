@@ -488,7 +488,9 @@ test("a screen 2 item with a blank how or risk is dropped with a line, never ask
 });
 
 test("a citation spelled through a link of the project root, or through its real path, verifies and is shown repo-relative", () => {
-  const link = join(mkdtempSync(join(tmpdir(), "xwf-link-")), "p");
+  const linkDir = mkdtempSync(join(tmpdir(), "xwf-link-"));
+  test.after(() => rmSync(linkDir, { recursive: true, force: true }));
+  const link = join(linkDir, "p");
   symlinkSync(root, link);
   const real = realpathSync(root);
   for (const [base, file] of [[link, join(real, "src/a.js")], [real, join(link, "src/a.js")], [link, join(link, "src/a.js")]]) {

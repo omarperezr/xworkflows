@@ -1,11 +1,14 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, writeFileSync, symlinkSync, realpathSync, rmSync, readFileSync, existsSync } from "node:fs";
+import { mkdtempSync as makeTmp, mkdirSync, writeFileSync, symlinkSync, realpathSync, rmSync, readFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { decide } from "./adapt-gates.mjs";
 import { normalize } from "../adapters/claude.mjs";
+const madeTmp = [];
+const mkdtempSync = (p) => { const d = makeTmp(p); madeTmp.push(d); return d; };
+test.after(() => { for (const d of madeTmp) rmSync(d, { recursive: true, force: true }); });
 
 const HEADS = ["What it is", "Who pays, what is sold, what is not done", "Aspirations at about 3, 12 and 36 months", "Risks, the costliest mistake first", "What must not change; what is free to change", "Zones and which paths are risk paths", "How the owner works", "About you"];
 const summary = (status, five = "") => `---\nstatus: ${status}\n---\n` + HEADS.map((h, i) => `## ${i + 1}. ${h}\n${i === 4 ? five : ""}\n`).join("");
@@ -82,7 +85,7 @@ test("run.mjs: a check that cannot run lets the call through and says so", () =>
   mkdirSync(join(d, ".xworkflows"));
   writeFileSync(join(d, ".xworkflows/adapt-run.json"), JSON.stringify(fresh));
   const input = { session_id: "s", cwd: d, tool_name: "Write", tool_input: { file_path: join(d, ".xworkflows/summary.md"), content: summary("draft", FIVE) } };
-  const r = spawnSync("node", [join(import.meta.dirname, "..", "run.mjs"), "claude", "adapt-gates"], { input: JSON.stringify(input), encoding: "utf8", env: { ...process.env, XWORKFLOWS_FREE: "" } });
+  const r = spawnSync("node", [join(import.meta.dirname, "..", "run.mjs"), "claude", "adapt-gates"], { input: JSON.stringify(input), encoding: "utf8", env: { ...process.env, XWORKFLOWS_FREE: "", XWORKFLOWS_STATE_DIR: mkdtempSync(join(tmpdir(), "xwf-state-")) } });
   assert.equal(r.stdout, "");
   assert.match(r.stderr, /xworkflows: adapt check could not run/);
 });
@@ -117,7 +120,7 @@ test("scriptPath compared after realpath", () => {
   const link = join(real, "..", `xwf-link-${Date.now()}`);
   symlinkSync(real, link);
   const f = { [join(real, ".xworkflows/adapt-run.json")]: JSON.stringify(fresh), [join(real, ".xworkflows/scan.json")]: JSON.stringify(scan) };
-  ok(decide(wf({ root: real, scriptPath: join(link, ".claude/skills/adapt/research.workflow.js") }), { ...ctx(f) }));
+  try { ok(decide(wf({ root: real, scriptPath: join(link, ".claude/skills/adapt/research.workflow.js") }), { ...ctx(f) })); } finally { rmSync(link); }
 });
 test("translated label is not a pick", () => {
   const d = mkdtempSync(join(tmpdir(), "xwf-g-"));

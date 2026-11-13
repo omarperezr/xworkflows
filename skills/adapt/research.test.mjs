@@ -2,10 +2,13 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, writeFileSync, existsSync, rmSync, utimesSync, symlinkSync } from "node:fs";
+import { mkdtempSync as makeTmp, mkdirSync, writeFileSync, existsSync, rmSync, utimesSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { sum, verifyCitation, buildQueue, missing } from "./research.mjs";
+const madeTmp = [];
+const mkdtempSync = (p) => { const d = makeTmp(p); madeTmp.push(d); return d; };
+test.after(() => { for (const d of madeTmp) rmSync(d, { recursive: true, force: true }); });
 
 const KINDS = ["values", "snap", "srvw", "delta", "idem", "txn", "access", "batch", "domain", "compat", "conc", "input"];
 const MJS = new URL("./research.mjs", import.meta.url).pathname;
@@ -351,7 +354,7 @@ test("check and queue fail with one line, not a stack, and skip a truncated log 
 
 test("start git-ignores the run's private files from the first question", async () => {
   const { execFileSync } = await import("node:child_process");
-  const { mkdtempSync, mkdirSync, writeFileSync, appendFileSync } = await import("node:fs");
+  const { mkdirSync, writeFileSync, appendFileSync } = await import("node:fs");
   const { tmpdir } = await import("node:os");
   const { join } = await import("node:path");
   const g = (r, ...a) => execFileSync("git", a, { cwd: r, encoding: "utf8" });

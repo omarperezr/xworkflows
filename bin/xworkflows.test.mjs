@@ -2,10 +2,13 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { appendFileSync, chmodSync, cpSync, existsSync, lstatSync, lutimesSync, mkdtempSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
+import { appendFileSync, chmodSync, cpSync, existsSync, lstatSync, lutimesSync, mkdtempSync as makeTmp, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, dirname, join, relative } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+const madeTmp = [];
+const mkdtempSync = (p) => { const d = makeTmp(p); madeTmp.push(d); return d; };
+test.after(() => { for (const d of madeTmp) rmSync(d, { recursive: true, force: true }); });
 
 // the developer's own git config never reaches a test
 const ISO = { GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_SYSTEM: "/dev/null" };
@@ -194,8 +197,8 @@ test("adapt-gates denies a shell redirect into the summary, sent as the runner s
   const r = repo();
   cli(r, ["install"]);
   writeJson(r, ".xworkflows/adapt-run.json", { startedAt: Date.now() });
-  const env = { ...process.env, CLAUDE_PROJECT_DIR: r };
-  for (const k of ["XWORKFLOWS_FREE", "XWORKFLOWS_RECORD", "XWORKFLOWS_STATE_DIR"]) delete env[k];
+  const env = { ...process.env, CLAUDE_PROJECT_DIR: r, XWORKFLOWS_STATE_DIR: mkdtempSync(join(tmpdir(), "xwf-state-")) };
+  for (const k of ["XWORKFLOWS_FREE", "XWORKFLOWS_RECORD"]) delete env[k];
   const send = (command) => JSON.parse(spawnSync("node", [join(r, ".xworkflows/hooks/run.mjs"), "claude", "adapt-gates"], { cwd: r, encoding: "utf8", env,
     input: JSON.stringify({ session_id: "s1", cwd: r, hook_event_name: "PreToolUse", tool_name: "Bash", tool_input: { command } }) }).stdout || "{}");
   assert.equal(send("echo x > .xworkflows/summary.md").hookSpecificOutput.permissionDecision, "deny");
@@ -659,8 +662,8 @@ test("design-first deny names xwf-grill after a rename", () => {
   cli(r, ["install", "--yes"]);
   const ev = JSON.stringify({ session_id: "s1", cwd: r, hook_event_name: "PreToolUse", tool_name: "Write",
     tool_input: { file_path: join(r, "docs/superpowers/specs/x.md"), content: "# x\n" } });
-  const env = { ...process.env, CLAUDE_PROJECT_DIR: r };
-  for (const k of ["XWORKFLOWS_FREE", "XWORKFLOWS_RECORD", "XWORKFLOWS_STATE_DIR"]) delete env[k];
+  const env = { ...process.env, CLAUDE_PROJECT_DIR: r, XWORKFLOWS_STATE_DIR: mkdtempSync(join(tmpdir(), "xwf-state-")) };
+  for (const k of ["XWORKFLOWS_FREE", "XWORKFLOWS_RECORD"]) delete env[k];
   const out = spawnSync("node", [join(r, ".xworkflows/hooks/run.mjs"), "claude", "design-first"], { input: ev, cwd: r, encoding: "utf8", env });
   assert.match(JSON.parse(out.stdout).hookSpecificOutput.permissionDecisionReason, /^Run \/xwf-grill/);
 });
