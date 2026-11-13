@@ -65,13 +65,13 @@
       "claude": [
         {
           "event": "PreToolUse",
-          "matcher": "Write|Edit|MultiEdit|Workflow"
+          "matcher": "Write|Edit|MultiEdit|Workflow|Bash"
         }
       ],
       "files": {
-        "hooks/core/adapt-gates.mjs": "439a609adabbf78a1841b4b41ba0c7013728d3ddf7265fe8b90c524df6eaa025"
+        "hooks/core/adapt-gates.mjs": "1ff68c0157f42d5a7776857f755d6ca427276988ceb6ffbc58fdfb956d44a137"
       },
-      "sha256": "986c5468a064660aa758935fbf8a5f716b55e6af5f4495617a81fd3585fc1e67"
+      "sha256": "b304f14d231fb15349308c52ee62555341646d6a04ef5dc346f77dc85f2b37d7"
     },
     {
       "id": "adapt-record",

@@ -160,3 +160,14 @@ test("no run file, the log, queue and run file are writable", () => {
   const c = ctx(files(null), missing("x"));
   for (const f of ["interview.log.jsonl", "interview.json", "adapt-run.json"]) ok(decide(wr([{ path: `/r/.xworkflows/${f}`, content: "x" }]), c));
 });
+
+const sh = (command) => ({ event: "preTool", tool: "Bash", kind: "shell", session: "s", root: "/r", command });
+test("a shell redirect or tee into summary.md is denied during a run", () => {
+  for (const c of [`cat <<'EOF' > .xworkflows/summary.md\nx\nEOF`, `echo x >> /r/.xworkflows/summary.md`, `echo x >"$PWD/.xworkflows/summary.md"`, `echo x | tee .xworkflows/summary.md`, `echo x | tee -a '.xworkflows/summary.md'`])
+    deny(decide(sh(c), ctx()), /summary\.md is written with Write/);
+});
+test("shell commands that only read summary.md or write elsewhere pass", () => {
+  for (const c of [`cat .xworkflows/summary.md`, `grep a .xworkflows/summary.md > /tmp/out.txt`, `echo x > docs/summary.md`, `echo x > .xworkflows/summary.md.bak`, `diff .xworkflows/summary.md a | tee out.txt`])
+    ok(decide(sh(c), ctx()));
+});
+test("a shell redirect into summary.md passes when no run is in progress", () => ok(decide(sh("echo x > .xworkflows/summary.md"), ctx(files(null)))));

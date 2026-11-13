@@ -178,12 +178,23 @@ test("install wires adapt hooks", () => {
   const r = repo();
   cli(r, ["install"]);
   const h = readJson(r, ".claude/settings.json").hooks;
-  const pre = h.PreToolUse.filter((e) => e.matcher === "Write|Edit|MultiEdit|Workflow");
+  const pre = h.PreToolUse.filter((e) => e.matcher === "Write|Edit|MultiEdit|Workflow|Bash");
   const post = h.PostToolUse.filter((e) => e.matcher === "AskUserQuestion");
   assert.equal(pre.length, 1);
   assert.match(pre[0].hooks[0].command, /run\.mjs" claude adapt-gates$/);
   assert.equal(post.length, 1);
   assert.match(post[0].hooks[0].command, /run\.mjs" claude adapt-record$/);
+});
+test("adapt-gates denies a shell redirect into the summary, sent as the runner sends it", () => {
+  const r = repo();
+  cli(r, ["install"]);
+  writeJson(r, ".xworkflows/adapt-run.json", { startedAt: Date.now() });
+  const env = { ...process.env, CLAUDE_PROJECT_DIR: r };
+  for (const k of ["XWORKFLOWS_FREE", "XWORKFLOWS_RECORD", "XWORKFLOWS_STATE_DIR"]) delete env[k];
+  const send = (command) => JSON.parse(spawnSync("node", [join(r, ".xworkflows/hooks/run.mjs"), "claude", "adapt-gates"], { cwd: r, encoding: "utf8", env,
+    input: JSON.stringify({ session_id: "s1", cwd: r, hook_event_name: "PreToolUse", tool_name: "Bash", tool_input: { command } }) }).stdout || "{}");
+  assert.equal(send("echo x > .xworkflows/summary.md").hookSpecificOutput.permissionDecision, "deny");
+  assert.deepEqual(send("cat .xworkflows/summary.md"), {});
 });
 test("an edited entry of ours is not duplicated", () => {
   const r = repo();
