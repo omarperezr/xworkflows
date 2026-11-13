@@ -571,3 +571,22 @@ test("start replaces the ignore file the earlier version wrote, never one the us
   assert.equal(rt(e, ".gitignore"), EARLIER + "mine\n");
 });
 
+// The Workflow script is run as the Workflow tool runs it: a function of args, agent, parallel, pipeline, log, phase.
+async function agentTypes(args) {
+  const text = readFileSync(new URL("./research.workflow.js", import.meta.url), "utf8").replace(/export const meta = \{[\s\S]*?\n\};\n/, "");
+  const types = new Set();
+  const agent = async (prompt, opts) => {
+    types.add(opts.agentType);
+    if (opts.label === "profile") return { what: "A shop", languages: [], docs: [{ file: "README.md", lines: 3 }], areas: [], projectAreas: [] };
+    return null;
+  };
+  const fn = new (async () => {}).constructor("args", "agent", "parallel", "pipeline", "log", "phase", text);
+  await fn(args, agent, (thunks) => Promise.all(thunks.map((t) => t())), () => {}, () => {}, () => {});
+  return [...types].filter(Boolean).sort();
+}
+
+test("the workflow calls its agents by the name install gave them", async () => {
+  assert.deepEqual(await agentTypes({ root: ".", zeroHits: [] }), ["explore", "mechanism"]);
+  assert.deepEqual(await agentTypes({ root: ".", zeroHits: [], agents: { mechanism: "xwf-mechanism", explore: "xwf-explore" } }), ["xwf-explore", "xwf-mechanism"]);
+  assert.deepEqual(await agentTypes({ root: ".", zeroHits: [], agents: { mechanism: "xwf-mechanism" } }), ["explore", "xwf-mechanism"]);
+});
