@@ -11,10 +11,11 @@ import { parseArgs } from "node:util";
 // Returns the exit code. deps replaces what a test must not touch: query (the model call), home, repo, env and the output lines.
 export async function runFlow(argv, deps = {}) {
   const { home = homedir(), repo = resolve(import.meta.dirname, ".."), env = process.env, log = console.log, err = console.error } = deps;
-  const { values: o } = parseArgs({ args: argv, options: {
+  let o;
+  try { ({ values: o } = parseArgs({ args: argv, options: {
     cwd: { type: "string" }, prompt: { type: "string" }, out: { type: "string" }, "spend-file": { type: "string" },
     "api-credits": { type: "boolean" }, model: { type: "string", default: "claude-sonnet-5-5" }, "max-usd": { type: "string", default: "6" },
-  } });
+  } })); } catch (e) { err(`flow: ${e.message}`); return 2; }
   if (!o.cwd || !o.prompt || !o.out) { err("usage: flow.mjs --cwd <project> --prompt <text> --out <dir> --api-credits [--spend-file <file>]"); return 2; }
   const cap = Number(o["max-usd"]);
   if (!(cap > 0)) { err("--max-usd must be a positive number"); return 2; }
