@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { execFileSync } from "node:child_process";
 import { runFlow } from "./flow.mjs";
 
 const made = [];
@@ -95,4 +96,19 @@ test("flow at start restores a profile backup an earlier killed run left behind"
   const query = async function* () { yield { type: "result", total_cost_usd: 0, result: "done", num_turns: 1 }; };
   await runFlow(t.argv(), { ...t.deps, query });
   assert.equal(readFileSync(join(dir, "owner.md"), "utf8"), "REAL");
+});
+
+test("flow refuses an --out folder git does not ignore with exit 2, before any model call, ledger write or flow.json", async () => {
+  const t = setup();
+  const gitRepo = tmp();
+  execFileSync("git", ["init", "-q"], { cwd: gitRepo });
+  const out = join(gitRepo, "results");
+  let called = false;
+  const query = async function* () { called = true; };
+  const code = await runFlow(["--cwd", t.cwd, "--prompt", "go", "--out", out, "--api-credits"], { ...t.deps, query });
+  assert.equal(code, 2);
+  assert.match(t.lines.join("\n"), /--out .*not ignored by git/);
+  assert.equal(called, false);
+  assert.equal(existsSync(out), false);
+  assert.equal(existsSync(spendOf(t.repo)), false);
 });

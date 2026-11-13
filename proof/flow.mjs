@@ -2,15 +2,16 @@
 // project, answering every question dialog with its first option, and records what happened.
 // usage: node proof/flow.mjs --cwd <project> --prompt <text> --out <dir> --api-credits [--spend-file <file>] [--model <id>] [--max-usd <n>]
 // Spending goes to the harness's ledger (--spend-file, else the default of proof/trial-lib.mjs).
-import { acquireLock, releaseLock, addSpend, apiKeyGuard, budgetStop, outsideTrial, readLedger, restoreOwner, spendFilePath, withOwnerBackup } from "./trial-lib.mjs";
+import { acquireLock, releaseLock, addSpend, apiKeyGuard, budgetStop, outNotIgnored, outsideTrial, readLedger, restoreOwner, spendFilePath, withOwnerBackup } from "./trial-lib.mjs";
 import { mkdirSync, writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 
 // Returns the exit code. deps replaces what a test must not touch: query (the model call), home, repo, env and the output lines.
 export async function runFlow(argv, deps = {}) {
-  const { home = homedir(), repo = resolve(import.meta.dirname, ".."), env = process.env, log = console.log, err = console.error } = deps;
+  const { home = homedir(), repo = resolve(import.meta.dirname, ".."), env = process.env, exec = (cmd, args, cwd) => execFileSync(cmd, args, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }), log = console.log, err = console.error } = deps;
   let o;
   try { ({ values: o } = parseArgs({ args: argv, options: {
     cwd: { type: "string" }, prompt: { type: "string" }, out: { type: "string" }, "spend-file": { type: "string" },
@@ -21,6 +22,8 @@ export async function runFlow(argv, deps = {}) {
   if (!(cap > 0)) { err("--max-usd must be a positive number"); return 2; }
   const guard = apiKeyGuard(env, o["api-credits"]);
   if (guard) { err(guard); return 1; }
+  const notIgnored = outNotIgnored(o.out, exec);
+  if (notIgnored) { err(notIgnored); return 2; }
   const spendFile = spendFilePath(repo, o["spend-file"]);
   const why = budgetStop(readLedger(spendFile).totalUsd, cap, 60);
   if (why) { err(`not starting: ${why}`); return 2; }
