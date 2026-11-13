@@ -9,12 +9,22 @@ export function runLimited(cmd, ctx) {
   for (const k of ["GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE"]) delete env[k];
   return new Promise((res) => {
     const child = spawn("sh", ["-c", cmd], { cwd: ctx.root, env, detached: true, stdio: ["ignore", "pipe", "pipe"] });
-    let out = "", err = "", timedOut = false;
+    let out = "", err = "", timedOut = false, signal = null;
+    // Ctrl-C reaches only the foreground group, not ours: kill the command, then re-raise
+    const sigs = ["SIGINT", "SIGTERM", "SIGHUP"];
+    const onSig = (s) => { signal ??= s; try { process.kill(-child.pid, "SIGKILL"); } catch {} };
+    for (const s of sigs) process.on(s, onSig);
+    const done = (r) => {
+      clearTimeout(timer);
+      for (const s of sigs) process.removeListener(s, onSig);
+      if (signal) process.kill(process.pid, signal);
+      res(r);
+    };
     child.stdout.on("data", (d) => { out += d; });
     child.stderr.on("data", (d) => { err += d; });
     const timer = setTimeout(() => { timedOut = true; try { process.kill(-child.pid, "SIGKILL"); } catch {} }, ctx.config.checks.timeoutMinutes * 60000);
-    child.on("error", (e) => { clearTimeout(timer); res({ code: null, out, err: e.message, timedOut }); });
-    child.on("close", (code) => { clearTimeout(timer); res({ code, out, err, timedOut }); });
+    child.on("error", (e) => done({ code: null, out, err: e.message, timedOut }));
+    child.on("close", (code) => done({ code, out, err, timedOut }));
   });
 }
 
