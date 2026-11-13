@@ -174,6 +174,17 @@ test("a long word after tee is judged in linear time", () => {
   const small = time(20000), big = time(80000);
   assert.ok(big < 8 * Math.max(small, 1) + 20, `20000 chars ${small} ms, 80000 chars ${big} ms`);
 });
+test("a redirect glued to the word before it is denied", () => {
+  for (const c of ["echo x>.xworkflows/summary.md", "cat draft.md>.xworkflows/summary.md", "{ echo a; }>.xworkflows/summary.md", "cat <<'EOF'>.xworkflows/summary.md"])
+    deny(decide(sh(c), ctx()), /summary\.md is written with Write/);
+});
+test("tee that reads the summary writes nothing", () => ok(decide(sh("tee /tmp/copy < .xworkflows/summary.md"), ctx())));
+test("many tee words are judged in linear time", () => {
+  const time = (n) => { const e = sh("tee ".repeat(n)); const t = process.hrtime.bigint(); ok(decide(e, ctx())); return Number(process.hrtime.bigint() - t) / 1e6; };
+  time(1000);
+  const small = time(10000), big = time(40000);
+  assert.ok(big < 8 * Math.max(small, 1) + 20, `10000 words ${small} ms, 40000 words ${big} ms`);
+});
 test("a shell redirect into summary.md passes when no run is in progress", () => ok(decide(sh("echo x > .xworkflows/summary.md"), ctx(files(null)))));
 test("a missing interview.json denies with the command that writes it", () =>
   deny(decide(sw(summary("draft", FIVE)), ctx(files(), () => ({ code: 1, out: "", err: "adapt: interview.json is missing or unreadable\n" }))), /interview\.json is missing or unreadable.*research\.mjs queue/));
