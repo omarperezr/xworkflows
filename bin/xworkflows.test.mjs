@@ -72,7 +72,8 @@ function packageCopy() {
 // the tests install from one copy made per run, its manifest regenerated here: a changed piece never needs pack first
 const SHARED = packageCopy();
 process.on("exit", () => rmSync(SHARED, { recursive: true, force: true }));
-spawnSync("node", [join(SHARED, "bin/xworkflows.mjs"), "pack"], { cwd: SHARED, env: { ...process.env, ...ISO } });
+const packed = spawnSync("node", [join(SHARED, "bin/xworkflows.mjs"), "pack"], { cwd: SHARED, env: { ...process.env, ...ISO }, encoding: "utf8" });
+assert.equal(packed.status, 0, `pack of the shared copy failed, every install test depends on it:\n${packed.stdout}${packed.stderr}`);
 const BIN = join(SHARED, "bin/xworkflows.mjs");
 
 function cliAt(pkg, cwd, args) {
