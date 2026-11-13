@@ -4,7 +4,7 @@
 import { addSpend, keepFiles, outNotIgnored, outsideTrial, apiKeyGuard, budgetStop, countedCost, prepareCopy, readLedger, spendFilePath, acquireLock, releaseLock, restoreOwner, stopFor, withOwnerBackup } from "./trial-lib.mjs";
 import { answerFor, loadAnswers } from "./answers.mjs";
 import { execFileSync } from "node:child_process";
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
