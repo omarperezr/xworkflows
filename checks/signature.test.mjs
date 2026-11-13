@@ -23,8 +23,19 @@ test("human Signed-off-by passes; look-alike words pass", async () => {
   assert.equal(r.ok, true);
 });
 
+test("a person who shares a tool's name, with a person's e-mail, passes", async () => {
+  const r = await check((repo) => repo.commit("add thing", { body: "Co-Authored-By: Claude Martin <claude@example.org>\nCo-Authored-By: Aider Khan <aider.khan@example.org>" }));
+  assert.deepEqual(r, { ok: true, lines: [] });
+});
+
+test("a co-author with a tool's e-mail fails whatever its name", async () => {
+  const r = await check((repo) => repo.commit("add thing", { body: "Co-Authored-By: Ana Lopez <noreply@anthropic.com>" }));
+  assert.equal(r.ok, false);
+  assert.match(r.lines[0], /AI/);
+});
+
 test("Co-Authored-By naming an AI tool fails", async () => {
-  const r = await check((repo) => repo.commit("add thing", { body: "Co-Authored-By: Claude Sonnet <noreply@example.org>" }));
+  const r = await check((repo) => repo.commit("add thing", { body: "Co-Authored-By: Claude Sonnet <noreply@anthropic.com>" }));
   assert.equal(r.ok, false);
   assert.match(r.lines[0], /AI/);
   assert.match(r.lines.join("\n"), /add thing/);
@@ -55,7 +66,7 @@ test("committer email at a vendor domain fails", async () => {
 
 test("two bad commits are both listed", async () => {
   const r = await check((repo) => {
-    repo.commit("first bad", { body: "Co-Authored-By: Copilot <c@example.org>" });
+    repo.commit("first bad", { body: "Co-Authored-By: Copilot <c@github.com>\nCo-Authored-By: Copilot <12345+copilot@users.noreply.github.com>" });
     repo.commit("second bad", { body: "Generated with Codex" });
   });
   assert.equal(r.ok, false);
@@ -65,7 +76,7 @@ test("two bad commits are both listed", async () => {
 });
 
 test("trailer with no blank line, and a subject-only Generated with, fail", async () => {
-  let r = await check((repo) => repo.commit("feat: x\nCo-Authored-By: Claude <noreply@example.org>"));
+  let r = await check((repo) => repo.commit("feat: x\nCo-Authored-By: Claude <noreply@anthropic.com>"));
   assert.equal(r.ok, false);
   r = await check((repo) => repo.commit("Generated with Claude Code"));
   assert.equal(r.ok, false);
