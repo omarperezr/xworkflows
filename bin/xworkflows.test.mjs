@@ -2286,6 +2286,11 @@ test("doctor: with core.hooksPath outside the repository the pre-push line names
   const line = lineOf(doctor(r, env), /^fail pre-push hook/);
   assert.ok(line, "doctor fails on it");
   assert.doesNotMatch(line, /: run xworkflows install$/);
+  // both ways out, each with what it costs
+  assert.ok(line.includes('node "$(git rev-parse --show-toplevel)/.xworkflows/checks/run.mjs" --pre-push "$1"'), line);
+  assert.match(line, /add this line to the pre-push hook of that folder/);
+  assert.match(line, /runs it in every repository that uses the folder/);
+  assert.match(line, /after which the hooks of the other folder no longer run here/);
   const cmd = line.match(/run: (git config .+?); then run xworkflows install$/)?.[1];
   assert.ok(cmd, line);
   assert.equal(spawnSync("sh", ["-c", cmd], { cwd: r, env: { ...process.env, ...ISO, ...env } }).status, 0);

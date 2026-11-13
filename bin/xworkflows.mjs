@@ -774,7 +774,7 @@ async function doctor() {
     if (cur !== null && [false, true].some((c) => cur === hookText("pre-push", c))) say("ok", "pre-push hook is ours");
     else if (cur !== null && rec.files[key]) say("warn", `pre-push hook changed locally: it may no longer run the check; make it run: ${CHECK}`);
     else if (rec.declined.some((d) => d.file === key && d.what === "chain")) say("warn", `pre-push hook is yours: chaining declined at install; add this line to it: ${CHECK}`);
-    else if (ownHooks(ROOT) === null) say("fail", `pre-push hook: core.hooksPath points outside this repository, where install writes no hook; to put the hooks inside, run: git config core.hooksPath "$(git rev-parse --path-format=absolute --git-common-dir)/hooks"; then ${INSTALL}`);
+    else if (ownHooks(ROOT) === null) say("fail", `pre-push hook: core.hooksPath points outside this repository, where install writes no hook; either add this line to the pre-push hook of that folder, which then runs it in every repository that uses the folder: ${CHECK} ; or point this repository at its own hooks folder, after which the hooks of the other folder no longer run here: run: git config core.hooksPath "$(git rev-parse --path-format=absolute --git-common-dir)/hooks"; then ${INSTALL}`);
     else say("fail", `pre-push hook is missing or not ours: ${INSTALL}`);
     let st = {}, local = {};
     try { st = JSON.parse(readFileSync(join(ROOT, ".claude/settings.json"), "utf8")); } catch {}
