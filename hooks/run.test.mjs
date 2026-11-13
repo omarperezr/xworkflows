@@ -61,6 +61,12 @@ test("a recorded command keeps a path that only starts like the folders", () => 
   const c = recordCommand((h) => `cat ${h}/client-workshop/other/a.txt ${h}/client-work-old/x`);
   assert.equal(c, "cat /home/user/client-workshop/other/a.txt /home/user/client-work-old/x");
 });
+for (const next of ["ñ", "é", "7", "+", "@", "~", "%"]) {
+  test(`a recorded command keeps a path whose name goes on with ${next}`, () => {
+    const c = recordCommand((h) => `cat ${h}/client-work${next}/a`);
+    assert.equal(c, `cat /home/user/client-work${next}/a`);
+  });
+}
 const spellings = [
   ["~", () => "~/client-work", "/home/user"],
   ["$HOME", () => "$HOME/client-work", "/home/user"],

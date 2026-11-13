@@ -52,8 +52,8 @@ if (env.XWORKFLOWS_RECORD && input) {
     const between = root && dirname(root).startsWith(home + sep) ? dirname(root) : home; // the folders between home and the project name its owner too
     const dash = (p) => p.replace(/[\\/]/g, "-");
     const lit = (p) => p.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const hide = (text, spellings, boundary, to) => spellings.reduce((t, p) => t.replace(new RegExp(lit(p) + boundary, "g"), to), text); // only a whole folder name: a lookalike stays
-    const slash = String.raw`(?![\w.-])`; // anything but a character that goes on a file name; a lookalike stays
+    const hide = (text, spellings, boundary, to) => spellings.reduce((t, p) => t.replace(new RegExp(lit(p) + boundary, "gu"), to), text); // only a whole folder name: a lookalike stays
+    const slash = String.raw`(?![\p{L}\p{N}_.+@~%-])`; // anything but a character that goes on a file name; a lookalike stays
     const rel = between.slice(home.length); // "" when the project sits straight under home
     const json = JSON.stringify({ label: "recorded", input, output: out }, null, 2); // absolute stand-in, so replayed paths still resolve
     const text = hide(hide(hide(json, rel ? [`~${rel}`, `$HOME${rel}`, `\${HOME}${rel}`] : [], slash, "/home/user"), [between, home], slash, "/home/user"), [dash(between), dash(home)], String.raw`(?![\w.])`, "-home-user");
