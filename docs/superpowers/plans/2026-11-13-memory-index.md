@@ -45,6 +45,27 @@ About 40 code lines, all in `bin/xworkflows.mjs`.
 - Tests, each seen failing first: install then uninstall on a fresh project leaves nothing; with a note in the folder it stays and the line is printed; a folder that existed before the install is neither removed nor named; install, install, uninstall still removes an empty folder; the two side files are removed with `index.sqlite`; `./docs/memory` and `docs/memory/` give the folder `docs/memory`, the yml path without the extra characters, and an `ok` line from `doctor`.
 - Done: `node --test bin/xworkflows.test.mjs` passes and `node bin/xworkflows.mjs pack --check` prints nothing.
 
+### Batch 1, fix round after the risk review of `2fe5e16`
+
+The owner's answers, 2026-11-13: "Yes, one fix round", "Marker file per checkout", "Drop them" (spec, answers 9 to 11). The duplicated `memory.dir` rule is card P-113.
+
+**F1: install, `doctor` and `uninstall` know qmd's other config name, `.qmd/index.yaml`** (risk review finding 1, blocking)
+- red: from the verifier, branch `verify/qmd-yaml-name`
+- Files: `bin/xworkflows.mjs`, `bin/xworkflows.test.mjs`
+- Role: implement
+
+**F2: a memory folder or a yml that cannot be written does not leave a half install** (risk review finding 2, blocking)
+- red: from the verifier, branch `verify/mkdir-half-install`
+- Files: the same two, the same agent
+- The yml and the marker are the other new writes of this batch: the same handling covers them (main session, reported to the owner).
+- F1 and F2 go in one commit with their tests, subject `fix(install): ...`.
+
+**F3: the marker `.qmd/xworkflows` decides what `uninstall` removes in `.qmd/`** (owner's answer 10; spec sections "What install does" and "What else changes")
+- Files: the same two, the same agent, after the commit of F1 and F2
+- Tests, each seen failing first: a first install writes the marker beside the yml, and neither is in the record; uninstall with the marker removes the yml, the three database files and the marker; a checkout that has its own yml and database and a record that names `.qmd/index.yml` in `created` keeps all of it at uninstall; a second install changes nothing.
+- Its own commit, subject `feat(install): ...`.
+- Done for the round: `node --test bin/xworkflows.test.mjs` passes and `node bin/xworkflows.mjs pack --check` prints nothing.
+
 **T2: the README and the design say what `install` does with the memory folder** (spec section "What else changes", item 4)
 - Files: `README.md`, `docs/design.md`
 - Role: main session
@@ -67,5 +88,15 @@ About 40 code lines, all in `bin/xworkflows.mjs`.
 - `doctor` never throws and never stops because a path cannot be resolved.
 
 ## Declined findings
+
+"Drop them" (owner, 2026-11-13): seven findings of the risk review of `2fe5e16`, not fixed and not carded.
+
+- `bin/xworkflows.mjs` `clean`: a plain file where a parent folder is expected (`docs`, `.qmd`) stops install or uninstall with a raw `ENOTDIR` error.
+- `bin/xworkflows.mjs` `uninstall`: it prints no `deleted` line for the yml and the database files.
+- `bin/xworkflows.mjs` `doctor`: with a `memory.dir` install refuses, it goes on with the raw value and advises to run install again.
+- `bin/xworkflows.mjs` `doctor`: the `qmd trust` warn is printed also when `memory.index` is set.
+- `bin/xworkflows.test.mjs`: the test that uninstall starts no qmd asserts nothing.
+- `bin/xworkflows.mjs`: `memory.dir` is still read raw for `autoMemoryDirectory`, in `uninstall` and for a byte count of `doctor`, so a space at its end gives two folders.
+- `bin/xworkflows.mjs` `uninstall`: a `null` entry in `created` of a record broken by hand stops it half way when `memory.dir` is not valid.
 
 ## Seals

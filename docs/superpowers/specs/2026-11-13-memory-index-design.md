@@ -31,7 +31,7 @@ Install makes no qmd call. The two steps below do not depend on each other, and 
 `memory.dir` is read as the memory checks read it (`checks/index-current.mjs:6-8`): trimmed, normalised, without a leading `./` or trailing slashes, so `./docs/memory` and `docs/memory/` name the same folder as `docs/memory`. When it is then not a folder name inside the repository (an absolute path, or one that climbs out with `..`), install does neither step and prints `not written: memory.dir must be a folder inside the repository: <memory.dir>`.
 
 1. **Folder.** When `memory.dir` does not exist, install creates it. It never creates it through a symlink: it then prints `not written (symlink): <memory.dir>`. The record notes that install created the folder.
-2. **Index.** When `.qmd/index.yml` does not exist and the config holds no `memory.index`, install writes it:
+2. **Index.** When the project has no local qmd config, neither `.qmd/index.yaml` nor `.qmd/index.yml` (qmd reads them in that order, `dist/collections.js:82-87`), and the config holds no `memory.index`, install writes `.qmd/index.yml`:
 
    ```
    collections:
@@ -42,7 +42,11 @@ Install makes no qmd call. The two steps below do not depend on each other, and 
 
    The path is the repo root joined with `memory.dir`, the same value `doctor` compares, written as a JSON string so that any folder name is valid YAML. Install then adds the line `.qmd/` to `.gitignore`, only in a run that writes the yml. Never through a symlink.
 
-An existing `.qmd/index.yml` is left byte-identical, whoever wrote it. A config that holds `memory.index` gets the folder and no `.qmd`: that project keeps its named index.
+Beside the yml, install writes the marker `.qmd/xworkflows`, one line of text. The marker, not the record, says that the install of this checkout created the yml: the record is a tracked file shared by every checkout, and the yml belongs to one. The yml and the marker are not in the record.
+
+An existing `.qmd/index.yaml` or `.qmd/index.yml` is left byte-identical, whoever wrote it. A config that holds `memory.index` gets the folder and no `.qmd`: that project keeps its named index.
+
+When the folder cannot be created, or the yml or the marker cannot be written, install prints `not written: <path>`, records nothing for it and goes on: the rest of the install, its record included, is completed.
 
 `--dry-run` writes nothing and prints `would create <memory.dir>`, `would write .qmd/index.yml` and the existing `would merge .gitignore`.
 
@@ -50,7 +54,8 @@ An existing `.qmd/index.yml` is left byte-identical, whoever wrote it. A config 
 
 - `doctor`: its check stays. With no `memory.index`, a failure reads `no qmd collection covers <memory.dir>: run install again` when `.qmd/index.yml` does not exist, and `no qmd collection covers <memory.dir>: .qmd/index.yml names no collection with the path <absolute folder>; add one, or delete .qmd and run install again` when it does. With `memory.index` set the line stays as it is today.
 - `doctor`: when the real location of the memory folder is outside the repository, it prints `warn the memory folder is outside the repository: qmd indexes it only after "qmd trust" is run here`. A path it cannot resolve prints nothing more and never stops `doctor`.
-- `uninstall`: removes the `.qmd/index.yml` that install created, with `index.sqlite`, `index.sqlite-wal` and `index.sqlite-shm` beside it, `.qmd/` when it is then empty, and the `.gitignore` line. It leaves a `.qmd/index.yml` install did not create with everything beside it.
+- `uninstall`: only where the marker `.qmd/xworkflows` exists, it removes `.qmd/index.yml`, `index.sqlite`, `index.sqlite-wal` and `index.sqlite-shm` beside it, and the marker; then `.qmd/` when it is empty. It removes the `.gitignore` line. Without the marker it touches nothing in `.qmd/`, whatever the record says.
+- `doctor`: where its text names the local config, it names the file that exists, `.qmd/index.yaml` or `.qmd/index.yml`.
 - `uninstall` and the memory folder: when the record says install created it and it holds nothing, the folder is removed, so a fresh project comes back as it was. As for every file `uninstall` removes, the parent folders that are then empty go too, whether or not install made them: that is the loop `uninstall` already has, accepted for this change by the owner, and card P-112 holds the general fix. When install created it and it holds anything, it stays and `uninstall` prints `left in place: <memory.dir>`. A folder install did not create is never touched and never named.
 - `README.md`, Setup, and `docs/design.md`: what install does with the memory folder; each checkout runs `install` for its own index.
 - This repository runs the real `install` and `doctor` once, on the owner's word, after the review.
@@ -81,6 +86,11 @@ None open.
 6. "Remove if empty, else say so": what `uninstall` does with a memory folder install created.
 7. "Remove them too": the two side files of `index.sqlite` go with it.
 8. "Accept it and card the gap": `uninstall` removes parent folders that are empty after it, also ones that existed before the install, as it already does for every installed file; card P-112.
+9. "Yes, one fix round": after the risk review of `2fe5e16`, for its two blocking findings: the config name `.qmd/index.yaml`, and a memory folder that cannot be created.
+10. "Marker file per checkout": what tells `uninstall` that this checkout's install created the yml.
+11. "Drop them": the seven small findings of that review, listed in the plan under `Declined findings`.
+
+Not tested: qmd with the extra file `.qmd/xworkflows` in its folder. The real `install` and `doctor` in this repository show it.
 
 ## The dropped design
 
