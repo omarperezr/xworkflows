@@ -87,6 +87,13 @@ test("full-review pins zones, file names, card form and decisions", () => {
     "## Errors", "## Restructurings", "## Owner's decisions", "- **P-<n>** —", "Status: unscheduled.",
     "Do it", "Drop it", "Pending list", "red:", "# Pending", "Reviewed commit: <sha>"]) assert.ok(s.includes(t), t);
 });
+test("full-review writes the reviewed commit only when every agent returned", () => {
+  const s = read("skills/full-review/SKILL.md");
+  for (const t of ["is written only when every agent the skill launched returned",
+    "when one did not, write the review file without that line and tell the owner which zones were not read",
+    "the sha is the head the agents were given, noted before they start, not the head when the file is written"]) assert.ok(s.includes(t), t);
+  assert.ok(s.split("\n").length < 120);
+});
 test("full-review's Workflow script compiles as an async body", () => {
   const js = read("skills/full-review/SKILL.md").match(/```js\n([\s\S]*?)```/)[1];
   assert.match(js, /export const meta = \{/);

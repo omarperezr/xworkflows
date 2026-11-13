@@ -91,7 +91,7 @@ If fewer agents returned than were launched, tell the owner how many, and put th
 
 Read `paths.reviews` from `.xworkflows/config.json` (default `docs/superpowers/reviews`). Write `<paths.reviews>/YYYY-MM-DD-full-review.md` with today's date; if it exists, use `-2`, `-3` for later runs that day. Contents:
 
-- A header with a line that is exactly `Reviewed commit: <sha>` (`<sha>` is the output of `git rev-parse --short HEAD`; the push check reads it), the zones, the two reviews, what `both` means (both reviews named the same `file:line`), and the counts.
+- A header with a line that is exactly `Reviewed commit: <sha>` (`<sha>` is the output of `git rev-parse --short HEAD`, run before the agents start; the push check reads it). The line is written only when every agent the skill launched returned; when one did not, write the review file without that line and tell the owner which zones were not read; the sha is the head the agents were given, noted before they start, not the head when the file is written. The header also holds the zones, the two reviews, what `both` means (both reviews named the same `file:line`), and the counts.
 - `## Errors`: numbered, each `**[<severity>, both] <title>** (<path>:<line>)` (leave `both` out when not both), then the case. Merge duplicates (same `file:line`, same point) into one item.
 - `## Restructurings`: the same form.
 - `## Owner's decisions (YYYY-MM-DD)`: empty for now.
