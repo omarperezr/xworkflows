@@ -38,7 +38,7 @@ export const DEFAULTS = {
   comments: {
     marks: { ts: ["//"], tsx: ["//"], js: ["//"], jsx: ["//"], mjs: ["//"], cjs: ["//"], sql: ["--"], sh: ["#"], py: ["#"] },
   },
-  memory: { dir: "docs/memory" },
+  memory: { dir: "docs/memory", outside: [] },
   packs: {},
 };
 

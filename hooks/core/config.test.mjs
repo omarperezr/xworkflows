@@ -96,3 +96,8 @@ test("memoryDir: a folder name inside the repository comes back plain, anything 
     assert.equal(memoryDir(dir), want, JSON.stringify(dir));
   }
 });
+
+test("memory.outside is an empty list by default", () => {
+  assert.deepEqual(DEFAULTS.memory.outside, []);
+  assert.deepEqual(merge(DEFAULTS, { memory: { dir: "n" } }).memory, { dir: "n", outside: [] });
+});

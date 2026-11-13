@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -441,4 +441,28 @@ test("a review on a branch that forked before the old base: the diff still start
   const names = repo.git("diff", "--name-only", got[0].diffBase, h).split("\n");
   assert.equal(names.includes("m.txt"), false);
   assert.deepEqual(got[0].commits, [x, rv, h]);
+}));
+
+const outsideRepo = (repo, listed) => {
+  const real = realpathSync(mkdtempSync(join(tmpdir(), "xwf-out-")));
+  writeFileSync(join(real, "a.md"), "---\ndescription: one\n---\n");
+  symlinkSync(real, join(repo.root, "docs-memory"));
+  repo.write(".xworkflows/config.json", JSON.stringify({ memory: { dir: "docs-memory", outside: listed ? [real] : [] } }));
+  return real;
+};
+
+test("index: a memory folder linked out of the repository is refused with the line, and written when listed", withRepo({}, async (repo) => {
+  const real = outsideRepo(repo, false);
+  const r = await check(repo, ["index"]);
+  assert.equal(r.code, 2);
+  assert.match(r.out[0], /ask the owner.*inside the project.*memory\.outside in \.xworkflows\/config\.json/);
+  assert.equal(existsSync(join(real, "MEMORY.md")), false);
+  writeFileSync(join(repo.root, ".xworkflows/config.json"), JSON.stringify({ memory: { dir: "docs-memory", outside: [real] } }));
+  assert.deepEqual(await check(repo, ["index"]), { code: 0, out: [] });
+  assert.match(readFileSync(join(real, "MEMORY.md"), "utf8"), /^- \[a\]/);
+  const sib = real.slice(0, -1);
+  writeFileSync(join(repo.root, ".xworkflows/config.json"), JSON.stringify({ memory: { dir: "docs-memory", outside: [sib] } }));
+  rmSync(join(real, "MEMORY.md"));
+  assert.equal((await check(repo, ["index"])).code, 2);
+  rmSync(real, { recursive: true, force: true });
 }));
