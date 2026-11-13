@@ -85,3 +85,26 @@ for (const dir of ["/docs/memory", "../memory", ".", "./"]) {
     }, { memory: { dir } })();
   });
 }
+
+test("a submodule entry under the memory folder is not a note", withRepo(async (repo) => {
+  repo.commit("mem", { files: { "docs/memory/a.md": A, "docs/memory/MEMORY.md": buildIndex([{ file: "a.md", text: A }]) } });
+  repo.git("update-index", "--add", "--cacheinfo", `160000,${repo.git("rev-parse", "HEAD")},docs/memory/sub.md`);
+  repo.git("commit", "-q", "-m", "sub");
+  assert.deepEqual(await repo.run(mod), { ok: true, lines: [] });
+}));
+
+test("a note whose name holds a newline is indexed", withRepo(async (repo) => {
+  repo.commit("mem", { files: { "docs/memory/a\nb.md": A, "docs/memory/MEMORY.md": buildIndex([{ file: "a\nb.md", text: A }]) } });
+  assert.equal((await repo.run(mod)).ok, true);
+  repo.commit("stale", { files: { "docs/memory/MEMORY.md": "" } });
+  assert.equal((await repo.run(mod)).ok, false);
+}));
+
+test("a memory folder name with glob characters is read as written", async () => {
+  await withRepo(async (repo) => {
+    repo.commit("mem", { files: { "m[1]*/a.md": A, "mx/b.md": B, "m[1]*/MEMORY.md": buildIndex([{ file: "a.md", text: A }]) } });
+    assert.deepEqual(await repo.run(mod), { ok: true, lines: [] });
+    repo.commit("stale", { files: { "m[1]*/MEMORY.md": "" } });
+    assert.equal((await repo.run(mod)).ok, false);
+  }, { memory: { dir: "m[1]*" } })();
+});

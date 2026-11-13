@@ -9,7 +9,7 @@ export const DEFAULTS = {
     plans: "docs/superpowers/plans",
     reviews: "docs/superpowers/reviews",
     pending: "docs/PENDING.md",
-    nonCode: ["docs/", ".claude/", ".xworkflows/", "**/*.md"],
+    nonCode: ["docs/", ".claude/", ".xworkflows/", "**/*.md", ".gitignore"],
     curated: ["AGENTS.md", "CLAUDE.md", ".claude/rules/", "docs/BUSINESS.md"],
   },
   roles: {

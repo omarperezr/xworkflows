@@ -76,7 +76,8 @@ test("adapt pins its questions, headings, keys and outputs", () => {
 });
 test("adapt leaves the tree clean on an unchanged re-run and commits only its files", () => {
   const s = read("skills/adapt/SKILL.md");
-  assert.ok(s.includes("a screen 1 sentence is not asked again when the owner answered it in the earlier adaptation"));
+  has(s, ["a screen 1 sentence is not asked again when the owner answered it in the last approved run (any answer but `I don't know`), its wording and its `(file:line)` are the same, every line it cites still verifies, and no spec or plan under `paths.specs` or `paths.plans` added or changed since the commit of `summary.md` names a file it cites"]);
+  assert.ok(!s.includes("in the earlier adaptation"));
   assert.ok(s.includes('git commit -m "chore: adapt xworkflows to this project" -- <the same paths>'));
 });
 
@@ -86,6 +87,13 @@ test("full-review pins zones, file names, card form and decisions", () => {
   for (const t of ["No zones yet: run /adapt first.", "docs/superpowers/reviews", "YYYY-MM-DD-full-review.md",
     "## Errors", "## Restructurings", "## Owner's decisions", "- **P-<n>** —", "Status: unscheduled.",
     "Do it", "Drop it", "Pending list", "red:", "# Pending", "Reviewed commit: <sha>"]) assert.ok(s.includes(t), t);
+});
+test("full-review writes the reviewed commit only when every agent returned", () => {
+  const s = read("skills/full-review/SKILL.md");
+  for (const t of ["is written only when every agent the skill launched returned",
+    "when one did not, write the review file without that line and tell the owner which zones were not read",
+    "the sha is the head the agents were given, noted before they start, not the head when the file is written"]) assert.ok(s.includes(t), t);
+  assert.ok(s.split("\n").length < 120);
 });
 test("full-review's Workflow script compiles as an async body", () => {
   const js = read("skills/full-review/SKILL.md").match(/```js\n([\s\S]*?)```/)[1];
@@ -214,6 +222,10 @@ test("adapt research steps in order", () => {
   has(s, ["Without the Workflow tool, stop", "`kinds.<key>.total` is 0", "wait for its result", "unchanged", "stop and tell the owner"]);
   assert.ok(!/script:/.test(s));
 });
+test("adapt passes the installed agent names to the Workflow", () => {
+  const l = step(2).split("\n").find((x) => x.startsWith("5. "));
+  has(l, ["`agents`", "(mechanism, explore)", "`xwf-<name>`", "`renamed` in `.xworkflows/installed.json`", "`.claude/agents/xwf-<name>.md`", "else the bare name"]);
+});
 test("adapt interview follows the queue", () => {
   const s = step(3);
   has(s, ["Ask the items of `.xworkflows/interview.json` in file order", "header = the item's `id`", "`style`", "question rules", "in three screens", "Screen 1 (`S1-<n>`)", "Screen 2 (`X<n>`)", "`B-rules`", "`G-interim`"]);
@@ -254,7 +266,7 @@ test("gitignore lines", () => {
   const s = step(4);
   const l = s.split("\n").find((x) => x.includes("to `.gitignore`"));
   has(l, ["`graphify-out/`", "`.xworkflows/research.md`", "`.xworkflows/research.json`", "`.xworkflows/research.prev.json`", "`.xworkflows/scan.json`",
-    "`.xworkflows/interview.json`", "`.xworkflows/interview.log.jsonl`", "`.xworkflows/adapt-run.json`", "`.xworkflows/rules.json`", "`.xworkflows/kinds.json`", "`.xworkflows/screens.json`", "`.xworkflows/details.md`"]);
+    "`.xworkflows/interview.json`", "`.xworkflows/interview.log.jsonl`", "`.xworkflows/adapt-run.json`", "`.xworkflows/rules.json`", "`.xworkflows/kinds.json`", "`.xworkflows/screens.json`", "`.xworkflows/details.md`", "`.xworkflows/research.answered.json`"]);
   inOrder(s, ["git commit -m", "research.mjs done"]);
 });
 
@@ -330,4 +342,14 @@ test("adapt: second page, what Right writes, English labels, language without an
   assert.ok(!step(4).includes("doc line"), "a contradicted written rule gets no path rule of its own: the research holds no place where it holds");
   has(step(2), ["`language` is the owner's language in an interview; leave it out with `research-only`, where the sentences come out in English"]);
   assert.ok(s.split("\n").length < 200);
+});
+
+test("adapt step 4: the path sentence is one line of its own and the five answers read the same in it and in the zone file row", () => {
+  const FIVE = "`Keep it, because ...`, `The written rule`, `The code`, `Mistake: fix it`, `Exception: keep it`";
+  const lines = step(4).split("\n");
+  const path = lines.find((l) => l.startsWith("- A rule's path:"));
+  const row = lines.find((l) => l.startsWith("| `.claude/rules/<zone key>.md`"));
+  assert.ok(path.includes(`a screen 2 rule (${FIVE}) from its question in \`interview.json\``), "path sentence");
+  assert.ok(path.includes("take it from the place where the rule itself holds, which the question names (`The rule itself holds at <path:line>`), never from the place that differs."), "exception place");
+  assert.ok(row.includes(`or a screen 2 rule kept: ${FIVE})`), "zone file row");
 });

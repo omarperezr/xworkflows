@@ -51,6 +51,8 @@ function afterReview(ctx, range, print) {
   const sha = /^Reviewed commit: ([0-9a-f]{7,40})\s*$/m.exec(ctx.show(range.head, files[0][0]) ?? "")?.[1];
   const named = sha && ctx.tryGit("rev-parse", "--verify", "--quiet", `${sha}^{commit}`);
   if (!named || named.code !== 0 || !range.commits.includes(named.out)) return range;
+  // a commit on a branch that forked before the old base would start the diff before it, over files already pushed
+  if (range.base && ctx.tryGit("merge-base", "--is-ancestor", range.base, named.out).code !== 0) return range;
   const later = new Set(ctx.git("rev-list", range.head, "--not", named.out).split("\n"));
   print(`xworkflows check: full review ${files[0][0].split("/").pop()} names ${named.out.slice(0, 7)}: the history up to it is not judged`);
   return { ...range, base: named.out, diffBase: named.out, commits: range.commits.filter((c) => later.has(c)) };
@@ -79,7 +81,7 @@ export async function main(argv, io = {}) {
     const pos = [];
     for (let i = 0; i < argv.length; i++) {
       const a = argv[i];
-      if (a === "--pre-push") remote = argv[++i] ?? (() => { throw new Error("--pre-push needs a remote"); })();
+      if (a === "--pre-push") remote = argv[++i] || (() => { throw new Error("--pre-push needs a remote"); })();
       else if (a === "--only") only = (argv[++i] ?? "").split(",");
       else if (a.startsWith("-")) throw new Error(`unknown flag ${a}`);
       else pos.push(a);
@@ -104,7 +106,10 @@ export async function main(argv, io = {}) {
       ranges = [afterReview(ctx, rangeFor(ctx, { head, base: pos[0] ? rev(pos[0]) : mergeBase(head, main) }), print)];
     } else {
       for (const line of stdin.split("\n")) {
-        const [, local, ref, remoteSha] = line.trim().split(/\s+/);
+        if (!line.trim()) continue;
+        const fields = line.trim().split(/\s+/);
+        if (fields.length !== 4) throw new Error(`malformed pre-push line: ${line.trim()}`);
+        const [, local, ref, remoteSha] = fields;
         if (!local || isZero(local)) continue;
         const head = rev(local);
         let base = isZero(remoteSha) ? mergeBase(head, `${remote}/${main}`) : rev(remoteSha);

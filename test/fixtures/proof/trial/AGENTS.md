@@ -6,7 +6,7 @@ installer text
 ## Project rules
 
 - Every write carries an idempotency key.
-- Round once, only when shown.
+- A loan is counted in whole days, in the library's time zone.
 
 ## Other
 

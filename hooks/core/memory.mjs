@@ -76,11 +76,13 @@ export function decide(ev, ctx) {
     if (lines.length) return { decision: "allow", context: lines.join("\n") };
   } else if (ev.event === "preTool" && ev.kind === "write") {
     const dir = path.resolve(ev.root, ctx.config.memory.dir) + path.sep;
+    const left = new Map(); // the text of each file as the edits so far leave it
     for (const w of ev.writes ?? []) {
       const abs = path.resolve(ev.root, String(w.path).replaceAll("\\", "/"));
       if (!abs.startsWith(dir)) continue;
-      const cur = ctx.readFile(abs);
+      const cur = left.has(abs) ? left.get(abs) : ctx.readFile(abs);
       const after = w.content !== undefined ? w.content : cur === null ? w.new ?? "" : cur.replace(String(w.old ?? ""), () => w.new ?? "");
+      left.set(abs, after);
       if (OWNER_ONLY.has(header(after).type)) {
         return { decision: "deny", reason: "Facts about the owner and the owner's feedback go to ~/.xworkflows/owner.md, not into the repository." };
       }

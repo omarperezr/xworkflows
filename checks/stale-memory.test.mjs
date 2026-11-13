@@ -121,3 +121,25 @@ test("a longer closing fence closes the block: what follows is checked", withRep
   assert.equal(r.ok, false);
   assert.match(r.lines.join("\n"), /mem\/n\.md:4/);
 }));
+
+const GITLINK = (repo, path) => repo.git("update-index", "--add", "--cacheinfo", `160000,${repo.git("rev-parse", "HEAD")},${path}`);
+
+test("a submodule entry named like a note is not read as a blob", withRepo({ "mem/n.md": "see `src/a.js`\n" }, async (repo) => {
+  GITLINK(repo, "mem/sub.md");
+  repo.git("commit", "-q", "-m", "sub");
+  assert.deepEqual(await repo.run(mod), { ok: true, lines: [] });
+}));
+
+test("a note whose name holds a newline is read, and named", withRepo({ "mem/a\nb.md": "`src/gone.js`\n" }, async (repo) => {
+  const r = await repo.run(mod);
+  assert.equal(r.ok, false);
+  assert.match(r.lines.join("\n"), /src\/gone\.js/);
+}));
+
+test("a memory folder name with glob characters is checked", withRepo({ "m[1]*/n.md": "`src/gone.js`\n", "mx/n.md": "`src/gone2.js`\n" }, async (repo) => {
+  const r = await repo.run(mod);
+  assert.equal(r.ok, false);
+  const t = r.lines.join("\n");
+  assert.match(t, /src\/gone\.js/);
+  assert.ok(!t.includes("gone2"));
+}, { memory: { dir: "m[1]*" } }));

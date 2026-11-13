@@ -27,6 +27,10 @@ test("merge: a user array, scalar or null replaces; inputs are not mutated", () 
   assert.equal(base.b.c, 1);
 });
 
+test("DEFAULTS: .gitignore is not code", () => {
+  assert.ok(DEFAULTS.paths.nonCode.includes(".gitignore"));
+});
+
 test("load: missing file gives a copy of DEFAULTS", () => {
   const out = load("/r", () => null);
   assert.deepEqual(out, DEFAULTS);

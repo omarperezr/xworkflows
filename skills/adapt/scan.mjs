@@ -2,7 +2,7 @@
 // No-LLM scan of a repository for evidence of twelve kinds of code mechanisms.
 // Standalone: node: built-ins only (it is copied into projects).
 import { execFileSync } from "node:child_process";
-import { readFileSync, readdirSync, writeFileSync, appendFileSync, mkdirSync, lstatSync } from "node:fs";
+import { readFileSync, readdirSync, openSync, readSync, closeSync, writeFileSync, appendFileSync, mkdirSync, lstatSync } from "node:fs";
 import { join, extname, dirname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -57,7 +57,8 @@ const SILENT = ["graphify-out", ".xworkflows", ".git"];
 const LOCK = /(^|\/)(package-lock\.json|yarn\.lock|pnpm-lock\.yaml|Cargo\.lock|poetry\.lock|Gemfile\.lock|composer\.lock|go\.sum)$/;
 const TESTS = /(^|\/)(tests?|__tests__|specs?|e2e|cypress|playwright)\/|\.(test|spec)\.[^/]+$|(^|\/)test_[^/]+\.py$|_test\.[^/]+$|(^|\/)conftest\.py$/;
 const CHECKS = /(^|\/)scripts\/check-|(^|\/)\.semgrep|(^|\/)(\.eslintrc[^/]*|eslint\.config\.[^/]*|ruff\.toml|\.flake8)$|^\.github\/workflows\/|^\.gitlab-ci\.yml$|^\.circleci\/|(^|\/)Jenkinsfile$|(^|\/)\.pre-commit-config\.yaml$/;
-const MAX_HITS = 30, PER_FILE = 3;
+const MAX_HITS = 30, PER_FILE = 3, MAX_LINE = 2000; // a longer line is a bundle: the signal regexes backtrack on it
+const isSql = (p) => /migration|\.sql$/i.test(p) && !/(^|\/)(tests?|__tests__|seeds?|fixtures?)\//i.test(p);
 
 const gitOut = (root, args) => execFileSync("git", args, { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], maxBuffer: 1 << 28 });
 
@@ -69,6 +70,7 @@ function walk(root, rel = "") {
   });
 }
 
+function head(p) { const fd = openSync(p, "r"); try { const b = Buffer.alloc(8000); return b.subarray(0, readSync(fd, b, 0, 8000, 0)); } finally { closeSync(fd); } }
 const kindOf = (p) => { try { return lstatSync(p); } catch { return null; } };
 export const isFile = (p) => !!kindOf(p)?.isFile();
 
@@ -151,7 +153,7 @@ export function sqlInventory(files) {
   const set = (k, name, file, line) => m[k].set(name, { name, file, line });
   const on = (name, table) => strip(name) + (table ? ` on ${strip(table)}` : "");
   for (const { path, text } of [...files].sort((a, b) => (a.path < b.path ? -1 : 1))) {
-    if (!/migration|\.sql$/i.test(path)) continue;
+    if (!isSql(path)) continue;
     for (const { text: st, line } of statements(text)) {
       let x;
       if ((x = /^create\s+(?:or\s+replace\s+)?(?:constraint\s+)?trigger\s+("[^"]+"|[\w.]+)(?:[\s\S]*?\s+on\s+([\w."]+))?/i.exec(st))) set("triggers", on(x[1], x[2]), path, line);
@@ -173,6 +175,7 @@ export function projectFiles(root) {
 
   let commit = "", churn = new Map();
   if (hasGit) {
+    if (!files.length && !kindOf(join(resolve(root), ".git")) && inRepo(root)) throw new Error(`${root} has no repository of its own and sits under another one: git lists none of its files, so the scan would be empty; run git init here or scan the parent`);
     try {
       commit = gitOut(root, ["rev-parse", "HEAD"]).trim();
       for (const f of gitOut(root, ["-c", "core.quotepath=false", "log", "--relative", "-n", "500", "--name-only", "--format=", "HEAD"]).split("\n")) if (f) churn.set(f, (churn.get(f) || 0) + 1);
@@ -181,7 +184,7 @@ export function projectFiles(root) {
 
   const ignorePath = join(root, ".graphifyignore");
   const owner = readLines(ignorePath).filter((l) => !l.startsWith("#")).map((l) => l.replace(/^\//, ""));
-  const ignored = (p) => owner.some((l) => (l.startsWith("*.") ? p.endsWith(l.slice(1)) : p.startsWith(l))); // shortcut: .graphifyignore read as prefixes and *.ext only, upgrade to full gitignore syntax if a project needs it
+  const ignored = (p) => owner.some((l) => (l.startsWith("*.") ? p.endsWith(l.slice(1)) : p === l.replace(/\/$/, "") || p.startsWith(l.replace(/\/?$/, "/")))); // shortcut: .graphifyignore read as exact paths, folders and *.ext only, upgrade to full gitignore syntax if a project needs it
   let rec = {};
   try { rec = JSON.parse(readFileSync(join(root, ".xworkflows/installed.json"), "utf8")); } catch { /* not installed */ }
   const installed = new Set([...Object.keys(rec.files || {}), ...(rec.created || [])]);
@@ -201,38 +204,35 @@ export function projectFiles(root) {
 
 export function scan(root) {
   const { kept, dropped, churn, commit, ignorePath } = projectFiles(root);
-  const checks = [];
-  const text = new Map(), layoutBytes = new Map();
-  const live = [];
+  const checks = [], live = [], sqlFiles = [], layoutBytes = new Map();
+  const kinds = {};
+  for (const k of KINDS) kinds[k.key] = { hits: [], total: 0 };
   for (const p of kept) {
+    const st = kindOf(join(root, p));
+    if (!st?.isFile()) continue; // tracked symlinks and pipes are not read
     let buf;
-    if (!isFile(join(root, p))) continue; // tracked symlinks and pipes are not read
-    try { buf = readFileSync(join(root, p)); } catch { continue; }
+    try { buf = st.size <= 1 << 20 ? readFileSync(join(root, p)) : head(join(root, p)); } catch { continue; }
     if (buf.subarray(0, 8000).includes(0)) continue; // binary
-    const s = buf.length <= 1 << 20 ? buf.toString("utf8") : "";
+    const s = st.size <= 1 << 20 ? buf.toString("utf8") : ""; // a file over 1 MB counts its bytes but gives no signals
     const first = s.slice(0, s.indexOf("\n") < 0 ? undefined : s.indexOf("\n"));
     if (/@generated|DO NOT EDIT/.test(first)) { dropped.add(p); continue; }
     live.push(p);
-    text.set(p, s);
-    if (!SRC.includes(extname(p)) || CHECKS.test(p)) continue; // zones count source bytes only
-    // layout keys: folders at depth 1 and 2, "*" for root files, "<dir>/*" for files directly in a depth-1 folder; a path is in one zone at most
-    const segs = p.split("/");
-    const keys = [segs.length === 1 ? "*" : segs[0], ...(segs.length > 2 ? [segs.slice(0, 2).join("/")] : segs.length === 2 ? [`${segs[0]}/*`] : [])];
-    for (const k of keys) layoutBytes.set(k, (layoutBytes.get(k) || 0) + buf.length);
-  }
-
-  const kinds = {};
-  for (const k of KINDS) kinds[k.key] = { hits: [], total: 0 };
-  for (const p of live) {
+    if (isSql(p)) sqlFiles.push({ path: p, text: s });
+    if (SRC.includes(extname(p)) && !CHECKS.test(p)) { // zones count source bytes only
+      // layout keys: folders at depth 1 and 2, "*" for root files, "<dir>/*" for files directly in a depth-1 folder; a path is in one zone at most
+      const segs = p.split("/");
+      const keys = [segs.length === 1 ? "*" : segs[0], ...(segs.length > 2 ? [segs.slice(0, 2).join("/")] : segs.length === 2 ? [`${segs[0]}/*`] : [])];
+      for (const k of keys) layoutBytes.set(k, (layoutBytes.get(k) || 0) + st.size);
+    }
     if (CHECKS.test(p)) { checks.push(p); continue; }
     if (TESTS.test(p)) continue; // mechanisms are about the app, not its tests
     const ext = extname(p);
-    const lines = text.get(p).split("\n");
+    const lines = s.split("\n");
     for (const k of KINDS) {
-      const sigs = k.signals.filter((s) => s.ext.includes(ext));
+      const sigs = k.signals.filter((g) => g.ext.includes(ext));
       if (!sigs.length) continue;
       lines.forEach((l, i) => {
-        if (sigs.some((s) => s.re.test(l))) { kinds[k.key].total++; kinds[k.key].hits.push({ file: p, line: i + 1, text: l.trim().slice(0, 160) }); }
+        if (l.length <= MAX_LINE && sigs.some((g) => g.re.test(l))) { kinds[k.key].total++; kinds[k.key].hits.push({ file: p, line: i + 1, text: l.trim().slice(0, 160) }); }
       });
     }
   }
@@ -261,7 +261,6 @@ export function scan(root) {
   if (add.length && (!st || st.isFile())) appendFileSync(ignorePath, (st && st.size && !readFileSync(ignorePath, "utf8").endsWith("\n") ? "\n" : "") + add.join("\n") + "\n");
 
   const layout = [...layoutBytes].map(([path, bytes]) => ({ path, bytes })).sort((a, b) => (a.path < b.path ? -1 : 1));
-  const sqlFiles = live.filter((p) => /migration|\.sql$/i.test(p)).map((path) => ({ path, text: text.get(path) }));
   return {
     commit,
     layout,
@@ -274,7 +273,8 @@ export function scan(root) {
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const root = process.argv[2] || ".";
-  const s = scan(root);
+  let s;
+  try { s = scan(root); } catch (e) { console.error(e.message); process.exit(1); }
   outDir(root, "scan.json");
   writeFileSync(join(root, ".xworkflows/scan.json"), JSON.stringify(s, null, 2) + "\n");
   for (const k of KINDS) console.log(`${k.key}: ${s.kinds[k.key].total}`);
