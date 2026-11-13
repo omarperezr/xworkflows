@@ -39,3 +39,21 @@ test("a recorded payload carries neither the home folder nor the folders between
   assert.doesNotMatch(text, new RegExp(home.replace(/[\\/]/g, "[\\\\/-]")));
   assert.match(text, /\/home\/user\/proj/);
 });
+const recordCommand = (cmd) => {
+  const { home, root } = project();
+  const rec = mkdtempSync(join(tmpdir(), "xwf-rec-"));
+  const payload = { ...input(root), tool_name: "Bash", tool_input: { command: cmd(home) } };
+  spawnSync("node", [run, "claude", "adapt-record"], { input: JSON.stringify(payload), encoding: "utf8", env: { ...process.env, XWORKFLOWS_FREE: "", HOME: home, XWORKFLOWS_RECORD: rec } });
+  return JSON.parse(readFileSync(join(rec, readdirSync(rec)[0]), "utf8")).input.tool_input.command;
+};
+for (const [form, spelling] of [["~", "~"], ["$HOME", "$HOME"], ["${HOME}", "${HOME}"]]) {
+  test(`a recorded command hides the folders written as ${form}`, () => {
+    const c = recordCommand(() => `ls ${spelling}/client-work/proj && cat '${spelling}/client-work/proj/a'`);
+    assert.doesNotMatch(c, /client-work/);
+    assert.equal(c, "ls /home/user/proj && cat '/home/user/proj/a'");
+  });
+}
+test("a recorded command keeps a path that only starts like the folders", () => {
+  const c = recordCommand((h) => `cat ${h}/client-workshop/other/a.txt ${h}/client-work-old/x`);
+  assert.equal(c, "cat /home/user/client-workshop/other/a.txt /home/user/client-work-old/x");
+});
