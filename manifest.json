@@ -65,7 +65,12 @@
       "claude": [
         {
           "event": "PreToolUse",
-          "matcher": "Write|Edit|MultiEdit|Workflow|Bash"
+          "matcher": "Write|Edit|MultiEdit|Workflow|Bash",
+          "earlier": [
+            {
+              "matcher": "Write|Edit|MultiEdit|Workflow"
+            }
+          ]
         }
       ],
       "files": {
@@ -287,9 +292,9 @@
         "gemini"
       ],
       "files": {
-        "skills/next-step/SKILL.md": "7f2f67ad85653257158d95c02fe3a174c6bbc5199b59c72990eecf80e22928c3"
+        "skills/next-step/SKILL.md": "1acfa088430eda12ff40da6b6b48af13b4e82953525ee2ff22097c566830dd3d"
       },
-      "sha256": "81a52145374fc89c7e6e165061c31c89653e03bda95c75386ca38636c0977645"
+      "sha256": "f4ed47267e5d5c43efeac014e5d1b3b4035dfd88d801c9399f54f6e777eafed6"
     },
     {
       "id": "orchestrator",
@@ -561,6 +566,16 @@
       "tools": [
         "claude"
       ],
+      "earlierHooks": {
+        "post-merge": [
+          "1505466be2b9c89a950027d28235ee05f7c01f72c658053a976c3b58d9fe3c4c",
+          "2baacba828e357ab2a35f3efe7cfb72b5c5f0a578475be4406ef874323c1bc7a"
+        ],
+        "post-commit": [
+          "1505466be2b9c89a950027d28235ee05f7c01f72c658053a976c3b58d9fe3c4c",
+          "d3e17de70e228aceec092ee1b8068e9f20466c9a90b463b259801a6d28a43aad"
+        ]
+      },
       "files": {
         "checks/run.mjs": "aefed9b4bd5f2a1e931fa31034a666b78578e4258ff7feb7548b094c525d4c52",
         "checks/comment-lines.mjs": "7cc1262dc37358f5c2436e47f3808baa4af7c39d5579d5c428996c90c446dcf7",
