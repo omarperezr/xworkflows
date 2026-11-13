@@ -263,6 +263,22 @@ function mergeIgnore(root, qmd) {
   return { path, text: imports.length ? text : null, rec: { imports, created: old === null && imports.length ? [path] : [] } };
 }
 
+// .graphifyignore: the folders install writes, one line each, so the graph does not index the method's own files
+const GI = ".graphifyignore";
+function mergeGraphifyIgnore(root, writes) {
+  const old = read(root, GI);
+  let text = old ?? "";
+  const imports = [];
+  const want = [".xworkflows/", ...new Set(writes.filter((w) => !w.keep).map((w) => w.path.match(/^\.claude\/skills\/[^/]+/)?.[0]).filter(Boolean).map((u) => u + "/"))];
+  for (const line of want) {
+    if (text.split("\n").includes(line)) continue;
+    const addedNewline = text !== "" && !text.endsWith("\n");
+    imports.push({ file: GI, line, ...(addedNewline && { addedNewline }) });
+    text += (addedNewline ? "\n" : "") + line + "\n";
+  }
+  return { path: GI, text: imports.length ? text : null, rec: { imports, created: old === null && imports.length ? [GI] : [] } };
+}
+
 const HOOKS = ["pre-push", "post-merge", "post-commit"];
 const hooksFolder = (root) => resolve(root, execFileSync("git", ["rev-parse", "--git-path", "hooks"], { cwd: root, encoding: "utf8" }).trim());
 // the record's name for a hook: .git/hooks/<name> in every checkout, unless core.hooksPath moved the folder
@@ -442,6 +458,7 @@ export function plan(manifest, root, record, ans = {}) {
   if (!off(SETTINGS)) { const ms = mergeSettings(root, manifest, record); notes.push(...ms.notes); merges.push(ms); }
   if (!off(LOCAL)) { const local = mergeLocal(root); if (local.note) notes.push(local.note); merges.push(local); }
   if (!off(".gitignore")) merges.push(mergeIgnore(root, qmd));
+  if (!off(GI)) merges.push(mergeGraphifyIgnore(root, writes));
   if (!off("AGENTS.md")) merges.push(mergeAgents(root));
   merges.push(...hookMerges);
   const link = off("CLAUDE.md");
@@ -742,7 +759,7 @@ async function doctor() {
 }
 
 const SETTINGS = ".claude/settings.json", LOCAL = ".claude/settings.local.json", LOCAL_KEY = "autoMemoryDirectory";
-const FIVE = [SETTINGS, LOCAL, ".gitignore", "AGENTS.md", "CLAUDE.md"];
+const FIVE = [SETTINGS, LOCAL, ".gitignore", GI, "AGENTS.md", "CLAUDE.md"];
 // The lines install adds to the files it merges into.
 const LINES = new Map([[".gitignore", IGNORE.map(([l]) => l)], ["CLAUDE.md", ["@AGENTS.md"]]]);
 
@@ -769,6 +786,7 @@ function uninstall() {
     if (u) { const x = renameWrite(w, u); wanted.set(x.path, x.text); }
   }
   const wants = settingsWants(manifest);
+  const giLines = new Set([".xworkflows/", ...[...wanted.keys()].map((p) => p.match(/^\.claude\/skills\/[^/]+/)?.[0]).filter(Boolean).map((u) => u + "/")]);
   let md = null;
   try { md = memName(loadConfig(ROOT).memory.dir); } catch {}
 
@@ -781,7 +799,7 @@ function uninstall() {
     merged: (m) => m.file === SETTINGS && wants.some((w) => isDeepStrictEqual(w.key, m.key)),
     scalars: (x) => (x.file === SETTINGS && isDeepStrictEqual(x.key, ["attribution"])) || (x.file === LOCAL && isDeepStrictEqual(x.key, [LOCAL_KEY])),
     blocks: (b) => b.file === "AGENTS.md",
-    imports: (i) => !!LINES.get(i.file)?.includes(i.line),
+    imports: (i) => !!LINES.get(i.file)?.includes(i.line) || (i.file === GI && giLines.has(i.line)),
     created: (p) => FIVE.includes(p) || p === md || (p === YML && marked),
     chained: (c) => hookSet.has(c.file) && c.to === c.file + ".before-xworkflows",
   };

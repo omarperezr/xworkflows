@@ -293,7 +293,7 @@ test("rerun: nothing to do, files byte-equal, record entries once", () => {
   assert.equal(rec.merged[0].createdKey, true);
   assert.deepEqual(rec.blocks, [{ file: "AGENTS.md" }]);
   assert.deepEqual(rec.imports.filter((i) => i.file === "CLAUDE.md"), [{ file: "CLAUDE.md", line: "@AGENTS.md" }]);
-  assert.deepEqual(rec.created.sort(), [".claude/settings.json", ".claude/settings.local.json", ".gitignore", "AGENTS.md", "CLAUDE.md", "docs/memory"]);
+  assert.deepEqual(rec.created.sort(), [".claude/settings.json", ".claude/settings.local.json", ".gitignore", ".graphifyignore", "AGENTS.md", "CLAUDE.md", "docs/memory"]);
 });
 test("AGENTS.md: a changed block is replaced in place, text outside kept; existing CLAUDE.md untouched", () => {
   const r = repo({ "AGENTS.md": "top\n<!-- xworkflows:start -->\nold\n<!-- xworkflows:end -->\nbottom\n", "CLAUDE.md": "mine\n" });
@@ -302,7 +302,7 @@ test("AGENTS.md: a changed block is replaced in place, text outside kept; existi
   assert.ok(t.startsWith("top\n<!-- xworkflows:start -->\n## xworkflows"));
   assert.ok(t.endsWith("<!-- xworkflows:end -->\nbottom\n"));
   assert.equal(readFileSync(join(r, "CLAUDE.md"), "utf8"), "mine\n");
-  assert.deepEqual(readJson(r, ".xworkflows/installed.json").created.sort(), [".claude/settings.json", ".claude/settings.local.json", ".gitignore", "docs/memory"]);
+  assert.deepEqual(readJson(r, ".xworkflows/installed.json").created.sort(), [".claude/settings.json", ".claude/settings.local.json", ".gitignore", ".graphifyignore", "docs/memory"]);
 });
 test("dry-run lists merges and writes nothing", () => {
   const r = repo();
@@ -1882,4 +1882,63 @@ test("a second install records the same folders and changes nothing", () => {
   const rec = readFileSync(join(r, ".xworkflows/installed.json"), "utf8");
   assert.match(cli(r, ["install", "--yes"]).stdout, /nothing to do/);
   assert.equal(readFileSync(join(r, ".xworkflows/installed.json"), "utf8"), rec);
+});
+
+// install keeps the method's own files out of the code graph: a .graphifyignore with the folders it writes
+const SKILLS = [...new Set(JSON.parse(readFileSync(join(PKG_ROOT, "manifest.json"), "utf8")).pieces.flatMap((p) => Object.keys(p.files)).map((f) => f.match(/^skills\/([^/]+)\//)?.[1]).filter(Boolean))];
+const GI = [".xworkflows/", ...SKILLS.map((n) => `.claude/skills/${n}/`)];
+const sameLines = (a, b) => assert.deepEqual([...a].sort(), [...b].sort());
+const lines = (r, p = ".graphifyignore") => readFileSync(join(r, p), "utf8").split("\n").filter(Boolean);
+test(".graphifyignore: install names .xworkflows/ and each skill folder it writes, never .claude/ whole", () => {
+  const r = repo({ ".claude/skills/mine/SKILL.md": "---\nname: mine\n---\n" });
+  assert.equal(inst(r).status, 0);
+  sameLines(lines(r), GI);
+  assert.ok(!lines(r).includes(".claude/") && !lines(r).includes(".claude/skills/mine/"));
+  assert.ok(readJson(r, ".xworkflows/installed.json").imports.some((i) => i.file === ".graphifyignore" && i.line === ".xworkflows/"));
+});
+test(".graphifyignore: a skill kept as the project's is not named, one installed as xwf- is named by that folder", () => {
+  const r = repo({ ".claude/skills/tdd/SKILL.md": "mine\n", ".claude/skills/grill/SKILL.md": "mine too\n" });
+  const out = cli(r, ["install"], { env: { HOME: EMPTY_HOME } });
+  assert.equal(out.status, 0, out.stderr);
+  assert.ok(!lines(r).includes(".claude/skills/tdd/") && !lines(r).includes(".claude/skills/grill/"));
+  const y = repo({ ".claude/skills/tdd/SKILL.md": "mine\n" });
+  assert.equal(cli(y, ["install", "--yes"], { env: { HOME: EMPTY_HOME } }).status, 0);
+  assert.ok(lines(y).includes(".claude/skills/xwf-tdd/") && !lines(y).includes(".claude/skills/tdd/"));
+  cli(y, ["uninstall"]);
+  assert.ok(!existsSync(join(y, ".graphifyignore")));
+});
+test(".graphifyignore: uninstall takes back exactly the recorded lines, the project's lines and its missing newline stay", () => {
+  const r = repo({ ".graphifyignore": "vendor/\n.xworkflows/\nbuild" });
+  inst(r);
+  assert.deepEqual(lines(r).slice(0, 3), ["vendor/", ".xworkflows/", "build"]);
+  sameLines(lines(r).slice(3), GI.slice(1));
+  cli(r, ["uninstall"]);
+  assert.equal(readFileSync(join(r, ".graphifyignore"), "utf8"), "vendor/\n.xworkflows/\nbuild");
+});
+test(".graphifyignore: a file install created that ends empty is removed, a second install changes nothing", () => {
+  const r = repo(), before = tree(r);
+  inst(r);
+  const gi = readFileSync(join(r, ".graphifyignore"), "utf8"), rec = readFileSync(join(r, ".xworkflows/installed.json"), "utf8");
+  assert.match(inst(r).stdout, /^nothing to do$/m);
+  assert.equal(readFileSync(join(r, ".graphifyignore"), "utf8"), gi);
+  assert.equal(readFileSync(join(r, ".xworkflows/installed.json"), "utf8"), rec);
+  cli(r, ["uninstall"]);
+  assert.ok(!existsSync(join(r, ".graphifyignore")));
+  assert.equal(tree(r), before);
+});
+test(".graphifyignore: --dry-run writes nothing and names the file", () => {
+  const r = repo(), before = tree(r);
+  const out = inst(r, ["--dry-run"]);
+  assert.match(out.stdout, /^would merge \.graphifyignore$/m);
+  assert.equal(tree(r), before);
+});
+test(".graphifyignore: a link that leaves the repository is not written through", () => {
+  const o = tmp("xwf-out-"), r = repo();
+  writeFileSync(join(o, "target"), "outside\n");
+  symlinkSync(join(o, "target"), join(r, ".graphifyignore"));
+  const out = inst(r);
+  assert.equal(readFileSync(join(o, "target"), "utf8"), "outside\n");
+  assert.match(out.stdout, /^not written \(symlink\): \.graphifyignore$/m);
+  cli(r, ["uninstall"]);
+  assert.equal(readFileSync(join(o, "target"), "utf8"), "outside\n");
 });
