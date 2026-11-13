@@ -233,6 +233,7 @@ test("adapt research steps in order", () => {
   const s = step(2);
   inOrder(s, ["research.mjs start", "rules.mjs", "scan.mjs", "graphify update .", "`Workflow`", "scriptPath", "zeroHits", "`.xworkflows/research.json`", "research.mjs render", "research.mjs queue"]);
   has(s, ["Without the Workflow tool, stop", "`kinds.<key>.total` is 0", "wait for its result", "unchanged", "stop and tell the owner"]);
+  assert.ok(!read("skills/adapt/SKILL.md").includes("kinds.json"));
   assert.ok(!/script:/.test(s));
 });
 test("adapt passes the installed agent names to the Workflow", () => {
