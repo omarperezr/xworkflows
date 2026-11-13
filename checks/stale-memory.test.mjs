@@ -124,7 +124,7 @@ test("a longer closing fence closes the block: what follows is checked", withRep
 
 const GITLINK = (repo, path) => repo.git("update-index", "--add", "--cacheinfo", `160000,${repo.git("rev-parse", "HEAD")},${path}`);
 
-test("a submodule entry named like a note is not read as a blob", { todo: "stale-memory.mjs cat-files every .md entry, a submodule included" }, withRepo({ "mem/n.md": "see `src/a.js`\n" }, async (repo) => {
+test("a submodule entry named like a note is not read as a blob", withRepo({ "mem/n.md": "see `src/a.js`\n" }, async (repo) => {
   GITLINK(repo, "mem/sub.md");
   repo.git("commit", "-q", "-m", "sub");
   assert.deepEqual(await repo.run(mod), { ok: true, lines: [] });
