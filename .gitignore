@@ -9,3 +9,4 @@ docs/proof/private/
 node_modules/
 graphify-out/
 .claude/settings.local.json
+.qmd/

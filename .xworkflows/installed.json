@@ -649,6 +649,10 @@
     {
       "file": "CLAUDE.md",
       "line": "@AGENTS.md"
+    },
+    {
+      "file": ".gitignore",
+      "line": ".qmd/"
     }
   ],
   "created": [
