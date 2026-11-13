@@ -97,6 +97,8 @@ node /path/to/xworkflows/bin/xworkflows.mjs doctor
 - `--yes`: answers the questions for you (for scripts).
 - `uninstall`: removes what the installer added.
 
+`install` also creates the memory folder (`docs/memory`), where the agent keeps its notes, and writes `.qmd/index.yml`, which tells the `qmd` search tool to index that folder for this checkout. The file holds an absolute path, so it is not tracked (`.qmd/` goes in `.gitignore`) and every clone or worktree runs `install` for its own. `install` does not start `qmd`; searching the notes does, and `doctor` checks for it (`npm install -g @tobilu/qmd`). An existing `.qmd/index.yml` is left as it is. `uninstall` removes the index it created and leaves the notes.
+
 Nothing is committed or pushed for you. The installer prints the paths to `git add`; you decide when to commit.
 
 Settings you can change are in `.xworkflows/config.json`: your name, and where your specs and plans live.
