@@ -16,17 +16,17 @@
         "gemini"
       ],
       "files": {
-        "hooks/run.mjs": "59d577b695662c182484af2664227b61d5c35cba472594c4689b0fe54ccbf998",
+        "hooks/run.mjs": "ed715e9c370e12e15694e2c0785d63cb8e2ee8ac2f8ea606a8f30b0ad760668c",
         "hooks/mark.mjs": "f2ecad21dedeb1515287063237e6852b9374781f71ce876f13b57324bfcb88a5",
         "hooks/core/marks.mjs": "9f52d052c8fb1275e92335d1dd5664be0f1bff7d43a4a9432268bac01d61a2b7",
         "hooks/adapters/claude.mjs": "dcba638334e4447a339907005f6723580b64517b5278af047c0cce64c5e6ad80",
         "hooks/adapters/codex.mjs": "0589bf97b5cec7e06fee8a70bd92d8a0f51e8bb082cc241f743a80308e44d059",
         "hooks/adapters/cursor.mjs": "394c1a81f4040089b67f0fbf1131012bbb5883bdf705ce3af12dff66d9b3cbd5",
         "hooks/adapters/gemini.mjs": "eff8f29bce46d7c4a7c62845f3762a16c6fd38e831e6c4a5d6b54361ec599175",
-        "hooks/core/config.mjs": "b4ace6e6183a55b3b7eebf6c1ed12325bde4984b4bab9b51b85ef99c1af4eb13",
+        "hooks/core/config.mjs": "38a293576c80eec0ee8ee6c5b07dc555589e6520dcd3cfa70f5cf2372455cae5",
         "hooks/core/ctx.mjs": "2e24043a1176b09e7e3a69071673062bbc19c101eda3d621bfacce52f05a2b12"
       },
-      "sha256": "34651d3e4f6772a2de6dd6e743b5f57c73809bb58b471348adab872a9b1936be"
+      "sha256": "a150da57b25b5fd3bb41d68101010fe666e4e183df265a0116e9ac77f06773fe"
     },
     {
       "id": "design-first",
@@ -74,9 +74,9 @@
         }
       ],
       "files": {
-        "hooks/core/adapt-gates.mjs": "585a909553abc320f3dc5b631d0224a74bd1b7f5bdb74d8a75d395d97d213b47"
+        "hooks/core/adapt-gates.mjs": "f585d19b5faf733dd6ed1ebe6e1f77feba2fface0836007031b46c73d0af4373"
       },
-      "sha256": "4e0bcd2febce1084f7af7b9b434b4415f1a2938882fc1f5834b0db16b9ba2267"
+      "sha256": "1946fb864045748c5a1ab58010d3b6b941484441b4390d4d2b6acddde7e3208c"
     },
     {
       "id": "adapt-record",
@@ -251,14 +251,14 @@
         "gemini"
       ],
       "files": {
-        "skills/adapt/SKILL.md": "7e030b3e2dfef49119df1f298aeafedc03aaed35160a1a073efd2f7f0502400f",
+        "skills/adapt/SKILL.md": "d520ba22f1e25ffcec0b9bd66e12a629f34e017516e94868ed4e449e5d3410da",
         "skills/adapt/scan.mjs": "c7d9a47a268cdf6135057da9eb267826b3d5df6df574b7fc206daccacfe401e9",
         "skills/adapt/rules.mjs": "736bb9ee53874d8c9447ab4107780d9b8f5733cee26597dae96862d43d37bde2",
-        "skills/adapt/research.workflow.js": "81379ada822f5ed92c4be33b1006ca88a76f50bb5f09bd3b9e497e8639ce1e4b",
-        "skills/adapt/research.mjs": "886b742241dab282c649c3d664f5ecb6b6405dd2fc96a27e8ff20b48ce0f4007",
-        "skills/adapt/screens.mjs": "c06c370c6d85f492f0966c731db656c6bb7370b91af9a66e83b39e7dceafda1e"
+        "skills/adapt/research.workflow.js": "c7d72c728a5eef056d9a23f56d3334b6f2400fa9730cb96dfcad23dadd579daa",
+        "skills/adapt/research.mjs": "6a2e14b49e16dd31037ebb6cadfe575b41544584d538d0462d9542e342273ae0",
+        "skills/adapt/screens.mjs": "0a0f3698ea1e41ebae375416e52eac0df90e8d644f8b452c44e9fe702bc34cdc"
       },
-      "sha256": "51351f673d19efd8a4335cf9a9db8cfd18944a55d3df16e8dd16382b7b2fb985"
+      "sha256": "1c113fb6171636ef22ec78ec41a6eaf42f4591487ad1658e6debba2369210f16"
     },
     {
       "id": "full-review",
@@ -274,9 +274,9 @@
         "gemini"
       ],
       "files": {
-        "skills/full-review/SKILL.md": "536501981886dffba7e84403f3db5a1330e80960c85808c96e89dd758170bef7"
+        "skills/full-review/SKILL.md": "9b4ed0fb17e686a3fc76f482e8bebbbec34191e526460727639eaadc6a224c70"
       },
-      "sha256": "5803152da69485a533218d3915ba137c96884a9225a102d11690792e9bfc79e7"
+      "sha256": "9b703828a0cbcbfbe36bd66b3a331ad94bd71fd4007dc2dc785aa6ddfc89f458"
     },
     {
       "id": "next-step",
@@ -316,9 +316,9 @@
         }
       ],
       "files": {
-        "hooks/core/orchestrator.mjs": "9882b1023b6cc9cfd9453258bec37b24130984e131655cae84332517e77fcf1e"
+        "hooks/core/orchestrator.mjs": "5462dd6a5df1c93dd77956880884ca1eeac6113c6d1b07ea8445577a12f42da4"
       },
-      "sha256": "f61c11a6a8560c197d22ea85c89a0bc8169441165f63d10e441431b9774f11aa"
+      "sha256": "80541a702bc5cf7a03a763fec328d809e5cff2d345db100f632491a22f41209b"
     },
     {
       "id": "handback",
@@ -580,7 +580,7 @@
         "checks/run.mjs": "aefed9b4bd5f2a1e931fa31034a666b78578e4258ff7feb7548b094c525d4c52",
         "checks/comment-lines.mjs": "7cc1262dc37358f5c2436e47f3808baa4af7c39d5579d5c428996c90c446dcf7",
         "checks/signature.mjs": "369f1c717d975692f082dc71d05540a2279408807969254f987ae01a0ef5d28f",
-        "checks/review-seal.mjs": "0462ccdf890362fc49798728e79f1d2bed9310b78e762da4a826e84a27965632",
+        "checks/review-seal.mjs": "f3ab75a35ba6f5fad303b5d0b2af975928c240aa9a0b5ac791ced5c0c62a4139",
         "checks/goal-cited.mjs": "ece9e129e2bdb39a619bf8680195101364e67d2d6ab318eef00cf4cb11c9eb8d",
         "checks/pending.mjs": "0eb036116ed41676dd1fb2bed3c8a96d1357360e246bead864af6b311559c0cb",
         "checks/fix-has-test.mjs": "f4f4e4f0e56f73bdeb8fa13d3624ec81cc95394e6b07eeb943112f40c17c526b",
@@ -588,13 +588,13 @@
         "checks/comment-ratio.mjs": "20112da90275485c4cfa149cb2164517aa308873b49a97d1f5d8c98f9a621310",
         "checks/skills-travel.mjs": "d6188c4677f6ddcaf7bbb6ba6a311976377b318c6d9ddb3612614dce6d7e89cd",
         "checks/patterns.mjs": "b76bd62236b34035c628147793d6d428959a91036f7700389bd6d7c443805e12",
-        "checks/ratchet.mjs": "588ee64ef495668ef7c83c790bf825b211fbbcb753478ad8d21ea4394a81ef79",
+        "checks/ratchet.mjs": "7ee45eb1b388acb184d7577870dad8e752a32e480039d69a4d957d39d2f9083b",
         "checks/graph-current.mjs": "60d97ae303e98af23dcc93324bd06b53d03654882a5fa959782fa2014b33518a",
         "checks/stale-memory.mjs": "b0eed755d450a206377f4953b37a38ee8647565cdf80751d687f3f646a81d7d2",
         "checks/index-current.mjs": "52b1d47da0e375d52d970e20b18cbc6e3269f117ab807545d8b73aa258d15bfe",
-        "checks/project.mjs": "af3161760f0ac32a4f816a1cd6a4d5a17e848811d8dcdfd95c1b575568a11d87"
+        "checks/project.mjs": "9993a96fd690eefde833f545caa70266471136eb881eb5c785d2898c2cc39a19"
       },
-      "sha256": "623ec0553c45f51aa58418e52f36ce303dbdf23b04fde72fa81fc93fdb33ff53"
+      "sha256": "2ed2f45fe61ac7f77b8ecc774a8da5aa5dab4da5e6b58444f9d615fea0164e26"
     },
     {
       "id": "lint",
