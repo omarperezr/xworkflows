@@ -348,7 +348,10 @@ Files in the repository, readable by all four tools:
   that makes them.
 
 `qmd` is required (owner, 2026-11-11). The memory folder is an Obsidian-style
-vault indexed by `qmd`. Past sessions are not indexed.
+vault indexed by `qmd`. Past sessions are not indexed. `install` creates the
+folder when it is missing and writes a project-local `.qmd/index.yml` that
+names it by its absolute path; the file is per checkout and not tracked
+(owner, 2026-11-13).
 
 Facts of type `user` and `feedback` go to `~/.xworkflows/owner.md`, never into
 the repository. Facts of type `project` and `reference` stay in the
