@@ -1317,6 +1317,38 @@ test("uninstall writes settings.json back with the indent the file had", () => {
     assert.equal(back, mine, JSON.stringify(indent));
   }
 });
+// the answers are typed at a terminal: a pty from python3, each line sent once the previous question is out
+const PTY = `import os, pty, sys, time
+pid, fd = pty.fork()
+if pid == 0:
+    os.execvp("node", ["node"] + sys.argv[2:])
+for line in sys.argv[1].split(","):
+    time.sleep(1)
+    os.write(fd, (line + "\\n").encode())
+out = b""
+try:
+    while True:
+        d = os.read(fd, 4096)
+        if not d: break
+        out += d
+except OSError: pass
+sys.stdout.write(out.decode())
+`;
+test("answers typed at a terminal decide each question: a prefix, an empty line and a file that is not ours", { skip: spawnSync("python3", ["-c", "import pty"]).status !== 0 && "needs python3 pty" }, () => {
+  const r = repo({ ".claude/skills/grill/SKILL.md": "mine\n", "CLAUDE.md": "# x\n" });
+  cli(r, ["install", "--yes"]);
+  rmSync(join(r, ".xworkflows/installed.json"));
+  rmSync(join(r, ".claude/skills/xwf-grill"), { recursive: true });
+  writeFileSync(join(r, ".xworkflows/hooks/run.mjs"), "mine\n");
+  writeFileSync(join(r, "CLAUDE.md"), "# x\n");
+  const out = spawnSync("python3", ["-c", PTY, "xwf,o,y", BIN, "install"], { cwd: r, env: { ...process.env, ...ISO }, encoding: "utf8" });
+  assert.match(out.stdout, /Keep theirs or install ours as xwf-grill\?/);
+  assert.match(readFileSync(join(r, ".claude/skills/xwf-grill/SKILL.md"), "utf8"), /^name: xwf-grill$/m);
+  assert.equal(readFileSync(join(r, ".claude/skills/grill/SKILL.md"), "utf8"), "mine\n");
+  assert.notEqual(readFileSync(join(r, ".xworkflows/hooks/run.mjs"), "utf8"), "mine\n");
+  assert.match(readFileSync(join(r, "CLAUDE.md"), "utf8"), /^@AGENTS\.md$/m);
+  assert.doesNotMatch(out.stdout, /answered for you/);
+});
 test("a tracked settings.local.json: the ignore line is added once, not on every install", () => {
   const r = repo({ ".claude/settings.local.json": '{"x":1}' });
   git(r, "add -A"); git(r, "commit -qm t");
