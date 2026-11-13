@@ -8,6 +8,10 @@ const folded = (a, b) => a.toLowerCase() === b.toLowerCase() && existsSync(path.
 const same = (a, b) => a === b || folded(a, b);
 const json = (s) => { try { return JSON.parse(s); } catch { return null; } };
 
+// A separator or line start before > and tee, a word end after tee; a path starts at a word start, so the scan stays linear.
+const FILE = String.raw`(?<![^\s"'>|])["']?[^\s;&|<>"']*\.xworkflows\/+["']?summary\.md(?![\w.])`;
+const SUMMARY_WRITE = new RegExp(String.raw`(?:^|[\s;&|])\d*>>?\|?\s*${FILE}|(?:^|[\s;&|])tee(?=\s)[^;&|]*?${FILE}`);
+
 export function decide(ev, ctx) {
   const x = (f) => path.join(ev.root, ".xworkflows", f);
   const run = json(ctx.readFile(x("adapt-run.json")));
@@ -37,8 +41,8 @@ export function decide(ev, ctx) {
     return { decision: "allow" };
   }
 
-  // shortcut: only a redirect or tee naming .xworkflows/summary.md is seen; cp, mv, sed -i or a cd first are not, upgrade by parsing ev.command.
-  if (ev.kind === "shell" && /(?:>\|?|\btee(?:\s+-\S+)*)\s*["']?[^\s;&|<>"']*\.xworkflows\/summary\.md(?![\w.])/.test(ev.command ?? ""))
+  // shortcut: only a redirect or tee naming .xworkflows/summary.md is seen, quoted or not (a quoted mention is denied too); cp, mv, sed -i or a cd first are not, upgrade by parsing ev.command.
+  if (ev.kind === "shell" && SUMMARY_WRITE.test(ev.command ?? ""))
     return deny("summary.md is written with Write, not by a shell redirect or tee.");
 
   for (const w of ev.writes ?? []) {

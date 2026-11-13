@@ -170,6 +170,18 @@ test("shell commands that only read summary.md or write elsewhere pass", () => {
   for (const c of [`cat .xworkflows/summary.md`, `grep a .xworkflows/summary.md > /tmp/out.txt`, `echo x > docs/summary.md`, `echo x > .xworkflows/summary.md.bak`, `diff .xworkflows/summary.md a | tee out.txt`])
     ok(decide(sh(c), ctx()));
 });
+test("a commit message that mentions the file with an arrow writes nothing", () => ok(decide(sh(`git commit -m "adapt: research -> .xworkflows/summary.md"`), ctx())));
+test("an escaped > before the file writes nothing", () => ok(decide(sh("grep -n \\> .xworkflows/summary.md"), ctx())));
+test("a folder whose name starts with tee writes nothing", () => ok(decide(sh("cat /home/u/teemo/.xworkflows/summary.md"), ctx())));
+test("tee with the file after another file is denied", () => deny(decide(sh("echo x | tee /tmp/copy .xworkflows/summary.md"), ctx()), /summary\.md is written with Write/));
+test("a redirect into a doubled slash path is denied", () => deny(decide(sh("echo x > .xworkflows//summary.md"), ctx()), /summary\.md is written with Write/));
+test("a redirect into a quoted file name is denied", () => deny(decide(sh('echo x > .xworkflows/"summary.md"'), ctx()), /summary\.md is written with Write/));
+test("a long word after tee is judged in linear time", () => {
+  const time = (n) => { const e = sh("tee -" + "a".repeat(n)); const t = process.hrtime.bigint(); ok(decide(e, ctx())); return Number(process.hrtime.bigint() - t) / 1e6; };
+  time(1000);
+  const small = time(20000), big = time(80000);
+  assert.ok(big < 8 * Math.max(small, 1) + 20, `20000 chars ${small} ms, 80000 chars ${big} ms`);
+});
 test("a shell redirect into summary.md passes when no run is in progress", () => ok(decide(sh("echo x > .xworkflows/summary.md"), ctx(files(null)))));
 test("a missing interview.json denies with the command that writes it", () =>
   deny(decide(sw(summary("draft", FIVE)), ctx(files(), () => ({ code: 1, out: "", err: "adapt: interview.json is missing or unreadable\n" }))), /interview\.json is missing or unreadable.*research\.mjs queue/));
