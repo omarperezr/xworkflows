@@ -44,7 +44,7 @@ export async function run(range, ctx) {
   const lines = [];
   for (const { name, run: cmd } of list) {
     const r = await runLimited(`{ ${cmd}\n} 2>&1`, ctx); // one pipe keeps stdout and stderr in order
-    if (r.timedOut) return { ok: false, lines: [...lines, cutLine(name, cmd, ctx)] };
+    if (r.timedOut) return { ok: false, cannotRun: true, lines: [...lines, cutLine(name, cmd, ctx)] };
     if (r.code === null) return { ok: false, cannotRun: true, lines: [`${name} did not run to the end: ${r.err.trim() || "killed"}`] };
     if (r.code !== 0) lines.push(`${name} failed (exit ${r.code})`, ...r.out.replace(/\n$/, "").split("\n").slice(-20));
   }

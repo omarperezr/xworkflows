@@ -26,7 +26,7 @@ export async function run(range, ctx) {
   const fails = [], notes = [];
   for (const { name, count } of list) {
     const r = await runLimited(count, ctx);
-    if (r.timedOut) return { ok: false, lines: [cutLine(name, count, ctx)] };
+    if (r.timedOut) return { ok: false, cannotRun: true, lines: [cutLine(name, count, ctx)] };
     if (r.code !== 0) return cannot(`${name}: count command ${r.code === null ? "was killed" : `exited ${r.code}`}: ${r.err.trim()}`);
     const out = r.out.trim();
     if (!/^\d+$/.test(out)) return cannot(`${name}: count command must print one integer, it printed: ${out.slice(0, 80) || "nothing"}`);

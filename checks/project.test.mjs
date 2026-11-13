@@ -91,6 +91,7 @@ test("a command that passes the limit is cut: the line gives the command, the mi
     const r = await repo.run(brake);
     assert.equal(r.ok, false);
     assert.equal(r.cannotRun, true);
+    assert.equal(r.lines.length, 1);
     const line = r.lines.join("\n");
     assert.match(line, /unit/);
     assert.match(line, /sleep 30/);
