@@ -3,6 +3,7 @@ import { spawnSync } from "node:child_process";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { load as loadConfig, missing } from "../hooks/core/config.mjs";
+import { outsideLine } from "../hooks/core/ctx.mjs";
 import { buildIndex } from "../hooks/core/memory-index.mjs";
 
 export const TABLE = ["signature", "review-seal", "goal-cited", "pending", "fix-has-test", "change-size",
@@ -64,7 +65,10 @@ export async function main(argv, io = {}) {
     try {
       const top = makeCtx(cwd, null).tryGit("rev-parse", "--show-toplevel");
       if (top.code !== 0) throw new Error("not a git repository");
-      const dir = join(top.out, loadConfig(top.out).memory.dir);
+      const memory = loadConfig(top.out).memory;
+      const dir = join(top.out, memory.dir);
+      const refused = outsideLine(top.out, join(memory.dir, "MEMORY.md"), memory.outside);
+      if (refused) throw new Error(refused);
       const files = readdirSync(dir).filter((f) => f.endsWith(".md") && f !== "MEMORY.md")
         .map((file) => ({ file, text: readFileSync(join(dir, file), "utf8") }));
       const target = join(dir, "MEMORY.md");

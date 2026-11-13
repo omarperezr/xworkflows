@@ -1,6 +1,9 @@
 import { statSync } from "node:fs";
 import { join } from "node:path";
 
+// a path in a command the check prints: plain stays as it is, anything else in single quotes (the rule of doctor's `sh`)
+const sh = (v) => (/^[\w\/.-]+$/.test(v) ? v : `'${v.replaceAll("'", "'\\''")}'`);
+
 export const mainOnly = true;
 export const needs = ["paths.code"];
 
@@ -13,7 +16,7 @@ export async function run(range, ctx) {
   const { command, folder } = ctx.config.lookup.index;
   const rel = `${folder}/graph.json`;
   // graphify leaves graph.json untouched when the code's shape did not change, so the fix sets the time too
-  const fix = `run \`${command.split(/\s+/)[0]} update . && touch -c ${rel}\``;
+  const fix = `run \`${command.split(/\s+/)[0]} update . && touch -c -h -- ${sh(rel)}\``;
   const graph = join(ctx.root, rel);
   const head = Number(ctx.git("log", "-1", "--format=%ct", range.head)) * 1000;
   // the post-commit hook updates in the background and logs to .update.log: a log written after the commit means that update may still run, so wait for it

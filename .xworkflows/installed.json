@@ -6,7 +6,7 @@
   "pieces": {
     "hook-runtime": {
       "version": "0.1.0",
-      "sha256": "34651d3e4f6772a2de6dd6e743b5f57c73809bb58b471348adab872a9b1936be"
+      "sha256": "953cfa9f1dc754d3647083c14d3f0316c1a9de38776dbf5aa83accc3d47a78bd"
     },
     "design-first": {
       "version": "0.1.0",
@@ -14,7 +14,7 @@
     },
     "adapt-gates": {
       "version": "0.1.0",
-      "sha256": "4e0bcd2febce1084f7af7b9b434b4415f1a2938882fc1f5834b0db16b9ba2267"
+      "sha256": "1946fb864045748c5a1ab58010d3b6b941484441b4390d4d2b6acddde7e3208c"
     },
     "adapt-record": {
       "version": "0.1.0",
@@ -50,11 +50,11 @@
     },
     "adapt": {
       "version": "0.1.0",
-      "sha256": "51351f673d19efd8a4335cf9a9db8cfd18944a55d3df16e8dd16382b7b2fb985"
+      "sha256": "1c113fb6171636ef22ec78ec41a6eaf42f4591487ad1658e6debba2369210f16"
     },
     "full-review": {
       "version": "0.1.0",
-      "sha256": "5803152da69485a533218d3915ba137c96884a9225a102d11690792e9bfc79e7"
+      "sha256": "9b703828a0cbcbfbe36bd66b3a331ad94bd71fd4007dc2dc785aa6ddfc89f458"
     },
     "next-step": {
       "version": "0.1.0",
@@ -62,7 +62,7 @@
     },
     "orchestrator": {
       "version": "0.1.0",
-      "sha256": "f61c11a6a8560c197d22ea85c89a0bc8169441165f63d10e441431b9774f11aa"
+      "sha256": "80541a702bc5cf7a03a763fec328d809e5cff2d345db100f632491a22f41209b"
     },
     "handback": {
       "version": "0.1.0",
@@ -70,7 +70,7 @@
     },
     "memory": {
       "version": "0.1.0",
-      "sha256": "5fb2793396ce74288008ec3ee0cb40fb06413d3f42512e6a8ab74af5093978b4"
+      "sha256": "16e2dbe4a5afcbcf1e187d3e71069f87d9d7ee9211a294fafcc3cda31bbb4ca2"
     },
     "modes": {
       "version": "0.1.0",
@@ -118,7 +118,7 @@
     },
     "checks": {
       "version": "0.1.0",
-      "sha256": "623ec0553c45f51aa58418e52f36ce303dbdf23b04fde72fa81fc93fdb33ff53"
+      "sha256": "74074956e05123a35935642355db1e545a6a8814cb9eb78e10748367ec345b10"
     },
     "lint": {
       "version": "0.1.0",
@@ -140,7 +140,7 @@
     },
     ".xworkflows/hooks/run.mjs": {
       "piece": "hook-runtime",
-      "sha256": "59d577b695662c182484af2664227b61d5c35cba472594c4689b0fe54ccbf998"
+      "sha256": "ed715e9c370e12e15694e2c0785d63cb8e2ee8ac2f8ea606a8f30b0ad760668c"
     },
     ".xworkflows/mark.mjs": {
       "piece": "hook-runtime",
@@ -156,11 +156,11 @@
     },
     ".xworkflows/hooks/core/config.mjs": {
       "piece": "hook-runtime",
-      "sha256": "b4ace6e6183a55b3b7eebf6c1ed12325bde4984b4bab9b51b85ef99c1af4eb13"
+      "sha256": "deade648cc594d3e0a79a8c018a63e41d24b6896118a85cb68e4c1c9b3e58c57"
     },
     ".xworkflows/hooks/core/ctx.mjs": {
       "piece": "hook-runtime",
-      "sha256": "2e24043a1176b09e7e3a69071673062bbc19c101eda3d621bfacce52f05a2b12"
+      "sha256": "28a9520d71516dd3c50bc847a4802eed098d579aba2062865345f592c493849a"
     },
     ".xworkflows/hooks/core/design-first.mjs": {
       "piece": "design-first",
@@ -168,7 +168,7 @@
     },
     ".xworkflows/hooks/core/adapt-gates.mjs": {
       "piece": "adapt-gates",
-      "sha256": "585a909553abc320f3dc5b631d0224a74bd1b7f5bdb74d8a75d395d97d213b47"
+      "sha256": "f585d19b5faf733dd6ed1ebe6e1f77feba2fface0836007031b46c73d0af4373"
     },
     ".xworkflows/hooks/core/adapt-record.mjs": {
       "piece": "adapt-record",
@@ -176,7 +176,7 @@
     },
     ".xworkflows/hooks/core/orchestrator.mjs": {
       "piece": "orchestrator",
-      "sha256": "9882b1023b6cc9cfd9453258bec37b24130984e131655cae84332517e77fcf1e"
+      "sha256": "5462dd6a5df1c93dd77956880884ca1eeac6113c6d1b07ea8445577a12f42da4"
     },
     ".xworkflows/hooks/core/handback.mjs": {
       "piece": "handback",
@@ -184,7 +184,7 @@
     },
     ".xworkflows/hooks/core/memory.mjs": {
       "piece": "memory",
-      "sha256": "22d8b8aa2eb26fac8833d3f2cd077ce9d3f013c2b35555f0d51d475c45181d85"
+      "sha256": "933d8068c60f1a3bac70cb8d5f27a328d8306470c28b192c01df2b42eda86698"
     },
     ".xworkflows/hooks/core/memory-index.mjs": {
       "piece": "memory",
@@ -200,7 +200,7 @@
     },
     ".xworkflows/checks/run.mjs": {
       "piece": "checks",
-      "sha256": "aefed9b4bd5f2a1e931fa31034a666b78578e4258ff7feb7548b094c525d4c52"
+      "sha256": "76aa3b26c99f21037fb2bb85d4cd369b8d4b6bf912a7ba25bda7306139977626"
     },
     ".xworkflows/checks/comment-lines.mjs": {
       "piece": "checks",
@@ -212,7 +212,7 @@
     },
     ".xworkflows/checks/review-seal.mjs": {
       "piece": "checks",
-      "sha256": "0462ccdf890362fc49798728e79f1d2bed9310b78e762da4a826e84a27965632"
+      "sha256": "f3ab75a35ba6f5fad303b5d0b2af975928c240aa9a0b5ac791ced5c0c62a4139"
     },
     ".xworkflows/checks/goal-cited.mjs": {
       "piece": "checks",
@@ -244,23 +244,23 @@
     },
     ".xworkflows/checks/ratchet.mjs": {
       "piece": "checks",
-      "sha256": "588ee64ef495668ef7c83c790bf825b211fbbcb753478ad8d21ea4394a81ef79"
+      "sha256": "7ee45eb1b388acb184d7577870dad8e752a32e480039d69a4d957d39d2f9083b"
     },
     ".xworkflows/checks/graph-current.mjs": {
       "piece": "checks",
-      "sha256": "60d97ae303e98af23dcc93324bd06b53d03654882a5fa959782fa2014b33518a"
+      "sha256": "3a174bf16b0e546ade3c5dfc5a7633e570020adb527a9385724880b41dd93c21"
     },
     ".xworkflows/checks/stale-memory.mjs": {
       "piece": "checks",
-      "sha256": "b0eed755d450a206377f4953b37a38ee8647565cdf80751d687f3f646a81d7d2"
+      "sha256": "ab0317b1434d202ac114b837f383fdd25d98feb66dbea6fe2dd01b57e8dec277"
     },
     ".xworkflows/checks/index-current.mjs": {
       "piece": "checks",
-      "sha256": "52b1d47da0e375d52d970e20b18cbc6e3269f117ab807545d8b73aa258d15bfe"
+      "sha256": "1da87381699bfd1825b26a6ee2cef90b75fde9ebec72575b5f3c511ee49030cc"
     },
     ".xworkflows/checks/project.mjs": {
       "piece": "checks",
-      "sha256": "af3161760f0ac32a4f816a1cd6a4d5a17e848811d8dcdfd95c1b575568a11d87"
+      "sha256": "9993a96fd690eefde833f545caa70266471136eb881eb5c785d2898c2cc39a19"
     },
     ".xworkflows/checks/packs/lint.mjs": {
       "piece": "lint",
@@ -328,7 +328,7 @@
     },
     ".claude/skills/adapt/SKILL.md": {
       "piece": "adapt",
-      "sha256": "7e030b3e2dfef49119df1f298aeafedc03aaed35160a1a073efd2f7f0502400f"
+      "sha256": "d520ba22f1e25ffcec0b9bd66e12a629f34e017516e94868ed4e449e5d3410da"
     },
     ".claude/skills/adapt/scan.mjs": {
       "piece": "adapt",
@@ -340,19 +340,19 @@
     },
     ".claude/skills/adapt/research.workflow.js": {
       "piece": "adapt",
-      "sha256": "81379ada822f5ed92c4be33b1006ca88a76f50bb5f09bd3b9e497e8639ce1e4b"
+      "sha256": "c7d72c728a5eef056d9a23f56d3334b6f2400fa9730cb96dfcad23dadd579daa"
     },
     ".claude/skills/adapt/research.mjs": {
       "piece": "adapt",
-      "sha256": "886b742241dab282c649c3d664f5ecb6b6405dd2fc96a27e8ff20b48ce0f4007"
+      "sha256": "6a2e14b49e16dd31037ebb6cadfe575b41544584d538d0462d9542e342273ae0"
     },
     ".claude/skills/adapt/screens.mjs": {
       "piece": "adapt",
-      "sha256": "c06c370c6d85f492f0966c731db656c6bb7370b91af9a66e83b39e7dceafda1e"
+      "sha256": "0a0f3698ea1e41ebae375416e52eac0df90e8d644f8b452c44e9fe702bc34cdc"
     },
     ".claude/skills/full-review/SKILL.md": {
       "piece": "full-review",
-      "sha256": "536501981886dffba7e84403f3db5a1330e80960c85808c96e89dd758170bef7"
+      "sha256": "9b4ed0fb17e686a3fc76f482e8bebbbec34191e526460727639eaadc6a224c70"
     },
     ".claude/skills/next-step/SKILL.md": {
       "piece": "next-step",
@@ -432,11 +432,11 @@
     },
     ".git/hooks/post-merge": {
       "piece": "checks",
-      "sha256": "facbd4984ea1b0dc51ba7c860d9f3a5401a5e67144c74df3fd715f0bca79ee38"
+      "sha256": "c5bd136544e108c68d14f5498ca7c269439d404eb4e8a4f2bab0e74c2e2530a1"
     },
     ".git/hooks/post-commit": {
       "piece": "checks",
-      "sha256": "facbd4984ea1b0dc51ba7c860d9f3a5401a5e67144c74df3fd715f0bca79ee38"
+      "sha256": "c5bd136544e108c68d14f5498ca7c269439d404eb4e8a4f2bab0e74c2e2530a1"
     }
   },
   "merged": [

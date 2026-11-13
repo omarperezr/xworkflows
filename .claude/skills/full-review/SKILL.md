@@ -53,9 +53,10 @@ const schema = {
 };
 
 phase("Review");
-const jobs = [];
+const jobs = [], pairs = [];
 for (const review of REVIEWS) {
   for (const zone of ZONES) {
+    pairs.push({ review, zone: zone.key });
     jobs.push(async () => {
       const prompt = `Follow ${SKILLS[review]}/SKILL.md, its "Whole-repo mode" section, on this zone only. Zone "${zone.key}", paths: ${zone.paths.join(", ")}. Return the findings in the "findings" field.`;
       const out = await agent(prompt, { agentType: "zone-review", schema });
@@ -82,16 +83,17 @@ all.sort((a, b) => (b.both - a.both) || (RANK[a.severity] - RANK[b.severity]));
 return {
   errors: all.filter((f) => f.kind === "error"),
   restructures: all.filter((f) => f.kind === "restructure"),
+  missing: pairs.filter((_, i) => !results[i]),
 };
 ```
 
-If fewer agents returned than were launched, tell the owner how many, and put that in the review file header.
+`missing` lists the `{ review, zone }` pairs whose agent returned nothing, an empty list when every agent returned. When it is not empty, tell the owner how many agents did not return and which zones, and put that in the review file header.
 
 ## Step 4: The review file
 
 Read `paths.reviews` from `.xworkflows/config.json` (default `docs/superpowers/reviews`). Write `<paths.reviews>/YYYY-MM-DD-full-review.md` with today's date; if it exists, use `-2`, `-3` for later runs that day. Contents:
 
-- A header with a line that is exactly `Reviewed commit: <sha>` (`<sha>` is the output of `git rev-parse --short HEAD`, run before the agents start; the push check reads it). The line is written only when every agent the skill launched returned; when one did not, write the review file without that line and tell the owner which zones were not read; the sha is the head the agents were given, noted before they start, not the head when the file is written. The header also holds the zones, the two reviews, what `both` means (both reviews named the same `file:line`), and the counts.
+- A header with a line that is exactly `Reviewed commit: <sha>` (`<sha>` is the output of `git rev-parse --short HEAD`, run before the agents start; the push check reads it). The line is written only when every agent the skill launched returned, that is when `missing` in the script's result is empty; when it is not, write the review file without that line and tell the owner which zones were not read, the `{ review, zone }` pairs of `missing`; the sha is the head the agents were given, noted before they start, not the head when the file is written. The header also holds the zones, the two reviews, what `both` means (both reviews named the same `file:line`), and the counts.
 - `## Errors`: numbered, each `**[<severity>, both] <title>** (<path>:<line>)` (leave `both` out when not both), then the case. Merge duplicates (same `file:line`, same point) into one item.
 - `## Restructurings`: the same form.
 - `## Owner's decisions (YYYY-MM-DD)`: empty for now.

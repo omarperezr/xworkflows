@@ -1,10 +1,12 @@
+import { runLimited, cutLine } from "./project.mjs";
+
 export const needs = ["checks.ratchets"];
 
 const BASELINE = ".xworkflows/ratchets.json";
 const cannot = (why) => ({ ok: false, cannotRun: true, lines: [why] });
 const isCount = (n) => Number.isSafeInteger(n) && n >= 0;
 
-export function run(range, ctx) {
+export async function run(range, ctx) {
   const list = ctx.config.checks.ratchets;
   if (!Array.isArray(list) || list.some((e) => typeof e?.name !== "string" || typeof e.count !== "string")) {
     return cannot("checks.ratchets is not a list of { name, count }");
@@ -23,7 +25,8 @@ export function run(range, ctx) {
   }
   const fails = [], notes = [];
   for (const { name, count } of list) {
-    const r = ctx.exec("sh", ["-c", count]);
+    const r = await runLimited(count, ctx);
+    if (r.timedOut) return { ok: false, lines: [cutLine(name, count, ctx)] };
     if (r.code !== 0) return cannot(`${name}: count command ${r.code === null ? "was killed" : `exited ${r.code}`}: ${r.err.trim()}`);
     const out = r.out.trim();
     if (!/^\d+$/.test(out)) return cannot(`${name}: count command must print one integer, it printed: ${out.slice(0, 80) || "nothing"}`);
