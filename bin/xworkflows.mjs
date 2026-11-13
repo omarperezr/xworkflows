@@ -7,6 +7,7 @@ import { homedir, tmpdir } from "node:os";
 import { basename, dirname, isAbsolute, join, normalize, posix, relative, resolve, sep } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { outsideLine } from "../hooks/core/ctx.mjs";
 import { DEFAULTS, PROJECT_KEYS, load as loadConfig, memoryDir as memName, missing } from "../hooks/core/config.mjs";
 
 export const PKG = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -792,6 +793,9 @@ async function doctor() {
     try {
       const where = real(abs), base = real(ROOT);
       if (where !== base && !where.startsWith(base + sep)) say("warn", 'the memory folder is outside the repository: qmd indexes it only after "qmd trust" is run here');
+      // a write there is refused unless memory.outside lists the real path: the same line the hooks refuse with
+      const refused = outsideLine(ROOT, join(mem, "MEMORY.md"), conf.memory?.outside);
+      if (where !== base && !where.startsWith(base + sep) && refused) say("warn", refused);
     } catch {}
     if (amd === undefined) say("warn", `autoMemoryDirectory is not set in .claude/settings.local.json: add "autoMemoryDirectory": "${abs}" to it`);
     else if (typeof amd !== "string" || !(resolve(ROOT, amd) + sep).startsWith(abs + sep)) say("warn", `autoMemoryDirectory is not the memory folder ${mem}: set it to "${abs}" in .claude/settings.local.json`);

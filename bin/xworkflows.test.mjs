@@ -1586,6 +1586,13 @@ test("doctor: the two qmd failures name the cause, a linked folder outside warns
   const o = tmp("xwf-out-"); rmSync(join(r, "docs"), { recursive: true }); symlinkSync(o, join(r, "docs"));
   mkdirSync(join(o, "memory"));
   assert.match(doctor(r, { PATH: q }).stdout, /^warn the memory folder is outside the repository: qmd indexes it only after "qmd trust" is run here$/m);
+  // a write there is refused unless memory.outside lists the real path: doctor says so with both ways out
+  const real = realpathSync(join(o, "memory"));
+  const refused = lineOf(doctor(r, { PATH: q }), /^warn docs\/memory\/MEMORY\.md is written outside the repository/);
+  assert.ok(refused?.includes(`(${real})`) && refused.includes("put the notes inside the project") && refused.includes(`list ${real} under memory.outside in .xworkflows/config.json`), refused);
+  withConfig(r, { memory: { outside: [real] } });
+  assert.doesNotMatch(doctor(r, { PATH: q }).stdout, /is written outside the repository/);
+  withConfig(r, {});
   rmSync(join(r, "docs")); writeFileSync(join(r, "docs"), "a file\n");
   const out = doctor(r, { PATH: q });
   assert.equal(out.stderr, "");
