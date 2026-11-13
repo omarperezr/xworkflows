@@ -16,7 +16,7 @@
         "gemini"
       ],
       "files": {
-        "hooks/run.mjs": "ed715e9c370e12e15694e2c0785d63cb8e2ee8ac2f8ea606a8f30b0ad760668c",
+        "hooks/run.mjs": "846cb6d9db33645e8884465b256207119b9b36a9aa82eb8b6386073e549c6050",
         "hooks/mark.mjs": "f2ecad21dedeb1515287063237e6852b9374781f71ce876f13b57324bfcb88a5",
         "hooks/core/marks.mjs": "9f52d052c8fb1275e92335d1dd5664be0f1bff7d43a4a9432268bac01d61a2b7",
         "hooks/adapters/claude.mjs": "dcba638334e4447a339907005f6723580b64517b5278af047c0cce64c5e6ad80",
@@ -24,9 +24,9 @@
         "hooks/adapters/cursor.mjs": "394c1a81f4040089b67f0fbf1131012bbb5883bdf705ce3af12dff66d9b3cbd5",
         "hooks/adapters/gemini.mjs": "eff8f29bce46d7c4a7c62845f3762a16c6fd38e831e6c4a5d6b54361ec599175",
         "hooks/core/config.mjs": "deade648cc594d3e0a79a8c018a63e41d24b6896118a85cb68e4c1c9b3e58c57",
-        "hooks/core/ctx.mjs": "28a9520d71516dd3c50bc847a4802eed098d579aba2062865345f592c493849a"
+        "hooks/core/ctx.mjs": "07fd3d9b2172fee59ef333d4c3f7d0a0bbe681d099afcecd78827d2bbf95f99d"
       },
-      "sha256": "953cfa9f1dc754d3647083c14d3f0316c1a9de38776dbf5aa83accc3d47a78bd"
+      "sha256": "105ae1de94ac5d576f4ff188792ec5739dc92700fda71fa42bc11ed458c0339b"
     },
     {
       "id": "design-first",
@@ -74,9 +74,9 @@
         }
       ],
       "files": {
-        "hooks/core/adapt-gates.mjs": "f585d19b5faf733dd6ed1ebe6e1f77feba2fface0836007031b46c73d0af4373"
+        "hooks/core/adapt-gates.mjs": "ee89ec4a824d17b5fdca376f4f98480f901905325b208a8ebff9b85b6364c585"
       },
-      "sha256": "1946fb864045748c5a1ab58010d3b6b941484441b4390d4d2b6acddde7e3208c"
+      "sha256": "68fdc3edc53620094b56693870488d1b84529a8610f7bf7f72a373686eec9764"
     },
     {
       "id": "adapt-record",
@@ -367,10 +367,10 @@
         }
       ],
       "files": {
-        "hooks/core/memory.mjs": "933d8068c60f1a3bac70cb8d5f27a328d8306470c28b192c01df2b42eda86698",
+        "hooks/core/memory.mjs": "3962e6edd9d9b57391ad9a643ebadf89aa751ea29adfbd93feb2e8cb0c8268d8",
         "hooks/core/memory-index.mjs": "ed9d990262ae86bfb68b63b7c34e6594e3239460136907fbb376011990898006"
       },
-      "sha256": "16e2dbe4a5afcbcf1e187d3e71069f87d9d7ee9211a294fafcc3cda31bbb4ca2"
+      "sha256": "dbcecdd9b411e2b091268a8ec57b15ff14b6c13cc2d3b5c4ef79aa94aaee71b3"
     },
     {
       "id": "modes",
@@ -592,13 +592,13 @@
         "checks/comment-ratio.mjs": "20112da90275485c4cfa149cb2164517aa308873b49a97d1f5d8c98f9a621310",
         "checks/skills-travel.mjs": "d6188c4677f6ddcaf7bbb6ba6a311976377b318c6d9ddb3612614dce6d7e89cd",
         "checks/patterns.mjs": "b76bd62236b34035c628147793d6d428959a91036f7700389bd6d7c443805e12",
-        "checks/ratchet.mjs": "7ee45eb1b388acb184d7577870dad8e752a32e480039d69a4d957d39d2f9083b",
+        "checks/ratchet.mjs": "5eaaeeecccfd4cc62ceba0961f39d99dc162c1b0592efee6a576d643946d2a88",
         "checks/graph-current.mjs": "3a174bf16b0e546ade3c5dfc5a7633e570020adb527a9385724880b41dd93c21",
         "checks/stale-memory.mjs": "ab0317b1434d202ac114b837f383fdd25d98feb66dbea6fe2dd01b57e8dec277",
         "checks/index-current.mjs": "1da87381699bfd1825b26a6ee2cef90b75fde9ebec72575b5f3c511ee49030cc",
-        "checks/project.mjs": "9993a96fd690eefde833f545caa70266471136eb881eb5c785d2898c2cc39a19"
+        "checks/project.mjs": "cfb82a48215a8e0c4d72ea45fc08a8d0ca2991f6f6978d452858a8094f516913"
       },
-      "sha256": "74074956e05123a35935642355db1e545a6a8814cb9eb78e10748367ec345b10"
+      "sha256": "b0f5e923632920e6fa5961cb389146d0bdbe7b4c9281bdce20032aee38f83421"
     },
     {
       "id": "lint",
