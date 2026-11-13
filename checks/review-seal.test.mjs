@@ -38,6 +38,18 @@ test("a seal inside a fenced code block does not count", () => withRepo(async (r
   assert.equal((await repo.run(mod)).ok, true);
 }));
 
+test("a line of inline code that starts with three backticks is not a fence", () => withRepo(async (repo) => {
+  const c = repo.commit("feat: one", { files: { "src/a.js": "const a = 2;\n" } });
+  seal(repo, `\`\`\`git status\`\`\` must print nothing\n\n## Seals\n\nreview ok at ${c.slice(0, 7)}`);
+  assert.equal((await repo.run(mod)).ok, true);
+}));
+
+test("a fence indented four spaces under a list item is no fence: its seal counts, as before", () => withRepo(async (repo) => {
+  const c = repo.commit("feat: one", { files: { "src/a.js": "const a = 2;\n" } });
+  seal(repo, `- item\n\n    \`\`\`\n    x\n    \`\`\`\n\nreview ok at ${c.slice(0, 7)}`);
+  assert.equal((await repo.run(mod)).ok, true);
+}));
+
 test("a seal written as a numbered item or a check box does not count", () => withRepo(async (repo) => {
   const c = repo.commit("feat: one", { files: { "src/a.js": "const a = 2;\n" } });
   seal(repo, `1. review ok at ${c.slice(0, 7)}\n- [x] review ok at ${c.slice(0, 7)}`);

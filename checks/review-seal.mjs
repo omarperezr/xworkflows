@@ -10,7 +10,7 @@ const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 function unfenced(text) {
   let open = null;
   return text.split("\n").filter((l) => {
-    const m = /^ {0,3}(`{3,}|~{3,})/.exec(l)?.[1];
+    const m = /^ {0,3}(`{3,}(?!.*`)|~{3,})/.exec(l)?.[1];
     if (!open) { open = m ?? null; return !m; }
     if (m && m[0] === open[0] && m.length >= open.length) open = null;
     return false;
