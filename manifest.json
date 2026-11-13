@@ -250,10 +250,10 @@
         "skills/adapt/scan.mjs": "c7d9a47a268cdf6135057da9eb267826b3d5df6df574b7fc206daccacfe401e9",
         "skills/adapt/rules.mjs": "736bb9ee53874d8c9447ab4107780d9b8f5733cee26597dae96862d43d37bde2",
         "skills/adapt/research.workflow.js": "81379ada822f5ed92c4be33b1006ca88a76f50bb5f09bd3b9e497e8639ce1e4b",
-        "skills/adapt/research.mjs": "19428b234f2b7d44c7a0cc233c7850d454c37eea2640d5c011f7b1285bd8e8bc",
+        "skills/adapt/research.mjs": "886b742241dab282c649c3d664f5ecb6b6405dd2fc96a27e8ff20b48ce0f4007",
         "skills/adapt/screens.mjs": "c06c370c6d85f492f0966c731db656c6bb7370b91af9a66e83b39e7dceafda1e"
       },
-      "sha256": "df9079df16a453ad0f1ebdd9ff0afe2c021d0169554eb6c37a06dc1fbfeae63d"
+      "sha256": "51351f673d19efd8a4335cf9a9db8cfd18944a55d3df16e8dd16382b7b2fb985"
     },
     {
       "id": "full-review",
@@ -564,7 +564,7 @@
       "files": {
         "checks/run.mjs": "aefed9b4bd5f2a1e931fa31034a666b78578e4258ff7feb7548b094c525d4c52",
         "checks/comment-lines.mjs": "7cc1262dc37358f5c2436e47f3808baa4af7c39d5579d5c428996c90c446dcf7",
-        "checks/signature.mjs": "70a140a44d19e4389b0ecf5ae91acbc050c3ac40ae97ffe6f842fd1a6111290b",
+        "checks/signature.mjs": "50d47e5c7d7850858f6d5c40e4a467c5ce19182696555f3b9190cebdf8635206",
         "checks/review-seal.mjs": "0462ccdf890362fc49798728e79f1d2bed9310b78e762da4a826e84a27965632",
         "checks/goal-cited.mjs": "ece9e129e2bdb39a619bf8680195101364e67d2d6ab318eef00cf4cb11c9eb8d",
         "checks/pending.mjs": "0eb036116ed41676dd1fb2bed3c8a96d1357360e246bead864af6b311559c0cb",
@@ -579,7 +579,7 @@
         "checks/index-current.mjs": "52b1d47da0e375d52d970e20b18cbc6e3269f117ab807545d8b73aa258d15bfe",
         "checks/project.mjs": "af3161760f0ac32a4f816a1cd6a4d5a17e848811d8dcdfd95c1b575568a11d87"
       },
-      "sha256": "fa44242521a490e642c5f43e26fbc2c4b28e0dac596a0227e21b505332d21daa"
+      "sha256": "627591d23deda5a5731460f609ad35e5818f9ad2f4805255c8bf6581ed1bf7dd"
     },
     {
       "id": "lint",
