@@ -427,6 +427,7 @@ export function plan(manifest, root, record, ans = {}) {
       rename = `${path}.before-xworkflows`;
       if (lstatSync(join(root, rename), { throwIfNoEntry: false })) die(1, `exists and is not ours: ${rename}`);
       chain = true;
+      notes.push(`chained ${name}: a hook which depends on its own file name will not work chained`);
       hookMerges.push({ path, text: null, rec: { chained: [{ file: key, to: `${key}.before-xworkflows` }] } });
     }
     writes.push({ path, key, text: hookText(name, chain), piece: "checks", src: name, mode: 0o755, rename });

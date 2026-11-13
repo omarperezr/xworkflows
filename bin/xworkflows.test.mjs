@@ -2197,3 +2197,12 @@ test("install on an upgrade removes a file the new version no longer ships when 
   assert.ok(!(gone in files) && !(edited in files));
   assert.match(cli(r, ["install", "--yes"]).stdout, /nothing to do/);
 });
+
+// P-46: until the chaining is designed apart, install says what a chained hook cannot do
+test("install: chaining a hook of the project prints one line that a hook which depends on its own file name will not work chained", () => {
+  const { r } = chained();
+  const out = cli(r, ["install", "--yes"]);
+  assert.equal(out.status, 0, out.stderr);
+  assert.equal(out.stdout.split("\n").filter((l) => /depends on its own file name will not work chained/.test(l)).length, 1);
+  assert.doesNotMatch(cli(repo(), ["install", "--yes"]).stdout, /will not work chained/);
+});
