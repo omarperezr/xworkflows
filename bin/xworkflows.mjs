@@ -22,7 +22,7 @@ export const digest = (files) =>
   hash(Object.keys(files).sort().map((p) => `${p} ${files[p]}\n`).join(""));
 export const readManifest = () => JSON.parse(readFileSync(join(PKG, "manifest.json"), "utf8"));
 
-const KEYS = ["id", "kind", "origin", "source", "version", "license", "modified", "scope", "tools", "claude", "earlierHooks", "files", "sha256"];
+const KEYS = ["id", "kind", "origin", "source", "version", "license", "modified", "scope", "tools", "claude", "earlierHooks", "retired", "files", "sha256"];
 
 function pack(check) {
   const m = readManifest();
@@ -450,12 +450,15 @@ export function plan(manifest, root, record, ans = {}) {
       w.keep = true; notes.push(`kept (not ours): ${w.path}  new: ${w.src}`);
     } else if (hash(cur) !== rec.sha256) { w.keep = true; notes.push(`kept (changed locally): ${w.path}  new: ${w.src}`); }
   }
-  // a file of the package's that this version no longer ships: removed when unchanged, kept and named when edited; the record drops both
+  // a file the manifest lists as retired: removed when its content is one the package wrote, kept and named when edited; the record never decides
   const shipped = new Set(writes.map((w) => w.key ?? w.path));
   const retired = [];
-  for (const [p, rec] of Object.entries(record.files)) {
-    if (shipped.has(p) || !/^\.(xworkflows|claude\/(skills|agents))\//.test(p) || !plain(p) || !clean(root, p) || !lstatSync(join(root, p), { throwIfNoEntry: false })?.isFile()) continue;
-    if (hash(read(root, p)) === rec.sha256) retired.push(p);
+  for (const [f, hashes] of manifest.pieces.flatMap((p) => Object.entries(p.retired ?? {}))) {
+    const t = target(f), u = t.match(UNIT)?.[0], nu = u && `${dirname(u)}/xwf-${basename(u)}`;
+    if (record.kept.includes(u)) continue;
+    const p = nu && record.renamed[nu] ? nu + t.slice(u.length) : t;
+    if (shipped.has(p) || !plain(p) || !clean(root, p) || !lstatSync(join(root, p), { throwIfNoEntry: false })?.isFile()) continue;
+    if (hashes.includes(hash(read(root, p)))) retired.push(p);
     else notes.push(`kept (no longer shipped, changed locally): ${p}`);
   }
   const merges = [];

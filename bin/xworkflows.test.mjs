@@ -2182,23 +2182,50 @@ test("doctor: the qmd upgrade advice is printed only when the collection list an
 });
 
 // P-26: a file of the package's that a newer version no longer ships
-test("install on an upgrade removes a file the new version no longer ships when unchanged, keeps and names an edited one, and drops both from the record", () => {
-  const r = repo(); cli(r, ["install", "--yes"]);
-  const gone = ".xworkflows/hooks/core/retired.mjs", edited = ".xworkflows/hooks/core/retired-edited.mjs";
-  writeFileSync(join(r, gone), "old\n"); writeFileSync(join(r, edited), "old\n");
-  withRecord(r, (rec) => { for (const p of [gone, edited]) rec.files[p] = { piece: "design-first", sha256: sha("old\n") }; });
-  appendFileSync(join(r, edited), "mine\n");
-  const dry = cli(r, ["install", "--yes", "--dry-run"]);
+// the package's copy, its manifest listing retired files: { "skills/x/f.md": [hashes earlier versions wrote] }
+function retiringCopy(retired) {
+  const copy = packageCopy();
+  const m = JSON.parse(readFileSync(join(copy, "manifest.json"), "utf8"));
+  m.pieces.find((p) => p.id === "adapt").retired = retired;
+  writeFileSync(join(copy, "manifest.json"), JSON.stringify(m, null, 2) + "\n");
+  return copy;
+}
+test("install removes only a file the manifest lists as retired with a listed hash; the record never decides", () => {
+  const copy = retiringCopy({ "skills/adapt/old.md": [sha("v1\n"), sha("v2\n")], "skills/adapt/edited.md": [sha("v1\n")] });
+  const r = repo(); assert.equal(cliAt(copy, r, ["install", "--yes"]).status, 0);
+  const mine = ".claude/skills/mine/SKILL.md", conf = ".xworkflows/config.json", gone = ".claude/skills/adapt/old.md", edited = ".claude/skills/adapt/edited.md";
+  mkdirSync(join(r, ".claude/skills/mine"), { recursive: true });
+  writeFileSync(join(r, mine), "mine\n"); writeFileSync(join(r, conf), "{}\n");
+  writeFileSync(join(r, gone), "v2\n"); writeFileSync(join(r, edited), "v1\nmine\n");
+  // a hand-edited record names the user's files with their own hashes; the retired file is not in it at all
+  withRecord(r, (rec) => { rec.files[mine] = { piece: "adapt", sha256: sha("mine\n") }; rec.files[conf] = { piece: "adapt", sha256: sha("{}\n") }; });
+  const dry = cliAt(copy, r, ["install", "--yes", "--dry-run"]);
   assert.match(dry.stdout, new RegExp(`^would remove ${gone.replaceAll(".", "\\.")}$`, "m"));
   assert.ok(existsSync(join(r, gone)), "dry-run removes nothing");
-  const out = cli(r, ["install", "--yes"]);
+  const out = cliAt(copy, r, ["install", "--yes"]);
   assert.equal(out.status, 0, out.stderr);
   assert.ok(!existsSync(join(r, gone)));
-  assert.equal(readFileSync(join(r, edited), "utf8"), "old\nmine\n");
+  assert.equal(readFileSync(join(r, mine), "utf8"), "mine\n");
+  assert.equal(readFileSync(join(r, conf), "utf8"), "{}\n");
+  assert.equal(readFileSync(join(r, edited), "utf8"), "v1\nmine\n");
   assert.match(out.stdout, new RegExp(`^kept \\(no longer shipped, changed locally\\): ${edited.replaceAll(".", "\\.")}$`, "m"));
   const files = readJson(r, ".xworkflows/installed.json").files;
-  assert.ok(!(gone in files) && !(edited in files));
-  assert.match(cli(r, ["install", "--yes"]).stdout, /nothing to do/);
+  assert.ok(!(gone in files) && !(edited in files) && !(mine in files) && !(conf in files));
+  assert.match(cliAt(copy, r, ["install", "--yes"]).stdout, /nothing to do/);
+});
+test("install does not throw on a null entry of the record's files: it counts as not recorded", () => {
+  const r = repo(); cli(r, ["install", "--yes"]);
+  const p = ".xworkflows/hooks/core/stray.mjs";
+  writeFileSync(join(r, p), "mine\n");
+  withRecord(r, (rec) => { rec.files[p] = null; });
+  const out = cli(r, ["install", "--yes"]);
+  assert.equal(out.status, 0, out.stderr);
+  assert.equal(readFileSync(join(r, p), "utf8"), "mine\n");
+});
+test("install: the real manifest lists skills/adapt/topics.md as retired with the hash of each text earlier versions shipped", () => {
+  const list = readJson(PKG_ROOT, "manifest.json").pieces.find((p) => p.id === "adapt").retired?.["skills/adapt/topics.md"];
+  assert.equal(list?.length, 6);
+  assert.ok(list.every((h) => /^[0-9a-f]{64}$/.test(h)));
 });
 
 // P-46: until the chaining is designed apart, install says what a chained hook cannot do

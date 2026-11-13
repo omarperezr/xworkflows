@@ -250,6 +250,16 @@
         "cursor",
         "gemini"
       ],
+      "retired": {
+        "skills/adapt/topics.md": [
+          "cfd3995838539c6b5d3c7e9bc736c57d5c464f6482ce60edf6d2752eae1a2626",
+          "da5aa9455f0344755fa2176f71f2b9800ddb4e1cc6a2c55cb4f19164160ee1de",
+          "d743a6c802c2ec86a4db2ec64077c7c5ba63080016a879321333a3937049d5c5",
+          "fd1c7e101b90a8ca7afe394389f4766ac8add6ee28b2ef49c73dbede3c2f9851",
+          "10240b054d5183fd164bd4092d027676051daf2cb6cf1b5c74997dda0c1cadaa",
+          "ad662fb4f70ea2ba7a7a5363feff1ad4083828bda1187ac6fbfa7fc71618a014"
+        ]
+      },
       "files": {
         "skills/adapt/SKILL.md": "d520ba22f1e25ffcec0b9bd66e12a629f34e017516e94868ed4e449e5d3410da",
         "skills/adapt/scan.mjs": "c7d9a47a268cdf6135057da9eb267826b3d5df6df574b7fc206daccacfe401e9",
