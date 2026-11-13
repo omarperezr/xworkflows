@@ -246,14 +246,14 @@
         "gemini"
       ],
       "files": {
-        "skills/adapt/SKILL.md": "eae5a7b7d619ceebe3aef08d9dd06aeb6f57655b73b669bbdf6092f3d0f775b1",
+        "skills/adapt/SKILL.md": "9ed6c97a1b4d54bdebfbc7bf63da0e7affc6bae9e005d53d9089af9d9db906c0",
         "skills/adapt/scan.mjs": "710c3445855b7a23d54c5b1b6ce0bf3a4ae102afe9bcdc9360704dc15bfad898",
         "skills/adapt/rules.mjs": "736bb9ee53874d8c9447ab4107780d9b8f5733cee26597dae96862d43d37bde2",
         "skills/adapt/research.workflow.js": "6c523f98c4371d689bdde407aaaa7826472be0baedf83b7341fe654e5ed41424",
-        "skills/adapt/research.mjs": "5af50dd502e1223a4d80d578cc52253f4a757c58412673a90352a7688bce2ab2",
-        "skills/adapt/screens.mjs": "3d82a6a25a179e5298488f4b87986ca0af3348eb8d965fced7c3edea3435fb5b"
+        "skills/adapt/research.mjs": "9e138e89f16a23b35afcad3edb2aec0580c0f47df2d248b965a4ceb74420e0b5",
+        "skills/adapt/screens.mjs": "de9ed59a9c521ce5aa388c6ea19f97c4071590b0d2a4b4cf818ea1d54c6c6951"
       },
-      "sha256": "6b3ac6bfdf46e1da29cf811ab850243388cf8677dea0ec11bc1718efba24abe5"
+      "sha256": "ce83c2727c747f4e062aefc20ab2c4ebe34f63e48939e0e7690f91fb8de6d196"
     },
     {
       "id": "full-review",
@@ -562,7 +562,7 @@
         "claude"
       ],
       "files": {
-        "checks/run.mjs": "80804e6bc7e50872773bbbccb641a1089a939db9e0415198a327965baff68463",
+        "checks/run.mjs": "a8ab013b38d3b354b8ff6fe7940e34c5782faa1a60a8818ac7bad4723df63a6a",
         "checks/comment-lines.mjs": "7cc1262dc37358f5c2436e47f3808baa4af7c39d5579d5c428996c90c446dcf7",
         "checks/signature.mjs": "369f1c717d975692f082dc71d05540a2279408807969254f987ae01a0ef5d28f",
         "checks/review-seal.mjs": "f659594ac3d87999a75f6caecb69d62b04113f5bc135b9807a8f2f4d072f7e6c",
@@ -579,7 +579,7 @@
         "checks/index-current.mjs": "52b1d47da0e375d52d970e20b18cbc6e3269f117ab807545d8b73aa258d15bfe",
         "checks/project.mjs": "af3161760f0ac32a4f816a1cd6a4d5a17e848811d8dcdfd95c1b575568a11d87"
       },
-      "sha256": "c6f9d6577e0510f077f6ebeb3b904fc3e67727a2fead6ab9427e3babc4b79342"
+      "sha256": "429c144d33a6906772b01c048e4facaefd2ceda400e8e7a317c2a46b633ea6e8"
     },
     {
       "id": "lint",
