@@ -62,7 +62,7 @@
     },
     "orchestrator": {
       "version": "0.1.0",
-      "sha256": "899ab41819f68ac008c4bb07911502eb5f3bb0a24046569bc365b348854df798"
+      "sha256": "739c445a5d374fc9b872e71dafb1258221c0a2e9f348aef25124f6fad6659a03"
     },
     "handback": {
       "version": "0.1.0",
@@ -98,7 +98,7 @@
     },
     "orchestrate": {
       "version": "0.1.0",
-      "sha256": "9ee349860b39a140454c44b0bf268e24599a6915498d633b901fa9c9eaaae944"
+      "sha256": "dd19df1cdc12237e40efba78549a2430ee50caaee64da05e20f2ef9552aca584"
     },
     "pending": {
       "version": "0.1.0",
@@ -176,7 +176,7 @@
     },
     ".xworkflows/hooks/core/orchestrator.mjs": {
       "piece": "orchestrator",
-      "sha256": "f1f1ca6c23e7c10a7c76cf5f4af1f2366496f0fd129daaf117590198f56db49f"
+      "sha256": "ef834072239d7fb961552e4081e26d0473b71a5a32ca90c7f418ddfc6b449d8c"
     },
     ".xworkflows/hooks/core/handback.mjs": {
       "piece": "handback",
@@ -380,7 +380,7 @@
     },
     ".claude/skills/orchestrate/SKILL.md": {
       "piece": "orchestrate",
-      "sha256": "2f11bb6c15b5d837a31fca75b9ba189e71ca1e05be26d30f896f1f4183296f2a"
+      "sha256": "7f299f52ec1b17f7bf5e43dd9eb49648683f4913fde3839cc1c9fcebbac7c2a4"
     },
     ".claude/skills/pending/SKILL.md": {
       "piece": "pending",
