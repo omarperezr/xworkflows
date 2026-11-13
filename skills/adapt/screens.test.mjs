@@ -205,6 +205,7 @@ test("a kind's own risk ranks its sentences: the list of kind sentences sorts by
   const s = screens(root, r);
   assert.deepEqual(s.drawer1.map((x) => [x.text, x.risk]), [["Idem high.", "high"], ["Txn high.", "high"], ["Values med.", "medium"], ["Mixed.", "low"], ["Snap low.", "low"]]);
   assert.match(render(r, s, "abc"), /1\. Idem high\. \(src\/a\.js:1\) Risk high\.\n/);
+  assert.match(details(r, s, mechanism(root, r), root), /### 1\. Idem high\.\n\n- A fee never changes after the loan is returned\. \(code; risk high: fees change under a borrower\) src\/a\.js:1\n/);
 });
 
 test("the left-out line of screen 2 says the cut is by kind, then by risk", () => {
@@ -366,9 +367,9 @@ const FEE = "A fee never changes after the loan is returned.";
 const kinds = (more = {}) => ({ snap: { status: "found", general: { rule: FEE, basis: "code", ...c(1, "days(loan)") }, rules: [{ rule: "Same in b.", ...at("src/b.js", 1, "late(loan)") }, { rule: "Same in c.", ...at("src/c.js", 1, "old(loan)") }] }, ...more });
 
 test("a sentence naming kind:<kind> shows the kind's own citation only: its other rules are not other places of it", () => {
-  const r = research({ pay: area() }, { claims: [claim("Idea only.", "pay.1"), claim("Fees stay.", "kind:snap")] }, { kinds: kinds() });
+  const r = research({ pay: area({ ideas: [{ text: "i", ...c(2, "late(loan)") }] }) }, { claims: [claim("Idea only.", "pay.1"), claim("Fees stay.", "kind:snap")] }, { kinds: kinds() });
   const s = screens(root, r);
-  assert.deepEqual(s.drawer1.map((x) => [x.text, x.at, x.also]), [["Fees stay.", "src/a.js:1", undefined], ["Idea only.", "src/a.js:1", undefined]]);
+  assert.deepEqual(s.drawer1.map((x) => [x.text, x.at, x.also]), [["Fees stay.", "src/a.js:1", undefined], ["Idea only.", "src/a.js:2", undefined]]);
   const md = render(r, s, "abc");
   assert.match(md, /Fees stay\. \(src\/a\.js:1\)\n/);
   assert.doesNotMatch(md, /seen in/);
@@ -511,4 +512,23 @@ test("a verdict with no citation at all is dropped with the reason no citation, 
   const md = render(research({}), { drawer1: [], drawer1LeftOut: [], drawer2: [], drawer2LeftOut: [], drawer3: [], noRule: [], notPresent: [], dropped: m.dropped }, "abc");
   assert.match(md, /- values: verdict W1 enforced no citation\n/);
   assert.ok(!md.includes("undefined"));
+});
+
+test("screen 1 tells the owner to strike habits and to correct the level of a rule stated too narrowly", () => {
+  const r = research({ truth: area({ general: general("r", "low", c(1, "days(loan)")) }) }, { claims: [claim("One.", "truth.1")] });
+  assert.match(render(r, screens(root, r), "abc"), /\n## Screen 1: what the code shows\n\nStrike what is habit and not rule; correct the level where a rule is stated too narrowly\.\n\n1\. One\./);
+});
+
+test("details.md: an idea named only by a sentence of the second page is listed under it; one named only beyond the second page is in the lost list", () => {
+  const n = MAX_RULES + 12 + 2;
+  const r = research({ truth: area({ ideas: Array.from({ length: n }, (_, i) => ({ text: `idea ${i + 1}`, ...c(1, "days(loan)") })) }) }, { claims: Array.from({ length: n }, (_, i) => claim(`sentence ${String(i + 1).padStart(2, "0")}`, `truth.${i + 1}`)) });
+  const s = screens(root, r);
+  const d = details(r, s, mechanism(root, r), root);
+  const [named, lost] = d.split("## Rules no sentence shows");
+  assert.match(named, /### 13\. sentence 13\n\n- idea 13 src\/a\.js:1\n/);
+  assert.match(named, /### 24\. sentence 24\n\n- idea 24 /);
+  assert.ok(!lost.includes("[truth.13]") && !lost.includes("[truth.24]"));
+  assert.match(lost, /\[truth\.25\] idea 25 /);
+  assert.match(lost, /\[truth\.26\] idea 26 /);
+  assert.ok(!named.includes("idea 25"));
 });

@@ -331,3 +331,13 @@ test("adapt: second page, what Right writes, English labels, language without an
   has(step(2), ["`language` is the owner's language in an interview; leave it out with `research-only`, where the sentences come out in English"]);
   assert.ok(s.split("\n").length < 200);
 });
+
+test("adapt step 4: the path sentence is one line of its own and the five answers read the same in it and in the zone file row", () => {
+  const FIVE = "`Keep it, because ...`, `The written rule`, `The code`, `Mistake: fix it`, `Exception: keep it`";
+  const lines = step(4).split("\n");
+  const path = lines.find((l) => l.startsWith("- A rule's path:"));
+  const row = lines.find((l) => l.startsWith("| `.claude/rules/<zone key>.md`"));
+  assert.ok(path.includes(`a screen 2 rule (${FIVE}) from its question in \`interview.json\``), "path sentence");
+  assert.ok(path.includes("take it from the place where the rule itself holds, which the question names (`The rule itself holds at <path:line>`), never from the place that differs."), "exception place");
+  assert.ok(row.includes(`or a screen 2 rule kept: ${FIVE})`), "zone file row");
+});
