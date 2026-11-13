@@ -549,3 +549,12 @@ test("a citation whose absolute path goes through a symlink of the root verifies
   assert.ok(!verifyCitation(link, { file: join(tmpdir(), "elsewhere.js"), line: 2, quote: "round(x)" }));
 });
 
+test("start in a repository with no commit says so, no stack trace", () => {
+  const d = mkdtempSync(join(tmpdir(), "res-empty-"));
+  execFileSync("git", ["init", "-q"], { cwd: d });
+  const r = cli(d, "start");
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /adapt: .*no commit/);
+  assert.doesNotMatch(r.stderr, /\n\s+at /);
+});
+

@@ -143,11 +143,12 @@ function cli(cmd, root) {
   const summary = join(dir, "summary.md");
   const prev = join(dir, "research.prev.json");
   if (cmd === "start") {
+    let commit;
+    try { commit = git(root, ["rev-parse", "HEAD"]); } catch { console.error("adapt: this repository has no commit yet; make one, then start again"); process.exit(1); }
     for (const f of [dir, join(dir, "interview.log.jsonl")]) if (isLink(f)) refuse(f);
     mkdirSync(dir, { recursive: true });
     // The owner's answers land here from the first question; ignore them now, not at step 4.
     try { writeFileSync(join(dir, ".gitignore"), [".gitignore", "research.md", "research.json", "research.prev.json", "scan.json", "interview.json", "interview.log.jsonl", "adapt-run.json", "rules.json", "kinds.json", "screens.json", "details.md"].join("\n") + "\n", { flag: "wx" }); } catch {}
-    const commit = git(root, ["rev-parse", "HEAD"]);
     const status = statusOf(summary);
     let old = null;
     try { old = readJson(runFile); } catch {}
