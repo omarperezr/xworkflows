@@ -607,7 +607,7 @@ async function doctor() {
     let t;
     // the record names the three git hooks under .git/, which is a file in a linked worktree: git says where they are
     try { t = readFileSync(f.startsWith(".git/hooks/") ? join(hooksFolder(ROOT), f.slice(".git/hooks/".length)) : join(ROOT, f), "utf8"); } catch { say("fail", `missing or unreadable: ${f}: ${INSTALL}`); continue; }
-    say(hash(t) === sha256 ? "ok" : "warn", hash(t) === sha256 ? f : `changed locally: ${f}; to put the package's copy back ${INSTALL} (it overwrites your change)`);
+    say(hash(t) === sha256 ? "ok" : "warn", hash(t) === sha256 ? f : `changed locally: ${f}; to put the package's copy back, delete it, then ${INSTALL} (install keeps a changed file)`);
   }
   for (const k of rec.kept) {
     const gs = k === ".claude/skills/grill" && rec.pieces["design-first"] ? read(ROOT, `${k}/SKILL.md`) : null;
@@ -660,7 +660,7 @@ async function doctor() {
     const event = { session_id: `doctor-${process.pid}`, cwd: ROOT, hook_event_name: "PreToolUse", tool_name: "Write", tool_input: { file_path: join(ROOT, specs, "xwf-doctor-probe.md"), content: "# probe\n" } };
     const r = fire(command, event);
     let d; try { d = JSON.parse(r.stdout).hookSpecificOutput?.permissionDecision; } catch {}
-    say(d === "deny" ? "ok" : "fail", d === "deny" ? "probe: design-first denies a spec write" : `probe: expected deny, got ${d ?? "no valid output"}: ${INSTALL} to put the hook files back`);
+    say(d === "deny" ? "ok" : "fail", d === "deny" ? "probe: design-first denies a spec write" : `probe: expected deny, got ${d ?? "no valid output"}: delete the files named "changed locally" above, then ${INSTALL}`);
   }
   // 6
   const seen = new Set();
@@ -694,7 +694,7 @@ async function doctor() {
       const gone = missing(conf, PROJECT_KEYS);
       for (const k of gone) say("fail", `not configured: ${k}${needs[k] ? ` (needed by ${needs[k].join(", ")})` : ""}, run /adapt`);
       if (!gone.length) say("ok", "config: every project key is set");
-    } catch (e) { say("fail", `config: ${e.message}: ${e.message.startsWith(".xworkflows/config.json does not parse") ? "fix the JSON of .xworkflows/config.json" : INSTALL}`); }
+    } catch (e) { say("fail", `config: ${e.message}: ${e.message.startsWith(".xworkflows/config.json does not parse") ? "fix the JSON of .xworkflows/config.json" : `if a file of the package is named "changed locally" above, delete it; then ${INSTALL}`}`); }
     if (conf.paths.code?.length) {
       const dir = conf.lookup.index.folder;
       say(has("graphify") ? "ok" : "fail", has("graphify") ? "graphify command" : "graphify command is missing: uv tool install graphifyy");

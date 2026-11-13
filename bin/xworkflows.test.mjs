@@ -1814,7 +1814,7 @@ const DOCTOR_LINES = [
   ["old node", (r) => cli(r, ["install"]), () => ({ NODE_OPTIONS: `--require ${old22()}` }), "fail node 20.1.0: install Node 22 or newer"],
   ["git does not answer", (r) => cli(r, ["install"]), () => ({ PATH: noGitVersion() }), "fail git does not answer: install git and put it on PATH"],
   ["file missing", (r) => { cli(r, ["install"]); rmSync(join(r, ".xworkflows/hooks/run.mjs")); }, {}, `fail missing or unreadable: .xworkflows/hooks/run.mjs: ${FIX}`],
-  ["file changed", (r) => { cli(r, ["install"]); appendFileSync(join(r, ".claude/agents/explore.md"), "x\n"); }, {}, "warn changed locally: .claude/agents/explore.md; to put the package's copy back run xworkflows install (it overwrites your change)"],
+  ["file changed", (r) => { cli(r, ["install"]); appendFileSync(join(r, ".claude/agents/explore.md"), "x\n"); }, {}, "warn changed locally: .claude/agents/explore.md; to put the package's copy back, delete it, then run xworkflows install (install keeps a changed file)"],
   ["file kept", (r) => cli(r, ["install"]), {}, null, { ".claude/agents/explore.md": "mine\n" }],
   ["merged entry changed", (r) => { cli(r, ["install"]); settingsEdit(r, (s) => { for (const e of s.hooks.PreToolUse) for (const h of e.hooks) h.timeout = 99; }); }, {}, "warn .claude/settings.json hooks.PreToolUse hook adapt-gates differs from every text the package published; to get the package's entry, delete it and run xworkflows install"],
   ["merged entry edited, record lost then install", (r) => { cli(r, ["install"]); settingsEdit(r, (s) => { s.hooks.PreToolUse.find(adaptOf).matcher = "Write"; }); rmSync(join(r, ".xworkflows/installed.json")); cli(r, ["install"]); }, {}, "warn .claude/settings.json hooks.PreToolUse hook adapt-gates differs from every text the package published; to get the package's entry, delete it and run xworkflows install"],
@@ -1823,10 +1823,10 @@ const DOCTOR_LINES = [
   ["block differs", (r) => { cli(r, ["install"]); writeFileSync(join(r, "AGENTS.md"), readFileSync(join(r, "AGENTS.md"), "utf8").replace("<!-- xworkflows:start -->", "<!-- xworkflows:start -->\nedited")); }, {}, `fail AGENTS.md block differs from the template: ${FIX}`],
   ["import missing", (r) => { cli(r, ["install"]); writeFileSync(join(r, "CLAUDE.md"), ""); }, {}, "fail CLAUDE.md does not import AGENTS.md: add the line @AGENTS.md"],
   ["probe: no entry", (r) => { cli(r, ["install"]); settingsEdit(r, (s) => { s.hooks = {}; }); }, {}, `fail probe: no design-first hook entry: ${FIX}`],
-  ["probe: allows", (r) => { cli(r, ["install"]); writeFileSync(join(r, ".xworkflows/hooks/core/design-first.mjs"), "export const SKILL='grill'; export const decide=()=>({decision:'allow'});\n"); }, {}, "fail probe: expected deny, got no valid output: run xworkflows install to put the hook files back"],
+  ["probe: allows", (r) => { cli(r, ["install"]); writeFileSync(join(r, ".xworkflows/hooks/core/design-first.mjs"), "export const SKILL='grill'; export const decide=()=>({decision:'allow'});\n"); }, {}, "fail probe: expected deny, got no valid output: delete the files named \"changed locally\" above, then run xworkflows install"],
   ["always-loaded over", (r) => { cli(r, ["install"]); writeFileSync(join(r, "AGENTS.md"), readFileSync(join(r, "AGENTS.md"), "utf8") + "x".repeat(30000)); }, {}, /^fail always-loaded: \d+ bytes of 24000: shorten CLAUDE\.md, AGENTS\.md and what they import, or raise tokens\.alwaysLoadedBytes in \.xworkflows\/config\.json$/],
   ["config does not parse", (r) => { cli(r, ["install"]); writeFileSync(join(r, ".xworkflows/config.json"), "{"); }, {}, /^fail config: \.xworkflows\/config\.json does not parse: .*: fix the JSON of \.xworkflows\/config\.json$/],
-  ["config: a check file does not load", (r) => { cli(r, ["install"]); writeFileSync(join(r, ".xworkflows/checks/run.mjs"), "export const = ;\n"); }, {}, new RegExp(`^fail config: .*: ${FIX}$`)],
+  ["config: a check file does not load", (r) => { cli(r, ["install"]); writeFileSync(join(r, ".xworkflows/checks/run.mjs"), "export const = ;\n"); }, {}, new RegExp(`^fail config: .*: if a file of the package is named "changed locally" above, delete it; then ${FIX}$`)],
   ["no memory folder", (r) => { cli(r, ["install"]); rmSync(join(r, "docs"), { recursive: true }); }, {}, `warn no memory folder yet: docs/memory: ${FIX}`],
   ["qmd does not answer a list", (r) => cli(r, ["install"]), () => ({ PATH: tools({ qmd: "case \"$*\" in *--version*) echo 'qmd 2.8.3 (facd35e)';; *) exec sleep 30;; esac" }), XWORKFLOWS_PROBE_TIMEOUT_MS: "400" }), "warn qmd did not answer: collections of docs/memory not checked: run qmd collection list to see why"],
   ["no collection, no yml", (r) => { cli(r, ["install"]); rmSync(join(r, ".qmd"), { recursive: true }); }, () => ({ PATH: tools({ qmd: "exit 0" }) }), `fail no qmd collection covers docs/memory: ${FIX}`],
@@ -2017,4 +2017,27 @@ test("uninstall leaves nothing when the record has no dirs, and an empty folder 
   assert.equal(tree(r), before);
   const again = cli(r, ["install"], { env });
   assert.doesNotMatch(again.stdout, /A skill grill exists/);
+});
+
+test("doctor: doing what the changed-file line says makes the line go away", () => {
+  const r = repo(); cli(r, ["install"]);
+  const f = ".xworkflows/hooks/core/design-first.mjs";
+  appendFileSync(join(r, f), "// local edit\n");
+  const re = new RegExp(`^warn changed locally: ${f.replace(/\./g, "\\.")}`);
+  const line = lineOf(doctor(r), re);
+  assert.ok(line, "the line shows after the edit");
+  assert.ok(line.includes(FIX) && line.includes("delete it"), line);
+  rmSync(join(r, f));
+  cli(r, ["install"]);
+  assert.equal(lineOf(doctor(r), re), undefined, "the line is still there after install");
+});
+
+test("doctor: a git hook changed by hand comes back when the line's action is done", () => {
+  const r = repo(); cli(r, ["install"]);
+  const re = /^warn changed locally: \.git\/hooks\/pre-push/;
+  appendFileSync(join(r, ".git/hooks/pre-push"), "echo hi\n");
+  assert.ok(lineOf(doctor(r), re));
+  rmSync(join(r, ".git/hooks/pre-push"));
+  cli(r, ["install"]);
+  assert.equal(lineOf(doctor(r), re), undefined);
 });
