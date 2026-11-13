@@ -274,8 +274,8 @@ test("a sentence from a verified general rule shows that rule's citation as an e
   const s = screens(root, r);
   assert.deepEqual(s.drawer1.map((x) => [x.text, x.at, x.also]), [
     ["Rule with no support.", "src/a.js:2", 0],
-    ["From a rule.", "src/a.js:1", 2],
     ["Idea only.", "src/a.js:1", undefined],
+    ["From a rule.", "src/a.js:1", 2],
   ]);
   assert.ok(s.dropped.some((d) => d.what === "sentence: Unverified rule."));
   const md = render(r, s, "abc");
@@ -393,13 +393,13 @@ test("a sentence naming a verified rule and a failed one is shown with the verif
   assert.match(render(r, s, "abc"), /- plain: rule kind:snap, named by: Both\. did not verify\n/);
 });
 
-test("the first page: sentences from general rules first, a kind's and an area-only one in turn, each list by risk; then ideas by risk", () => {
+test("the first page: one list by risk; inside a risk, general rules first (a kind's and an area-only one in turn), then ideas", () => {
   const rule = (risk) => general("r", risk, c(1, "days(loan)"));
   const r = research({ a1: area({ general: rule("low") }), a2: area({ general: rule("high") }), a3: area({ general: rule("medium") }), a4: area({ general: rule("high") }), a5: area({ general: rule("high"), ideas: [{ text: "i", ...c(2, "late(loan)") }] }), a6: area({ ideas: [{ text: "i", ...c(1, "days(loan)") }] }) }, {
     claims: [claim("I-none-1.", "a6.1"), claim("A-low.", "a1"), claim("K1.", "kind:snap"), claim("A-high-1.", "a2"), claim("A-med.", "a3"), claim("K2.", "kind:idem"), claim("I-high.", "a5.1"), claim("A-high-2.", "a4"), claim("K3 and area.", "kind:txn", "a1")],
   }, { kinds: kinds({ idem: kinds().snap, txn: kinds().snap }) });
   const s = screens(root, r);
-  assert.deepEqual(s.drawer1.slice(0, MAX_RULES).map((x) => x.text), ["K3 and area.", "A-high-1.", "K1.", "A-high-2.", "K2.", "A-med.", "A-low.", "I-high.", "I-none-1."]);
+  assert.deepEqual(s.drawer1.slice(0, MAX_RULES).map((x) => x.text), ["A-high-1.", "A-high-2.", "I-high.", "A-med.", "K3 and area.", "A-low.", "K1.", "K2.", "I-none-1."]);
   const both = s.drawer1.find((x) => x.text === "K3 and area.");
   assert.ok(both.at === "src/a.js:1" && !("also" in both));
   const twelve = research({ a1: area({ general: general("r", "low", c(1, "days(loan)")) }) }, { claims: Array.from({ length: 13 }, (_, i) => claim(`S${i}.`, i < 5 ? "a1.1" : "a1")) });
@@ -434,8 +434,43 @@ test("the same sentences in the reverse order give the same two pages: the scrip
   ];
   const pages = (list) => { const s = screens(root, research(areas, { claims: list }, { kinds: k })); return [s.drawer1.map((x) => x.text), s.drawer1LeftOut.map((x) => x.text)]; };
   const fwd = pages(claims);
-  assert.deepEqual(fwd[0], ["K snap.", "Area a0.", "K idem.", "Area a1.", "K txn.", "Area a2.", "K values.", "Area a3.", "Area a4.", "Area a5.", "Area a6.", "Area a7."]);
+  assert.deepEqual(fwd[0], ["Area a0.", "Area a1.", "Area a2.", "Area a3.", "Area a4.", "Area a5.", "Area a6.", "Area a7.", "Area a8.", "Idea a0.1.", "Idea a0.2.", "Idea a1.1."]);
   assert.deepEqual(pages([...claims].reverse()), fwd);
   assert.deepEqual(pages(claims.map((x) => ({ ...x, from: [...x.from].reverse() }))), fwd);
   assert.ok(fwd[1].length > 0);
+});
+
+test("screen 1 is one list by risk: a high sentence of an area goes before a medium sentence of a kind", () => {
+  const med = kinds({ snap: { ...kinds().snap, general: { ...kinds().snap.general, risk: "medium", cost: "x" } } });
+  const r = research({ a1: area({ general: general("r", "high", c(1, "days(loan)")) }) }, { claims: [claim("K medium.", "kind:snap"), claim("Area high.", "a1")] }, { kinds: med });
+  assert.deepEqual(screens(root, r).drawer1.map((x) => x.text), ["Area high.", "K medium."]);
+});
+
+test("with more sentences than one page holds, every high-risk sentence is on the first page before any lower one", () => {
+  const areas = Object.fromEntries(Array.from({ length: 14 }, (_, i) => [`a${i}`, area({ general: general("r", i < 13 ? "high" : "low", c(1, "days(loan)")) })]));
+  const hi = kinds({ snap: { ...kinds().snap, general: { ...kinds().snap.general, risk: "low", cost: "x" } } });
+  const claims = [claim("Kind low.", "kind:snap"), ...Object.keys(areas).map((a) => claim(`Area ${a}.`, a))];
+  const s = screens(root, research(areas, { claims }, { kinds: hi }));
+  assert.equal(s.drawer1.length, MAX_RULES);
+  assert.ok(s.drawer1.every((x) => x.risk === "high"));
+  assert.deepEqual(s.drawer1LeftOut.map((x) => x.risk).sort(), ["high", "low", "low"]);
+});
+
+test("a question about an exception, or about a contradicted written rule, carries the place where the rule itself holds", () => {
+  const s = screens(root, research({ truth: area({
+    general: general("Loans count whole days.", "high", c(1, "days(loan)")),
+    exceptions: [at("src/b.js", 1, "late(loan)")].map((e) => ({ ...e, how: "counts hours" })),
+    contradicted: [at("src/b.js", 1, "late(loan)")].map((e) => ({ ...e, written: "Loans are counted in whole days.", wfile: "README.md", wline: 1, wquote: "whole days", how: "it uses hours" })),
+  }) }));
+  for (const kind of ["exceptions", "contradicted"]) {
+    const q = s.drawer2.find((g) => g.kind === kind);
+    assert.match(q.text, /The rule itself holds at src\/a\.js:1\./);
+  }
+});
+
+test("inside one risk a kind's sentence and an area's alternate, as before", () => {
+  const hi = (id) => ({ ...kinds().snap, general: { ...kinds().snap.general, risk: "high", cost: "x" } });
+  const areas = { a1: area({ general: general("r", "high", c(1, "days(loan)")) }), a2: area({ general: general("r", "high", c(1, "days(loan)")) }) };
+  const r = research(areas, { claims: [claim("A1.", "a1"), claim("A2.", "a2"), claim("K1.", "kind:snap"), claim("K2.", "kind:idem")] }, { kinds: { snap: hi(), idem: hi() } });
+  assert.deepEqual(screens(root, r).drawer1.map((x) => x.text), ["K1.", "A1.", "K2.", "A2."]);
 });

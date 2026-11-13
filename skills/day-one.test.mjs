@@ -326,7 +326,7 @@ test("adapt: second page, what Right writes, English labels, language without an
   has(s.split("## Step 1")[0], ["`Keep it, because ...`, `Yes, show them`, `No, skip them`"]);
   has(step(3), ["When the queue holds `S1-more`, ask it in a call of its own", "On `Yes, show them`, ask `S1-13` and on, 4 per call, like the first twelve", "on `No, skip them`, go on to screen 2"]);
   has(step(4), ["`Right`: only the items the sentence names, each from `details.md`; a rule the owner did not see is never written",
-    "A rule's path: a screen 1 rule takes it from `details.md`, a screen 2 rule (`Keep it, because ...`, `The written rule`, `The code`, `Mistake: fix it`, `Exception: keep it`) from its question in `interview.json`"]);
+    "A rule's path: a screen 1 rule takes it from `details.md`, a screen 2 rule (`Keep it, because ...`, `The written rule`, `The code`, `Mistake: fix it`, `Exception: keep it`) from its question in `interview.json`, and from the place where the rule itself holds, which the question names (`The rule itself holds at <path:line>`), never from the place that differs"]);
   has(step(2), ["`language` is the owner's language in an interview; leave it out with `research-only`, where the sentences come out in English"]);
   assert.ok(s.split("\n").length < 200);
 });
