@@ -165,10 +165,10 @@ function cli(cmd, root) {
     mkdirSync(dir, { recursive: true });
     // The owner's answers land here from the first question; ignore them now, not at step 4.
     const ign = join(dir, ".gitignore");
-    const NOW = [".gitignore", "research.md", "research.json", "research.prev.json", "scan.json", "interview.json", "interview.log.jsonl", "adapt-run.json", "rules.json", "kinds.json", "screens.json", "details.md"];
-    const BEFORE = NOW.slice(0, 10).join("\n") + "\n"; // the text the earlier version wrote, replaced only when the file is still exactly that
+    const NOW = [".gitignore", "research.md", "research.json", "research.prev.json", "scan.json", "interview.json", "interview.log.jsonl", "adapt-run.json", "rules.json", "kinds.json", "screens.json", "details.md", "research.answered.json"];
+    const BEFORE = [10, 12].map((n) => NOW.slice(0, n).join("\n") + "\n"); // the texts the earlier versions wrote, replaced only when the file is still exactly one of them
     let flag = "wx";
-    try { if (!isLink(ign) && readFileSync(ign, "utf8") === BEFORE) flag = "w"; } catch {}
+    try { if (!isLink(ign) && BEFORE.includes(readFileSync(ign, "utf8"))) flag = "w"; } catch {}
     try { writeFileSync(ign, NOW.join("\n") + "\n", { flag }); } catch {}
     const status = statusOf(summary);
     let old = null;

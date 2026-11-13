@@ -76,7 +76,8 @@ test("adapt pins its questions, headings, keys and outputs", () => {
 });
 test("adapt leaves the tree clean on an unchanged re-run and commits only its files", () => {
   const s = read("skills/adapt/SKILL.md");
-  assert.ok(s.includes("a screen 1 sentence is not asked again when the owner answered it in the earlier adaptation"));
+  has(s, ["a screen 1 sentence is not asked again when the owner answered it in the last approved run (any answer but `I don't know`), its wording and its `(file:line)` are the same, every line it cites still verifies, and no spec or plan under `paths.specs` or `paths.plans` added or changed since the commit of `summary.md` names a file it cites"]);
+  assert.ok(!s.includes("in the earlier adaptation"));
   assert.ok(s.includes('git commit -m "chore: adapt xworkflows to this project" -- <the same paths>'));
 });
 
@@ -221,6 +222,10 @@ test("adapt research steps in order", () => {
   has(s, ["Without the Workflow tool, stop", "`kinds.<key>.total` is 0", "wait for its result", "unchanged", "stop and tell the owner"]);
   assert.ok(!/script:/.test(s));
 });
+test("adapt passes the installed agent names to the Workflow", () => {
+  const l = step(2).split("\n").find((x) => x.startsWith("5. "));
+  has(l, ["`agents`", "(mechanism, explore)", "`xwf-<name>`", "`renamed` in `.xworkflows/installed.json`", "`.claude/agents/xwf-<name>.md`", "else the bare name"]);
+});
 test("adapt interview follows the queue", () => {
   const s = step(3);
   has(s, ["Ask the items of `.xworkflows/interview.json` in file order", "header = the item's `id`", "`style`", "question rules", "in three screens", "Screen 1 (`S1-<n>`)", "Screen 2 (`X<n>`)", "`B-rules`", "`G-interim`"]);
@@ -261,7 +266,7 @@ test("gitignore lines", () => {
   const s = step(4);
   const l = s.split("\n").find((x) => x.includes("to `.gitignore`"));
   has(l, ["`graphify-out/`", "`.xworkflows/research.md`", "`.xworkflows/research.json`", "`.xworkflows/research.prev.json`", "`.xworkflows/scan.json`",
-    "`.xworkflows/interview.json`", "`.xworkflows/interview.log.jsonl`", "`.xworkflows/adapt-run.json`", "`.xworkflows/rules.json`", "`.xworkflows/kinds.json`", "`.xworkflows/screens.json`", "`.xworkflows/details.md`"]);
+    "`.xworkflows/interview.json`", "`.xworkflows/interview.log.jsonl`", "`.xworkflows/adapt-run.json`", "`.xworkflows/rules.json`", "`.xworkflows/kinds.json`", "`.xworkflows/screens.json`", "`.xworkflows/details.md`", "`.xworkflows/research.answered.json`"]);
   inOrder(s, ["git commit -m", "research.mjs done"]);
 });
 

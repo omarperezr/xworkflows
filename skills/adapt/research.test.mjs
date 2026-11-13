@@ -361,7 +361,7 @@ test("start git-ignores the run's private files from the first question", async 
   g(r, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qam", "x", "--allow-empty"); g(r, "add", "a.txt");
   g(r, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "a");
   start(r);
-  for (const f of ["research.md", "research.json", "research.prev.json", "scan.json", "interview.json", "rules.json", "kinds.json", "screens.json", "details.md"]) writeFileSync(join(r, ".xworkflows", f), "{}");
+  for (const f of ["research.md", "research.json", "research.prev.json", "scan.json", "interview.json", "rules.json", "kinds.json", "screens.json", "details.md", "research.answered.json"]) writeFileSync(join(r, ".xworkflows", f), "{}");
   appendFileSync(join(r, ".xworkflows", "interview.log.jsonl"), '{"run":"x"}\n');
   assert.equal(g(r, "status", "--porcelain", "--untracked-files=all"), "");
   const r2 = mkdtempSync(join(tmpdir(), "adapt-ign-"));
@@ -617,17 +617,19 @@ test("start in a repository with no commit says so, no stack trace", () => {
   assert.doesNotMatch(r.stderr, /\n\s+at /);
 });
 
-test("start replaces the ignore file the earlier version wrote, never one the user changed", () => {
-  const EARLIER = [".gitignore", "research.md", "research.json", "research.prev.json", "scan.json", "interview.json", "interview.log.jsonl", "adapt-run.json", "rules.json", "kinds.json"].join("\n") + "\n";
-  const d = repo();
-  writeFileSync(X(d, ".gitignore"), EARLIER);
-  assert.equal(cli(d, "start").status, 0);
-  assert.match(rt(d, ".gitignore"), /^screens\.json$/m);
-  assert.match(rt(d, ".gitignore"), /^details\.md$/m);
-  const e = repo();
-  writeFileSync(X(e, ".gitignore"), EARLIER + "mine\n");
-  assert.equal(cli(e, "start").status, 0);
-  assert.equal(rt(e, ".gitignore"), EARLIER + "mine\n");
+test("start replaces the ignore file each earlier version wrote, never one the user changed", () => {
+  const ALL = [".gitignore", "research.md", "research.json", "research.prev.json", "scan.json", "interview.json", "interview.log.jsonl", "adapt-run.json", "rules.json", "kinds.json", "screens.json", "details.md"];
+  for (const n of [10, 12]) {
+    const EARLIER = ALL.slice(0, n).join("\n") + "\n";
+    const d = repo();
+    writeFileSync(X(d, ".gitignore"), EARLIER);
+    assert.equal(cli(d, "start").status, 0);
+    for (const f of ["screens.json", "details.md", "research.answered.json"]) assert.ok(rt(d, ".gitignore").split("\n").includes(f), `${n}: ${f}`);
+    const e = repo();
+    writeFileSync(X(e, ".gitignore"), EARLIER + "mine\n");
+    assert.equal(cli(e, "start").status, 0);
+    assert.equal(rt(e, ".gitignore"), EARLIER + "mine\n");
+  }
 });
 
 // The Workflow script is run as the Workflow tool runs it: a function of args, agent, parallel, pipeline, log, phase.
