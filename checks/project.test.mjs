@@ -1,4 +1,4 @@
-import { mkdtempSync as makeTmp, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync as makeTmp, readFileSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -149,5 +149,27 @@ test("a timeoutMinutes that is not a positive number in the timer's range falls 
       assert.match(r.lines[0], /checks\.timeoutMinutes/);
       assert.match(r.lines[0], /10 minutes/);
     } finally { repo.cleanup(); }
+  }
+});
+
+test("a daemon that leaves the group and holds the pipe does not hold the check past the cut", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "xwf-daemon-"));
+  const pidFile = join(dir, "pid");
+  const script = join(dir, "start.mjs");
+  writeFileSync(script, `import { spawn } from "node:child_process";
+import { writeFileSync } from "node:fs";
+const d = spawn("sleep", ["31"], { detached: true, stdio: ["ignore", 1, 2] });
+writeFileSync(${JSON.stringify(pidFile)}, String(d.pid));
+setInterval(() => {}, 1000);
+`);
+  const repo = makeRepo({ config: { checks: { timeoutMinutes: 0.02, project: [{ name: "unit", run: `node '${script}'` }] } } });
+  try {
+    const t0 = Date.now();
+    const r = await repo.run(brake);
+    assert.equal(r.cannotRun, true);
+    assert.ok(Date.now() - t0 < 4000, `the check waited ${Date.now() - t0} ms`);
+  } finally {
+    try { process.kill(Number(readFileSync(pidFile, "utf8")), "SIGKILL"); } catch {}
+    repo.cleanup();
   }
 });

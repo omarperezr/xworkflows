@@ -29,7 +29,12 @@ export function runLimited(cmd, ctx) {
     };
     child.stdout.on("data", (d) => { out += d; });
     child.stderr.on("data", (d) => { err += d; });
-    const timer = setTimeout(() => { timedOut = true; try { process.kill(-child.pid, "SIGKILL"); } catch {} }, minutes(ctx) * 60000);
+    const timer = setTimeout(() => {
+      timedOut = true;
+      try { process.kill(-child.pid, "SIGKILL"); } catch {}
+      child.stdout.destroy(); child.stderr.destroy(); // a daemon outside the group may hold the pipes open
+      done({ code: null, out, err, timedOut });
+    }, minutes(ctx) * 60000);
     child.on("error", (e) => done({ code: null, out, err: e.message, timedOut }));
     child.on("close", (code) => done({ code, out, err, timedOut }));
   });
