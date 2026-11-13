@@ -7,8 +7,6 @@ import { tmpdir } from "node:os";
 import { basename, dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const BIN = join(dirname(fileURLToPath(import.meta.url)), "xworkflows.mjs");
-
 // the developer's own git config never reaches a test
 const ISO = { GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_SYSTEM: "/dev/null" };
 const isoEnv = () => ({ ...process.env, ...ISO });
@@ -71,6 +69,12 @@ function packageCopy() {
   return dir;
 }
 
+// the tests install from one copy made per run, its manifest regenerated here: a changed piece never needs pack first
+const SHARED = packageCopy();
+process.on("exit", () => rmSync(SHARED, { recursive: true, force: true }));
+spawnSync("node", [join(SHARED, "bin/xworkflows.mjs"), "pack"], { cwd: SHARED, env: { ...process.env, ...ISO } });
+const BIN = join(SHARED, "bin/xworkflows.mjs");
+
 function cliAt(pkg, cwd, args) {
   const env = { ...process.env };
   delete env.XWORKFLOWS_FREE;
@@ -80,7 +84,7 @@ function cliAt(pkg, cwd, args) {
 }
 
 test("pack --check passes on this repository", () => {
-  assert.equal(cli(PKG_ROOT, ["pack", "--check"]).status, 0);
+  assert.equal(cliAt(PKG_ROOT, PKG_ROOT, ["pack", "--check"]).status, 0);
 });
 test("pack fails on a piece without a license", () => {
   const copy = packageCopy();
