@@ -41,7 +41,7 @@ export function decide(ev, ctx) {
     return { decision: "allow" };
   }
 
-  // shortcut: only a > not after - or \\, or a tee before a word naming .xworkflows/summary.md, is seen, quoted or not (a quoted mention is denied too); cp, mv, sed -i or a cd first are not, upgrade by parsing ev.command.
+  // shortcut: only a > not after - or a backslash, or a tee before a word naming .xworkflows/summary.md, is seen, quoted or not (a quoted mention is denied too); cp, mv, sed -i or a cd first are not, upgrade by parsing ev.command.
   if (ev.kind === "shell" && SUMMARY_WRITE.test(ev.command ?? ""))
     return deny("summary.md is written with Write, not by a shell redirect or tee.");
 
