@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 import { createInterface } from "node:readline/promises";
 import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, readlinkSync, realpathSync, renameSync, rmSync, rmdirSync, statSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
-import { basename, dirname, isAbsolute, join, normalize, relative, resolve, sep } from "node:path";
+import { basename, dirname, isAbsolute, join, normalize, posix, relative, resolve, sep } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { DEFAULTS, PROJECT_KEYS, load as loadConfig, missing } from "../hooks/core/config.mjs";
@@ -224,14 +224,25 @@ function mergeLocal(root) {
   return { path, text: old.slice(0, at) + insert + value + old.slice(at), rec: { scalars: [{ file: path, key: [key], dir, insert }], created: [] } };
 }
 
-const IGNORE = [["graphify-out/", "graphify-out/x"], [".claude/settings.local.json", ".claude/settings.local.json"]];
-function mergeIgnore(root) {
+const YML = ".qmd/index.yml";
+const QMARK = ".qmd/xworkflows";
+const MARK_TEXT = "written by xworkflows install: uninstall removes index.yml and its database here only while this file exists\n";
+// qmd reads index.yaml before index.yml: either one is a local config
+const localYml = (root) => [".qmd/index.yaml", YML].find((f) => existsSync(join(root, f)));
+// memory.dir as checks/index-current.mjs reads it; null when it is not a folder name inside the repository
+const memName = (d) => {
+  const n = typeof d === "string" ? posix.normalize(d.trim()).replace(/^\.\/|\/+$/g, "") : "";
+  return n === "" || n === "." || n.startsWith("/") || n === ".." || n.startsWith("../") ? null : n;
+};
+const IGNORE = [["graphify-out/", "graphify-out/x"], [".claude/settings.local.json", ".claude/settings.local.json"], [".qmd/", ".qmd/x"]];
+// `.qmd/` is added only in a run that writes the yml
+function mergeIgnore(root, qmd) {
   const path = ".gitignore";
   const old = read(root, path);
   let text = old ?? "";
   const imports = [];
   for (const [line, probe] of IGNORE) {
-    if (spawnSync("git", ["check-ignore", "-q", "--no-index", probe], { cwd: root }).status === 0) continue;
+    if ((line === ".qmd/" && !qmd) || spawnSync("git", ["check-ignore", "-q", "--no-index", probe], { cwd: root }).status === 0) continue;
     const addedNewline = text !== "" && !text.endsWith("\n");
     imports.push({ file: path, line, ...(addedNewline && { addedNewline }) });
     text += (addedNewline ? "\n" : "") + line + "\n";
@@ -387,9 +398,21 @@ export function plan(manifest, root, record, ans = {}) {
     if (hash(cur) !== rec.sha256) { w.keep = true; notes.push(`kept (changed locally): ${w.path}  new: ${w.src}`); }
   }
   const merges = [];
+  let mem;
+  try { mem = loadConfig(root).memory; } catch (e) { die(1, e.message); }
+  let qmd = false;
+  const md = memName(mem.dir);
+  if (!md) notes.push(`not written: memory.dir must be a folder inside the repository: ${mem.dir}`);
+  else {
+    if (!existsSync(join(root, md)) && !off(md)) merges.push({ path: md, text: null, dir: true, verb: "create", rec: { created: [md] } });
+    qmd = !mem.index && !localYml(root) && !off(YML);
+    if (qmd) merges.push({ path: YML, text: `collections:\n  memory:\n    path: ${JSON.stringify(resolve(root, md))}\n    pattern: "**/*.md"\n`, verb: "write", rec: {} });
+    // the marker passes the yml's test and is never written over something that is there
+    if (qmd && !off(QMARK) && !lstatSync(join(root, QMARK), { throwIfNoEntry: false })) merges.push({ path: QMARK, text: MARK_TEXT, verb: "write", rec: {} });
+  }
   if (!off(SETTINGS)) merges.push(mergeSettings(root, manifest, record));
   if (!off(LOCAL)) { const local = mergeLocal(root); if (local.note) notes.push(local.note); merges.push(local); }
-  if (!off(".gitignore")) merges.push(mergeIgnore(root));
+  if (!off(".gitignore")) merges.push(mergeIgnore(root, qmd));
   if (!off("AGENTS.md")) merges.push(mergeAgents(root));
   merges.push(...hookMerges);
   const link = off("CLAUDE.md");
@@ -419,7 +442,15 @@ export function apply(pl, root, manifest, record) {
   }
   const next = { ...record, xworkflows: manifest.version, tools: ["claude"], pieces: {}, files: {}, kept: [...new Set([...record.kept, ...pl.kept])], renamed: { ...record.renamed, ...pl.renamed } };
   for (const m of pl.merges) {
-    if (m.text !== null) { put(root, m.path, m.text); out.push(m.path); }
+    try {
+      if (m.dir) { mkdirSync(join(root, m.path), { recursive: true }); out.push(m.path); }
+      if (m.text !== null) { put(root, m.path, m.text); out.push(m.path); }
+    } catch (e) {
+      // the new writes of the memory folder and the yml: say so, record nothing, go on
+      if (!m.verb) throw e;
+      out.push(`not written: ${m.path}`);
+      continue;
+    }
     for (const [k, list] of Object.entries(m.rec)) {
       next[k] = [...next[k]];
       for (const x of list) if (!next[k].some((y) => (k === "merged" ? x.file === y.file && isDeepStrictEqual(x.key, y.key) && isDeepStrictEqual(x.entry, y.entry) : (k === "blocks" || k === "imports" ? x.file === y.file && x.line === y.line : isDeepStrictEqual(x, y))))) next[k].push(x);
@@ -469,7 +500,7 @@ async function install(flags) {
   for (const n of pl.notes) console.log(n);
   if (flags["dry-run"]) {
     for (const w of pl.writes) if (!w.keep && differs(ROOT, w)) console.log(`${w.rename ? `would rename ${w.path} to ${w.rename}\n` : ""}would write ${w.path}`);
-    for (const m of pl.merges) if (m.text !== null) console.log(`would merge ${m.path}`);
+    for (const m of pl.merges) if (m.text !== null || m.dir) console.log(`would ${m.verb ?? "merge"} ${m.path}`);
   } else {
     const done = apply(pl, ROOT, m, record);
     console.log(done.length ? done.join("\n") : "nothing to do");
@@ -590,7 +621,7 @@ async function doctor() {
       say(has("graphify") ? "ok" : "fail", has("graphify") ? "graphify command" : "graphify command is missing: uv tool install graphifyy");
       say(existsSync(join(ROOT, dir, "graph.json")) ? "ok" : "fail", existsSync(join(ROOT, dir, "graph.json")) ? "graphify index" : `${dir}/graph.json is missing: graphify update .`);
     }
-    const mem = conf.memory.dir;
+    const mem = memName(conf.memory.dir) ?? conf.memory.dir;
     if (!has("qmd")) say("fail", "qmd command is missing: npm install -g @tobilu/qmd");
     else if (!existsSync(join(ROOT, mem))) say("warn", `no memory folder yet: ${mem}`);
     else {
@@ -605,7 +636,8 @@ async function doctor() {
           const t = q("show", n).stdout?.match(/^\s*Path:\s+(.+?)\s*$/m)?.[1]?.replace(/\/$/, "");
           return t && (abs === t || abs.startsWith(t + "/"));
         });
-        say(covers ? "ok" : "fail", covers ? `qmd collection covers ${mem}` : `no qmd collection covers ${mem}: qmd collection add ${mem}`);
+        const why = conf.memory.index ? `qmd collection add ${mem}` : localYml(ROOT) ? `${localYml(ROOT)} names no collection with the path ${abs}; add one, or delete .qmd and run install again` : "run install again";
+        say(covers ? "ok" : "fail", covers ? `qmd collection covers ${mem}` : `no qmd collection covers ${mem}: ${why}`);
       }
     }
     const hp = relative(ROOT, resolve(hooksFolder(ROOT), "pre-push"));
@@ -627,6 +659,10 @@ async function doctor() {
     const ai = st.attribution && typeof st.attribution === "object" ? [st.attribution.commit, st.attribution.pr].some((x) => x) : !!st.attribution;
     if (ai) say("warn", "attribution in .claude/settings.json shows an AI line");
     const amd = local.autoMemoryDirectory, abs = resolve(ROOT, mem);
+    try {
+      const where = real(abs), base = real(ROOT);
+      if (where !== base && !where.startsWith(base + sep)) say("warn", 'the memory folder is outside the repository: qmd indexes it only after "qmd trust" is run here');
+    } catch {}
     if (amd === undefined) say("warn", "autoMemoryDirectory is not set in .claude/settings.local.json");
     else if (typeof amd !== "string" || !(resolve(ROOT, amd) + sep).startsWith(abs + sep)) say("warn", `autoMemoryDirectory is not the memory folder ${mem}`);
     for (const n of Object.keys(conf.packs).filter((n) => run.PACKS.includes(n))) {
@@ -683,6 +719,12 @@ function uninstall() {
     if (u) { const x = renameWrite(w, u); wanted.set(x.path, x.text); }
   }
   const wants = settingsWants(manifest);
+  let md = null;
+  try { md = memName(loadConfig(ROOT).memory.dir); } catch {}
+
+  // the marker, not the record, says this checkout's install wrote the yml: only install's exact text is the marker
+  let marked = false;
+  try { marked = lstatSync(join(ROOT, QMARK), { throwIfNoEntry: false })?.isFile() && clean(ROOT, QMARK) && read(ROOT, QMARK) === MARK_TEXT; } catch {} // .qmd is a plain file
 
   const named = {
     files: (_, p) => wanted.has(p) || hookSet.has(p),
@@ -690,7 +732,7 @@ function uninstall() {
     scalars: (x) => (x.file === SETTINGS && isDeepStrictEqual(x.key, ["attribution"])) || (x.file === LOCAL && isDeepStrictEqual(x.key, [LOCAL_KEY])),
     blocks: (b) => b.file === "AGENTS.md",
     imports: (i) => !!LINES.get(i.file)?.includes(i.line),
-    created: (p) => FIVE.includes(p),
+    created: (p) => FIVE.includes(p) || p === md || (p === YML && marked),
     chained: (c) => hookSet.has(c.file) && c.to === c.file + ".before-xworkflows",
   };
   const said = new Set();
@@ -778,10 +820,19 @@ function uninstall() {
     write(file, addedNewline && out2.endsWith("\n") ? out2.slice(0, -1) : out2);
   }
   for (const p of rec.created) {
+    if (p === md) {
+      if (!lstatSync(join(ROOT, p), { throwIfNoEntry: false })?.isDirectory()) continue;
+      if (readdirSync(join(ROOT, p)).length) out.push(`left in place: ${p}`);
+      else { rmdirSync(join(ROOT, p)); gone.push(p); out.push(`deleted ${p}/`); }
+      continue;
+    }
     const t = read(ROOT, p);
     let empty = t !== null && t.trim() === "";
     try { empty ||= t !== null && isDeepStrictEqual(JSON.parse(t), {}); } catch {}
     if (empty && !rec.kept.includes(p)) { rm(p); out.push(`deleted ${p}`); }
+  }
+  if (marked) {
+    for (const f of [YML, ".qmd/index.sqlite", ".qmd/index.sqlite-wal", ".qmd/index.sqlite-shm", QMARK]) if (lstatSync(join(ROOT, f), { throwIfNoEntry: false })?.isFile()) rm(f);
   }
   const ir = ".xworkflows/installed.json";
   if (clean(ROOT, ir)) rm(ir); else out.push(`kept (not ours): ${ir}`);
