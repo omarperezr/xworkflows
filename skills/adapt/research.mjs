@@ -81,10 +81,10 @@ export function buildQueue(s, research = {}, scan = {}, prev = null, cfg = {}, e
   };
   const sentence = (x, i) => item(`S1-${i + 1}`, "1", `${x.text} (${x.at})${seen(x)}`, SENTENCE);
   const first = s.drawer1.flatMap((x, i) => (asked(x) ? [[x, i]] : [])), out = s.drawer1LeftOut.flatMap((x, i) => (asked(x) ? [[x, MAX_RULES + i]] : []));
-  const left = out.length, more = out.filter(([, i]) => i < MAX_RULES + MAX_MORE); // the second page is the first MAX_MORE places, cut before the skip
+  const more = out.filter(([, i]) => i < MAX_RULES + MAX_MORE); // the second page is the first MAX_MORE places, cut before the skip
   return [
     ...first.map(([x, i]) => sentence(x, i)),
-    ...(more.length ? [item("S1-more", "1", `${left} more sentence(s) were left out of the first ${MAX_RULES}. Show up to ${more.length} of them?`, MORE)] : []),
+    ...(more.length ? [item("S1-more", "1", `${more.length} more sentence(s) were left out of the first ${MAX_RULES}. Show them?`, MORE)] : []),
     ...more.map(([x, i]) => sentence(x, i)),
     ...s.drawer2.map((g) => item(g.id, "2", g.text, g.options)),
     ...s.drawer3.map((q) => {
