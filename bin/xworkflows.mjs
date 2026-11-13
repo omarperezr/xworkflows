@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 import { createInterface } from "node:readline/promises";
 import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, readlinkSync, realpathSync, renameSync, rmSync, rmdirSync, statSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
-import { basename, dirname, isAbsolute, join, normalize, relative, resolve, sep } from "node:path";
+import { basename, dirname, isAbsolute, join, normalize, posix, relative, resolve, sep } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { DEFAULTS, PROJECT_KEYS, load as loadConfig, missing } from "../hooks/core/config.mjs";
@@ -225,6 +225,11 @@ function mergeLocal(root) {
 }
 
 const YML = ".qmd/index.yml";
+// memory.dir as checks/index-current.mjs reads it; null when it is not a folder name inside the repository
+const memName = (d) => {
+  const n = typeof d === "string" ? posix.normalize(d.trim()).replace(/^\.\/|\/+$/g, "") : "";
+  return n === "" || n === "." || n.startsWith("/") || n === ".." || n.startsWith("../") ? null : n;
+};
 const IGNORE = [["graphify-out/", "graphify-out/x"], [".claude/settings.local.json", ".claude/settings.local.json"], [".qmd/", ".qmd/x"]];
 // `.qmd/` is added only in a run that writes the yml
 function mergeIgnore(root, qmd) {
@@ -392,11 +397,12 @@ export function plan(manifest, root, record, ans = {}) {
   let mem;
   try { mem = loadConfig(root).memory; } catch (e) { die(1, e.message); }
   let qmd = false;
-  if (!plain(mem.dir)) notes.push(`not written: memory.dir must be a folder inside the repository: ${mem.dir}`);
+  const md = memName(mem.dir);
+  if (!md) notes.push(`not written: memory.dir must be a folder inside the repository: ${mem.dir}`);
   else {
-    if (!existsSync(join(root, mem.dir)) && !off(mem.dir)) merges.push({ path: mem.dir, text: null, dir: true, verb: "create", rec: {} });
+    if (!existsSync(join(root, md)) && !off(md)) merges.push({ path: md, text: null, dir: true, verb: "create", rec: { created: [md] } });
     qmd = !mem.index && !existsSync(join(root, YML)) && !off(YML);
-    if (qmd) merges.push({ path: YML, text: `collections:\n  memory:\n    path: ${JSON.stringify(resolve(root, mem.dir))}\n    pattern: "**/*.md"\n`, verb: "write", rec: { created: [YML] } });
+    if (qmd) merges.push({ path: YML, text: `collections:\n  memory:\n    path: ${JSON.stringify(resolve(root, md))}\n    pattern: "**/*.md"\n`, verb: "write", rec: { created: [YML] } });
   }
   if (!off(SETTINGS)) merges.push(mergeSettings(root, manifest, record));
   if (!off(LOCAL)) { const local = mergeLocal(root); if (local.note) notes.push(local.note); merges.push(local); }
@@ -602,7 +608,7 @@ async function doctor() {
       say(has("graphify") ? "ok" : "fail", has("graphify") ? "graphify command" : "graphify command is missing: uv tool install graphifyy");
       say(existsSync(join(ROOT, dir, "graph.json")) ? "ok" : "fail", existsSync(join(ROOT, dir, "graph.json")) ? "graphify index" : `${dir}/graph.json is missing: graphify update .`);
     }
-    const mem = conf.memory.dir;
+    const mem = memName(conf.memory.dir) ?? conf.memory.dir;
     if (!has("qmd")) say("fail", "qmd command is missing: npm install -g @tobilu/qmd");
     else if (!existsSync(join(ROOT, mem))) say("warn", `no memory folder yet: ${mem}`);
     else {
@@ -700,6 +706,8 @@ function uninstall() {
     if (u) { const x = renameWrite(w, u); wanted.set(x.path, x.text); }
   }
   const wants = settingsWants(manifest);
+  let md = null;
+  try { md = memName(loadConfig(ROOT).memory.dir); } catch {}
 
   const named = {
     files: (_, p) => wanted.has(p) || hookSet.has(p),
@@ -707,7 +715,7 @@ function uninstall() {
     scalars: (x) => (x.file === SETTINGS && isDeepStrictEqual(x.key, ["attribution"])) || (x.file === LOCAL && isDeepStrictEqual(x.key, [LOCAL_KEY])),
     blocks: (b) => b.file === "AGENTS.md",
     imports: (i) => !!LINES.get(i.file)?.includes(i.line),
-    created: (p) => FIVE.includes(p) || p === YML,
+    created: (p) => FIVE.includes(p) || p === YML || p === md,
     chained: (c) => hookSet.has(c.file) && c.to === c.file + ".before-xworkflows",
   };
   const said = new Set();
@@ -795,7 +803,13 @@ function uninstall() {
     write(file, addedNewline && out2.endsWith("\n") ? out2.slice(0, -1) : out2);
   }
   for (const p of rec.created) {
-    if (p === YML) { for (const f of [YML, ".qmd/index.sqlite"]) if (lstatSync(join(ROOT, f), { throwIfNoEntry: false })?.isFile()) rm(f); continue; }
+    if (p === md) {
+      if (!lstatSync(join(ROOT, p), { throwIfNoEntry: false })?.isDirectory()) continue;
+      if (readdirSync(join(ROOT, p)).length) out.push(`left in place: ${p}`);
+      else { rmdirSync(join(ROOT, p)); gone.push(p); out.push(`deleted ${p}/`); }
+      continue;
+    }
+    if (p === YML) { for (const f of [YML, ".qmd/index.sqlite", ".qmd/index.sqlite-wal", ".qmd/index.sqlite-shm"]) if (lstatSync(join(ROOT, f), { throwIfNoEntry: false })?.isFile()) rm(f); continue; }
     const t = read(ROOT, p);
     let empty = t !== null && t.trim() === "";
     try { empty ||= t !== null && isDeepStrictEqual(JSON.parse(t), {}); } catch {}

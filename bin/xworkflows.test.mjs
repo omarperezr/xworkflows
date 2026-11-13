@@ -227,7 +227,7 @@ test("rerun: nothing to do, files byte-equal, record entries once", () => {
   assert.equal(rec.merged[0].createdKey, true);
   assert.deepEqual(rec.blocks, [{ file: "AGENTS.md" }]);
   assert.deepEqual(rec.imports.filter((i) => i.file === "CLAUDE.md"), [{ file: "CLAUDE.md", line: "@AGENTS.md" }]);
-  assert.deepEqual(rec.created.sort(), [".claude/settings.json", ".claude/settings.local.json", ".gitignore", ".qmd/index.yml", "AGENTS.md", "CLAUDE.md"]);
+  assert.deepEqual(rec.created.sort(), [".claude/settings.json", ".claude/settings.local.json", ".gitignore", ".qmd/index.yml", "AGENTS.md", "CLAUDE.md", "docs/memory"]);
 });
 test("AGENTS.md: a changed block is replaced in place, text outside kept; existing CLAUDE.md untouched", () => {
   const r = repo({ "AGENTS.md": "top\n<!-- xworkflows:start -->\nold\n<!-- xworkflows:end -->\nbottom\n", "CLAUDE.md": "mine\n" });
@@ -236,7 +236,7 @@ test("AGENTS.md: a changed block is replaced in place, text outside kept; existi
   assert.ok(t.startsWith("top\n<!-- xworkflows:start -->\n## xworkflows"));
   assert.ok(t.endsWith("<!-- xworkflows:end -->\nbottom\n"));
   assert.equal(readFileSync(join(r, "CLAUDE.md"), "utf8"), "mine\n");
-  assert.deepEqual(readJson(r, ".xworkflows/installed.json").created.sort(), [".claude/settings.json", ".claude/settings.local.json", ".gitignore", ".qmd/index.yml"]);
+  assert.deepEqual(readJson(r, ".xworkflows/installed.json").created.sort(), [".claude/settings.json", ".claude/settings.local.json", ".gitignore", ".qmd/index.yml", "docs/memory"]);
 });
 test("dry-run lists merges and writes nothing", () => {
   const r = repo();
@@ -389,11 +389,11 @@ test("doctor fails when the probe hangs", () => {
   assert.match(out.stdout, /^fail probe/m);
 });
 
-test("uninstall on a fresh project leaves nothing but the memory folder", () => {
+test("uninstall on a fresh project leaves nothing", () => {
   const r = repo({ "app.py": "" });
   cli(r, ["install"]);
   assert.equal(cli(r, ["uninstall"]).status, 0);
-  assert.deepEqual(readdirSync(r).sort(), [".git", "app.py", "docs"]);
+  assert.deepEqual(readdirSync(r).sort(), [".git", "app.py"]);
 });
 test("uninstall restores a pilot-shaped project", () => {
   const settings = { env: { A: "1" }, hooks: { PreToolUse: [theirs] } };
@@ -721,7 +721,7 @@ test("gitignore lines and scalar settings: written once, left alone, removed by 
   assert.equal(readFileSync(join(r, ".gitignore"), "utf8"), gi);
   cli(r, ["uninstall"]);
   assert.equal(readFileSync(join(r, ".gitignore"), "utf8"), "node_modules");
-  assert.deepEqual(readdirSync(r).sort(), [".git", ".gitignore", "docs"]);
+  assert.deepEqual(readdirSync(r).sort(), [".git", ".gitignore"]);
 });
 test("gitignore and settings already there are left alone; memory.dir is honored", () => {
   const mine = { attribution: { commit: "x" }, theme: "dark" };
@@ -1381,19 +1381,48 @@ test("doctor: the two qmd failures name the cause, a linked folder outside warns
 });
 test("uninstall: the yml, index.sqlite, .qmd and the .gitignore line go; a note stays; two installs change nothing", () => {
   const r = repo(); inst(r); inst(r);
-  writeFileSync(join(r, ".qmd/index.sqlite"), "x");
+  for (const f of ["", "-wal", "-shm"]) writeFileSync(join(r, `.qmd/index.sqlite${f}`), "x");
   writeFileSync(join(r, "docs/memory/note.md"), "# n\n");
   const out = cli(r, ["uninstall"], { env: { PATH: spy(qmdLog()), HOME: EMPTY_HOME } });
   assert.equal(out.status, 0, out.stderr);
   assert.ok(!existsSync(join(r, ".qmd")));
   assert.deepEqual(readdirSync(r).sort(), [".git", "docs"]);
+  assert.match(out.stdout, /^left in place: docs\/memory$/m);
   assert.equal(readFileSync(join(r, "docs/memory/note.md"), "utf8"), "# n\n");
 });
-test("uninstall: a yml install did not create stays with its index.sqlite; an empty memory folder stays", () => {
+test("uninstall: a yml install did not create stays with its index.sqlite; the empty folder install made goes", () => {
   const r = repo({ ".qmd/index.yml": "mine: 1\n" }); inst(r);
   writeFileSync(join(r, ".qmd/index.sqlite"), "x");
   assert.equal(cli(r, ["uninstall"]).status, 0);
   assert.equal(readFileSync(join(r, ".qmd/index.yml"), "utf8"), "mine: 1\n");
   assert.ok(existsSync(join(r, ".qmd/index.sqlite")));
-  assert.ok(statSync(join(r, "docs/memory")).isDirectory());
+  assert.ok(!existsSync(join(r, "docs")));
 });
+test("uninstall: a memory folder install made and that holds a hidden file stays and is named; install, install, uninstall removes an empty one", () => {
+  const r = repo(); inst(r); inst(r);
+  writeFileSync(join(r, "docs/memory/.hidden"), "");
+  assert.match(cli(r, ["uninstall"]).stdout, /^left in place: docs\/memory$/m);
+  assert.ok(existsSync(join(r, "docs/memory/.hidden")));
+  const q = repo(); inst(q); inst(q);
+  cli(q, ["uninstall"]);
+  assert.deepEqual(readdirSync(q), [".git"]);
+});
+test("uninstall: a memory folder that existed before the install is neither removed nor named", () => {
+  const r = repo({ "docs/memory/.keep": "" }); mkdirSync(join(r, "empty"));
+  inst(r);
+  const out = cli(r, ["uninstall"]);
+  assert.ok(existsSync(join(r, "docs/memory/.keep")));
+  assert.doesNotMatch(out.stdout, /docs\/memory/);
+  const q = repo(); mkdirSync(join(q, "docs/memory"), { recursive: true }); inst(q);
+  assert.doesNotMatch(cli(q, ["uninstall"]).stdout, /docs\/memory/);
+  assert.ok(statSync(join(q, "docs/memory")).isDirectory());
+});
+for (const dir of ["./docs/memory", "docs/memory/"]) {
+  test(`install: memory.dir ${dir} is read as docs/memory, by install and by doctor`, () => {
+    const r = repo({ ".xworkflows/config.json": JSON.stringify({ ...ALL_KEYS, memory: { dir } }) });
+    assert.equal(inst(r).status, 0);
+    assert.ok(statSync(join(r, "docs/memory")).isDirectory());
+    assert.equal(readFileSync(join(r, ".qmd/index.yml"), "utf8"), yml(r));
+    assert.match(doctor(r, { PATH: tools({ qmd: COVERS }) }).stdout, /^ok +qmd collection covers docs\/memory$/m);
+  });
+}
