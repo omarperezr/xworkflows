@@ -4,7 +4,7 @@ import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { appendFileSync, chmodSync, cpSync, existsSync, mkdtempSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join, relative } from "node:path";
+import { basename, dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const BIN = join(dirname(fileURLToPath(import.meta.url)), "xworkflows.mjs");
@@ -227,7 +227,7 @@ test("rerun: nothing to do, files byte-equal, record entries once", () => {
   assert.equal(rec.merged[0].createdKey, true);
   assert.deepEqual(rec.blocks, [{ file: "AGENTS.md" }]);
   assert.deepEqual(rec.imports.filter((i) => i.file === "CLAUDE.md"), [{ file: "CLAUDE.md", line: "@AGENTS.md" }]);
-  assert.deepEqual(rec.created.sort(), [".claude/settings.json", ".claude/settings.local.json", ".gitignore", "AGENTS.md", "CLAUDE.md"]);
+  assert.deepEqual(rec.created.sort(), [".claude/settings.json", ".claude/settings.local.json", ".gitignore", ".qmd/index.yml", "AGENTS.md", "CLAUDE.md"]);
 });
 test("AGENTS.md: a changed block is replaced in place, text outside kept; existing CLAUDE.md untouched", () => {
   const r = repo({ "AGENTS.md": "top\n<!-- xworkflows:start -->\nold\n<!-- xworkflows:end -->\nbottom\n", "CLAUDE.md": "mine\n" });
@@ -236,7 +236,7 @@ test("AGENTS.md: a changed block is replaced in place, text outside kept; existi
   assert.ok(t.startsWith("top\n<!-- xworkflows:start -->\n## xworkflows"));
   assert.ok(t.endsWith("<!-- xworkflows:end -->\nbottom\n"));
   assert.equal(readFileSync(join(r, "CLAUDE.md"), "utf8"), "mine\n");
-  assert.deepEqual(readJson(r, ".xworkflows/installed.json").created.sort(), [".claude/settings.json", ".claude/settings.local.json", ".gitignore"]);
+  assert.deepEqual(readJson(r, ".xworkflows/installed.json").created.sort(), [".claude/settings.json", ".claude/settings.local.json", ".gitignore", ".qmd/index.yml"]);
 });
 test("dry-run lists merges and writes nothing", () => {
   const r = repo();
@@ -375,7 +375,7 @@ for (const [name, breakIt] of [
 });
 test("doctor skips an @import that is a folder", () => {
   const r = repo(); cli(r, ["install"]);
-  mkdirSync(join(r, "docs"));
+  mkdirSync(join(r, "docs"), { recursive: true });
   appendFileSync(join(r, "CLAUDE.md"), "@docs\n");
   const out = doctor(r);
   assert.equal(out.status, 0, out.stdout + out.stderr);
@@ -389,11 +389,11 @@ test("doctor fails when the probe hangs", () => {
   assert.match(out.stdout, /^fail probe/m);
 });
 
-test("uninstall on a fresh project leaves nothing", () => {
+test("uninstall on a fresh project leaves nothing but the memory folder", () => {
   const r = repo({ "app.py": "" });
   cli(r, ["install"]);
   assert.equal(cli(r, ["uninstall"]).status, 0);
-  assert.deepEqual(readdirSync(r).sort(), [".git", "app.py"]);
+  assert.deepEqual(readdirSync(r).sort(), [".git", "app.py", "docs"]);
 });
 test("uninstall restores a pilot-shaped project", () => {
   const settings = { env: { A: "1" }, hooks: { PreToolUse: [theirs] } };
@@ -713,7 +713,7 @@ test("gitignore lines and scalar settings: written once, left alone, removed by 
   const r = repo({ ".gitignore": "node_modules" });
   cli(r, ["install"]);
   const gi = readFileSync(join(r, ".gitignore"), "utf8");
-  assert.equal(gi, "node_modules\ngraphify-out/\n.claude/settings.local.json\n");
+  assert.equal(gi, "node_modules\ngraphify-out/\n.claude/settings.local.json\n.qmd/\n");
   assert.deepEqual(readJson(r, ".claude/settings.json").attribution, { commit: "", pr: "" });
   assert.deepEqual(readJson(r, ".claude/settings.local.json"), { autoMemoryDirectory: join(realpathSync(r), "docs/memory") });
   assert.equal(git(r, "check-ignore .claude/settings.local.json"), ".claude/settings.local.json");
@@ -721,13 +721,13 @@ test("gitignore lines and scalar settings: written once, left alone, removed by 
   assert.equal(readFileSync(join(r, ".gitignore"), "utf8"), gi);
   cli(r, ["uninstall"]);
   assert.equal(readFileSync(join(r, ".gitignore"), "utf8"), "node_modules");
-  assert.deepEqual(readdirSync(r).sort(), [".git", ".gitignore"]);
+  assert.deepEqual(readdirSync(r).sort(), [".git", ".gitignore", "docs"]);
 });
 test("gitignore and settings already there are left alone; memory.dir is honored", () => {
   const mine = { attribution: { commit: "x" }, theme: "dark" };
   const r = repo({ ".gitignore": "graphify-out\n.claude/*.local.json\n", ".claude/settings.json": JSON.stringify(mine), ".claude/settings.local.json": JSON.stringify({ autoMemoryDirectory: "/mine" }) });
   cli(r, ["install"]);
-  assert.equal(readFileSync(join(r, ".gitignore"), "utf8"), "graphify-out\n.claude/*.local.json\n");
+  assert.equal(readFileSync(join(r, ".gitignore"), "utf8"), "graphify-out\n.claude/*.local.json\n.qmd/\n");
   assert.deepEqual(readJson(r, ".claude/settings.json").attribution, { commit: "x" });
   assert.deepEqual(readJson(r, ".claude/settings.local.json"), { autoMemoryDirectory: "/mine" });
   cli(r, ["uninstall"]);
@@ -764,7 +764,9 @@ function tools(fakes = {}) {
   for (const [n, body] of Object.entries(fakes)) { writeFileSync(join(d, n), `#!/bin/sh\n${body}\n`); chmodSync(join(d, n), 0o755); }
   return `${d}:/usr/bin:/bin`;
 }
-const GOOD = tools({ qmd: "exit 0", graphify: "exit 0" });
+// a qmd whose one collection covers docs/memory of the folder it runs in
+const COVERS = `case "$*" in *"collection list"*) printf 'memory (qmd://memory/)\\n';; *"collection show memory"*) printf '  Path:     %s/docs/memory\\n' "$(pwd -P)";; esac`;
+const GOOD = tools({ qmd: COVERS, graphify: "exit 0" });
 const EMPTY_HOME = tmp("xwf-home-");
 function doctor(r, env = {}) {
   if (!existsSync(join(r, ".xworkflows/config.json"))) { mkdirSync(join(r, ".xworkflows"), { recursive: true }); writeJson(r, ".xworkflows/config.json", ALL_KEYS); }
@@ -803,11 +805,12 @@ test("doctor: qmd missing fails with its fix line; a collection must cover the m
   const none = doctor(r, { PATH: tools({}) });
   assert.equal(none.status, 1);
   assert.match(none.stdout, /^fail qmd command is missing: npm install -g @tobilu\/qmd$/m);
-  assert.match(doctor(r).stdout, /^warn no memory folder yet: docs\/memory$/m);
+  rmSync(join(r, "docs/memory"), { recursive: true });
+  assert.match(doctor(r, { PATH: tools({ qmd: "exit 0" }) }).stdout, /^warn no memory folder yet: docs\/memory$/m);
   mkdirSync(join(r, "docs/memory"), { recursive: true });
-  const out = doctor(r);
+  const out = doctor(r, { PATH: tools({ qmd: "exit 0" }) });
   assert.equal(out.status, 1);
-  assert.match(out.stdout, /^fail no qmd collection covers docs\/memory: qmd collection add docs\/memory$/m);
+  assert.match(out.stdout, /^fail no qmd collection covers docs\/memory: .qmd\/index.yml names no collection/m);
   // the real formats: `list` names the collections, only `show <name>` prints the path
   const fake = (dir) => tools({ qmd: `case "$*" in *"collection list"*) printf 'Collections (1):\\n\\nmemory (qmd://memory/)\\n  Pattern:  **/*.md\\n  Files:    3\\n';; *"collection show memory"*) printf 'Collection: memory\\n  Path:     ${dir}\\n  Pattern:  **/*.md\\n';; esac` });
   const covers = fake(join(realpathSync(r), "docs"));
@@ -868,10 +871,10 @@ test("doctor: a pack that is on needs its tool, at the version it was tested wit
   assert.equal(out.status, 1);
   assert.match(out.stdout, /^fail pack semgrep: semgrep command is missing$/m);
   assert.doesNotMatch(out.stdout, /pack lint/);
-  const old = doctor(r, { PATH: tools({ qmd: "exit 0", semgrep: "echo 1.0.0" }) });
+  const old = doctor(r, { PATH: tools({ qmd: COVERS, semgrep: "echo 1.0.0" }) });
   assert.equal(old.status, 0, old.stdout);
   assert.match(old.stdout, /^warn pack semgrep: version 1\.0\.0, tested with 1\.179\.0$/m);
-  assert.match(doctor(r, { PATH: tools({ qmd: "exit 0", semgrep: "echo 1.179.0" }) }).stdout, /^ok +pack semgrep: 1\.179\.0$/m);
+  assert.match(doctor(r, { PATH: tools({ qmd: COVERS, semgrep: "echo 1.179.0" }) }).stdout, /^ok +pack semgrep: 1\.179\.0$/m);
 });
 test("doctor prints the first-turn input tokens of the newest session, or says none is recorded", () => {
   const r = repo(); cli(r, ["install"]);
@@ -1012,7 +1015,7 @@ test("doctor never runs the graph tool the session-start hook would start", () =
   mkdirSync(join(r, "graphify-out")); writeFileSync(join(r, "graphify-out/graph.json"), "{}");
   utimesSync(join(r, "graphify-out/graph.json"), new Date("2020-01-01"), new Date("2020-01-01"));
   const log = join(tmp("xwf-log-"), "calls");
-  const out = doctor(r, { PATH: tools({ qmd: "exit 0", graphify: `echo "$@" >> ${log}` }) });
+  const out = doctor(r, { PATH: tools({ qmd: COVERS, graphify: `echo "$@" >> ${log}` }) });
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 500);
   assert.equal(out.status, 0, out.stdout);
   assert.ok(!existsSync(log), "graphify was run");
@@ -1267,4 +1270,130 @@ test("the graph hook sets the graph file's time after an update that rewrote not
   assert.equal(commit(r, "b.txt", "x\n", tool(0)).status, 0);
   for (let i = 0; i < 100 && statSync(g).mtimeMs === old.getTime(); i++) pause(50);
   assert.ok(statSync(g).mtimeMs > old.getTime());
+});
+
+// install: the memory folder and the project-local qmd index (.qmd/index.yml); no qmd ever starts
+const qmdLog = () => join(tmp("xwf-log-"), "qmd.log");
+const spy = (log) => tools({ qmd: `echo "$@" >> ${log}` });
+const inst = (r, args = [], log = qmdLog()) => ({ ...cli(r, ["install", ...args], { env: { PATH: spy(log), HOME: EMPTY_HOME } }), log });
+const top = (r) => git(r, "rev-parse --show-toplevel");
+const yml = (r, dir = "docs/memory") => `collections:\n  memory:\n    path: ${JSON.stringify(join(top(r), dir))}\n    pattern: "**/*.md"\n`;
+const tree = (r) => spawnSync("find", [".", "-path", "./.git", "-prune", "-o", "-print"], { cwd: r, encoding: "utf8" }).stdout.split("\n").sort().join("\n");
+
+test("install: a first install makes the memory folder, writes .qmd/index.yml and ignores .qmd/, with no qmd call", () => {
+  const r = repo();
+  const out = inst(r);
+  assert.equal(out.status, 0, out.stderr);
+  assert.ok(statSync(join(r, "docs/memory")).isDirectory());
+  assert.equal(readFileSync(join(r, ".qmd/index.yml"), "utf8"), yml(r));
+  assert.ok(readFileSync(join(r, ".gitignore"), "utf8").split("\n").includes(".qmd/"));
+  assert.ok(!existsSync(out.log), "qmd was started");
+  assert.ok(!existsSync(join(r, ".qmd/index.sqlite")));
+});
+test("install: a second install after the yml was edited by hand changes nothing", () => {
+  const r = repo(); inst(r);
+  writeFileSync(join(r, ".qmd/index.yml"), "mine: 1\n");
+  const before = tree(r), rec = readFileSync(join(r, ".xworkflows/installed.json"), "utf8");
+  const out = inst(r);
+  assert.match(out.stdout, /^nothing to do$/m);
+  assert.equal(readFileSync(join(r, ".qmd/index.yml"), "utf8"), "mine: 1\n");
+  assert.equal(readFileSync(join(r, ".xworkflows/installed.json"), "utf8"), rec);
+  assert.equal(tree(r), before);
+  assert.ok(!existsSync(out.log));
+});
+test("install: a yml that existed before is left byte-identical and .qmd/ is not added to .gitignore", () => {
+  const r = repo({ ".qmd/index.yml": "mine: 1\r\n" });
+  assert.equal(inst(r).status, 0);
+  assert.equal(readFileSync(join(r, ".qmd/index.yml"), "utf8"), "mine: 1\r\n");
+  assert.ok(!readFileSync(join(r, ".gitignore"), "utf8").split("\n").includes(".qmd/"));
+  assert.ok(statSync(join(r, "docs/memory")).isDirectory());
+});
+test("install: with memory.index set the folder is made and no .qmd", () => {
+  const r = repo({ ".xworkflows/config.json": JSON.stringify({ memory: { index: "mine" } }) });
+  assert.equal(inst(r).status, 0);
+  assert.ok(statSync(join(r, "docs/memory")).isDirectory());
+  assert.ok(!existsSync(join(r, ".qmd")));
+  assert.ok(!readFileSync(join(r, ".gitignore"), "utf8").split("\n").includes(".qmd/"));
+});
+test("install --dry-run writes nothing and names the folder, the yml and the .gitignore", () => {
+  const r = repo(), before = tree(r);
+  const out = inst(r, ["--dry-run"]);
+  assert.equal(out.status, 0, out.stderr);
+  assert.match(out.stdout, /^would create docs\/memory$/m);
+  assert.match(out.stdout, /^would write \.qmd\/index\.yml$/m);
+  assert.match(out.stdout, /^would merge \.gitignore$/m);
+  assert.equal(tree(r), before);
+});
+test("install: a docs link that leaves the repo gets no folder", () => {
+  const o = tmp("xwf-out-"), r = repo();
+  symlinkSync(o, join(r, "docs"));
+  const out = inst(r);
+  assert.deepEqual(readdirSync(o), []);
+  assert.match(out.stdout, /^not written \(symlink\): docs\/memory$/m);
+});
+test("install: a .qmd link that leaves the repo gets no yml and no .gitignore line", () => {
+  const o = tmp("xwf-out-"), r = repo();
+  symlinkSync(o, join(r, ".qmd"));
+  const out = inst(r);
+  assert.deepEqual(readdirSync(o), []);
+  assert.match(out.stdout, /^not written \(symlink\): \.qmd\/index\.yml$/m);
+  assert.ok(!readFileSync(join(r, ".gitignore"), "utf8").split("\n").includes(".qmd/"));
+});
+for (const [what, dir] of [["absolute", (o) => join(o, "mem")], ["climbing out with ..", (o) => `../${basename(o)}/mem`]]) {
+  test(`install: a memory.dir that is ${what} creates nothing and says why`, () => {
+    const o = tmp("xwf-out-"), r = repo({ ".xworkflows/config.json": JSON.stringify({ memory: { dir: dir(o) } }) });
+    const out = inst(r);
+    assert.equal(out.status, 0, out.stderr);
+    assert.deepEqual(readdirSync(o), []);
+    assert.ok(!existsSync(join(r, ".qmd")));
+    assert.ok(out.stdout.split("\n").includes(`not written: memory.dir must be a folder inside the repository: ${dir(o)}`));
+  });
+}
+test("install: a repository path with a space, # and : gives the JSON string of the folder", () => {
+  const d = join(tmp("xwf-"), "a b#c:d");
+  mkdirSync(d);
+  spawnSync("git", ["init", "-q", "-b", "main"], { cwd: d, env: isoEnv() });
+  assert.equal(inst(d).status, 0);
+  const text = readFileSync(join(d, ".qmd/index.yml"), "utf8");
+  assert.equal(text, yml(d));
+  assert.match(text, /a b#c:d/);
+});
+test("doctor: the two qmd failures name the cause, a linked folder outside warns, an unresolvable path says nothing more", () => {
+  const r = repo(); inst(r);
+  const q = tools({ qmd: "exit 0" });
+  rmSync(join(r, ".qmd"), { recursive: true });
+  assert.match(doctor(r, { PATH: q }).stdout, /^fail no qmd collection covers docs\/memory: run install again$/m);
+  mkdirSync(join(r, ".qmd")); writeFileSync(join(r, ".qmd/index.yml"), "collections: {}\n");
+  const abs = join(top(r), "docs/memory");
+  assert.ok(doctor(r, { PATH: q }).stdout.split("\n").includes(`fail no qmd collection covers docs/memory: .qmd/index.yml names no collection with the path ${abs}; add one, or delete .qmd and run install again`));
+  assert.doesNotMatch(doctor(r, { PATH: q }).stdout, /outside the repository/);
+  withConfig(r, { memory: { index: "mine" } });
+  assert.match(doctor(r, { PATH: q }).stdout, /^fail no qmd collection covers docs\/memory: qmd collection add docs\/memory$/m);
+  withConfig(r, {});
+  const o = tmp("xwf-out-"); rmSync(join(r, "docs"), { recursive: true }); symlinkSync(o, join(r, "docs"));
+  mkdirSync(join(o, "memory"));
+  assert.match(doctor(r, { PATH: q }).stdout, /^warn the memory folder is outside the repository: qmd indexes it only after "qmd trust" is run here$/m);
+  rmSync(join(r, "docs")); writeFileSync(join(r, "docs"), "a file\n");
+  const out = doctor(r, { PATH: q });
+  assert.equal(out.stderr, "");
+  assert.match(out.stdout, /^doctor: \d+ fail, \d+ warn$/m);
+  assert.doesNotMatch(out.stdout, /outside the repository/);
+});
+test("uninstall: the yml, index.sqlite, .qmd and the .gitignore line go; a note stays; two installs change nothing", () => {
+  const r = repo(); inst(r); inst(r);
+  writeFileSync(join(r, ".qmd/index.sqlite"), "x");
+  writeFileSync(join(r, "docs/memory/note.md"), "# n\n");
+  const out = cli(r, ["uninstall"], { env: { PATH: spy(qmdLog()), HOME: EMPTY_HOME } });
+  assert.equal(out.status, 0, out.stderr);
+  assert.ok(!existsSync(join(r, ".qmd")));
+  assert.deepEqual(readdirSync(r).sort(), [".git", "docs"]);
+  assert.equal(readFileSync(join(r, "docs/memory/note.md"), "utf8"), "# n\n");
+});
+test("uninstall: a yml install did not create stays with its index.sqlite; an empty memory folder stays", () => {
+  const r = repo({ ".qmd/index.yml": "mine: 1\n" }); inst(r);
+  writeFileSync(join(r, ".qmd/index.sqlite"), "x");
+  assert.equal(cli(r, ["uninstall"]).status, 0);
+  assert.equal(readFileSync(join(r, ".qmd/index.yml"), "utf8"), "mine: 1\n");
+  assert.ok(existsSync(join(r, ".qmd/index.sqlite")));
+  assert.ok(statSync(join(r, "docs/memory")).isDirectory());
 });
