@@ -65,7 +65,8 @@ export function decide(ev, ctx) {
     const prefixes = (heavy ?? []).map((p) => esc(p.replace(/\/?$/, "/"))).join("|");
     // shortcut: a line inside a quoted text of several lines counts as a command, like `;` inside quotes; upgrade when a real command is denied for it
     // a redirect target is written, not read
-    const read = code.replace(/>>?\s*&?[^\s<>;&|()]+/g, " ");
+    // shortcut: a line past 4000 characters is not judged for readers (the reader pattern costs the square of a line), so it is allowed; upgrade when a real command is denied late
+    const read = code.replace(/>>?\s*&?[^\s<>;&|()]+/g, " ").split("\n").filter((l) => l.length <= 4000).join("\n");
     if (prefixes && new RegExp(`(^|[;&|(\\n][ \\t\\r]*)(((do|then|else|elif|time|!|\\{)|[A-Za-z_]\\w*=${word}*)[ \\t]+)*(${word}*/)?(cat|sed\\s+-n|head|tail)\\b[^|;&\\n]*(^|[\\s"'=])(\\./|${esc(root)}/)?(${prefixes})`).test(read))
       return deny("Reading that much into the main session costs context: delegate it to an agent.");
     return allow;

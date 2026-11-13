@@ -327,9 +327,10 @@ ${READ}`;
 
 const root = args.root;
 const at = (p) => `Project root: ${root}\n\n${p}`;
+const name = (n) => args.agents?.[n] ?? n; // args.agents: the name install gave each agent, `xwf-<name>` when renamed
 
 phase("Profile");
-const profile = await agent(at(PROFILE), { agentType: "mechanism", model: "sonnet", schema: PROFILE_SCHEMA, label: "profile", phase: "Profile" });
+const profile = await agent(at(PROFILE), { agentType: name("mechanism"), model: "sonnet", schema: PROFILE_SCHEMA, label: "profile", phase: "Profile" });
 if (!profile) return { version: 3, profile: null, sum: sum(JSON.stringify({ version: 3, profile: null })) };
 
 const universal = Object.keys(AREAS).map((k) => ({ key: k, gloss: AREAS[k], hint: (profile.areas || []).find((a) => a.key === k) || { present: "unsure", why: "", where: [], patterns: [] } }));
@@ -353,9 +354,9 @@ for (const d of profile.docs || []) {
 
 phase("Topics and written rules");
 const [t, w, checked] = await Promise.all([
-  parallel(TOPICS.map((p, i) => () => agent(at(`Topic ${i + 1}.\n${p}\n\n${RULES}\n${READ}`), { agentType: "explore", schema: TOPIC_SCHEMA, label: `t${i + 1}`, phase: "Topics and written rules" }))),
-  parallel(chunks.map((c, i) => () => agent(at(WRITTEN(c.files, keys)), { agentType: "mechanism", model: "sonnet", schema: WRITTEN_SCHEMA, label: `docs${i + 1}`, phase: "Topics and written rules" }))),
-  agent(at(CHECKS(keys)), { agentType: "mechanism", model: "sonnet", schema: WRITTEN_SCHEMA, label: "checks", phase: "Topics and written rules" }),
+  parallel(TOPICS.map((p, i) => () => agent(at(`Topic ${i + 1}.\n${p}\n\n${RULES}\n${READ}`), { agentType: name("explore"), schema: TOPIC_SCHEMA, label: `t${i + 1}`, phase: "Topics and written rules" }))),
+  parallel(chunks.map((c, i) => () => agent(at(WRITTEN(c.files, keys)), { agentType: name("mechanism"), model: "sonnet", schema: WRITTEN_SCHEMA, label: `docs${i + 1}`, phase: "Topics and written rules" }))),
+  agent(at(CHECKS(keys)), { agentType: name("mechanism"), model: "sonnet", schema: WRITTEN_SCHEMA, label: "checks", phase: "Topics and written rules" }),
 ]);
 const topics = {};
 t.forEach((r, i) => { topics[`t${i + 1}`] = r; });
@@ -376,9 +377,9 @@ const kindRun = KINDS.filter((k) => !zero.includes(k));
 const res = await parallel([
   ...run.map((a) => () => {
     const mine = written.rules.filter((r) => r.area === a.key);
-    return agent(at(AREA(a.key, a.gloss, a.hint, mine.slice(0, 15), Math.max(0, mine.length - 15))), { agentType: "mechanism", model: "sonnet", schema: AREA_SCHEMA, label: `a:${a.key}`, phase: "Areas and mechanisms" });
+    return agent(at(AREA(a.key, a.gloss, a.hint, mine.slice(0, 15), Math.max(0, mine.length - 15))), { agentType: name("mechanism"), model: "sonnet", schema: AREA_SCHEMA, label: `a:${a.key}`, phase: "Areas and mechanisms" });
   }),
-  ...kindRun.map((k) => () => agent(at(KIND_PROMPT(k)), { agentType: "mechanism", model: "sonnet", schema: KIND_SCHEMA, label: `k:${k}`, phase: "Areas and mechanisms" })),
+  ...kindRun.map((k) => () => agent(at(KIND_PROMPT(k)), { agentType: name("mechanism"), model: "sonnet", schema: KIND_SCHEMA, label: `k:${k}`, phase: "Areas and mechanisms" })),
 ]);
 const areas = {};
 for (const a of areaList) areas[a.key] = a.hint.present === "no" ? { area: a.key, status: "not-present", support: [], exceptions: [], contradicted: [], unprotected: [], commentRules: [], doubted: [], details: [], notChecked: [] } : null;
@@ -392,7 +393,7 @@ phase("Questions");
 const lines = [];
 for (const k of Object.keys(topics)) for (const l of (topics[k] && topics[k].lines) || []) if (["2", "3", "4", "5", "written"].includes(l.heading)) lines.push({ heading: l.heading, text: l.text });
 const generals = keys.filter((k) => areas[k] && areas[k].general).map((k) => ({ area: k, rule: areas[k].general.rule, cost: areas[k].general.cost }));
-const asked = await agent(at(ASK(profile.what, lines, written.notes, generals)), { agentType: "mechanism", model: "sonnet", schema: QUESTION_SCHEMA, label: "questions", phase: "Questions" });
+const asked = await agent(at(ASK(profile.what, lines, written.notes, generals)), { agentType: name("mechanism"), model: "sonnet", schema: QUESTION_SCHEMA, label: "questions", phase: "Questions" });
 const questions = (asked && asked.questions) || null;
 
 // Last: it reads the short general rule of each found kind (id: kind:<kind>), each area's short general rule (id: the area key) and its ideas (id: <area key>.<n>, n from 1), nothing else.
@@ -405,7 +406,7 @@ for (const k of keys) {
   ((areas[k] && areas[k].ideas) || []).forEach((x, i) => items.push({ id: `${k}.${i + 1}`, idea: x.text }));
 }
 const language = args.language || "English"; // no args.language: English
-const plain = await agent(at(PLAIN(language, items)), { agentType: "mechanism", model: "sonnet", schema: PLAIN_SCHEMA, label: "plain", phase: "Plain" });
+const plain = await agent(at(PLAIN(language, items)), { agentType: name("mechanism"), model: "sonnet", schema: PLAIN_SCHEMA, label: "plain", phase: "Plain" });
 
 // The result carries how many rules were read, not their text: the area agents already used them, and the main session copies this result by hand.
 const out = { version: 3, profile, areaOrder: keys, topics, written: { count: written.rules.length, fromChecks: written.rules.filter((r) => r.from === "check").length, notes: written.notes, notRead: written.notRead, docsLeftOut, readers: written.readers }, areas, kinds, plain, questions };
