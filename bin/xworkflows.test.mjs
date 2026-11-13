@@ -1426,3 +1426,50 @@ for (const dir of ["./docs/memory", "docs/memory/"]) {
     assert.match(doctor(r, { PATH: tools({ qmd: COVERS }) }).stdout, /^ok +qmd collection covers docs\/memory$/m);
   });
 }
+
+test("install: a user's own .qmd/index.yaml and index.sqlite are not shadowed by a new index.yml and survive uninstall", () => {
+  const r = repo({ ".qmd/index.yaml": "mine: 1\n", ".qmd/index.sqlite": "SQLITE-user-data" });
+  assert.equal(inst(r).status, 0);
+  assert.ok(!existsSync(join(r, ".qmd/index.yml")), "install wrote .qmd/index.yml beside the user's index.yaml");
+  assert.ok(!/^\.qmd\/$/m.test(readFileSync(join(r, ".gitignore"), "utf8")));
+  assert.equal(cli(r, ["uninstall"]).status, 0);
+  assert.equal(readFileSync(join(r, ".qmd/index.yaml"), "utf8"), "mine: 1\n");
+  assert.equal(readFileSync(join(r, ".qmd/index.sqlite"), "utf8"), "SQLITE-user-data");
+});
+
+test("doctor: with a local .qmd/index.yaml that covers nothing, the text names that file", () => {
+  const r = repo({ ".qmd/index.yaml": "mine: 1\n", "docs/memory/a.md": "x\n" });
+  assert.equal(inst(r).status, 0);
+  const out = doctor(r, { PATH: tools({ qmd: "exit 0" }) }).stdout;
+  assert.match(out, /\.qmd\/index\.yaml names no collection/);
+  assert.ok(!out.includes(".qmd/index.yml"));
+});
+
+test("install: a docs folder the user cannot write in does not leave a half install", { skip: process.getuid?.() === 0 }, () => {
+  const r = repo({ "docs/readme.md": "x\n" });
+  chmodSync(join(r, "docs"), 0o555);
+  try {
+    const out = inst(r);
+    assert.equal(out.status, 0, out.stderr);
+    assert.match(out.stdout, /^not written: docs\/memory$/m);
+    const rec = readJson(r, ".xworkflows/installed.json");
+    assert.ok(!rec.created.includes("docs/memory"));
+  } finally {
+    chmodSync(join(r, "docs"), 0o755);
+    rmSync(r, { recursive: true, force: true });
+  }
+});
+
+test("install: a .qmd folder the user cannot write in leaves no yml, no record of it, and the install goes on", { skip: process.getuid?.() === 0 }, () => {
+  const r = repo({ ".qmd/keep": "x\n" });
+  chmodSync(join(r, ".qmd"), 0o555);
+  try {
+    const out = inst(r);
+    assert.equal(out.status, 0, out.stderr);
+    assert.match(out.stdout, /^not written: \.qmd\/index\.yml$/m);
+    assert.ok(!readJson(r, ".xworkflows/installed.json").created.includes(".qmd/index.yml"));
+  } finally {
+    chmodSync(join(r, ".qmd"), 0o755);
+    rmSync(r, { recursive: true, force: true });
+  }
+});

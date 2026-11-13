@@ -225,6 +225,8 @@ function mergeLocal(root) {
 }
 
 const YML = ".qmd/index.yml";
+// qmd reads index.yaml before index.yml: either one is a local config
+const localYml = (root) => [".qmd/index.yaml", YML].find((f) => existsSync(join(root, f)));
 // memory.dir as checks/index-current.mjs reads it; null when it is not a folder name inside the repository
 const memName = (d) => {
   const n = typeof d === "string" ? posix.normalize(d.trim()).replace(/^\.\/|\/+$/g, "") : "";
@@ -401,7 +403,7 @@ export function plan(manifest, root, record, ans = {}) {
   if (!md) notes.push(`not written: memory.dir must be a folder inside the repository: ${mem.dir}`);
   else {
     if (!existsSync(join(root, md)) && !off(md)) merges.push({ path: md, text: null, dir: true, verb: "create", rec: { created: [md] } });
-    qmd = !mem.index && !existsSync(join(root, YML)) && !off(YML);
+    qmd = !mem.index && !localYml(root) && !off(YML);
     if (qmd) merges.push({ path: YML, text: `collections:\n  memory:\n    path: ${JSON.stringify(resolve(root, md))}\n    pattern: "**/*.md"\n`, verb: "write", rec: { created: [YML] } });
   }
   if (!off(SETTINGS)) merges.push(mergeSettings(root, manifest, record));
@@ -436,8 +438,15 @@ export function apply(pl, root, manifest, record) {
   }
   const next = { ...record, xworkflows: manifest.version, tools: ["claude"], pieces: {}, files: {}, kept: [...new Set([...record.kept, ...pl.kept])], renamed: { ...record.renamed, ...pl.renamed } };
   for (const m of pl.merges) {
-    if (m.dir) { mkdirSync(join(root, m.path), { recursive: true }); out.push(m.path); }
-    if (m.text !== null) { put(root, m.path, m.text); out.push(m.path); }
+    try {
+      if (m.dir) { mkdirSync(join(root, m.path), { recursive: true }); out.push(m.path); }
+      if (m.text !== null) { put(root, m.path, m.text); out.push(m.path); }
+    } catch (e) {
+      // the new writes of the memory folder and the yml: say so, record nothing, go on
+      if (!m.verb) throw e;
+      out.push(`not written: ${m.path}`);
+      continue;
+    }
     for (const [k, list] of Object.entries(m.rec)) {
       next[k] = [...next[k]];
       for (const x of list) if (!next[k].some((y) => (k === "merged" ? x.file === y.file && isDeepStrictEqual(x.key, y.key) && isDeepStrictEqual(x.entry, y.entry) : (k === "blocks" || k === "imports" ? x.file === y.file && x.line === y.line : isDeepStrictEqual(x, y))))) next[k].push(x);
@@ -623,7 +632,7 @@ async function doctor() {
           const t = q("show", n).stdout?.match(/^\s*Path:\s+(.+?)\s*$/m)?.[1]?.replace(/\/$/, "");
           return t && (abs === t || abs.startsWith(t + "/"));
         });
-        const why = conf.memory.index ? `qmd collection add ${mem}` : existsSync(join(ROOT, YML)) ? `${YML} names no collection with the path ${abs}; add one, or delete .qmd and run install again` : "run install again";
+        const why = conf.memory.index ? `qmd collection add ${mem}` : localYml(ROOT) ? `${localYml(ROOT)} names no collection with the path ${abs}; add one, or delete .qmd and run install again` : "run install again";
         say(covers ? "ok" : "fail", covers ? `qmd collection covers ${mem}` : `no qmd collection covers ${mem}: ${why}`);
       }
     }
