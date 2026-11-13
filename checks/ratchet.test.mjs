@@ -113,7 +113,7 @@ test("a count command that passes the limit is cut: the line gives the command, 
   try {
     const r = await repo.run(brake);
     assert.equal(r.ok, false);
-    assert.notEqual(r.cannotRun, true);
+    assert.equal(r.cannotRun, true);
     const line = r.lines.join("\n");
     assert.match(line, /todo/);
     assert.match(line, /sleep 30/);
