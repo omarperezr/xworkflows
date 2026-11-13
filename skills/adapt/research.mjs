@@ -23,7 +23,7 @@ export function verifyCitation(root, c) {
   const p = resolve(base, String(c.file || ""));
   if (!p.startsWith(base + sep) || !existsSync(p) || !statSync(p).isFile()) return false;
   const q = collapse(c.quote || "");
-  if (!q || !Number.isInteger(c.line)) return false;
+  if (q.length < 2 || !Number.isInteger(c.line)) return false;
   const lines = readFileSync(p, "utf8").split("\n");
   for (let i = c.line - 3; i <= c.line + 3; i++) if (i >= 1 && i <= lines.length && collapse(lines[i - 1]).includes(q)) return true;
   return false;

@@ -533,3 +533,10 @@ test("queue reads a new plan whose file name holds a non-ASCII letter", () => {
   cli(d, "queue");
   assert.deepEqual(ids(JSON.parse(rt(d, "interview.json"))).filter((i) => i.startsWith("S1-")), ["S1-1", "S1-2"]);
 });
+
+test("a one-character quote is not a verified citation", () => {
+  const d = repo();
+  assert.ok(!verifyCitation(d, { file: "a.js", line: 2, quote: "t" }));
+  assert.ok(verifyCitation(d, { file: "a.js", line: 2, quote: "round(x)" }));
+});
+
