@@ -81,10 +81,10 @@ export function buildQueue(s, research = {}, scan = {}, prev = null, cfg = {}, e
   };
   const sentence = (x, i) => item(`S1-${i + 1}`, "1", `${x.text} (${x.at})${seen(x)}`, SENTENCE);
   const first = s.drawer1.flatMap((x, i) => (asked(x) ? [[x, i]] : [])), out = s.drawer1LeftOut.flatMap((x, i) => (asked(x) ? [[x, MAX_RULES + i]] : []));
-  const left = out.length, more = out.slice(0, MAX_MORE);
+  const left = out.length, more = out.filter(([, i]) => i < MAX_RULES + MAX_MORE); // the second page is the first MAX_MORE places, cut before the skip
   return [
     ...first.map(([x, i]) => sentence(x, i)),
-    ...(left ? [item("S1-more", "1", `${left} more sentence(s) were left out of the first ${MAX_RULES}. Show up to ${more.length} of them?`, MORE)] : []),
+    ...(more.length ? [item("S1-more", "1", `${left} more sentence(s) were left out of the first ${MAX_RULES}. Show up to ${more.length} of them?`, MORE)] : []),
     ...more.map(([x, i]) => sentence(x, i)),
     ...s.drawer2.map((g) => item(g.id, "2", g.text, g.options)),
     ...s.drawer3.map((q) => {
@@ -147,7 +147,7 @@ function keepAnswered(dir, run) {
   const list = [...s.drawer1, ...s.drawer1LeftOut].flatMap((x, i) => {
     const id = `S1-${i + 1}`, answer = last[id];
     if (answer) return answer === SENTENCE[3] ? [] : [{ text: x.text, at: x.at, answer }];
-    const kept = !queue.some((q) => q.id === id) && old.find((a) => a.text === x.text && a.at === x.at);
+    const kept = i < MAX_RULES + MAX_MORE && !queue.some((q) => q.id === id) && old.find((a) => a.text === x.text && a.at === x.at);
     return kept ? [kept] : [];
   });
   put(join(dir, "research.answered.json"), JSON.stringify(list, null, 2) + "\n");

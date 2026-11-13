@@ -651,3 +651,27 @@ test("the workflow calls its agents by the name install gave them", async () => 
   assert.deepEqual(await agentTypes({ root: ".", zeroHits: [], agents: { mechanism: "xwf-mechanism", explore: "xwf-explore" } }), ["xwf-explore", "xwf-mechanism"]);
   assert.deepEqual(await agentTypes({ root: ".", zeroHits: [], agents: { mechanism: "xwf-mechanism" } }), ["explore", "xwf-mechanism"]);
 });
+
+// ---- the second page and the answered list under the cap
+
+const THIRTY = Array.from({ length: 30 }, (_, i) => ({ text: `Rule ${i + 1}.`, from: ["truth.1"], at: "a.js:2" }));
+test("a re-adaptation never queues a sentence past place 24, even when the answered ones before it are skipped", () => {
+  const t = again({ answered: THIRTY.slice(0, 24).map((x) => ({ text: x.text, at: x.at, answer: "Right" })) });
+  t.prev.plain.claims = THIRTY.map((x) => ({ text: x.text, from: ["truth.1"] }));
+  const q = t.ids(SC({ drawer1: THIRTY.slice(0, 12), drawer1LeftOut: THIRTY.slice(12) }));
+  assert.deepEqual(q, []);
+});
+
+test("done keeps an old answer only for a sentence skipped because it was answered, not for one the cap cut", () => {
+  const d = repo();
+  put(d, sample()); writeFileSync(X(d, "screens.json"), JSON.stringify(SC({ drawer1: THIRTY.slice(0, 12), drawer1LeftOut: THIRTY.slice(12) })));
+  const run = cli(d, "start").stdout.trim();
+  const old = THIRTY.map((x) => ({ text: x.text, at: x.at, answer: "Right" }));
+  writeFileSync(X(d, "research.answered.json"), JSON.stringify(old));
+  const queue = [...THIRTY.slice(0, 12).map((_, i) => ({ id: `S1-${i + 1}` })), { id: "S1-more" }, ...THIRTY.slice(12, 24).map((_, i) => ({ id: `S1-${i + 13}` }))];
+  writeFileSync(X(d, "interview.json"), JSON.stringify(queue));
+  writeFileSync(X(d, "interview.log.jsonl"), queue.filter((q) => q.id !== "S1-more").map((q) => JSON.stringify({ run, id: q.id, question: "q", answer: "Right" })).join("\n") + "\n");
+  writeFileSync(X(d, "summary.md"), `---\nstatus: approved\n---\n`);
+  cli(d, "done");
+  assert.equal(rj(d, "research.answered.json").length, 24);
+});
