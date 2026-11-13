@@ -19,7 +19,7 @@ Read `.xworkflows/config.json`: `paths.pending` (default `docs/PENDING.md`), `pa
 
 ## Step 2: Written down, in this order
 
-If `.xworkflows/research.md` has `## Written down` (research topic 6) and `HEAD` is still its `commit:`, reuse that list and search nothing again. Otherwise search:
+Search:
 
 1. The pending list (`paths.pending`, default `docs/PENDING.md`): cards `Status: in progress`, then `Status: scheduled`.
 2. Work in progress in git: uncommitted changes, skipping paths under `.xworkflows/`, `graphify-out/` and the files listed in `.xworkflows/installed.json` (`files` keys, `created`); local branches not merged into `mainBranch` with a commit in the last 30 days.

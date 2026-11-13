@@ -1,0 +1,12 @@
+# What a project that installs xworkflows never needs.
+# With this file npm stops falling back to .gitignore, and stops warning about it.
+docs/
+proof/
+sandbox/
+test/
+*.test.mjs
+.claude/
+.xworkflows/
+.qmd/
+graphify-out/
+hooks/fixtures/

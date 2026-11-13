@@ -144,6 +144,12 @@ test("verify-finding: temp dir, forced removal, config tests, deps, cannot run h
   assert.doesNotMatch(b, /git worktree remove <temp dir>/);
   assert.ok(read("skills/next-step/SKILL.md").includes("`discarded: cannot run here: <why>`: say why in one line, keep the candidate's card"));
 });
+test("next-step names no research section that render does not write", () => {
+  const s = read("skills/next-step/SKILL.md");
+  assert.ok(!s.includes("## Written down"), "render writes no such section");
+  assert.ok(!s.includes("reuse that list"));
+});
+
 test("next-step: plain text under 2 candidates, reads paths.reviews, names the verify branch", () => {
   const s = read("skills/next-step/SKILL.md");
   has(s, ["With fewer than 2 candidates, ask `What is the next step?` in plain text, not `AskUserQuestion`",

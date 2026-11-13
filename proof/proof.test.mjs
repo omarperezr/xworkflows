@@ -1,12 +1,12 @@
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync, mkdtempSync, writeFileSync, cpSync, mkdirSync, existsSync, unlinkSync, rmSync, renameSync } from "node:fs";
+import { readFileSync, mkdtempSync, writeFileSync, cpSync, mkdirSync, existsSync, unlinkSync, rmSync, renameSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { grade, stats, kindsFound, noMoneyCheck, recommendedReport } from "./grade.mjs";
 import { spawnSync, execFileSync } from "node:child_process";
 import { answerFor, toAnswers, stripPlan, stripLeft, loadAnswers } from "./answers.mjs";
-import { prepareCopy, stopFor, withOwnerBackup, apiKeyGuard, budgetStop, countedCost, restoreOwner, readLedger, addSpend, spendFilePath, acquireLock, releaseLock, KEPT_FILES } from "./trial-lib.mjs";
+import { prepareCopy, stopFor, withOwnerBackup, apiKeyGuard, budgetStop, countedCost, restoreOwner, readLedger, addSpend, spendFilePath, acquireLock, releaseLock, keepFiles, outsideTrial, outNotIgnored } from "./trial-lib.mjs";
 
 const FX = new URL("../test/fixtures/proof/", import.meta.url).pathname;
 const TRIAL = FX + "trial";
@@ -274,6 +274,76 @@ test("harness lock: empty or zero lock file is stale and taken over", () => {
   }
 });
 
-test("the harness keeps the files the new adapt writes", () => {
-  for (const f of ["research.md", "research.json", "scan.json", "interview.log.jsonl", "screens.json", "details.md"]) assert.ok(KEPT_FILES.includes(f), f);
+test("keepFiles copies what a run left, skips what is missing, and keeps the rest of the save going", () => {
+  const cwd = tmp(), out = tmp();
+  mkdirSync(join(cwd, ".xworkflows"));
+  mkdirSync(join(cwd, ".claude/rules"), { recursive: true });
+  mkdirSync(join(cwd, ".claude/agents"), { recursive: true });
+  for (const f of ["research.md", "details.md", "scan.json"]) writeFileSync(join(cwd, ".xworkflows", f), f);
+  writeFileSync(join(cwd, ".xworkflows", "other.txt"), "no");
+  writeFileSync(join(cwd, "AGENTS.md"), "a");
+  writeFileSync(join(cwd, ".claude/rules/r.md"), "r");
+  writeFileSync(join(cwd, ".claude/agents/risk-review.md"), "x");
+  keepFiles(cwd, out);
+  for (const f of ["research.md", "details.md", "scan.json", "AGENTS.md", ".claude/rules/r.md", ".claude/agents/risk-review.md"]) assert.ok(existsSync(join(out, f)), f);
+  assert.ok(!existsSync(join(out, "research.json")), "a missing file is skipped");
+  assert.ok(!existsSync(join(out, "other.txt")), "only the kept names are copied");
+});
+
+const inside = tmp();
+const root = join(inside, "trial");
+mkdirSync(join(root, "src"), { recursive: true });
+symlinkSync(tmpdir(), join(root, "leak"));
+const denied = (name, input) => assert.ok(outsideTrial(name, input, root), JSON.stringify(input));
+const allowed = (name, input) => assert.equal(outsideTrial(name, input, root), null, JSON.stringify(input));
+
+test("outsideTrial lets a write inside the trial folder through", () => {
+  allowed("Write", { file_path: join(root, "src/a.md") });
+  allowed("Edit", { file_path: join(root, "new/dir/a.md") });
+  allowed("Write", { file_path: "src/a.md" });
+  allowed("Write", { file_path: "src/../a.md" });
+  allowed("Read", { file_path: "/etc/hosts" });
+  allowed("AskUserQuestion", { questions: [] });
+});
+
+test("outsideTrial denies a write outside: absolute, relative with .., a symlink that leaves, another tool", () => {
+  denied("Write", { file_path: join(inside, "other.md") });
+  denied("Write", { file_path: "/etc/x" });
+  denied("Edit", { file_path: "../x.md" });
+  denied("Write", { file_path: "src/../../x.md" });
+  denied("Write", { file_path: join(root, "leak/x.md") });
+  denied("Write", { file_path: "leak/new/x.md" });
+  denied("NotebookEdit", { notebook_path: "/tmp/n.ipynb" });
+  denied("MultiEdit", { file_path: "~/x" });
+  denied("Write", { file_path: root + "-sibling/x" });
+  denied("Write", {});
+});
+
+test("outsideTrial denies a shell command that names a path outside: redirect, cd, .., home, symlink", () => {
+  allowed("Bash", { command: "ls src && node --test 2>/dev/null; echo hi > out.txt" });
+  allowed("Bash", { command: `cat ${join(root, "src/a.md")} | wc -l` });
+  denied("Bash", { command: "echo hi > /etc/x" });
+  denied("Bash", { command: "echo hi >>/etc/x" });
+  denied("Bash", { command: "echo hi 2>/etc/x" });
+  denied("Bash", { command: "cd /tmp && touch x" });
+  denied("Bash", { command: "cd .. && touch x" });
+  denied("Bash", { command: "cd && touch x" });
+  denied("Bash", { command: "touch ../x" });
+  denied("Bash", { command: "cp a ~/x" });
+  denied("Bash", { command: "cp a $HOME/x" });
+  denied("Bash", { command: "dd of=/etc/x" });
+  denied("Bash", { command: "touch leak/x" });
+  denied("Bash", { command: 'echo "a" > "/etc/x"' });
+});
+
+test("outNotIgnored refuses an --out folder git does not ignore and lets an ignored one or a folder outside git through", () => {
+  const repo = tmp();
+  execFileSync("git", ["init", "-q"], { cwd: repo });
+  writeFileSync(join(repo, ".gitignore"), "private/\n");
+  const exec = (cmd, args, cwd) => execFileSync(cmd, args, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+  assert.equal(outNotIgnored(join(repo, "private"), exec), null);
+  assert.equal(outNotIgnored(join(repo, "private/deep/er"), exec), null);
+  assert.match(outNotIgnored(join(repo, "results"), exec), /git ignore|\.gitignore/);
+  assert.match(outNotIgnored(join(repo, "results"), exec), /--out/);
+  assert.equal(outNotIgnored(join(tmp(), "anywhere"), exec), null);
 });
