@@ -540,3 +540,12 @@ test("a one-character quote is not a verified citation", () => {
   assert.ok(verifyCitation(d, { file: "a.js", line: 2, quote: "round(x)" }));
 });
 
+test("a citation whose absolute path goes through a symlink of the root verifies", () => {
+  const d = repo();
+  const link = join(mkdtempSync(join(tmpdir(), "res-link-")), "root");
+  symlinkSync(d, link);
+  assert.ok(verifyCitation(d, { file: join(link, "a.js"), line: 2, quote: "round(x)" }));
+  assert.ok(verifyCitation(link, { file: join(d, "a.js"), line: 2, quote: "round(x)" }));
+  assert.ok(!verifyCitation(link, { file: join(tmpdir(), "elsewhere.js"), line: 2, quote: "round(x)" }));
+});
+

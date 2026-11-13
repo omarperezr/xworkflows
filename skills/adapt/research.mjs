@@ -2,7 +2,7 @@
 // Adapt run file, citation check, the render of the three screens and the detail file, and the interview queue.
 // Standalone: node: built-ins only (it is copied into projects).
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync, writeFileSync, mkdirSync, rmSync, copyFileSync, statSync, lstatSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync, mkdirSync, rmSync, copyFileSync, statSync, lstatSync, realpathSync } from "node:fs";
 import { join, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 import { screens, render, details, mechanism, seen, MAX_RULES, MAX_MORE } from "./screens.mjs";
@@ -19,9 +19,9 @@ export const sum = (s) => {
 const collapse = (s) => String(s).replace(/\s+/g, " ").trim();
 
 export function verifyCitation(root, c) {
-  const base = resolve(root);
-  const p = resolve(base, String(c.file || ""));
-  if (!p.startsWith(base + sep) || !existsSync(p) || !statSync(p).isFile()) return false;
+  let base, p;
+  try { base = realpathSync(resolve(root)); p = realpathSync(resolve(base, String(c.file || ""))); } catch { return false; } // real paths: a root or a file spelled through a symlink still compares equal
+  if (!p.startsWith(base + sep) || !statSync(p).isFile()) return false;
   const q = collapse(c.quote || "");
   if (q.length < 2 || !Number.isInteger(c.line)) return false;
   const lines = readFileSync(p, "utf8").split("\n");
