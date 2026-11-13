@@ -711,18 +711,28 @@ async function doctor() {
     } catch (e) { say("fail", `config: ${e.message}: ${e.message.startsWith(".xworkflows/config.json does not parse") ? "fix the JSON of .xworkflows/config.json" : `if a file of the package is named "changed locally" above, delete it; then ${INSTALL}`}`); }
     if (conf.paths.code?.length) {
       const dir = conf.lookup.index.folder;
-      // the tool is the first word of lookup.index.command, as the git hooks read it
-      const tool = conf.lookup.index.command.split(" ")[0];
-      say(has(sh(tool)) ? "ok" : "fail", has(sh(tool)) ? `${tool} command` : `${tool} command is missing${tool === "graphify" ? ": uv tool install graphifyy" : ""}`);
-      say(existsSync(join(ROOT, dir, "graph.json")) ? "ok" : "fail", existsSync(join(ROOT, dir, "graph.json")) ? `${tool} index` : `${dir}/graph.json is missing: ${sh(tool)} update .`);
+      // an empty command is the default, as in the git hooks
+      const cmd = conf.lookup.index.command || DEFAULTS.lookup.index.command;
+      if (typeof cmd !== "string") say("fail", `lookup.index.command must be text: set it in .xworkflows/config.json (the default is "${DEFAULTS.lookup.index.command}")`);
+      else {
+        // the tool is the first word of lookup.index.command, as the git hooks read it
+        const tool = cmd.split(" ")[0];
+        say(has(sh(tool)) ? "ok" : "fail", has(sh(tool)) ? `${tool} command` : `${tool} command is missing${tool === "graphify" ? ": uv tool install graphifyy" : ""}`);
+        say(existsSync(join(ROOT, dir, "graph.json")) ? "ok" : "fail", existsSync(join(ROOT, dir, "graph.json")) ? `${tool} index` : `${dir}/graph.json is missing: ${sh(tool)} update .`);
+      }
     }
-    const mem = memName(conf.memory.dir) ?? conf.memory.dir;
+    // a memory.index that is not text would reach qmd as an argument: say so, and use qmd's default index
+    let idx = conf.memory.index;
+    if (idx && typeof idx !== "string") { say("fail", "memory.index must be text: set it in .xworkflows/config.json, or take it out for qmd's default index"); idx = undefined; }
+    const named = memName(conf.memory.dir), mem = named ?? conf.memory.dir;
+    // install writes no folder and no yml for a memory.dir outside the repository
+    const MEMFIX = `set memory.dir in .xworkflows/config.json to a folder inside the repository, then ${INSTALL}`;
     if (!has("qmd")) say("fail", "qmd command is missing: npm install -g @tobilu/qmd");
-    else if (!existsSync(join(ROOT, mem))) say("warn", `no memory folder yet: ${mem}: ${INSTALL}`);
+    else if (!existsSync(join(ROOT, mem))) say("warn", `no memory folder yet: ${mem}: ${named ? INSTALL : MEMFIX}`);
     else {
       const abs = resolve(ROOT, mem);
-      const q = (...a) => spawnSync("qmd", [...(conf.memory.index ? ["--index", conf.memory.index] : []), "collection", ...a], { cwd: ROOT, encoding: "utf8", timeout: TIMEOUT });
-      const qcmd = `qmd${conf.memory.index ? ` --index ${sh(conf.memory.index)}` : ""}`;
+      const q = (...a) => spawnSync("qmd", [...(idx ? ["--index", idx] : []), "collection", ...a], { cwd: ROOT, encoding: "utf8", timeout: TIMEOUT });
+      const qcmd = `qmd${idx ? ` --index ${sh(idx)}` : ""}`;
       // no minimum is compared: the line only says which qmd this is
       const v = spawnSync("qmd", ["--version"], { cwd: ROOT, encoding: "utf8", timeout: TIMEOUT });
       const ver = v.error || v.status !== 0 ? "" : (v.stdout ?? "").trim().split("\n")[0];
@@ -737,7 +747,7 @@ async function doctor() {
           return t && (abs === t || abs.startsWith(t + "/"));
         });
         const yml = localYml(ROOT);
-        const why = conf.memory.index ? `${qcmd} collection add ${sh(mem)}` : !yml ? INSTALL : (read(ROOT, yml) ?? "").includes(abs) ? `this qmd does not read ${yml}, which names it: npm install -g @tobilu/qmd@latest` : `${yml} names no collection with the path ${abs}; add one, or delete .qmd and run install again`;
+        const why = idx ? `${qcmd} collection add ${sh(mem)}` : !named ? MEMFIX : !yml ? INSTALL : (read(ROOT, yml) ?? "").includes(abs) ? `this qmd does not read ${yml}, which names it: npm install -g @tobilu/qmd@latest` : `${yml} names no collection with the path ${abs}; add one, or delete .qmd and run install again`;
         say(covers ? "ok" : "fail", covers ? `qmd collection covers ${mem}` : `no qmd collection covers ${mem}: ${why}`);
       }
     }
@@ -748,6 +758,7 @@ async function doctor() {
     if (cur !== null && [false, true].some((c) => cur === hookText("pre-push", c))) say("ok", "pre-push hook is ours");
     else if (cur !== null && rec.files[key]) say("warn", `pre-push hook changed locally: it may no longer run the check; make it run: ${CHECK}`);
     else if (rec.declined.some((d) => d.file === key && d.what === "chain")) say("warn", `pre-push hook is yours: chaining declined at install; add this line to it: ${CHECK}`);
+    else if (ownHooks(ROOT) === null) say("fail", `pre-push hook: core.hooksPath points outside this repository, where install writes no hook; to put the hooks inside, run: git config core.hooksPath "$(git rev-parse --path-format=absolute --git-common-dir)/hooks"; then ${INSTALL}`);
     else say("fail", `pre-push hook is missing or not ours: ${INSTALL}`);
     let st = {}, local = {};
     try { st = JSON.parse(readFileSync(join(ROOT, ".claude/settings.json"), "utf8")); } catch {}

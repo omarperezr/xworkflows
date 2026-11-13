@@ -2227,3 +2227,92 @@ test("apply writes nothing through a symlink put in place after plan() read the 
     }
   } finally { process.env = saved; }
 });
+
+// P-116 (a): a line of doctor names what really fixes it, and doing it makes the line go
+const FAILS = (o) => o.stdout.split("\n").filter((l) => /^fail /.test(l));
+test("doctor: with core.hooksPath outside the repository the pre-push line names a command that puts the hooks inside, and after it install writes the hook", () => {
+  const g = tmp("xwf-ghooks-"), r = repo();
+  const env = { GIT_CONFIG_GLOBAL: outside(g) };
+  assert.equal(cli(r, ["install", "--yes"], { env }).status, 0);
+  const line = lineOf(doctor(r, env), /^fail pre-push hook/);
+  assert.ok(line, "doctor fails on it");
+  assert.doesNotMatch(line, /: run xworkflows install$/);
+  const cmd = line.match(/run: (git config .+?); then run xworkflows install$/)?.[1];
+  assert.ok(cmd, line);
+  assert.equal(spawnSync("sh", ["-c", cmd], { cwd: r, env: { ...process.env, ...ISO, ...env } }).status, 0);
+  assert.equal(cli(r, ["install", "--yes"], { env }).status, 0);
+  assert.deepEqual(FAILS(doctor(r, env)), []);
+  assert.deepEqual(readdirSync(g), []);
+});
+test("doctor: a memory.dir outside the repository, existing or not, says to name a folder inside it, and doing so makes the lines go", () => {
+  const o = tmp("xwf-out-"), r = repo(); cli(r, ["install", "--yes"]);
+  const ours = (extra = {}) => doctor(r, { PATH: GOOD, ...extra });
+  for (const dir of [o, join(o, "not-there"), relative(r, o)]) {
+    withConfig(r, { memory: { dir } });
+    const out = ours();
+    const bad = out.stdout.split("\n").filter((l) => /^(fail|warn) (no qmd collection covers|no memory folder yet)/.test(l));
+    assert.equal(bad.length, 1, out.stdout);
+    assert.match(bad[0], /set memory\.dir in \.xworkflows\/config\.json to a folder inside the repository, then run xworkflows install$/);
+  }
+  withConfig(r, { memory: { dir: "docs/memory" } });
+  assert.equal(cli(r, ["install", "--yes"], { env: { PATH: GOOD, HOME: EMPTY_HOME } }).status, 0);
+  assert.doesNotMatch(ours().stdout, /no qmd collection covers|no memory folder yet/);
+});
+
+// P-116 (b): the first word of lookup.index.command reaches a shell only quoted
+test("doctor: a lookup.index.command whose first word holds ; and a second command runs nothing", () => {
+  const r = repo(); cli(r, ["install"]);
+  withConfig(r, { paths: { ...ALL_KEYS.paths, code: ["src/"] }, lookup: { index: { command: "mytool;touch${IFS}PWNED query", folder: "idx-out" } } });
+  const out = doctor(r, { PATH: tools({ qmd: "exit 0" }) });
+  assert.ok(!existsSync(join(r, "PWNED")), "the second command ran");
+  assert.match(out.stdout, /^fail mytool;touch\$\{IFS\}PWNED command is missing$/m);
+});
+
+// P-116 (c): the three parts of the fix for a record with no dirs
+test("uninstall: with a record whose dirs is empty, the package's own folders still go, and the shared parents stay", () => {
+  const r = repo(); cli(r, ["install", "--yes"]);
+  withRecord(r, (rec) => { rec.dirs = []; });
+  assert.equal(cli(r, ["uninstall"]).status, 0);
+  assert.ok(!existsSync(join(r, ".xworkflows")), "the package's .xworkflows is left");
+  assert.ok(!existsSync(join(r, ".claude/skills/grill")), "the package's skill folder is left");
+  assert.ok(existsSync(join(r, ".claude")), "a shared parent the record does not list is removed");
+});
+test("install: an empty folder at a skill's place is no skill of the project: no question, ours goes in", () => {
+  const r = repo();
+  mkdirSync(join(r, ".claude/skills/grill"), { recursive: true });
+  const out = cli(r, ["install", "--yes"]);
+  assert.equal(out.status, 0, out.stderr);
+  assert.doesNotMatch(out.stdout, /A skill grill exists/);
+  assert.ok(existsSync(join(r, ".claude/skills/grill/SKILL.md")));
+  assert.ok(!existsSync(join(r, ".claude/skills/xwf-grill")));
+});
+test("install by this version on a record without dirs, written by the version on main, leaves the record without dirs", () => {
+  const r = repo(); cli(r, ["install", "--yes"]);
+  withRecord(r, (rec) => { delete rec.dirs; });
+  assert.equal(cli(r, ["install", "--yes"]).status, 0);
+  assert.ok(!("dirs" in readJson(r, ".xworkflows/installed.json")));
+});
+
+// P-116 (d): doctor never throws on a value of the wrong type
+test("doctor: a lookup.index.command or memory.index that is not text gives a fail line naming the key, and an empty command is the default", () => {
+  const r = repo(); cli(r, ["install"]);
+  const code = { ...ALL_KEYS.paths, code: ["src/"] };
+  for (const command of [["graphify", "query"], 5, true]) {
+    withConfig(r, { paths: code, lookup: { index: { command } } });
+    const out = doctor(r, { PATH: tools({ qmd: COVERS }) });
+    assert.equal(out.stderr, "", JSON.stringify(command));
+    assert.match(out.stdout, /^fail lookup\.index\.command must be text: .*\.xworkflows\/config\.json/m);
+    assert.match(out.stdout, /^doctor: \d+ fail/m);
+  }
+  withConfig(r, { paths: code, lookup: { index: { command: "" } } });
+  const empty = doctor(r, { PATH: tools({ qmd: COVERS }) });
+  assert.equal(empty.stderr, "");
+  assert.match(empty.stdout, /^fail graphify command is missing: uv tool install graphifyy$/m);
+  for (const index of [["a"], 5, true, { a: 1 }]) {
+    withConfig(r, { memory: { index } });
+    const out = doctor(r, { PATH: tools({ qmd: COVERS }) });
+    assert.equal(out.stderr, "", JSON.stringify(index));
+    assert.match(out.stdout, /^fail memory\.index must be text: .*\.xworkflows\/config\.json/m);
+    assert.match(out.stdout, /^doctor: \d+ fail/m);
+  }
+});
