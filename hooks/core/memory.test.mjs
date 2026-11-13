@@ -182,6 +182,16 @@ test("an edit is judged on the file as it will be after it", () => {
   assert.match(d.reason, /owner\.md/);
 });
 
+test("several edits to one file in one call: each is judged on the file as the edits before it left it", () => {
+  const e = (...writes) => ev("preTool", { kind: "write", writes });
+  const f = (t) => fake({ files: { "/r/docs/memory/x.md": t } }).ctx;
+  const p = "/r/docs/memory/x.md";
+  assert.equal(decide(e({ path: p, old: "type: feedback", new: "type: project" }, { path: p, old: "body", new: "more" }), f(note("feedback"))).decision, "allow");
+  const d = decide(e({ path: p, old: "type: project", new: "type: x" }, { path: p, old: "type: x", new: "type: user" }), f(note("project")));
+  assert.equal(d.decision, "deny");
+  assert.match(d.reason, /owner\.md/);
+});
+
 test("unknown events, kinds and missing fields: allow", () => {
   const c = fake().ctx;
   for (const e of [ev("postTool"), ev("prompt", { prompt: "x" }), ev("preTool", { kind: "shell", command: "ls" }), ev("preTool", { kind: "write" }), ev("weird")]) {
