@@ -58,7 +58,7 @@
     },
     "next-step": {
       "version": "0.1.0",
-      "sha256": "81a52145374fc89c7e6e165061c31c89653e03bda95c75386ca38636c0977645"
+      "sha256": "f4ed47267e5d5c43efeac014e5d1b3b4035dfd88d801c9399f54f6e777eafed6"
     },
     "orchestrator": {
       "version": "0.1.0",
@@ -356,7 +356,7 @@
     },
     ".claude/skills/next-step/SKILL.md": {
       "piece": "next-step",
-      "sha256": "7f2f67ad85653257158d95c02fe3a174c6bbc5199b59c72990eecf80e22928c3"
+      "sha256": "1acfa088430eda12ff40da6b6b48af13b4e82953525ee2ff22097c566830dd3d"
     },
     ".claude/agents/implement.md": {
       "piece": "implement",
@@ -432,11 +432,11 @@
     },
     ".git/hooks/post-merge": {
       "piece": "checks",
-      "sha256": "1505466be2b9c89a950027d28235ee05f7c01f72c658053a976c3b58d9fe3c4c"
+      "sha256": "facbd4984ea1b0dc51ba7c860d9f3a5401a5e67144c74df3fd715f0bca79ee38"
     },
     ".git/hooks/post-commit": {
       "piece": "checks",
-      "sha256": "1505466be2b9c89a950027d28235ee05f7c01f72c658053a976c3b58d9fe3c4c"
+      "sha256": "facbd4984ea1b0dc51ba7c860d9f3a5401a5e67144c74df3fd715f0bca79ee38"
     }
   },
   "merged": [
@@ -653,14 +653,100 @@
     {
       "file": ".gitignore",
       "line": ".qmd/"
+    },
+    {
+      "file": ".graphifyignore",
+      "line": ".xworkflows/"
+    },
+    {
+      "file": ".graphifyignore",
+      "line": ".claude/skills/grill/"
+    },
+    {
+      "file": ".graphifyignore",
+      "line": ".claude/agents/explore.md"
+    },
+    {
+      "file": ".graphifyignore",
+      "line": ".claude/agents/mechanism.md"
+    },
+    {
+      "file": ".graphifyignore",
+      "line": ".claude/skills/thermo-nuclear-review/"
+    },
+    {
+      "file": ".graphifyignore",
+      "line": ".claude/skills/thermo-nuclear-code-quality-review/"
+    },
+    {
+      "file": ".graphifyignore",
+      "line": ".claude/agents/zone-review.md"
+    },
+    {
+      "file": ".graphifyignore",
+      "line": ".claude/agents/verify-finding.md"
+    },
+    {
+      "file": ".graphifyignore",
+      "line": ".claude/skills/adapt/"
+    },
+    {
+      "file": ".graphifyignore",
+      "line": ".claude/skills/full-review/"
+    },
+    {
+      "file": ".graphifyignore",
+      "line": ".claude/skills/next-step/"
+    },
+    {
+      "file": ".graphifyignore",
+      "line": ".claude/agents/implement.md"
+    },
+    {
+      "file": ".graphifyignore",
+      "line": ".claude/agents/mechanical.md"
+    },
+    {
+      "file": ".graphifyignore",
+      "line": ".claude/agents/review.md"
+    },
+    {
+      "file": ".graphifyignore",
+      "line": ".claude/skills/deepen/"
+    },
+    {
+      "file": ".graphifyignore",
+      "line": ".claude/skills/plan/"
+    },
+    {
+      "file": ".graphifyignore",
+      "line": ".claude/skills/orchestrate/"
+    },
+    {
+      "file": ".graphifyignore",
+      "line": ".claude/skills/pending/"
+    },
+    {
+      "file": ".graphifyignore",
+      "line": ".claude/skills/tdd/"
+    },
+    {
+      "file": ".graphifyignore",
+      "line": ".claude/skills/ponytail/"
+    },
+    {
+      "file": ".graphifyignore",
+      "line": ".claude/skills/ponytail-review/"
     }
   ],
   "created": [
     ".claude/settings.json",
     ".claude/settings.local.json",
     "AGENTS.md",
-    "CLAUDE.md"
+    "CLAUDE.md",
+    ".graphifyignore"
   ],
+  "dirs": [],
   "declined": [],
   "kept": [],
   "renamed": {},
