@@ -461,23 +461,6 @@
       "file": ".claude/settings.json",
       "key": [
         "hooks",
-        "PreToolUse"
-      ],
-      "entry": {
-        "matcher": "Write|Edit|MultiEdit|Workflow",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node \"$(git rev-parse --show-toplevel)/.xworkflows/hooks/run.mjs\" claude adapt-gates"
-          }
-        ]
-      },
-      "createdKey": false
-    },
-    {
-      "file": ".claude/settings.json",
-      "key": [
-        "hooks",
         "PostToolUse"
       ],
       "entry": {
@@ -630,6 +613,23 @@
       ],
       "entry": "Bash(node .xworkflows/mark.mjs:*)",
       "createdKey": true
+    },
+    {
+      "file": ".claude/settings.json",
+      "key": [
+        "hooks",
+        "PreToolUse"
+      ],
+      "entry": {
+        "matcher": "Write|Edit|MultiEdit|Workflow|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$(git rev-parse --show-toplevel)/.xworkflows/hooks/run.mjs\" claude adapt-gates"
+          }
+        ]
+      },
+      "createdKey": false
     }
   ],
   "blocks": [
