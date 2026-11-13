@@ -2377,3 +2377,37 @@ test("doctor: a lookup.index.command or memory.index that is not text gives a fa
     assert.match(out.stdout, /^doctor: \d+ fail/m);
   }
 });
+
+test("install --yes: a retired file is looked for only under the xwf- name of a unit that install renames", () => {
+  const published = spawnSync("git", ["show", "f467f65~1:skills/adapt/topics.md"], { cwd: PKG_ROOT, encoding: "utf8" }).stdout;
+  const mine = ".claude/skills/adapt/topics.md", ours = ".claude/skills/xwf-adapt/topics.md";
+  const r = repo({ ".claude/skills/adapt/SKILL.md": "mine\n", [mine]: published, [ours]: published });
+  const out = cli(r, ["install", "--yes"]);
+  assert.equal(out.status, 0, out.stderr);
+  assert.ok(existsSync(join(r, mine)), "the user's file is still there");
+  assert.ok(!existsSync(join(r, ours)), "the retired file of the package's skill is removed");
+  assert.ok(!out.stdout.includes(".claude/skills/adapt/topics.md"), out.stdout);
+});
+test("install: the user's own skill with a topics.md of other content is untouched and not named", () => {
+  const mine = ".claude/skills/adapt/topics.md";
+  const r = repo({ ".claude/skills/adapt/SKILL.md": "mine\n", [mine]: "my own topics\n" });
+  for (const args of [["install"], ["install", "--yes"]]) {
+    const out = cli(r, args);
+    assert.equal(out.status, 0, out.stderr);
+    assert.equal(readFileSync(join(r, mine), "utf8"), "my own topics\n");
+    assert.ok(!out.stdout.includes(".claude/skills/adapt/topics.md"), out.stdout);
+  }
+});
+
+
+test("install: a retired file inside the user's own skill that install keeps is neither removed nor named", () => {
+  // a text the package once published, taken from git; the hash is in the manifest's retired list
+  const published = spawnSync("git", ["show", "f467f65~1:skills/adapt/topics.md"], { cwd: PKG_ROOT, encoding: "utf8" }).stdout;
+  assert.ok(readJson(PKG_ROOT, "manifest.json").pieces.find((p) => p.id === "adapt").retired["skills/adapt/topics.md"].includes(sha(published)));
+  const topics = ".claude/skills/adapt/topics.md";
+  const r = repo({ ".claude/skills/adapt/SKILL.md": "mine\n", [topics]: published });
+  const out = cli(r, ["install"]);
+  assert.equal(out.status, 0, out.stderr);
+  assert.ok(existsSync(join(r, topics)), "the user's file is still there");
+  assert.ok(!out.stdout.includes("adapt/topics.md"), out.stdout);
+});
