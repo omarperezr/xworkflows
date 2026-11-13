@@ -113,3 +113,37 @@ test("a person named like a tool, with a person's address, passes even with an @
     assert.equal(r.ok, true, line);
   }
 });
+
+test("every e-mail address of a trailer line is judged; with none, the name is", async () => {
+  const refused = [
+    "Co-authored-by: @claude <noreply@anthropic.com>",
+    "Co-authored-by: Claude (@anthropic-ai) <noreply@anthropic.com>",
+    "Co-authored-by: Amp <amp@ampcode.com>",
+    "Co-authored-by: Claude <noreply@anthropic.com> <me@example.org>",
+    "Co-authored-by: Claude <noreply@anthropic.com>, Jane Roe <jane@example.org>",
+    "Co-authored-by: Claude <noreply@anthropic.com> <Claude Code>",
+    "Signed-off-by: Claude <noreply@anthropic.com> <me@example.org>",
+    "Co-authored-by: @claude",
+    "Co-authored-by: Claude (@claude)",
+    "Co-authored-by: Claude Code @ Anthropic",
+    "Co-authored-by: Claude",
+    "Co-authored-by: Copilot <copilot@github.com>",
+    "Co-authored-by: @claude noreply@anthropic.com",
+    "CO-AUTHORED-BY: CLAUDE <NOREPLY@ANTHROPIC.COM>",
+  ];
+  const passed = [
+    "Co-authored-by: Cody Smith <cody.smith@example.org>",
+    "Co-authored-by: Amp Lee (@amp) <lee@example.org>",
+    "Co-authored-by: Jane Roe <c@github.com>",
+    "Co-authored-by: Jane Roe <jane@example.org>, Sam Poe <sam@example.org>",
+    "Signed-off-by: Cody Smith <cody.smith@example.org>",
+  ];
+  const bad = [];
+  for (const [lines, ok] of [[refused, false], [passed, true]]) {
+    for (const line of lines) {
+      const r = await check((repo) => repo.commit("add thing", { body: line }));
+      if (r.ok !== ok) bad.push(`${ok ? "must pass" : "must be refused"}: ${line}`);
+    }
+  }
+  assert.deepEqual(bad, [], "rows that give the wrong result");
+});
