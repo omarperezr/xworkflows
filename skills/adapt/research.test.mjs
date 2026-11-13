@@ -433,9 +433,15 @@ test("with sentences left out the queue adds S1-more after screen 1, then the fi
   assert.ok(!ids(q).includes("S1-27"));
   const more = q.find((i) => i.id === "S1-more");
   assert.deepEqual(more.options, ["Yes, show them", "No, skip them"]);
-  assert.match(more.text, /^12 more sentence\(s\) were left out of the first 12\. Show them\?$/);
+  assert.equal(more.text, "The second page holds 12 sentence(s). Show them?");
   assert.deepEqual(q[3], { id: "S1-13", heading: "1", style: "choice", text: "Second. (a.js:5) seen in 1 more place(s).", options: ["Right", "Real, but a bad rule", "Not how it works", "I don't know"] });
   assert.equal(q[4].text, "Third. (a.js:6)");
+});
+
+test("S1-more says the size of the second page, not how many were left out", () => {
+  const text = (n) => buildQueue(SC({ drawer1LeftOut: MORE(n) })).find((i) => i.id === "S1-more").text;
+  assert.equal(text(15), "The second page holds 12 sentence(s). Show them?");
+  assert.equal(text(3), "The second page holds 3 sentence(s). Show them?");
 });
 
 test("nothing left out: no S1-more", () => {
@@ -668,7 +674,7 @@ test("in a re-adaptation S1-more counts the sentences it will show, as research.
   t.prev.plain.claims = THIRTY.map((x) => ({ text: x.text, from: ["truth.1"] }));
   const q = buildQueue(SC({ drawer1: THIRTY.slice(0, 12), drawer1LeftOut: THIRTY.slice(12) }), {}, {}, t.prev, {}, t.earlier);
   assert.deepEqual(ids(q).filter((i) => /^S1-/.test(i)), ["S1-more", "S1-21", "S1-22", "S1-23", "S1-24"]);
-  assert.equal(q.find((i) => i.id === "S1-more").text, "4 more sentence(s) were left out of the first 12. Show them?");
+  assert.equal(q.find((i) => i.id === "S1-more").text, "The second page holds 4 sentence(s). Show them?");
 });
 
 test("done keeps an old answer only for a sentence skipped because it was answered, not for one the cap cut", () => {

@@ -84,7 +84,7 @@ export function buildQueue(s, research = {}, scan = {}, prev = null, cfg = {}, e
   const more = out.filter(([, i]) => i < MAX_RULES + MAX_MORE); // the second page is the first MAX_MORE places, cut before the skip
   return [
     ...first.map(([x, i]) => sentence(x, i)),
-    ...(more.length ? [item("S1-more", "1", `${more.length} more sentence(s) were left out of the first ${MAX_RULES}. Show them?`, MORE)] : []),
+    ...(more.length ? [item("S1-more", "1", `The second page holds ${more.length} sentence(s). Show them?`, MORE)] : []),
     ...more.map(([x, i]) => sentence(x, i)),
     ...s.drawer2.map((g) => item(g.id, "2", g.text, g.options)),
     ...s.drawer3.map((q) => {
