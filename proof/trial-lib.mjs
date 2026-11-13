@@ -133,7 +133,7 @@ function real(p) {
   }
 }
 
-// The test agent never writes outside its trial folder: a file write or a shell command that names a path outside is denied, always.
+// A guard against a write outside the trial folder by accident: a file write or a shell command whose text names a path outside is denied. It reads the command's text and does not see a path the shell builds.
 // Returns the reason to deny, or null. shortcut: a shell command is read token by token, so a path built by the shell itself
 // (a variable, a substitution) is not seen; `~` and `$` words are denied outright for that reason.
 export function outsideTrial(name, input, root) {
@@ -144,7 +144,7 @@ export function outsideTrial(name, input, root) {
     const r = real(resolve(base, p));
     return r !== base && !r.startsWith(base + sep);
   };
-  const deny = (p) => `denied: ${p} is outside the trial folder; the test agent never writes outside it`;
+  const deny = (p) => `denied: ${p} is outside the trial folder; keep writes inside the trial folder (this guard reads the command text and does not see a path the shell builds)`;
   if (["Write", "Edit", "MultiEdit", "NotebookEdit"].includes(name)) {
     const p = input?.file_path ?? input?.notebook_path;
     return typeof p === "string" && p && !out(p) ? null : deny(p);

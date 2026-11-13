@@ -40,7 +40,7 @@ export async function runFlow(argv, deps = {}) {
     const asked = [];
     const ac = new AbortController();
     const timer = setTimeout(() => ac.abort(), 45 * 60 * 1000);
-    // A write or a shell command outside the project is denied; every question dialog is answered with its first option: the session's recommended one.
+    // A guard against an accidental write outside the project (it reads the command text, not a path the shell builds) denies a write or shell command that names one; every question dialog is answered with its first option: the session's recommended one.
     const canUseTool = async (name, input) => {
       const outside = outsideTrial(name, input, o.cwd);
       if (outside) return { behavior: "deny", message: outside };
