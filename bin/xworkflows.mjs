@@ -264,7 +264,13 @@ function mergeIgnore(root, qmd) {
 const HOOKS = ["pre-push", "post-merge", "post-commit"];
 const hooksFolder = (root) => resolve(root, execFileSync("git", ["rev-parse", "--git-path", "hooks"], { cwd: root, encoding: "utf8" }).trim());
 const CHECK = 'node "$(git rev-parse --show-toplevel)/.xworkflows/checks/run.mjs" --pre-push "$1"';
-const MAIN = `node -e 'try{process.stdout.write(JSON.parse(require("fs").readFileSync(".xworkflows/config.json","utf8")).mainBranch||"main")}catch{process.stdout.write("main")}'`;
+// a value of .xworkflows/config.json read at hook time, `d` when the file or the key is not there
+const CFG = (expr, d) => `node -e 'try{process.stdout.write(${expr}||"${d}")}catch{process.stdout.write("${d}")}'`;
+const CONF = 'JSON.parse(require("fs").readFileSync(".xworkflows/config.json","utf8"))';
+const MAIN = CFG(`${CONF}.mainBranch`, "main");
+// the first word of lookup.index.command is the tool that builds the index, as the session-start hook runs it
+const TOOL = CFG(`(${CONF}.lookup.index.command||"graphify query").split(" ")[0]`, "graphify");
+const FOLDER = CFG(`${CONF}.lookup.index.folder`, "graphify-out");
 // With `chain` the project's own hook, renamed <name>.before-xworkflows, runs first.
 function hookText(name, chain) {
   const old = `old="$(dirname "$0")/${name}.before-xworkflows"\n`;
@@ -273,7 +279,7 @@ function hookText(name, chain) {
     // git feeds the pushed refs on stdin once: keep them for both runs
     return `#!/bin/sh\nin=$(mktemp) || exit 1\ncat > "$in"\n${old}if [ -x "$old" ]; then "$old" "$@" < "$in" || { c=$?; rm -f "$in"; exit $c; }; fi\n${CHECK} < "$in"\nc=$?\nrm -f "$in"\nexit $c\n`;
   }
-  return `#!/bin/sh\nc=0\n${chain ? `${old}[ -x "$old" ] && { "$old" "$@"; c=$?; }\n` : ""}cd "$(git rev-parse --show-toplevel)" || exit $c\nmain=$(${MAIN}) || main=main\n[ "$(git symbolic-ref --short -q HEAD)" = "$main" ] || exit $c\ncommand -v graphify >/dev/null 2>&1 || exit $c\nmkdir -p graphify-out\n{ graphify update . && touch -c graphify-out/graph.json; } > graphify-out/.update.log 2>&1 < /dev/null &\nexit $c\n`;
+  return `#!/bin/sh\nc=0\n${chain ? `${old}[ -x "$old" ] && { "$old" "$@"; c=$?; }\n` : ""}cd "$(git rev-parse --show-toplevel)" || exit $c\nmain=$(${MAIN}) || main=main\n[ "$(git symbolic-ref --short -q HEAD)" = "$main" ] || exit $c\ntool=$(${TOOL}) || tool=graphify\nfolder=$(${FOLDER}) || folder=graphify-out\ncommand -v "$tool" >/dev/null 2>&1 || exit $c\nmkdir -p "$folder"\n{ "$tool" update . && touch -c "$folder/graph.json"; } > "$folder/.update.log" 2>&1 < /dev/null &\nexit $c\n`;
 }
 
 export function agentsBlock() {

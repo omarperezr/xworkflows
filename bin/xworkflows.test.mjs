@@ -1666,3 +1666,17 @@ test("doctor: in a linked worktree the three git hooks are found in the common g
   assert.match(out.stdout, /^ok +\.git\/hooks\/post-commit$/m);
   assert.match(out.stdout, /^ok +pre-push hook is ours$/m);
 });
+
+test("the graph hooks run the index command and folder of the config, not graphify's", () => {
+  const r = repo(); cli(r, ["install"]);
+  writeJson(r, ".xworkflows/config.json", { lookup: { index: { command: "mytool query", folder: "idx-out" } } });
+  const bin = tmp("xwf-bin-"), mine = join(bin, "mine"), theirs = join(bin, "theirs");
+  writeFileSync(join(bin, "mytool"), `#!/bin/sh\necho "$@" > "${mine}"\n`);
+  writeFileSync(join(bin, "graphify"), `#!/bin/sh\necho "$@" > "${theirs}"\n`);
+  chmodSync(join(bin, "mytool"), 0o755); chmodSync(join(bin, "graphify"), 0o755);
+  assert.equal(commit(r, "a.txt", "x\n", { PATH: `${bin}:${process.env.PATH}` }).status, 0);
+  assert.ok(waitFor(mine));
+  assert.equal(readFileSync(mine, "utf8").trim(), "update .");
+  assert.ok(waitFor(join(r, "idx-out/.update.log")));
+  assert.ok(!existsSync(theirs) && !existsSync(join(r, "graphify-out")));
+});
