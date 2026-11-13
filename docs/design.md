@@ -431,7 +431,7 @@ a valid answer. The reference column is not the default (owner, 2026-11-11).
 | `checks.project` | The project's own commands | type check, unit tests |
 | `checks.patterns`, `checks.ratchets` | Forbidden patterns; counters that may only go down | project lists |
 | `packs` | Enabled check packs with their options | `semgrep trivy squawk lint bundle` |
-| `memory.index`, `memory.collections` | Index name and folders it covers | one index, five folders |
+| `memory.index` | Optional: the name of a `qmd` index the project already has. When it is set, `install` writes no `.qmd/index.yml` and every `qmd` call names that index | not set: the project-local `.qmd/index.yml` |
 | `tokens.alwaysLoadedBytes` | The budget of section 13 | 24000 |
 | `memory.dir` | The one memory folder | `docs/memory` |
 | `dream.maxExtractBytes` | Most session text one `dream` run may read | proposal: 4000000 |
