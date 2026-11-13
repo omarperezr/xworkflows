@@ -334,10 +334,21 @@ test("shell: the home folder comes from ctx.home, with its backslashes turned", 
 });
 
 test("shell: no pattern grows with the square of a long command", () => {
-  const shapes = ["echo " + "7".repeat(200000), ";A=x".repeat(50000), "(".repeat(200000), ";".repeat(200000), "a;".repeat(100000), "cat " + "a/".repeat(100000), "A=x ".repeat(50000), "\n".repeat(200000), " \n".repeat(100000), "\r\n".repeat(100000), "A=x\n".repeat(50000), "-u a\n".repeat(50000), "env\n".repeat(50000)];
-  for (const c of shapes) {
-    const t = Date.now();
-    decide(sh(c), mk());
-    assert.ok(Date.now() - t < 200, `${c.slice(0, 12)} took ${Date.now() - t} ms`);
+  // growth, not a wall-clock limit: four times the repeats must not cost more than about eight times the time
+  const shapes = [(n) => "echo " + "7".repeat(n), (n) => ";A=x".repeat(n), (n) => "(".repeat(n), (n) => ";".repeat(n), (n) => "a;".repeat(n), (n) => "cat " + "a/".repeat(n), (n) => "A=x ".repeat(n), (n) => "\n".repeat(n), (n) => " \n".repeat(n), (n) => "\r\n".repeat(n), (n) => "A=x\n".repeat(n), (n) => "-u a\n".repeat(n), (n) => "env\n".repeat(n), (n) => "(cat ".repeat(n), (n) => "$(cat x)".repeat(n)];
+  const cost = (c) => Math.min(...[0, 1].map(() => { const t = performance.now(); decide(sh(c), mk()); return performance.now() - t; }));
+  for (const shape of shapes) {
+    const small = cost(shape(5000)), big = cost(shape(20000));
+    assert.ok(big <= 8 * Math.max(small, 25), `${shape(3).slice(0, 12)} took ${small} ms, then ${big} ms for four times the repeats`);
   }
+});
+
+test("shell: a continued line that ends in CR LF is joined, a redirect `>&` is not a reader's argument, a root with backslashes is the root", () => {
+  assert.ok(denied(decide(sh("cat \\\r\nsrc/a.ts"), mk())));
+  assert.ok(denied(decide(sh("cat >&2 src/a.ts"), mk())));
+  assert.ok(allowed(decide(sh("cat a >&src/a.ts"), mk())));
+  const at = (command) => decide({ ...sh(command), root: "C:\\Work\\proj" }, mk());
+  assert.ok(denied(at("cat $PWD/src/x")));
+  assert.ok(denied(at("cat C:\\Work\\proj\\src\\x")));
+  assert.ok(allowed(at("cat C:\\Work\\other\\src\\x")));
 });

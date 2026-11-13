@@ -11,10 +11,10 @@ function ignored(file, ignoreText) {
     .some((l) => (l.startsWith("*.") ? file.endsWith(l.slice(1)) : file.startsWith(l)));
 }
 
-// numstat prints "-" for -diff attributes too: recount as text, 0 only when the blob holds a NUL byte
+// numstat prints "-" for -diff attributes and for a stray NUL byte too: recount as text; 0 only for a blob that holds a NUL byte and is not valid UTF-8
 function textLines(ctx, from, to, file) {
   const d = ctx.git("diff", "-a", "--no-ext-diff", "--no-textconv", "--no-renames", "-U0", from, to, "--", `:(literal)${file}`);
-  if (d.includes("\0")) return 0;
+  if (d.includes("\0") && d.includes("\uFFFD")) return 0;
   const ls = d.split("\n"), at = ls.findIndex((l) => l.startsWith("@@"));
   return at < 0 ? 0 : ls.slice(at).filter((l) => /^[+-]/.test(l)).length;
 }

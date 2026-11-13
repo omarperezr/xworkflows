@@ -248,6 +248,7 @@ test("the plain agent also reads the short rule of each found kind as kind:<kind
   assert.ok(!p.includes("kind:txn") && !p.includes("kind:input") && !p.includes("kind:conc") && !p.includes("long k:values"));
   assert.ok(p.indexOf('"id":"kind:values"') < p.indexOf('"id":"truth.1"'));
   assert.match(p, /id `kind:<kind>`/);
+  assert.match(p, /a mechanism kind's has the id `kind:<kind>` and its `risk`/);
   assert.match(p, /merge[^\n]*only when they say the same thing/i);
   assert.match(p, BUSINESS);
 });

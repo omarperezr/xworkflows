@@ -1,6 +1,6 @@
 import { mkdtempSync, existsSync, symlinkSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, dirname } from "node:path";
 import { spawn } from "node:child_process";
 import { inPaths } from "../hooks/core/config.mjs";
 
@@ -16,32 +16,33 @@ export async function run(range, ctx) {
   const { paths: { code }, tests } = ctx.config;
   const isTest = (f) => inPaths(f, tests.files) || inPaths(f, tests.notRunnable);
   const bad = [], notes = [];
-  let wt = null, cannot = null, signal = null;
+  let wt = null, cannot = null, signal = null, child = null;
+  // Ctrl-C reaches only the foreground group, not ours: kill the tests, clean up, then re-raise
+  // shortcut: POSIX only (process groups, sh); Windows is not covered yet, cover it when the project does
+  const sigs = ["SIGINT", "SIGTERM", "SIGHUP"];
+  const onSig = (s) => { signal ??= s; try { process.kill(-child.pid, "SIGKILL"); } catch {} };
+  for (const s of sigs) process.on(s, onSig);
 
   // exit: 0 pass, 1 red, null could not run
   const runTests = async (files) => {
+    if (signal) return null;
     const list = files.map(quote).join(" ");
     const cmd = tests.run.includes("<files>") ? tests.run.split("<files>").join(list) : `${tests.run} ${list}`;
     const env = { ...process.env };
     delete env.NODE_TEST_CONTEXT; // a nested `node --test` would report to the outer run and always pass
     for (const k of ["GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE"]) delete env[k];
     // own process group, so a timeout kills the tests the shell started too
-    const child = spawn("sh", ["-c", cmd], { cwd: wt, env, stdio: "ignore", detached: true });
+    child = spawn("sh", ["-c", cmd], { cwd: wt, env, stdio: "ignore", detached: true });
     let timedOut = false;
     const timer = setTimeout(() => { timedOut = true; try { process.kill(-child.pid, "SIGKILL"); } catch {} }, limitMs);
-    // Ctrl-C reaches only the foreground group, not ours: kill the tests, then re-raise after cleanup
-    const sigs = ["SIGINT", "SIGTERM", "SIGHUP"];
-    const onSig = (s) => { signal ??= s; try { process.kill(-child.pid, "SIGKILL"); } catch {} };
-    for (const s of sigs) process.once(s, onSig);
     const code = await new Promise((res) => { child.on("error", () => res(null)); child.on("close", (c) => res(c)); });
-    for (const s of sigs) process.removeListener(s, onSig);
     clearTimeout(timer);
     return signal || timedOut || code === null || code === 127 ? null : code === 0 ? 0 : 1;
   };
 
   try {
     for (const [i, c] of range.commits.entries()) await (async () => {
-      if (cannot) return;
+      if (cannot || signal) return;
       const [subject, ...rest] = ctx.git("log", "-1", "--format=%s%n%b", c).split("\n");
       const body = rest.join("\n");
       if (!/^fix[(:]/.test(subject)) return;
@@ -67,6 +68,12 @@ export async function run(range, ctx) {
       const wtGit = (...a) => ctx.exec("git", a, { cwd: wt });
       wtGit("checkout", "-q", "--detach", "-f", `${c}^`);
       wtGit("clean", "-fdq", "-e", "node_modules", "-e", ".venv");
+      // the root and every package of the parent link the node_modules the checkout has
+      const pkgs = ctx.git("ls-tree", "-r", "-z", "--name-only", `${c}^`).split("\0").filter((f) => f === "package.json" || f.endsWith("/package.json"));
+      for (const f of pkgs) {
+        const n = join(dirname(f), "node_modules");
+        if (existsSync(join(ctx.root, n)) && !existsSync(join(wt, n))) symlinkSync(join(ctx.root, n), join(wt, n));
+      }
       wtGit("checkout", "-q", c, "--", ...runnable);
       const atParent = await runTests(runnable);
       if (atParent === null) { cannot = `${label}: its tests did not end within ${limitMs / 1000}s or could not start at the parent`; return; }
@@ -82,6 +89,7 @@ export async function run(range, ctx) {
       rmSync(wt, { recursive: true, force: true });
       ctx.tryGit("worktree", "prune");
     }
+    for (const s of sigs) process.removeListener(s, onSig);
   }
   if (signal) process.kill(process.pid, signal);
   if (cannot) return { ok: false, cannotRun: true, lines: [cannot] };

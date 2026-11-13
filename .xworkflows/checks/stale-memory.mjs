@@ -11,11 +11,12 @@ export function run(range, ctx) {
   const d = typeof dir === "string" ? posix.normalize(dir).replace(/^\.\/|\/+$/g, "") : "";
   if (!d || d === "." || d.startsWith("/") || d.startsWith("..")) return { ok: false, cannotRun: true, lines: ["memory.dir must be a folder name"] };
   const prefix = `${d}/`;
-  const files = ctx.git("ls-tree", "-r", "-z", "--name-only", range.head).split("\0").filter(Boolean);
+  const entries = ctx.git("ls-tree", "-r", "-z", range.head).split("\0").filter(Boolean).map((e) => ({ mode: e.slice(0, 6), name: e.slice(e.indexOf("\t") + 1) }));
+  const files = entries.map((e) => e.name);
   const exists = new Set(files);
   for (const f of files) for (let i = f.indexOf("/"); i >= 0; i = f.indexOf("/", i + 1)) exists.add(f.slice(0, i));
   const missing = [];
-  for (const file of files.filter((f) => f.startsWith(prefix) && f.endsWith(".md"))) {
+  for (const file of entries.filter((e) => e.mode !== "160000" && e.name.startsWith(prefix) && e.name.endsWith(".md")).map((e) => e.name)) {
     let fence = null;
     ctx.git("cat-file", "blob", `${range.head}:${file}`).split("\n").forEach((text, i) => {
       const f = text.match(/^ {0,3}(`{3,}(?!.*`)|~{3,})/)?.[1]; // a longer fence closes only on a fence as long

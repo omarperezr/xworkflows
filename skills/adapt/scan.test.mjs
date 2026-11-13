@@ -1,9 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { cpSync, mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync, existsSync, symlinkSync } from "node:fs";
+import { cpSync, mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync, existsSync, symlinkSync, truncateSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname, extname } from "node:path";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { KINDS, scan, proposeZones, sqlInventory } from "./scan.mjs";
 
@@ -462,5 +462,61 @@ test("a repository whose git fails is not walked: ignored secrets stay out", () 
   writeFileSync(join(d, ".git/config"), "[core]\n\tbogus line without section end [[\n", { flag: "a" });
   assert.throws(() => scan(d));
   assert.notEqual(cli(d), 0);
+  assert.equal(existsSync(join(d, ".xworkflows/scan.json")), false);
+});
+
+test("a very long line gives no hit, a short one still does", () => {
+  const d = tmp();
+  put(d, "bundle.js", `${"x".repeat(3000)}; a.toFixed(2);\n`);
+  put(d, "app.js", "a.toFixed(2);\n");
+  commit(d);
+  assert.deepEqual(scan(d).kinds.values.hits.map((h) => h.file), ["app.js"]);
+});
+
+test("a graphifyignore line is an exact path or a folder, never a name prefix", () => {
+  const d = tmp();
+  put(d, "src/a.js", "x.toFixed(2);\n");
+  put(d, "src/a.js.bak.js", "x.toFixed(2);\n");
+  put(d, "dist2/b.js", "x.toFixed(2);\n");
+  put(d, "gen/c.js", "x.toFixed(2);\n");
+  put(d, ".graphifyignore", "src/a.js\ngen/\n/dist\n");
+  commit(d);
+  const run = () => scan(d).kinds.values.hits.map((h) => h.file);
+  assert.deepEqual(run(), ["dist2/b.js", "src/a.js.bak.js"]);
+  assert.deepEqual(run(), ["dist2/b.js", "src/a.js.bak.js"]);
+});
+
+test("a sql file counts unless it sits under a test, seed or fixture folder", () => {
+  const d = tmp();
+  const trig = (n) => `create trigger ${n} before insert on t for each row execute function f();\n`;
+  put(d, "db/schema.sql", trig("real"));
+  put(d, "db/seeds/s.sql", trig("seeded"));
+  put(d, "tests/t.sql", trig("tested"));
+  put(d, "spec/fixtures/f.sql", trig("fixed"));
+  commit(d);
+  assert.deepEqual(scan(d).sql.triggers.map((t) => t.name), ["real on t"]);
+  assert.deepEqual(sqlInventory([{ path: "db/seed/s.sql", text: trig("a") }]).triggers, []);
+});
+
+test("sizes come from the disk: a file too large to read whole still counts", () => {
+  const d = tmp();
+  put(d, "big.js", "a".repeat(9000));
+  put(d, "small.js", "x.toFixed(2);\n");
+  truncateSync(join(d, "big.js"), 2147483700); // sparse: no real disk used
+  commit(d);
+  const s = scan(d);
+  assert.equal(s.layout.find((e) => e.path === "*").bytes, 2147483700 + 14);
+  assert.deepEqual(s.kinds.values.hits.map((h) => h.file), ["small.js"]);
+});
+
+test("a folder with no repository of its own under another one gives one line and stops", () => {
+  const top = tmp(), d = join(top, "pkg");
+  put(top, "other.js", "x.toFixed(2);\n");
+  commit(top);
+  put(d, "a.js", "x.toFixed(2);\n");
+  assert.throws(() => scan(d), /no repository of its own/);
+  const r = spawnSync("node", [join(HERE, "scan.mjs"), d], { encoding: "utf8" });
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /^[^\n]*no repository of its own[^\n]*\n$/);
   assert.equal(existsSync(join(d, ".xworkflows/scan.json")), false);
 });

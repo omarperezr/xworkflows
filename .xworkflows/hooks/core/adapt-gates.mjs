@@ -1,10 +1,16 @@
 import path from "node:path";
-import { realpathSync } from "node:fs";
+import { realpathSync, existsSync } from "node:fs";
 
 const HEADINGS = ["What it is", "Who pays", "Aspirations at about", "Risks, the costliest", "What must not change", "Zones and which", "How the owner works", "About you"];
 const real = (p) => { try { return realpathSync(p); } catch { return path.resolve(p); } };
 const realFile = (p) => { const a = path.resolve(p); try { return realpathSync(a); } catch { return path.join(real(path.dirname(a)), path.basename(a)); } };
+const folded = (a, b) => a.toLowerCase() === b.toLowerCase() && existsSync(path.dirname(b).toUpperCase()); // the same name in another case, on a disk that ignores case (checked, not assumed)
+const same = (a, b) => a === b || folded(a, b);
 const json = (s) => { try { return JSON.parse(s); } catch { return null; } };
+
+// A separator or line start before > and tee, a word end after tee; a path starts at a word start, so the scan stays linear.
+const FILE = String.raw`(?<![^\s"'>|])["']?[^\s;&|<>"']*\.xworkflows\/+["']?summary\.md(?![\w.])`;
+const SUMMARY_WRITE = new RegExp(String.raw`(?:^|[\s;&|])\d*>>?\|?\s*${FILE}|(?:^|[\s;&|])tee(?=\s)[^;&|]*?${FILE}`);
 
 export function decide(ev, ctx) {
   const x = (f) => path.join(ev.root, ".xworkflows", f);
@@ -19,7 +25,7 @@ export function decide(ev, ctx) {
     const out = (r.out ?? "").trim();
     if (r.code === 1 && out) return `Ask these first: ${out.split("\n").join(", ")}.`;
     const line = r.code === 1 ? (r.err ?? "").split("\n").find((l) => l.startsWith("adapt: ")) : null;
-    if (line) return line;
+    if (line) return /interview\.json/.test(line) ? `${line} Run node .claude/skills/${name}/research.mjs queue.` : line;
     process.stderr.write("xworkflows: adapt check could not run\n"); // a crash, a signal or a spawn error never traps
     return null;
   };
@@ -35,17 +41,17 @@ export function decide(ev, ctx) {
     return { decision: "allow" };
   }
 
-  // shortcut: only a redirect or tee naming .xworkflows/summary.md is seen; cp, mv, sed -i or a cd first are not, upgrade by parsing ev.command.
-  if (ev.kind === "shell" && /(?:>\|?|\btee(?:\s+-\S+)*)\s*["']?[^\s;&|<>"']*\.xworkflows\/summary\.md(?![\w.])/.test(ev.command ?? ""))
+  // shortcut: only a redirect or tee naming .xworkflows/summary.md is seen, quoted or not (a quoted mention is denied too); cp, mv, sed -i or a cd first are not, upgrade by parsing ev.command.
+  if (ev.kind === "shell" && SUMMARY_WRITE.test(ev.command ?? ""))
     return deny("summary.md is written with Write, not by a shell redirect or tee.");
 
   for (const w of ev.writes ?? []) {
     const abs = realFile(path.resolve(ev.root, w.path.replaceAll("\\", "/")));
     // Files the adapt scripts write; the agent never writes them directly.
     for (const [f, by] of [["research.md", "research.mjs render"], ["kinds.json", "research.mjs render"], ["screens.json", "research.mjs render"], ["details.md", "research.mjs render"],["rules.json", "rules.mjs"], ["scan.json", "scan.mjs"], ["interview.json", "research.mjs queue"], ["adapt-run.json", "research.mjs start"]])
-      if (abs === realFile(x(f))) return deny(`${f} is written by node .claude/skills/${name}/${by}.`);
-    if (abs === realFile(x("interview.log.jsonl"))) return deny("interview.log.jsonl is written by the adapt-record hook when the owner answers; ask the question with AskUserQuestion.");
-    if (abs !== realFile(x("summary.md"))) continue;
+      if (same(abs, realFile(x(f)))) return deny(`${f} is written by node .claude/skills/${name}/${by}.`);
+    if (same(abs, realFile(x("interview.log.jsonl")))) return deny("interview.log.jsonl is written by the adapt-record hook when the owner answers; ask the question with AskUserQuestion.");
+    if (!same(abs, realFile(x("summary.md")))) continue;
     if (w.content === undefined) return deny("Write the whole summary with Write.");
     const status = (w.content.match(/^status:\s*["']?(\w+)/mi) ?? [])[1]?.toLowerCase();
     if (status === "approved") {

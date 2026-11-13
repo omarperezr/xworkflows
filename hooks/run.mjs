@@ -1,6 +1,6 @@
 import { readFileSync, writeFileSync, mkdirSync, appendFileSync } from "node:fs";
 import { tmpdir, homedir } from "node:os";
-import { join } from "node:path";
+import { join, dirname, sep } from "node:path";
 import { markFrom, markFile } from "./core/marks.mjs";
 import { load } from "./core/config.mjs";
 import { makeCtx } from "./core/ctx.mjs";
@@ -12,6 +12,8 @@ const log = (stateDir, session, kind, reason) => { // a log failure never change
 };
 let adapter;
 let input;
+let root;
+const unrecorded = () => { if (hook === "adapt-record") process.stderr.write("xworkflows: adapt-record: the answers are not being recorded\n"); };
 let out = { stdout: "", exitCode: 0 };
 
 try {
@@ -20,9 +22,11 @@ try {
   const core = await import(`./core/${hook}.mjs`);
   input = JSON.parse(readFileSync(0, "utf8"));
   const ev = adapter.normalize(input, env);
+  root = ev.root;
   const stateDir = env.XWORKFLOWS_STATE_DIR ?? tmpdir();
   if (env.XWORKFLOWS_FREE) {
     process.stderr.write(`xworkflows: ${hook} skipped by XWORKFLOWS_FREE\n`);
+    unrecorded();
     out = adapter.answer({ decision: "allow" }, ev);
     log(stateDir, ev.session, "free", ev.tool ?? ev.event);
   } else {
@@ -34,6 +38,7 @@ try {
   }
 } catch (e) {
   process.stderr.write(`xworkflows: ${hook} let the call through: ${e.message}\n`);
+  unrecorded();
   out = adapter?.answer({ decision: "allow" }) ?? out;
 }
 
@@ -44,8 +49,10 @@ if (env.XWORKFLOWS_RECORD && input) {
   try {
     const home = homedir();
     if ("user_email" in input) input.user_email = null; // Cursor's email is never stored
+    const between = root && dirname(root).startsWith(home + sep) ? dirname(root) : home; // the folders between home and the project name its owner too
+    const dash = (p) => p.replace(/[\\/]/g, "-");
     const text = JSON.stringify({ label: "recorded", input, output: out }, null, 2)
-      .replaceAll(home, "/home/user").replaceAll(home.replace(/[\\/]/g, "-"), "-home-user"); // absolute stand-in, so replayed paths still resolve
+      .replaceAll(between, "/home/user").replaceAll(dash(between), "-home-user").replaceAll(home, "/home/user").replaceAll(dash(home), "-home-user"); // absolute stand-in, so replayed paths still resolve
     mkdirSync(env.XWORKFLOWS_RECORD, { recursive: true });
     writeFileSync(join(env.XWORKFLOWS_RECORD, `${tool}-${Date.now()}.json`), text);
   } catch (e) {
