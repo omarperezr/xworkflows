@@ -227,7 +227,7 @@ test("rerun: nothing to do, files byte-equal, record entries once", () => {
   assert.equal(rec.merged[0].createdKey, true);
   assert.deepEqual(rec.blocks, [{ file: "AGENTS.md" }]);
   assert.deepEqual(rec.imports.filter((i) => i.file === "CLAUDE.md"), [{ file: "CLAUDE.md", line: "@AGENTS.md" }]);
-  assert.deepEqual(rec.created.sort(), [".claude/settings.json", ".claude/settings.local.json", ".gitignore", ".qmd/index.yml", "AGENTS.md", "CLAUDE.md", "docs/memory"]);
+  assert.deepEqual(rec.created.sort(), [".claude/settings.json", ".claude/settings.local.json", ".gitignore", "AGENTS.md", "CLAUDE.md", "docs/memory"]);
 });
 test("AGENTS.md: a changed block is replaced in place, text outside kept; existing CLAUDE.md untouched", () => {
   const r = repo({ "AGENTS.md": "top\n<!-- xworkflows:start -->\nold\n<!-- xworkflows:end -->\nbottom\n", "CLAUDE.md": "mine\n" });
@@ -236,7 +236,7 @@ test("AGENTS.md: a changed block is replaced in place, text outside kept; existi
   assert.ok(t.startsWith("top\n<!-- xworkflows:start -->\n## xworkflows"));
   assert.ok(t.endsWith("<!-- xworkflows:end -->\nbottom\n"));
   assert.equal(readFileSync(join(r, "CLAUDE.md"), "utf8"), "mine\n");
-  assert.deepEqual(readJson(r, ".xworkflows/installed.json").created.sort(), [".claude/settings.json", ".claude/settings.local.json", ".gitignore", ".qmd/index.yml", "docs/memory"]);
+  assert.deepEqual(readJson(r, ".xworkflows/installed.json").created.sort(), [".claude/settings.json", ".claude/settings.local.json", ".gitignore", "docs/memory"]);
 });
 test("dry-run lists merges and writes nothing", () => {
   const r = repo();
@@ -1472,4 +1472,35 @@ test("install: a .qmd folder the user cannot write in leaves no yml, no record o
     chmodSync(join(r, ".qmd"), 0o755);
     rmSync(r, { recursive: true, force: true });
   }
+});
+
+const MARKER = "written by xworkflows install: uninstall removes index.yml and its database here only while this file exists\n";
+test("install: a first install writes the marker beside the yml and records neither", () => {
+  const r = repo();
+  assert.equal(inst(r).status, 0);
+  assert.equal(readFileSync(join(r, ".qmd/xworkflows"), "utf8"), MARKER);
+  const rec = readJson(r, ".xworkflows/installed.json");
+  assert.ok(!rec.created.some((p) => p.startsWith(".qmd/")));
+});
+test("uninstall: with the marker the yml, the three database files and the marker go, and .qmd with them", () => {
+  const r = repo(); inst(r);
+  for (const f of ["", "-wal", "-shm"]) writeFileSync(join(r, `.qmd/index.sqlite${f}`), "x");
+  assert.equal(cli(r, ["uninstall"]).status, 0);
+  assert.ok(!existsSync(join(r, ".qmd")));
+});
+test("uninstall: a checkout with its own yml and database keeps them even when the record names the yml", () => {
+  const r = repo({ ".qmd/index.yml": "mine: 1\n", ".qmd/index.sqlite": "DB" }); inst(r);
+  const rp = join(r, ".xworkflows/installed.json"), rec = readJson(r, ".xworkflows/installed.json");
+  rec.created.push(".qmd/index.yml");
+  writeFileSync(rp, JSON.stringify(rec));
+  assert.equal(cli(r, ["uninstall"]).status, 0);
+  assert.equal(readFileSync(join(r, ".qmd/index.yml"), "utf8"), "mine: 1\n");
+  assert.equal(readFileSync(join(r, ".qmd/index.sqlite"), "utf8"), "DB");
+});
+test("install: a second install after the marker was written changes nothing", () => {
+  const r = repo(); inst(r);
+  const before = tree(r), rec = readFileSync(join(r, ".xworkflows/installed.json"), "utf8");
+  assert.match(inst(r).stdout, /^nothing to do$/m);
+  assert.equal(tree(r), before);
+  assert.equal(readFileSync(join(r, ".xworkflows/installed.json"), "utf8"), rec);
 });

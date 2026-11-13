@@ -225,6 +225,8 @@ function mergeLocal(root) {
 }
 
 const YML = ".qmd/index.yml";
+const QMARK = ".qmd/xworkflows";
+const MARK_TEXT = "written by xworkflows install: uninstall removes index.yml and its database here only while this file exists\n";
 // qmd reads index.yaml before index.yml: either one is a local config
 const localYml = (root) => [".qmd/index.yaml", YML].find((f) => existsSync(join(root, f)));
 // memory.dir as checks/index-current.mjs reads it; null when it is not a folder name inside the repository
@@ -404,7 +406,8 @@ export function plan(manifest, root, record, ans = {}) {
   else {
     if (!existsSync(join(root, md)) && !off(md)) merges.push({ path: md, text: null, dir: true, verb: "create", rec: { created: [md] } });
     qmd = !mem.index && !localYml(root) && !off(YML);
-    if (qmd) merges.push({ path: YML, text: `collections:\n  memory:\n    path: ${JSON.stringify(resolve(root, md))}\n    pattern: "**/*.md"\n`, verb: "write", rec: { created: [YML] } });
+    if (qmd) merges.push({ path: YML, text: `collections:\n  memory:\n    path: ${JSON.stringify(resolve(root, md))}\n    pattern: "**/*.md"\n`, verb: "write", rec: {} });
+    if (qmd) merges.push({ path: QMARK, text: MARK_TEXT, verb: "write", rec: {} });
   }
   if (!off(SETTINGS)) merges.push(mergeSettings(root, manifest, record));
   if (!off(LOCAL)) { const local = mergeLocal(root); if (local.note) notes.push(local.note); merges.push(local); }
@@ -818,11 +821,14 @@ function uninstall() {
       else { rmdirSync(join(ROOT, p)); gone.push(p); out.push(`deleted ${p}/`); }
       continue;
     }
-    if (p === YML) { for (const f of [YML, ".qmd/index.sqlite", ".qmd/index.sqlite-wal", ".qmd/index.sqlite-shm"]) if (lstatSync(join(ROOT, f), { throwIfNoEntry: false })?.isFile()) rm(f); continue; }
     const t = read(ROOT, p);
     let empty = t !== null && t.trim() === "";
     try { empty ||= t !== null && isDeepStrictEqual(JSON.parse(t), {}); } catch {}
     if (empty && !rec.kept.includes(p)) { rm(p); out.push(`deleted ${p}`); }
+  }
+  // the marker, not the record, says this checkout's install wrote the yml
+  if (lstatSync(join(ROOT, QMARK), { throwIfNoEntry: false })?.isFile() && clean(ROOT, QMARK)) {
+    for (const f of [YML, ".qmd/index.sqlite", ".qmd/index.sqlite-wal", ".qmd/index.sqlite-shm", QMARK]) if (lstatSync(join(ROOT, f), { throwIfNoEntry: false })?.isFile()) rm(f);
   }
   const ir = ".xworkflows/installed.json";
   if (clean(ROOT, ir)) rm(ir); else out.push(`kept (not ours): ${ir}`);
