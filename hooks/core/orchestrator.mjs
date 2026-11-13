@@ -46,9 +46,14 @@ export function decide(ev, ctx) {
   if (ev.kind === "shell") {
     const cmd = String(ev.command ?? "");
     const idx = config.lookup.index.command;
-    if (new RegExp(`(^|[;&|(]\\s*)(\\S*/)?${esc(idx).replace(/\s+/g, "\\s+")}\\b`).test(cmd.replaceAll("\\", "/"))) ctx.save("index", ctx.now());
+    const text = cmd.replaceAll("\\", "/");
+    const env = "((\\S*/)?env\\s+)?([A-Za-z_]\\w*=\\S*\\s+|-u\\s+\\S+\\s+)*"; // env, its -u NAME and NAME=value words
+    if (new RegExp(`(^|[;&|(]\\s*)${env}(\\S*/)?${esc(idx).replace(/\s+/g, "\\s+")}\\b`).test(text)) ctx.save("index", ctx.now());
     const prefixes = (heavy ?? []).map((p) => esc(p.replace(/\/?$/, "/"))).join("|");
-    if (prefixes && new RegExp(`(^|[;&|(]\\s*)(\\S*/)?(cat|sed\\s+-n|head|tail)\\b[^|;&]*(^|[\\s/"'=])(${prefixes})`).test(cmd.replaceAll("\\", "/")))
+    // a here-document body is text, and a redirect target is written, not read
+    let end = null;
+    const code = text.split("\n").filter((l) => end === null ? ((end = /<<-?\s*['"]?(\w+)/.exec(l)?.[1] ?? null), true) : (l.trim() === end && (end = null), false)).join("\n").replace(/\d*>>?\s*[^\s>]+/g, " ");
+    if (prefixes && new RegExp(`(^|[;&|(]\\s*)(\\S*/)?(cat|sed\\s+-n|head|tail)\\b[^|;&]*(^|[\\s"'=])(\\./|${esc(ev.root.replaceAll("\\", "/"))}/)?(${prefixes})`).test(code))
       return deny("Reading that much into the main session costs context: delegate it to an agent.");
     return allow;
   }
@@ -76,7 +81,8 @@ export function decide(ev, ctx) {
       const dirs = [paths.plans, paths.specs].map((p) => esc(p.replace(/\/$/, ""))).join("|");
       if (!new RegExp(`(${dirs})/\\S+\\.md`).test(String(ev.prompt ?? "").replaceAll("\\", "/")))
         return deny(`${type} reviews against a plan or spec: name its .md path under ${paths.plans} or ${paths.specs}.`);
-      const head = ctx.git("rev-parse", "HEAD") ?? "";
+      const ids = [...new Set(String(ev.prompt ?? "").match(/(?<![0-9A-Za-z])[0-9a-f]{7,40}(?![0-9A-Za-z])/g) ?? [])].sort().join(",");
+      const head = ids || (ctx.git("rev-parse", "HEAD") ?? ""); // the commits the prompt names, else the HEAD
       if (head && ctx.state("risk") === head)
         return deny(`${type} already reviewed this commit: confirm the fixes with ${roles.reviewer}, or commit before another review.`);
       ctx.save("risk", head);

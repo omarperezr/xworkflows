@@ -222,3 +222,42 @@ test("an installed (renamed) agent name counts as its role", () => {
   assert.ok(denied(decide(agent("xwf-" + cfg.roles.lookup), c()), /index/));
   assert.ok(denied(decide(agent("xwf-" + cfg.roles.riskReviewer, { prompt: "none" }), c()), /plan or spec/));
 });
+
+test("shell: a write into a heavy folder is not a read; a here-document body is not searched", () => {
+  const ok = ["cat > src/a.ts", "cat >> src/a.ts", "head -3 f > db/x.sql", "tail f >>src/a.ts", "cat <<EOF > src/a.ts\nuse src/b.ts\nEOF", "cat <<'EOF' >> /r/src/a.ts\nsrc/b.ts\nEOF", "cat <<EOF\ncat src/a.ts\nEOF", "cat docs/src/a.ts", "cat ./docs/src/a.ts"];
+  for (const c of ok) assert.ok(allowed(decide(sh(c), mk())), c);
+});
+
+test("shell: a heavy folder matches at the root only, and a plain read still denies", () => {
+  const no = ["cat src/a.ts", "cat ./src/a.ts", "cat /r/src/a.ts", 'cat "src/a.ts"', "head -5 src/a.ts > /tmp/o", "tail src/a.ts >> /tmp/o", "sed -n 1,5p src/a.ts", "cat <<EOF > /tmp/o\nx\nEOF\ncat src/a.ts", "cat src/a.ts 2>&1"];
+  for (const c of no) assert.ok(denied(decide(sh(c), mk())), c);
+});
+
+test("shell: a long command stays fast", () => {
+  const t = Date.now();
+  for (const c of ["cat " + "a ".repeat(20000), "cat <<EOF\n" + "x\n".repeat(50000), "<<A ".repeat(20000), "env ".repeat(20000) + "x", "A=1 ".repeat(20000), "> ".repeat(20000)]) decide(sh(c), mk());
+  assert.ok(Date.now() - t < 2000);
+});
+
+test("the index query counts behind env, -u and NAME=value words", () => {
+  const q = (command) => { const c = mk({ state: { index: 0 } }); decide(sh(command), c); return c.st.get("index"); };
+  for (const c of ['env graphify query "x"', 'env -u FOO graphify query "x"', 'env A=1 B=2 graphify query "x"', 'env -u A B=2 -u C graphify query "x"', 'A=1 graphify query "x"', 'cd p && A=1 B= graphify query "x"', 'FOO=1 /home/u/bin/graphify query "x"', '/usr/bin/env A=1 graphify query "x"'])
+    assert.equal(q(c), T0, c);
+  for (const c of ['echo A=1 graphify query x', 'env A=1 echo graphify query x', 'FOO=graphify query x', 'env -u graphify query x'])
+    assert.equal(q(c), 0, c);
+});
+
+test("risk reviewer keys on the commit ids the prompt names", () => {
+  const p = (ids) => agent("risk-review", { prompt: `docs/superpowers/specs/x.md ${ids}` });
+  const c = mk();
+  assert.ok(allowed(decide(p("abc1234 and def5678"), c)));
+  assert.equal(c.st.get("risk"), "abc1234,def5678");
+  assert.ok(denied(decide(p("def5678 abc1234 abc1234"), c), /already reviewed/));
+  assert.ok(allowed(decide(p("abc1234"), c))); // other ids: another review
+  assert.ok(allowed(decide(p("abc1234 0123456789abcdef0123456789abcdef01234567"), c)));
+  assert.ok(denied(decide(p("0123456789abcdef0123456789abcdef01234567 abc1234"), c)));
+  assert.ok(allowed(decide(p("abc123"), c))); // 6 chars is no id: keys on HEAD h1
+  assert.equal(c.st.get("risk"), "h1");
+  assert.ok(denied(decide(p("abc123"), c)));
+  assert.ok(allowed(decide(p("abc123"), { ...c, git: () => "h2" })));
+});
