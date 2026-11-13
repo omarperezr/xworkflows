@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, writeFileSync, symlinkSync, realpathSync, rmSync, readFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, symlinkSync, realpathSync, rmSync, readFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { decide } from "./adapt-gates.mjs";
@@ -171,3 +171,21 @@ test("shell commands that only read summary.md or write elsewhere pass", () => {
     ok(decide(sh(c), ctx()));
 });
 test("a shell redirect into summary.md passes when no run is in progress", () => ok(decide(sh("echo x > .xworkflows/summary.md"), ctx(files(null)))));
+test("a missing interview.json denies with the command that writes it", () =>
+  deny(decide(sw(summary("draft", FIVE)), ctx(files(), () => ({ code: 1, out: "", err: "adapt: interview.json is missing or unreadable\n" }))), /interview\.json is missing or unreadable.*research\.mjs queue/));
+test("an incomplete draft summary is allowed when no run file exists", () => {
+  const c = ctx(files(null), missing("H1-a"));
+  ok(decide(sw(summary("draft", FIVE)), c));
+  ok(decide(sw("no headings at all"), c));
+});
+test("a write spelled in another case is the summary only on a disk that ignores case", () => {
+  const d = realpathSync(mkdtempSync(join(tmpdir(), "xwf-g-")));
+  mkdirSync(join(d, ".xworkflows"));
+  const folded = existsSync(join(d, ".XWORKFLOWS"));
+  const f = { [join(d, ".xworkflows/adapt-run.json")]: JSON.stringify(fresh) };
+  const c = { readFile: (p) => f[p] ?? null, runCheck: () => ({ code: 1, out: "H1-a" }), skillName: () => "adapt" };
+  const e = (p) => ({ ...wr([{ path: p, content: "x" }]), root: d });
+  deny(decide(e(join(d, ".xworkflows/summary.md")), c), /H1-a/);
+  const r = decide(e(join(d, ".XWORKFLOWS/Summary.md")), c);
+  if (folded) deny(r, /H1-a/); else ok(r);
+});
