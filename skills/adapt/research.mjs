@@ -43,7 +43,8 @@ const NEG = /\b(not|never|nunca|refuses?|won't|doesn't|don't)\b|\bno\s/i; // wha
 
 // The interview queue: S1-<n> a sentence, X<n> a screen 2 question, the nine ids of screen 3 (all from screens.json `s`),
 // then the shipped questions no screen asks. `prev` is research.prev.json on a re-adapt (then only the config keys still without a value in `cfg`, .xworkflows/config.json).
-// `earlier` ({ root, log, docs }: the interview log, the texts of the specs and plans added or changed since the earlier adaptation's commit) lets a re-adapt skip a screen 1 sentence already answered.
+// `earlier` ({ root, answered, docs }: the sentences the approved run answered, as research.answered.json keeps them, and the texts of the specs and plans added or changed since that adaptation's commit) lets a re-adapt skip a screen 1 sentence already answered.
+// A sentence keeps its number (S1-<n>, n its place on screen 1 and in research.md) whether or not it is asked.
 export function buildQueue(s, research = {}, scan = {}, prev = null, cfg = {}, earlier = null) {
   const item = (id, heading, text, options, style = "choice") => ({ id, heading, style, text, ...(options ? { options } : {}) });
   const confirm = (id, h, text) => item(id, h, text, ["Yes", "No", "I don't know"], "confirm");
@@ -68,9 +69,7 @@ export function buildQueue(s, research = {}, scan = {}, prev = null, cfg = {}, e
   ];
   const asked = (x) => {
     if (!prev || !earlier) return true;
-    const text = `${x.text} (${x.at})${seen(x)}`;
-    const a = earlier.log.filter((l) => l.question === text && l.answer !== undefined && l.answer !== "").pop()?.answer;
-    if (!a || a === SENTENCE[3]) return true;
+    if (!earlier.answered.some((a) => a.text === x.text && a.at === x.at)) return true;
     const claim = [...(prev.plain?.claims || []), ...(prev.plain?.rest || [])].find((c) => c.text === x.text);
     const cites = (claim?.from || []).flatMap((id) => {
       const [key, n] = id.split(".");
@@ -81,12 +80,12 @@ export function buildQueue(s, research = {}, scan = {}, prev = null, cfg = {}, e
     return cites.some((c) => earlier.docs.some((d) => d.includes(String(c.file).replace(resolve(earlier.root) + sep, "")))); // a newer spec or plan names a cited file
   };
   const sentence = (x, i) => item(`S1-${i + 1}`, "1", `${x.text} (${x.at})${seen(x)}`, SENTENCE);
-  const first = s.drawer1.filter(asked), out = s.drawer1LeftOut.filter(asked);
+  const first = s.drawer1.flatMap((x, i) => (asked(x) ? [[x, i]] : [])), out = s.drawer1LeftOut.flatMap((x, i) => (asked(x) ? [[x, MAX_RULES + i]] : []));
   const left = out.length, more = out.slice(0, MAX_MORE);
   return [
-    ...first.map(sentence),
+    ...first.map(([x, i]) => sentence(x, i)),
     ...(left ? [item("S1-more", "1", `${left} more sentence(s) were left out of the first ${MAX_RULES}. Show up to ${more.length} of them?`, MORE)] : []),
-    ...more.map((x, i) => sentence(x, MAX_RULES + i)),
+    ...more.map(([x, i]) => sentence(x, i)),
     ...s.drawer2.map((g) => item(g.id, "2", g.text, g.options)),
     ...s.drawer3.map((q) => {
       const opts = q.options.slice(0, 3).map((x) => ({ label: label(collapse(x.label)), description: `${collapse(x.description)}${x.at ? ` (${x.at})` : ""}` }));
@@ -124,17 +123,34 @@ const refuse = (f) => { console.error(`adapt: ${f} is a symlink; remove it, adap
 const put = (f, data) => { if (isLink(f)) refuse(f); writeFileSync(f, data); };
 const putCopy = (from, to) => { if (isLink(to)) refuse(to); copyFileSync(from, to); };
 
-// What the earlier adaptation left: the answers in the log and the specs and plans added or changed since the commit its summary names; null (ask everything) when that commit cannot be read.
+// What the earlier adaptation left: its list of answered sentences and the specs and plans added or changed since the commit its summary names; null (ask everything) when that commit cannot be read.
 function earlier(root, dir, cfg) {
   try {
     const commit = (readFileSync(join(dir, "summary.md"), "utf8").match(/^commit:\s*["']?([0-9a-f]{7,40})/mi) || [])[1];
     if (!commit) return null;
-    const log = [];
-    try { for (const l of readFileSync(join(dir, "interview.log.jsonl"), "utf8").split("\n")) try { log.push(JSON.parse(l)); } catch {} } catch {}
+    let answered = [];
+    try { answered = readJson(join(dir, "research.answered.json")); } catch {}
     const dirs = [cfg.paths?.specs ?? "docs/superpowers/specs", cfg.paths?.plans ?? "docs/superpowers/plans"];
     const files = new Set([...git(root, ["diff", "-z", "--name-only", commit, "--", ...dirs]).split("\0"), ...git(root, ["ls-files", "-z", "-o", "--exclude-standard", "--", ...dirs]).split("\0")].filter(Boolean));
-    return { root, log, docs: [...files].filter((f) => existsSync(join(root, f))).map((f) => readFileSync(join(root, f), "utf8")) };
+    return { root, answered, docs: [...files].filter((f) => existsSync(join(root, f))).map((f) => readFileSync(join(root, f), "utf8")) };
   } catch { return null; }
+}
+
+// The approved run's list: each screen 1 sentence the owner answered in this run (not "I don't know"), or that the queue skipped and the list already held.
+function keepAnswered(dir, run) {
+  const read = (f) => { try { return readJson(join(dir, f)); } catch { return null; } };
+  const s = read("screens.json"), queue = read("interview.json");
+  if (!s || !queue) return;
+  const last = {};
+  try { for (const l of readFileSync(join(dir, "interview.log.jsonl"), "utf8").split("\n")) try { const j = JSON.parse(l); if (j.run === run && j.answer) last[j.id] = j.answer; } catch {} } catch {}
+  const old = read("research.answered.json") || [];
+  const list = [...s.drawer1, ...s.drawer1LeftOut].flatMap((x, i) => {
+    const id = `S1-${i + 1}`, answer = last[id];
+    if (answer) return answer === SENTENCE[3] ? [] : [{ text: x.text, at: x.at, answer }];
+    const kept = !queue.some((q) => q.id === id) && old.find((a) => a.text === x.text && a.at === x.at);
+    return kept ? [kept] : [];
+  });
+  put(join(dir, "research.answered.json"), JSON.stringify(list, null, 2) + "\n");
 }
 
 function cli(cmd, root) {
@@ -166,14 +182,17 @@ function cli(cmd, root) {
     }
     const run = resume && old ? { ...old, commit, startedAt: Date.now() }
       : { run: `${commit.slice(0, 8)}-${Date.now().toString(36)}`, commit, startedAt: Date.now(), mismatches: 0 };
-    if (!status) rmSync(prev, { force: true });
+    if (!status) { rmSync(prev, { force: true }); rmSync(join(dir, "research.answered.json"), { force: true }); }
     put(runFile, JSON.stringify(run, null, 2) + "\n");
     console.log(run.run);
   } else if (cmd === "done") {
     // The approved summary written in this run makes its research the base of the next re-adapt (2 s slack for coarse file times).
     let r = null;
     try { r = readJson(runFile); } catch {}
-    if (r && statusOf(summary) === "approved" && statSync(summary).mtimeMs + 2000 >= r.startedAt && existsSync(join(dir, "research.json"))) putCopy(join(dir, "research.json"), prev);
+    if (r && statusOf(summary) === "approved" && statSync(summary).mtimeMs + 2000 >= r.startedAt && existsSync(join(dir, "research.json"))) {
+      putCopy(join(dir, "research.json"), prev);
+      keepAnswered(dir, r.run);
+    }
     rmSync(runFile, { force: true });
   } else if (cmd === "render") {
     const research = readJson(join(dir, "research.json"));

@@ -467,16 +467,16 @@ test("a citation whose file is a folder does not verify; render drops it and goe
 
 // ---- a re-adaptation asks only what changed (P-69)
 
-const Q1 = "Totals are rounded once. (a.js:2)";
+const A1 = { text: "Totals are rounded once.", at: "a.js:2", answer: "Right" };
 function again(over = {}) {
   const d = repo();
   const prev = sample();
-  const earlier = { root: d, log: [L("S1-1", "Right", "old")].map((l) => ({ ...l, question: Q1 })), docs: [], ...over };
+  const earlier = { root: d, answered: [A1], docs: [], ...over };
   return { d, prev, earlier, ids: (sc = SC()) => ids(buildQueue(sc, {}, {}, prev, {}, earlier)).filter((i) => i.startsWith("S1-")) };
 }
 
-test("a second adaptation where nothing changed does not ask a sentence the owner answered", () => {
-  assert.deepEqual(again().ids(), ["S1-1"]); // only "Ids are never reused.", never answered
+test("a second adaptation where nothing changed does not ask a sentence the owner answered, and the other keeps its number", () => {
+  assert.deepEqual(again().ids(), ["S1-2"]); // "Ids are never reused." is S1-2 on every screen and in research.md
 });
 
 test("a sentence whose cited line changed is asked again", () => {
@@ -485,15 +485,15 @@ test("a sentence whose cited line changed is asked again", () => {
   assert.deepEqual(t.ids(), ["S1-1", "S1-2"]);
 });
 
-test("a sentence answered I don't know is asked again", () => {
-  const t = again();
-  t.earlier.log[0].answer = "I don't know";
-  assert.deepEqual(t.ids(), ["S1-1", "S1-2"]);
-});
-
 test("a sentence with a new wording is asked", () => {
   const t = again();
   const sc = SC(); sc.drawer1[0].text = "Totals are rounded one time.";
+  assert.deepEqual(t.ids(sc), ["S1-1", "S1-2"]);
+});
+
+test("a list kept for one sentence is not used for the same words citing another place", () => {
+  const t = again();
+  const sc = SC(); sc.drawer1[0].at = "a.js:3";
   assert.deepEqual(t.ids(sc), ["S1-1", "S1-2"]);
 });
 
@@ -507,15 +507,70 @@ test("a first adaptation asks every sentence", () => {
   assert.deepEqual(ids(buildQueue(SC(), {}, {}, null, {}, t.earlier)).filter((i) => i.startsWith("S1-")), ["S1-1", "S1-2"]);
 });
 
-test("queue finds the earlier answers in the log and the newer specs and plans since the summary's commit", () => {
+// An approved run: its queue, its screens, and the owner's answers in the log.
+function approved(answers, status = "approved") {
+  const d = repo();
+  put(d, sample()); writeFileSync(X(d, "screens.json"), JSON.stringify(SC()));
+  const run = cli(d, "start").stdout.trim();
+  writeFileSync(X(d, "interview.json"), JSON.stringify([{ id: "S1-1" }, { id: "S1-2" }]));
+  writeFileSync(X(d, "interview.log.jsonl"), answers.map(([id, answer]) => JSON.stringify({ run, id, question: "q", answer })).join("\n") + "\n");
+  writeFileSync(X(d, "summary.md"), `---\nstatus: ${status}\n---\n`);
+  return d;
+}
+
+test("done keeps the answered sentences of an approved run, not an I don't know", () => {
+  const d = approved([["S1-1", "Right"], ["S1-2", "I don't know"]]);
+  cli(d, "done");
+  assert.deepEqual(rj(d, "research.answered.json"), [A1]);
+});
+
+test("a run that stopped before its summary was approved leaves no list, so its answers are not reused", () => {
+  const d = approved([["S1-1", "Right"], ["S1-2", "Right"]], "draft");
+  cli(d, "done");
+  assert.ok(!existsSync(X(d, "research.answered.json")));
+});
+
+test("queue run twice gives the same ids; the next run asks only the sentence not kept, and done keeps both", () => {
+  const d = approved([["S1-1", "Right"]]);
+  cli(d, "done");
+  writeFileSync(X(d, "research.prev.json"), JSON.stringify(sample()));
+  const head = execFileSync("git", ["rev-parse", "HEAD"], { cwd: d, encoding: "utf8" }).trim();
+  writeFileSync(X(d, "summary.md"), `---\nstatus: approved\ncommit: ${head}\n---\n`);
+  const s1 = () => { cli(d, "queue"); return ids(JSON.parse(rt(d, "interview.json"))).filter((i) => i.startsWith("S1-")); };
+  assert.deepEqual(s1(), ["S1-2"]);
+  assert.deepEqual(s1(), ["S1-2"]);
+  const run = cli(d, "start").stdout.trim();
+  writeFileSync(X(d, "interview.log.jsonl"), JSON.stringify({ run, id: "S1-2", question: "q", answer: "Right" }) + "\n");
+  writeFileSync(X(d, "summary.md"), `---\nstatus: approved\ncommit: ${head}\n---\n`);
+  cli(d, "done");
+  assert.deepEqual(rj(d, "research.answered.json"), [A1, { text: "Ids are never reused.", at: "a.js:3", answer: "Right" }]);
+});
+
+function plan() {
+  const d = repo();
+  mkdirSync(join(d, "docs/superpowers/plans"), { recursive: true });
+  const f = join(d, "docs/superpowers/plans/nuevo-diseño.md");
+  writeFileSync(f, "Other.\n");
+  execFileSync("git", ["add", "."], { cwd: d });
+  execFileSync("git", [...G, "commit", "-qm", "plan"], { cwd: d });
+  const head = execFileSync("git", ["rev-parse", "HEAD"], { cwd: d, encoding: "utf8" }).trim();
+  writeFileSync(X(d, "screens.json"), JSON.stringify(SC())); put(d, sample());
+  writeFileSync(X(d, "research.prev.json"), JSON.stringify(sample()));
+  writeFileSync(X(d, "summary.md"), `---\nstatus: approved\ncommit: ${head}\n---\n`);
+  writeFileSync(X(d, "research.answered.json"), JSON.stringify([A1]));
+  writeFileSync(f, "Change a.js.\n");
+  return d;
+}
+
+test("queue finds the newer specs and plans since the summary's commit", () => {
   const d = repo();
   const head = execFileSync("git", ["rev-parse", "HEAD"], { cwd: d, encoding: "utf8" }).trim();
   writeFileSync(X(d, "screens.json"), JSON.stringify(SC())); put(d, sample());
   writeFileSync(X(d, "research.prev.json"), JSON.stringify(sample()));
   writeFileSync(X(d, "summary.md"), `---\nstatus: approved\ncommit: ${head}\n---\n`);
-  writeFileSync(X(d, "interview.log.jsonl"), JSON.stringify({ run: "old", id: "S1-1", question: Q1, answer: "Right" }) + "\n");
+  writeFileSync(X(d, "research.answered.json"), JSON.stringify([A1]));
   const s1 = () => { cli(d, "queue"); return ids(JSON.parse(rt(d, "interview.json"))).filter((i) => i.startsWith("S1-")); };
-  assert.deepEqual(s1(), ["S1-1"]);
+  assert.deepEqual(s1(), ["S1-2"]);
   mkdirSync(join(d, "docs/superpowers/plans"), { recursive: true });
   writeFileSync(join(d, "docs/superpowers/plans/new.md"), "Change a.js.\n");
   assert.deepEqual(s1(), ["S1-1", "S1-2"]);
@@ -527,11 +582,15 @@ test("queue reads a new plan whose file name holds a non-ASCII letter", () => {
   writeFileSync(X(d, "screens.json"), JSON.stringify(SC())); put(d, sample());
   writeFileSync(X(d, "research.prev.json"), JSON.stringify(sample()));
   writeFileSync(X(d, "summary.md"), `---\nstatus: approved\ncommit: ${head}\n---\n`);
-  writeFileSync(X(d, "interview.log.jsonl"), JSON.stringify({ run: "old", id: "S1-1", question: Q1, answer: "Right" }) + "\n");
+  writeFileSync(X(d, "research.answered.json"), JSON.stringify([A1]));
   mkdirSync(join(d, "docs/superpowers/plans"), { recursive: true });
   writeFileSync(join(d, "docs/superpowers/plans/nuevo-diseño.md"), "Change a.js.\n");
   cli(d, "queue");
   assert.deepEqual(ids(JSON.parse(rt(d, "interview.json"))).filter((i) => i.startsWith("S1-")), ["S1-1", "S1-2"]);
+  // a plan committed before the summary's commit and changed after it goes through `git diff --name-only`
+  const e = plan();
+  cli(e, "queue");
+  assert.deepEqual(ids(JSON.parse(rt(e, "interview.json"))).filter((i) => i.startsWith("S1-")), ["S1-1", "S1-2"]);
 });
 
 test("a one-character quote is not a verified citation", () => {
