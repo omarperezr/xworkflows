@@ -35,3 +35,5 @@ About 30 code lines. The reviewer is `risk-review`: `hooks/` is a risk path.
 ## Declined findings
 
 ## Seals
+
+risk-review ok at 63feac0
