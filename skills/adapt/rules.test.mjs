@@ -254,3 +254,15 @@ test("rules refuses to write through a rules.json symlink", () => {
   assert.throws(() => execFileSync("node", [join(HERE, "rules.mjs"), d], { stdio: "pipe" }));
   assert.equal(readFileSync(join(out, "victim"), "utf8"), "keep\n");
 });
+
+test("a comment in a test file is not collected as a rule", () => {
+  const d = tmp();
+  put(d, "src/pay.js", "// Amounts must always be integer cents.\nexport const a = 1;\n");
+  put(d, "src/pay.test.js", "// Totals must never be rounded in this test.\nexport const b = 1;\n");
+  put(d, "tests/helper.js", "// Retry must never run twice here.\nexport const c = 1;\n");
+  commit(d);
+  const r = collectRules(d);
+  assert.ok(find(r, /integer cents/));
+  assert.ok(!find(r, /Totals must never/));
+  assert.ok(!find(r, /Retry must never/));
+});

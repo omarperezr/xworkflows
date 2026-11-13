@@ -36,6 +36,8 @@ const DOCS = /^(README|PRODUCT|DESIGN|ARCHITECTURE|CONTRIBUTING|AGENTS|CLAUDE)[^
 const DOC_EXT = [".md", ".mdx", ".markdown", ".rst", ".txt", ""];
 const CODE_EXT = [".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs", ".mts", ".cts", ".py", ".sql", ".go", ".rs", ".java", ".kt", ".rb", ".php", ".cs", ".swift", ".vue", ".svelte", ".dart", ".ex", ".scala", ".c", ".cc", ".cpp", ".h", ".sh"];
 // shortcut: comments are line comments or block-comment lines only; a "#" or "--" inside a string counts as a comment. Upgrade with a tokenizer if noise shows.
+// Test files hold no rules (scan.mjs's TESTS, copied: the file stays standalone beside scan.mjs).
+const TESTS = /(^|\/)(tests?|__tests__|specs?|e2e|cypress|playwright)\/|\.(test|spec)\.[^/]+$|(^|\/)test_[^/]+\.py$|_test\.[^/]+$|(^|\/)conftest\.py$/;
 const COMMENT = /^\s*(?:\/\*+|\*+(?!\/)|\/\/+|#(?!!)|--)\s?(.*)$|\s(?:\/\/|#|--)\s(.*)$/;
 
 const ABBR = /(?:\be\.g\.|\bi\.e\.|\betc\.|\bvs\.|\bp\. ej\.)$/i;
@@ -110,7 +112,7 @@ export function collectRules(root) {
     if (dropped.has(p)) continue;
     const ext = extname(p).toLowerCase();
     const isDoc = DOCS.test(p) && DOC_EXT.includes(ext);
-    if (!isDoc && !CODE_EXT.includes(ext)) continue;
+    if (!isDoc && (!CODE_EXT.includes(ext) || TESTS.test(p))) continue;
     let buf;
     if (!isFile(join(root, p))) continue;
     try { buf = readFileSync(join(root, p)); } catch { continue; }
