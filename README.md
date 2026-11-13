@@ -33,7 +33,7 @@ xworkflows fixes this with rules that are **enforced**, not just suggested. A ru
 
 ## Status
 
-This is an early version. The installer and `doctor` work for Claude Code. **Only step 2 of the method is enforced today**: the agent cannot write a spec until it has asked you the design questions. Day one now ships `/adapt`, `/full-review` and `/next-step` for Claude Code. `/adapt` needs the `graphify` command installed. `/next-step` hands the chosen step to `/deepen`, the first stage of the method.
+This is an early version. The installer and `doctor` work for Claude Code. **Only step 2 of the method is enforced today**: the agent cannot write a spec until it has asked you the design questions. Day one now ships `/adapt`, `/full-review` and `/next-step` for Claude Code. `/adapt` needs the `graphify` command installed and the `Workflow` tool. Without the `Workflow` tool, it stops and tells you so. `/next-step` hands the chosen step to `/deepen`, the first stage of the method.
 
 | Tool | Status |
 |---|---|
@@ -63,6 +63,8 @@ node --test
 ```
 
 Every test should pass.
+
+The folder `proof/` is for development only. It runs `/adapt` in fresh copies of a repository through the Claude Agent SDK, a development dependency. The installer never uses it.
 
 ### 2. Try it in Claude Code
 
@@ -98,6 +100,8 @@ node /path/to/xworkflows/bin/xworkflows.mjs doctor
 - `uninstall`: removes what the installer added.
 
 Nothing is committed or pushed for you. The installer prints the paths to `git add`; you decide when to commit.
+
+Two hooks watch `/adapt` while it runs. `adapt-gates` denies steps taken out of order and names the fix. `adapt-record` writes each answer to `.xworkflows/interview.log.jsonl`. Outside an `/adapt` run, both let everything through.
 
 Settings you can change are in `.xworkflows/config.json`: your name, and where your specs and plans live.
 
