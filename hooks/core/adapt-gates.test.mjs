@@ -7,13 +7,11 @@ import { join } from "node:path";
 import { decide } from "./adapt-gates.mjs";
 import { normalize } from "../adapters/claude.mjs";
 
-const KINDS = ["values", "snap", "srvw", "delta", "idem", "txn", "access", "batch", "domain", "compat", "conc", "input"];
 const HEADS = ["What it is", "Who pays, what is sold, what is not done", "Aspirations at about 3, 12 and 36 months", "Risks, the costliest mistake first", "What must not change; what is free to change", "Zones and which paths are risk paths", "How the owner works", "About you"];
 const summary = (status, five = "") => `---\nstatus: ${status}\n---\n` + HEADS.map((h, i) => `## ${i + 1}. ${h}\n${i === 4 ? five : ""}\n`).join("");
 const fresh = { run: "r1", startedAt: Date.now() };
-const research = { kinds: Object.fromEntries(KINDS.map((k) => [k, { status: k === "snap" ? "absent" : "found" }])) };
 const scan = { kinds: { values: { total: 3 }, snap: { total: 0 }, conc: { total: 0 } } };
-const files = (run = fresh) => ({ "/r/.xworkflows/adapt-run.json": run && JSON.stringify(run), "/r/.xworkflows/scan.json": JSON.stringify(scan), "/r/.xworkflows/research.json": JSON.stringify(research) });
+const files = (run = fresh) => ({ "/r/.xworkflows/adapt-run.json": run && JSON.stringify(run), "/r/.xworkflows/scan.json": JSON.stringify(scan) });
 const ctx = (f = files(), check = () => ({ code: 0, out: "" }), skill = "adapt") => ({ readFile: (p) => f[p] ?? null, runCheck: check, skillName: () => skill });
 const wf = (extra = {}) => ({ event: "preTool", tool: "Workflow", kind: "workflow", session: "s", root: "/r", inline: false, scriptPath: "/r/.claude/skills/adapt/research.workflow.js", args: { root: "/r", zeroHits: ["conc", "snap"] }, ...extra });
 const wr = (writes) => ({ event: "preTool", tool: "Write", kind: "write", session: "s", root: "/r", writes });
@@ -35,7 +33,6 @@ test("Workflow args must match the scan", () => {
 });
 test("research.md write denied during a run", () => deny(decide(wr([{ path: "/r/.xworkflows/research.md", content: "x" }]), ctx()), /research\.mjs render/));
 test("script-written sidecars denied during a run", () => {
-  deny(decide(wr([{ path: "/r/.xworkflows/kinds.json", content: "{}" }]), ctx()), /kinds\.json is written by node \.claude\/skills\/adapt\/research\.mjs render\./);
   deny(decide(wr([{ path: "/r/.xworkflows/rules.json", old: "a", new: "b" }]), ctx()), /rules\.json is written by node \.claude\/skills\/adapt\/rules\.mjs\./);
   deny(decide(wr([{ path: "/r/.xworkflows/scan.json", content: "{}" }]), ctx()), /scan\.json is written by node \.claude\/skills\/adapt\/scan\.mjs\./);
   ok(decide(wr([{ path: "/r/.xworkflows/config.json", content: "{}" }]), ctx()));
@@ -43,10 +40,6 @@ test("script-written sidecars denied during a run", () => {
 test("screens.json and details.md writes denied during a run", () => {
   deny(decide(wr([{ path: "/r/.xworkflows/screens.json", content: "{}" }]), ctx()), /screens\.json is written by node \.claude\/skills\/adapt\/research\.mjs render\./);
   deny(decide(wr([{ path: "/r/.xworkflows/details.md", content: "x" }]), ctx()), /details\.md is written by node \.claude\/skills\/adapt\/research\.mjs render\./);
-});
-test("draft summary with the eight headings passes when a kind is absent in kinds.json", () => {
-  const f = { ...files(), "/r/.xworkflows/kinds.json": JSON.stringify({ snap: { status: "found", general: "x", unverified: false }, idem: { status: "absent", general: null, unverified: false } }) };
-  ok(decide(sw(summary("draft", FIVE)), ctx(f)));
 });
 test("draft summary denied while ids are missing", () => {
   deny(decide(sw(summary("draft", FIVE)), ctx(files(), missing("H1-a\nH2-b"))), /Ask these first: H1-a, H2-b/);
@@ -64,7 +57,6 @@ test("no run file, nothing denied or recorded", () => {
   const c = ctx(files(null), missing("x"));
   ok(decide(wf({ inline: true }), c));
   ok(decide(wr([{ path: "/r/.xworkflows/research.md", content: "x" }]), c));
-  ok(decide(wr([{ path: "/r/.xworkflows/kinds.json", content: "x" }]), c));
 });
 test("stale run file denies nothing", () => ok(decide(wf({ inline: true }), ctx(files({ ...fresh, startedAt: Date.now() - 13 * 3600e3 })))));
 test("gates active during a re-adapt", () => deny(decide(wf({ inline: true }), ctx(files())), /fixed research/));
