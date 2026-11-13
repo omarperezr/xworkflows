@@ -6,7 +6,7 @@
   "pieces": {
     "hook-runtime": {
       "version": "0.1.0",
-      "sha256": "953cfa9f1dc754d3647083c14d3f0316c1a9de38776dbf5aa83accc3d47a78bd"
+      "sha256": "105ae1de94ac5d576f4ff188792ec5739dc92700fda71fa42bc11ed458c0339b"
     },
     "design-first": {
       "version": "0.1.0",
@@ -14,7 +14,7 @@
     },
     "adapt-gates": {
       "version": "0.1.0",
-      "sha256": "1946fb864045748c5a1ab58010d3b6b941484441b4390d4d2b6acddde7e3208c"
+      "sha256": "68fdc3edc53620094b56693870488d1b84529a8610f7bf7f72a373686eec9764"
     },
     "adapt-record": {
       "version": "0.1.0",
@@ -70,7 +70,7 @@
     },
     "memory": {
       "version": "0.1.0",
-      "sha256": "16e2dbe4a5afcbcf1e187d3e71069f87d9d7ee9211a294fafcc3cda31bbb4ca2"
+      "sha256": "dbcecdd9b411e2b091268a8ec57b15ff14b6c13cc2d3b5c4ef79aa94aaee71b3"
     },
     "modes": {
       "version": "0.1.0",
@@ -118,7 +118,7 @@
     },
     "checks": {
       "version": "0.1.0",
-      "sha256": "74074956e05123a35935642355db1e545a6a8814cb9eb78e10748367ec345b10"
+      "sha256": "b0f5e923632920e6fa5961cb389146d0bdbe7b4c9281bdce20032aee38f83421"
     },
     "lint": {
       "version": "0.1.0",
@@ -140,7 +140,7 @@
     },
     ".xworkflows/hooks/run.mjs": {
       "piece": "hook-runtime",
-      "sha256": "ed715e9c370e12e15694e2c0785d63cb8e2ee8ac2f8ea606a8f30b0ad760668c"
+      "sha256": "846cb6d9db33645e8884465b256207119b9b36a9aa82eb8b6386073e549c6050"
     },
     ".xworkflows/mark.mjs": {
       "piece": "hook-runtime",
@@ -160,7 +160,7 @@
     },
     ".xworkflows/hooks/core/ctx.mjs": {
       "piece": "hook-runtime",
-      "sha256": "28a9520d71516dd3c50bc847a4802eed098d579aba2062865345f592c493849a"
+      "sha256": "07fd3d9b2172fee59ef333d4c3f7d0a0bbe681d099afcecd78827d2bbf95f99d"
     },
     ".xworkflows/hooks/core/design-first.mjs": {
       "piece": "design-first",
@@ -168,7 +168,7 @@
     },
     ".xworkflows/hooks/core/adapt-gates.mjs": {
       "piece": "adapt-gates",
-      "sha256": "f585d19b5faf733dd6ed1ebe6e1f77feba2fface0836007031b46c73d0af4373"
+      "sha256": "ee89ec4a824d17b5fdca376f4f98480f901905325b208a8ebff9b85b6364c585"
     },
     ".xworkflows/hooks/core/adapt-record.mjs": {
       "piece": "adapt-record",
@@ -184,7 +184,7 @@
     },
     ".xworkflows/hooks/core/memory.mjs": {
       "piece": "memory",
-      "sha256": "933d8068c60f1a3bac70cb8d5f27a328d8306470c28b192c01df2b42eda86698"
+      "sha256": "3962e6edd9d9b57391ad9a643ebadf89aa751ea29adfbd93feb2e8cb0c8268d8"
     },
     ".xworkflows/hooks/core/memory-index.mjs": {
       "piece": "memory",
@@ -244,7 +244,7 @@
     },
     ".xworkflows/checks/ratchet.mjs": {
       "piece": "checks",
-      "sha256": "7ee45eb1b388acb184d7577870dad8e752a32e480039d69a4d957d39d2f9083b"
+      "sha256": "5eaaeeecccfd4cc62ceba0961f39d99dc162c1b0592efee6a576d643946d2a88"
     },
     ".xworkflows/checks/graph-current.mjs": {
       "piece": "checks",
@@ -260,7 +260,7 @@
     },
     ".xworkflows/checks/project.mjs": {
       "piece": "checks",
-      "sha256": "9993a96fd690eefde833f545caa70266471136eb881eb5c785d2898c2cc39a19"
+      "sha256": "cfb82a48215a8e0c4d72ea45fc08a8d0ca2991f6f6978d452858a8094f516913"
     },
     ".xworkflows/checks/packs/lint.mjs": {
       "piece": "lint",

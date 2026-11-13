@@ -48,6 +48,8 @@ function start(ev, ctx) {
       lines.push(`Goals written ${months} months ago: run /adapt to refresh them.`);
     }
   }
+  const refused = ctx.outsideLine?.(path.join(config.memory.dir, "MEMORY.md")); // the index write of session end is refused for this: say it
+  if (refused) lines.push(refused);
   const idx = config.lookup?.index;
   if (Array.isArray(config.paths.code) && config.paths.code.length && idx?.command) {
     const graph = ctx.mtime(path.join(idx.folder, "graph.json"));

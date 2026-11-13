@@ -8,6 +8,7 @@ const read = (p) => { try { return readFileSync(p, "utf8"); } catch { return nul
 
 // the line that refuses a write whose real folder leaves the repository, unless it is, or lies under, a real path of memory.outside; null when it may go
 export function outsideLine(root, file, outside = []) {
+  if (!Array.isArray(outside) || !outside.every((o) => typeof o === "string")) outside = []; // a value that is not a list of texts lists nothing
   try {
     let dir = dirname(resolve(root, file));
     while (!existsSync(dir)) dir = dirname(dir);
@@ -47,6 +48,7 @@ export function makeCtx(ev, { env, config, stateDir }) {
     exists: (p) => existsSync(at(p)),
     mtime: (p) => { try { return statSync(at(p)).mtimeMs; } catch { return null; } },
     listDir: (p) => { try { return readdirSync(at(p)); } catch { return []; } },
+    outsideLine: (p) => outsideLine(ev.root, p, config?.memory?.outside),
     writeFile: (p, text) => { // never through a symlink: it could lead outside the tree
       try { if (lstatSync(at(p)).isSymbolicLink()) return false; } catch { /* absent: fine */ }
       if (outsideLine(ev.root, p, config?.memory?.outside)) return false;

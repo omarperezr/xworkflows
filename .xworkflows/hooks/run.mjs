@@ -53,10 +53,10 @@ if (env.XWORKFLOWS_RECORD && input) {
     const dash = (p) => p.replace(/[\\/]/g, "-");
     const lit = (p) => p.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const hide = (text, spellings, boundary, to) => spellings.reduce((t, p) => t.replace(new RegExp(lit(p) + boundary, "g"), to), text); // only a whole folder name: a lookalike stays
-    const slash = String.raw`(?=[/"' \\]|$)`; // JSON escapes a quote or a newline with a backslash
+    const slash = String.raw`(?![\w.-])`; // anything but a character that goes on a file name; a lookalike stays
     const rel = between.slice(home.length); // "" when the project sits straight under home
     const json = JSON.stringify({ label: "recorded", input, output: out }, null, 2); // absolute stand-in, so replayed paths still resolve
-    const text = hide(hide(hide(json, rel ? [`~${rel}`, `$HOME${rel}`, `\${HOME}${rel}`] : [], slash, "/home/user"), [between, home], slash, "/home/user"), [dash(between), dash(home)], String.raw`(?=[-"' \\]|$)`, "-home-user");
+    const text = hide(hide(hide(json, rel ? [`~${rel}`, `$HOME${rel}`, `\${HOME}${rel}`] : [], slash, "/home/user"), [between, home], slash, "/home/user"), [dash(between), dash(home)], String.raw`(?![\w.])`, "-home-user");
     mkdirSync(env.XWORKFLOWS_RECORD, { recursive: true });
     writeFileSync(join(env.XWORKFLOWS_RECORD, `${tool}-${Date.now()}.json`), text);
   } catch (e) {
