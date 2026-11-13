@@ -50,7 +50,7 @@
     },
     "adapt": {
       "version": "0.1.0",
-      "sha256": "ce83c2727c747f4e062aefc20ab2c4ebe34f63e48939e0e7690f91fb8de6d196"
+      "sha256": "8e014db9897a3dc1b41939d39c26b7c2638f6a1e701f8d3517eae988a7d99c0c"
     },
     "full-review": {
       "version": "0.1.0",
@@ -328,7 +328,7 @@
     },
     ".claude/skills/adapt/SKILL.md": {
       "piece": "adapt",
-      "sha256": "9ed6c97a1b4d54bdebfbc7bf63da0e7affc6bae9e005d53d9089af9d9db906c0"
+      "sha256": "1a2d1e5bdfb6d47fcbda8122a276c1d21da97576af5b6163106c61001bc8453b"
     },
     ".claude/skills/adapt/scan.mjs": {
       "piece": "adapt",
