@@ -51,6 +51,8 @@ function afterReview(ctx, range, print) {
   const sha = /^Reviewed commit: ([0-9a-f]{7,40})\s*$/m.exec(ctx.show(range.head, files[0][0]) ?? "")?.[1];
   const named = sha && ctx.tryGit("rev-parse", "--verify", "--quiet", `${sha}^{commit}`);
   if (!named || named.code !== 0 || !range.commits.includes(named.out)) return range;
+  // a commit on a branch that forked before the old base would start the diff before it, over files already pushed
+  if (range.base && ctx.tryGit("merge-base", "--is-ancestor", range.base, named.out).code !== 0) return range;
   const later = new Set(ctx.git("rev-list", range.head, "--not", named.out).split("\n"));
   print(`xworkflows check: full review ${files[0][0].split("/").pop()} names ${named.out.slice(0, 7)}: the history up to it is not judged`);
   return { ...range, base: named.out, diffBase: named.out, commits: range.commits.filter((c) => later.has(c)) };

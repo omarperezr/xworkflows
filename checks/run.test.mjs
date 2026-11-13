@@ -425,3 +425,20 @@ test("a review folder with a non-ASCII letter in its name is still read", withRe
   await main(["--pre-push", "origin", "--only", "signature"], { cwd: repo.root, stdin: `refs/heads/main ${rv} refs/heads/main ${ZERO}\n`, print: (l) => out.push(l), load: loader({ signature: { run: (r) => { got.push(r); return pass.run(); } } }) });
   assert.equal(got[0].commits.length, 1);
 }));
+
+test("a review on a branch that forked before the old base: the diff still starts at the old base", withRepo({}, async (repo) => {
+  repo.remote();
+  repo.git("push", "-q", "origin", "main");
+  repo.branch("feature");
+  const x = repo.commit("x", { files: { "x.txt": "x\n" } });
+  const rv = repo.commit("docs: full review", review("2026-11-13-full-review.md", x));
+  repo.checkout("main");
+  const m1 = repo.commit("other work", { files: { "m.txt": "m\n" } });
+  repo.git("push", "-q", "origin", "main");
+  const h = repo.merge("feature", "merge feature");
+  const got = [];
+  await check(repo, ["--pre-push", "origin", "--only", "signature"], { signature: { run: (range) => { got.push(range); return pass.run(); } } }, `refs/heads/main ${h} refs/heads/main ${m1}\n`);
+  const names = repo.git("diff", "--name-only", got[0].diffBase, h).split("\n");
+  assert.equal(names.includes("m.txt"), false);
+  assert.deepEqual(got[0].commits, [x, rv, h]);
+}));
