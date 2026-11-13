@@ -2177,3 +2177,23 @@ test("doctor: the qmd upgrade advice is printed only when the collection list an
   assert.doesNotMatch(out, /this qmd does not read/);
   assert.match(doctor(r, { PATH: tools({ qmd: "exit 0" }) }).stdout, /^fail no qmd collection covers docs\/memory: this qmd does not read \.qmd\/index\.yml, which names it: npm install -g @tobilu\/qmd@latest$/m);
 });
+
+// P-26: a file of the package's that a newer version no longer ships
+test("install on an upgrade removes a file the new version no longer ships when unchanged, keeps and names an edited one, and drops both from the record", () => {
+  const r = repo(); cli(r, ["install", "--yes"]);
+  const gone = ".xworkflows/hooks/core/retired.mjs", edited = ".xworkflows/hooks/core/retired-edited.mjs";
+  writeFileSync(join(r, gone), "old\n"); writeFileSync(join(r, edited), "old\n");
+  withRecord(r, (rec) => { for (const p of [gone, edited]) rec.files[p] = { piece: "design-first", sha256: sha("old\n") }; });
+  appendFileSync(join(r, edited), "mine\n");
+  const dry = cli(r, ["install", "--yes", "--dry-run"]);
+  assert.match(dry.stdout, new RegExp(`^would remove ${gone.replaceAll(".", "\\.")}$`, "m"));
+  assert.ok(existsSync(join(r, gone)), "dry-run removes nothing");
+  const out = cli(r, ["install", "--yes"]);
+  assert.equal(out.status, 0, out.stderr);
+  assert.ok(!existsSync(join(r, gone)));
+  assert.equal(readFileSync(join(r, edited), "utf8"), "old\nmine\n");
+  assert.match(out.stdout, new RegExp(`^kept \\(no longer shipped, changed locally\\): ${edited.replaceAll(".", "\\.")}$`, "m"));
+  const files = readJson(r, ".xworkflows/installed.json").files;
+  assert.ok(!(gone in files) && !(edited in files));
+  assert.match(cli(r, ["install", "--yes"]).stdout, /nothing to do/);
+});

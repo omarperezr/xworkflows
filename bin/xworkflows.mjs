@@ -449,6 +449,14 @@ export function plan(manifest, root, record, ans = {}) {
       w.keep = true; notes.push(`kept (not ours): ${w.path}  new: ${w.src}`);
     } else if (hash(cur) !== rec.sha256) { w.keep = true; notes.push(`kept (changed locally): ${w.path}  new: ${w.src}`); }
   }
+  // a file of the package's that this version no longer ships: removed when unchanged, kept and named when edited; the record drops both
+  const shipped = new Set(writes.map((w) => w.key ?? w.path));
+  const retired = [];
+  for (const [p, rec] of Object.entries(record.files)) {
+    if (shipped.has(p) || !/^\.(xworkflows|claude\/(skills|agents))\//.test(p) || !plain(p) || !clean(root, p) || !lstatSync(join(root, p), { throwIfNoEntry: false })?.isFile()) continue;
+    if (hash(read(root, p)) === rec.sha256) retired.push(p);
+    else notes.push(`kept (no longer shipped, changed locally): ${p}`);
+  }
   const merges = [];
   let mem;
   try { mem = loadConfig(root).memory; } catch (e) { die(1, e.message); }
@@ -477,7 +485,7 @@ export function plan(manifest, root, record, ans = {}) {
       merges.push({ path: "CLAUDE.md", text: claude + (claude.endsWith("\n") ? "" : "\n") + "@AGENTS.md\n", rec: { imports: [claude.endsWith("\n") ? { file: "CLAUDE.md", line: "@AGENTS.md" } : { file: "CLAUDE.md", line: "@AGENTS.md", addedNewline: true }] } });
     } else merges.push({ path: "CLAUDE.md", text: null, rec: { declined: [{ file: "CLAUDE.md", what: "import" }] } });
   }
-  return { writes, merges, questions, kept, renamed, notes };
+  return { writes, merges, questions, kept, renamed, notes, retired };
 }
 
 const differs = (root, w) => !existsSync(join(root, w.path)) || readFileSync(join(root, w.path), "utf8") !== w.text;
@@ -491,6 +499,7 @@ export function apply(pl, root, manifest, record) {
   // the folders install had to make, so uninstall stops at the ones that were there; the git folder is not ours to record
   const mk = (d) => { for (; plain(d) && d.split("/")[0] !== ".git" && !existsSync(join(root, d)); d = dirname(d)) made.push(d); };
   const put = (root, path, text, mode) => { mk(dirname(path)); putFile(root, path, text, mode); };
+  for (const p of pl.retired) { rmSync(join(root, p)); out.push(`removed ${p}`); }
   for (const w of pl.writes) if (!w.keep && differs(root, w)) {
     if (w.rename) renameSync(join(root, w.path), join(root, w.rename));
     put(root, w.path, w.text, w.mode);
@@ -564,6 +573,7 @@ async function install(flags) {
   for (const n of pl.notes) console.log(n);
   if (flags["dry-run"]) {
     for (const w of pl.writes) if (!w.keep && differs(ROOT, w)) console.log(`${w.rename ? `would rename ${w.path} to ${w.rename}\n` : ""}would write ${w.path}`);
+    for (const p of pl.retired) console.log(`would remove ${p}`);
     for (const m of pl.merges) if (m.text !== null || m.dir) console.log(`would ${m.verb ?? "merge"} ${m.path}`);
   } else {
     const done = apply(pl, ROOT, m, record);
