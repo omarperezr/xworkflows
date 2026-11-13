@@ -505,7 +505,12 @@ export function apply(pl, root, manifest, record) {
   // plan() read the tree earlier: a link made since is not written through (a hook's folder was vetted by ownHooks)
   const linked = (path, hook) => { if (!hook && !clean(root, path)) throw new Error(`not written (symlink): ${path}`); };
   const put = (root, path, text, mode, hook) => { linked(path, hook); mk(dirname(path)); putFile(root, path, text, mode); };
-  for (const p of pl.retired) { linked(p); rmSync(join(root, p)); out.push(`removed ${p}`); }
+  // a folder the removal empties goes with it when it is the package's own: a subfolder of .xworkflows/ or a skill's folder
+  const emptied = [];
+  for (const p of pl.retired) {
+    linked(p); rmSync(join(root, p)); out.push(`removed ${p}`);
+    for (let d = dirname(p); /^\.xworkflows\/|^\.claude\/(skills|agents)\/[^/]+/.test(d) && !readdirSync(join(root, d)).length; d = dirname(d)) { rmdirSync(join(root, d)); out.push(`removed ${d}/`); emptied.push(d); }
+  }
   for (const w of pl.writes) if (!w.keep && differs(root, w)) {
     const hook = HOOKS.includes(w.src);
     linked(w.path, hook);
@@ -531,6 +536,14 @@ export function apply(pl, root, manifest, record) {
       if (k === "merged") next[k] = next[k].filter((y) => !list.some((x) => x.entry?.hooks && x.file === y.file && isDeepStrictEqual(x.key, y.key) && x.entry.hooks[0].command === y.entry?.hooks?.[0]?.command));
       for (const x of list) if (!next[k].some((y) => (k === "merged" ? x.file === y.file && isDeepStrictEqual(x.key, y.key) && isDeepStrictEqual(x.entry, y.entry) : (k === "blocks" || k === "imports" ? x.file === y.file && x.line === y.line : isDeepStrictEqual(x, y))))) next[k].push(x);
     }
+  }
+  // a unit whose folder is gone leaves its line of .graphifyignore, and the record its entry
+  for (const line of emptied.map((d) => giLine(d)).filter((l) => l && !existsSync(join(root, l)))) {
+    const t = read(root, GI), ls = t?.split("\n") ?? [];
+    if (!next.imports.some((i) => i.file === GI && i.line === line) || !ls.includes(line)) continue;
+    ls.splice(ls.indexOf(line), 1);
+    put(root, GI, ls.join("\n")); out.push(GI);
+    next.imports = next.imports.filter((i) => !(i.file === GI && i.line === line));
   }
   for (const p of manifest.pieces) next.pieces[p.id] = { version: p.version, sha256: p.sha256 };
   for (const w of pl.writes) next.files[w.key ?? w.path] = w.keep ? record.files[w.key ?? w.path] : { piece: w.piece, sha256: hash(w.text) };

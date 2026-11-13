@@ -2228,6 +2228,25 @@ test("install: the real manifest lists skills/adapt/topics.md as retired with th
   assert.ok(list.every((h) => /^[0-9a-f]{64}$/.test(h)));
 });
 
+// a retired file alone in its folder takes the folder, and a retired unit takes its line of .graphifyignore and its entry of the record
+test("install: a retired file alone in a folder of the package takes the folder; a whole retired skill takes its .graphifyignore line and record entry", () => {
+  const copy = retiringCopy({ "skills/gone/SKILL.md": [sha("g\n")], "hooks/core/oldsub/x.mjs": [sha("x\n")] });
+  const r = repo(); assert.equal(cliAt(copy, r, ["install", "--yes"]).status, 0);
+  const unit = ".claude/skills/gone", sub = ".xworkflows/hooks/core/oldsub";
+  mkdirSync(join(r, unit), { recursive: true }); writeFileSync(join(r, unit, "SKILL.md"), "g\n");
+  mkdirSync(join(r, sub), { recursive: true }); writeFileSync(join(r, sub, "x.mjs"), "x\n");
+  appendFileSync(join(r, ".graphifyignore"), `${unit}/\n`);
+  withRecord(r, (rec) => { rec.imports.push({ file: ".graphifyignore", line: `${unit}/` }); });
+  const out = cliAt(copy, r, ["install", "--yes"]);
+  assert.equal(out.status, 0, out.stderr);
+  assert.ok(!existsSync(join(r, unit)) && !existsSync(join(r, sub)), "both folders are gone");
+  assert.ok(existsSync(join(r, ".xworkflows/hooks/core")), "the shared parent stays");
+  assert.ok(!lines(r).includes(`${unit}/`) && lines(r).includes(".xworkflows/"));
+  assert.ok(!readJson(r, ".xworkflows/installed.json").imports.some((i) => i.line === `${unit}/`));
+  const un = cliAt(copy, r, ["uninstall"]);
+  assert.doesNotMatch(un.stdout, /kept \(not ours\)/);
+});
+
 // P-46: until the chaining is designed apart, install says what a chained hook cannot do
 test("install: chaining a hook of the project prints one line that a hook which depends on its own file name will not work chained", () => {
   const { r } = chained();
