@@ -98,7 +98,7 @@ export function main(argv) {
   return uninstall();
 }
 
-const EMPTY = { xworkflows: "", tools: ["claude"], pieces: {}, files: {}, merged: [], blocks: [], imports: [], created: [], declined: [], kept: [], renamed: {}, scalars: [], chained: [] };
+const EMPTY = { xworkflows: "", tools: ["claude"], pieces: {}, files: {}, merged: [], blocks: [], imports: [], created: [], dirs: [], declined: [], kept: [], renamed: {}, scalars: [], chained: [] };
 const json = (v) => JSON.stringify(v, null, 2) + "\n";
 
 function target(f) {
@@ -182,21 +182,21 @@ function mergeSettings(root, manifest, record) {
   const merged = [], notes = [];
   let changed = false;
   for (const { key, entry, ours, id } of want) {
-    let o = s, createdKey = false;
+    let o = s, made = 0;
     for (const k of key.slice(0, -1)) {
-      if (!(k in o)) { o[k] = {}; createdKey = true; }
+      if (!(k in o)) { o[k] = {}; made++; }
       o = o[k];
       if (!o || typeof o !== "object" || Array.isArray(o)) die(1, `${path}: ${k} is not an object`);
     }
     const last = key.at(-1);
-    if (!(last in o)) { o[last] = []; createdKey = true; }
+    if (!(last in o)) { o[last] = []; made++; }
     if (!Array.isArray(o[last])) die(1, `${path}: ${key.join(".")} is not an array`);
     const found = o[last].find((e) => isDeepStrictEqual(e, entry) || ours(e));
     if (found) {
       // an entry of ours that is not the one the manifest gives: replace it when it is exactly what the record holds, else it is a hand edit
       const recorded = record.merged.find((m) => m.file === path && isDeepStrictEqual(m.key, key) && ours(m.entry));
       if (id && ours(found) && !isDeepStrictEqual(found, entry)) {
-        if (recorded && isDeepStrictEqual(recorded.entry, found)) { o[last][o[last].indexOf(found)] = entry; changed = true; merged.push({ file: path, key, entry, createdKey: recorded.createdKey }); }
+        if (recorded && isDeepStrictEqual(recorded.entry, found)) { o[last][o[last].indexOf(found)] = entry; changed = true; merged.push({ file: path, key, entry, createdKey: recorded.createdKey, levels: recorded.levels }); }
         else notes.push(`kept (changed locally): ${path} hook ${id}`);
         continue;
       }
@@ -207,7 +207,7 @@ function mergeSettings(root, manifest, record) {
     }
     o[last].push(entry);
     changed = true;
-    merged.push({ file: path, key, entry, createdKey });
+    merged.push({ file: path, key, entry, createdKey: made > 0, ...(made > 0 && { levels: made }) });
   }
   const scalars = [];
   changed = setScalar(s, path, "attribution", ATTRIBUTION, scalars) || changed;
@@ -263,6 +263,11 @@ function mergeIgnore(root, qmd) {
 
 const HOOKS = ["pre-push", "post-merge", "post-commit"];
 const hooksFolder = (root) => resolve(root, execFileSync("git", ["rev-parse", "--git-path", "hooks"], { cwd: root, encoding: "utf8" }).trim());
+// the record's name for a hook: .git/hooks/<name> in every checkout, unless core.hooksPath moved the folder
+const hookKey = (root, name) => {
+  const dir = hooksFolder(root);
+  return dir === resolve(root, execFileSync("git", ["rev-parse", "--git-common-dir"], { cwd: root, encoding: "utf8" }).trim(), "hooks") ? `.git/hooks/${name}` : relative(root, resolve(dir, name));
+};
 const CHECK = 'node "$(git rev-parse --show-toplevel)/.xworkflows/checks/run.mjs" --pre-push "$1"';
 // a value of .xworkflows/config.json read at hook time, `d` when the file or the key is not there
 const CFG = (expr, d) => `node -e 'try{process.stdout.write(${expr}||"${d}")}catch{process.stdout.write("${d}")}'`;
@@ -375,29 +380,29 @@ export function plan(manifest, root, record, ans = {}) {
   const mine_ = ownHooks(root) !== null;
   if (!mine_) notes.push(`hooks folder ${relative(root, hooksDir)} is outside this repository: no hook installed, doctor will say so`);
   for (const name of mine_ ? HOOKS : []) {
-    const path = relative(root, resolve(hooksDir, name));
+    const path = relative(root, resolve(hooksDir, name)), key = hookKey(root, name);
     const lst = lstatSync(join(root, path), { throwIfNoEntry: false });
     const cur = lst?.isFile() ? read(root, path) : null;
-    const mine = cur !== null && ([false, true].some((c) => cur === hookText(name, c)) || (!!record.files[path] && hash(cur) === record.files[path].sha256));
-    let chain = record.chained.some((c) => c.file === path) || (cur !== null && cur === hookText(name, true)), rename;
+    const mine = cur !== null && ([false, true].some((c) => cur === hookText(name, c)) || (!!record.files[key] && hash(cur) === record.files[key].sha256));
+    let chain = record.chained.some((c) => c.file === key) || (cur !== null && cur === hookText(name, true)), rename;
     const before = `${path}.before-xworkflows`;
     // the user's hook renamed by an install that never recorded it: ours is the only code that makes this name
-    if ((!lst || mine) && lstatSync(join(root, before), { throwIfNoEntry: false }) && !record.chained.some((c) => c.file === path)) {
+    if ((!lst || mine) && lstatSync(join(root, before), { throwIfNoEntry: false }) && !record.chained.some((c) => c.file === key)) {
       chain = true;
-      hookMerges.push({ path, text: null, rec: { chained: [{ file: path, to: before }] } });
+      hookMerges.push({ path, text: null, rec: { chained: [{ file: key, to: `${key}.before-xworkflows` }] } });
     }
     if (lst && !mine) {
-      if (record.declined.some((d) => d.file === path && d.what === "chain")) continue;
+      if (record.declined.some((d) => d.file === key && d.what === "chain")) continue;
       if (ask(`chain:${name}`, `A ${name} hook exists. Chain it (it runs first, then ours)?`, ["no", "yes"]) === "no") {
-        hookMerges.push({ path, text: null, rec: { declined: [{ file: path, what: "chain" }] } });
+        hookMerges.push({ path, text: null, rec: { declined: [{ file: key, what: "chain" }] } });
         continue;
       }
       rename = `${path}.before-xworkflows`;
       if (lstatSync(join(root, rename), { throwIfNoEntry: false })) die(1, `exists and is not ours: ${rename}`);
       chain = true;
-      hookMerges.push({ path, text: null, rec: { chained: [{ file: path, to: rename }] } });
+      hookMerges.push({ path, text: null, rec: { chained: [{ file: key, to: `${key}.before-xworkflows` }] } });
     }
-    writes.push({ path, text: hookText(name, chain), piece: "checks", src: name, mode: 0o755, rename });
+    writes.push({ path, key, text: hookText(name, chain), piece: "checks", src: name, mode: 0o755, rename });
   }
   // install and uninstall share one test: a path with a symlink component is never written or merged
   const hookPaths = new Set(writes.filter((w) => w.src && HOOKS.includes(w.src)).map((w) => w.path));
@@ -410,7 +415,7 @@ export function plan(manifest, root, record, ans = {}) {
   for (const w of writes) {
     const cur = read(root, w.path);
     if (cur === null || cur === w.text || w.rename) continue;
-    const rec = record.files[w.path];
+    const rec = record.files[w.key ?? w.path];
     if (!rec) die(1, `exists and is not ours: ${w.path}`);
     if (hash(cur) !== rec.sha256) { w.keep = true; notes.push(`kept (changed locally): ${w.path}  new: ${w.src}`); }
   }
@@ -445,22 +450,25 @@ export function plan(manifest, root, record, ans = {}) {
 }
 
 const differs = (root, w) => !existsSync(join(root, w.path)) || readFileSync(join(root, w.path), "utf8") !== w.text;
-const put = (root, path, text, mode) => {
+const putFile = (root, path, text, mode) => {
   mkdirSync(dirname(join(root, path)), { recursive: true });
   writeFileSync(join(root, path), text, { mode });
 };
 
 export function apply(pl, root, manifest, record) {
-  const out = [];
+  const out = [], made = [];
+  // the folders install had to make, so uninstall stops at the ones that were there; the git folder is not ours to record
+  const mk = (d) => { for (; plain(d) && d.split("/")[0] !== ".git" && !existsSync(join(root, d)); d = dirname(d)) made.push(d); };
+  const put = (root, path, text, mode) => { mk(dirname(path)); putFile(root, path, text, mode); };
   for (const w of pl.writes) if (!w.keep && differs(root, w)) {
     if (w.rename) renameSync(join(root, w.path), join(root, w.rename));
     put(root, w.path, w.text, w.mode);
     out.push(w.path);
   }
-  const next = { ...record, xworkflows: manifest.version, tools: ["claude"], pieces: {}, files: {}, kept: [...new Set([...record.kept, ...pl.kept])], renamed: { ...record.renamed, ...pl.renamed } };
+  const next = { ...record, xworkflows: manifest.version, tools: ["claude"], pieces: {}, files: {}, dirs: [...new Set([...(record.dirs ?? []), ...made])], kept: [...new Set([...record.kept, ...pl.kept])], renamed: { ...record.renamed, ...pl.renamed } };
   for (const m of pl.merges) {
     try {
-      if (m.dir) { mkdirSync(join(root, m.path), { recursive: true }); out.push(m.path); }
+      if (m.dir) { mk(m.path); mkdirSync(join(root, m.path), { recursive: true }); out.push(m.path); }
       if (m.text !== null) { put(root, m.path, m.text); out.push(m.path); }
     } catch (e) {
       // the new writes of the memory folder and the yml: say so, record nothing, go on
@@ -471,15 +479,17 @@ export function apply(pl, root, manifest, record) {
     for (const [k, list] of Object.entries(m.rec)) {
       next[k] = [...next[k]];
       // the replaced entry of a hook leaves the record
-      if (k === "merged") for (const x of list) { const gone = next[k].find((y) => x.entry?.hooks && x.file === y.file && isDeepStrictEqual(x.key, y.key) && x.entry.hooks[0].command === y.entry?.hooks?.[0]?.command); if (gone?.createdKey) x.createdKey = true; }
+      if (k === "merged") for (const x of list) { const gone = next[k].find((y) => x.entry?.hooks && x.file === y.file && isDeepStrictEqual(x.key, y.key) && x.entry.hooks[0].command === y.entry?.hooks?.[0]?.command); if (gone?.createdKey) { x.createdKey = true; x.levels = gone.levels; } }
       if (k === "merged") next[k] = next[k].filter((y) => !list.some((x) => x.entry?.hooks && x.file === y.file && isDeepStrictEqual(x.key, y.key) && x.entry.hooks[0].command === y.entry?.hooks?.[0]?.command));
       for (const x of list) if (!next[k].some((y) => (k === "merged" ? x.file === y.file && isDeepStrictEqual(x.key, y.key) && isDeepStrictEqual(x.entry, y.entry) : (k === "blocks" || k === "imports" ? x.file === y.file && x.line === y.line : isDeepStrictEqual(x, y))))) next[k].push(x);
     }
   }
   for (const p of manifest.pieces) next.pieces[p.id] = { version: p.version, sha256: p.sha256 };
-  for (const w of pl.writes) next.files[w.path] = w.keep ? record.files[w.path] : { piece: w.piece, sha256: hash(w.text) };
-  const text = json(next);
+  for (const w of pl.writes) next.files[w.key ?? w.path] = w.keep ? record.files[w.key ?? w.path] : { piece: w.piece, sha256: hash(w.text) };
   const rp = ".xworkflows/installed.json";
+  mk(dirname(rp));
+  next.dirs = [...new Set([...next.dirs, ...made])];
+  const text = json(next);
   if (!existsSync(join(root, rp)) || readFileSync(join(root, rp), "utf8") !== text) { put(root, rp, text); out.push(rp); }
   return out;
 }
@@ -674,7 +684,7 @@ async function doctor() {
     const hp = relative(ROOT, resolve(hooksFolder(ROOT), "pre-push"));
     const cur = lstatSync(join(ROOT, hp), { throwIfNoEntry: false })?.isFile() ? read(ROOT, hp) : null;
     // the record's key for it: .git/hooks/pre-push whichever checkout this is, unless core.hooksPath moved the folder
-    const key = hooksFolder(ROOT) === resolve(ROOT, execFileSync("git", ["rev-parse", "--git-common-dir"], { cwd: ROOT, encoding: "utf8" }).trim(), "hooks") ? ".git/hooks/pre-push" : hp;
+    const key = hookKey(ROOT, "pre-push");
     if (cur !== null && [false, true].some((c) => cur === hookText("pre-push", c))) say("ok", "pre-push hook is ours");
     else if (cur !== null && rec.files[key]) say("warn", `pre-push hook changed locally: it may no longer run the check; make it run: ${CHECK}`);
     else if (rec.declined.some((d) => d.file === key && d.what === "chain")) say("warn", `pre-push hook is yours: chaining declined at install; add this line to it: ${CHECK}`);
@@ -736,14 +746,14 @@ function uninstall() {
   try { rec = { ...EMPTY, ...JSON.parse(readFileSync(join(ROOT, ".xworkflows/installed.json"), "utf8")) }; }
   catch (e) { die(1, e.code === "ENOENT" ? "not installed" : ".xworkflows/installed.json does not parse; fix or remove it"); }
   for (const k of ["merged", "blocks", "imports", "scalars", "chained"]) rec[k] = Array.isArray(rec[k]) ? rec[k].filter((e) => e && typeof e === "object") : [];
-  for (const k of ["created", "kept"]) rec[k] = Array.isArray(rec[k]) ? rec[k] : [];
+  for (const k of ["created", "kept", "dirs"]) rec[k] = Array.isArray(rec[k]) ? rec[k] : [];
   if (!rec.files || typeof rec.files !== "object" || Array.isArray(rec.files)) rec.files = {};
   const manifest = readManifest();
   const out = [], gone = [];
   if (rec.xworkflows !== manifest.version) out.push(`record written by xworkflows ${rec.xworkflows || "unknown"}; this is ${manifest.version}`);
 
   const hooksDir = ownHooks(ROOT);
-  const hookRel = new Map(hooksDir ? HOOKS.map((n) => [n, relative(ROOT, resolve(hooksDir, n))]) : []);
+  const hookRel = new Map(hooksDir ? HOOKS.map((n) => [n, hookKey(ROOT, n)]) : []);
   const hookSet = new Set(hookRel.values());
   const wanted = new Map(); // path -> the text plan() writes there, renamed units included
   for (const w of pkgWrites(manifest)) {
@@ -809,11 +819,13 @@ function uninstall() {
         if (i >= 0) { arr.splice(i, 1); changed = true; }
         else if (arr.some(w.ours)) out.push(`kept (changed locally): ${SETTINGS} ${w.key.join(".")}`);
       }
-      // a container install created goes once it is empty
-      for (const { key } of wants.filter((w) => merged.some((m) => m.createdKey && isDeepStrictEqual(m.key, w.key)))) {
+      // a container install created goes once it is empty; a record without the count of levels holds them all
+      const made = new Set();
+      for (const m of merged) if (m.createdKey) for (let d = m.key.length; d > m.key.length - (m.levels ?? m.key.length); d--) made.add(JSON.stringify(m.key.slice(0, d)));
+      for (const { key } of wants) {
         const parents = [s];
         for (const k of key) parents.push(parents.at(-1)?.[k]);
-        for (let d = key.length; d > 0 && parents[d] && typeof parents[d] === "object" && Object.keys(parents[d]).length === 0; d--) { delete parents[d - 1][key[d - 1]]; changed = true; }
+        for (let d = key.length; d > 0 && made.has(JSON.stringify(key.slice(0, d))) && parents[d] && typeof parents[d] === "object" && Object.keys(parents[d]).length === 0; d--) { delete parents[d - 1][key[d - 1]]; changed = true; }
       }
       if (changed) write(SETTINGS, json(s));
     }
@@ -872,7 +884,7 @@ function uninstall() {
   for (const p of gone) {
     for (let d = dirname(p); d !== "."; d = dirname(d)) {
       if (!lstatSync(join(ROOT, d), { throwIfNoEntry: false })?.isDirectory()) continue;
-      if (readdirSync(join(ROOT, d)).length) break;
+      if (!rec.dirs.includes(d) || readdirSync(join(ROOT, d)).length) break;
       rmdirSync(join(ROOT, d));
       out.push(`deleted ${d}/`);
     }

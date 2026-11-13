@@ -122,7 +122,7 @@ test("fresh install writes every piece and the record", () => {
   assert.match(readFileSync(join(r, ".claude/agents/explore.md"), "utf8"), /^model: haiku$/m);
   assert.doesNotMatch(readFileSync(join(r, ".claude/agents/explore.md"), "utf8"), /^tier:/m);
   const rec = JSON.parse(readFileSync(join(r, ".xworkflows/installed.json"), "utf8"));
-  assert.deepEqual(Object.keys(rec), ["xworkflows", "tools", "pieces", "files", "merged", "blocks", "imports", "created", "declined", "kept", "renamed", "scalars", "chained"]);
+  assert.deepEqual(Object.keys(rec), ["xworkflows", "tools", "pieces", "files", "merged", "blocks", "imports", "created", "dirs", "declined", "kept", "renamed", "scalars", "chained"]);
   assert.equal(out.stdout.trim().split("\n").at(-1), "Next: open Claude Code and type /adapt");
 });
 test("second install changes nothing", () => {
@@ -1761,4 +1761,58 @@ test("doctor: with memory.index set, every qmd line names that index", () => {
   assert.ok(none.includes("fail no qmd collection covers docs/memory: qmd --index mine collection add docs/memory"), none.join("\n"));
   const dead = doctor(r, { PATH: tools({ qmd: `case "$*" in *--version*) echo '${QMD_V}';; *) exec sleep 30;; esac` }), XWORKFLOWS_PROBE_TIMEOUT_MS: "400" }).stdout.split("\n");
   assert.ok(dead.includes("warn qmd did not answer: collections of docs/memory not checked: run qmd --index mine collection list to see why"), dead.join("\n"));
+});
+
+// what install records is what uninstall takes back
+test("a linked worktree records the git hooks under .git/hooks, as a normal checkout does", () => {
+  const main = repo(); git(main, "commit -q --allow-empty -m init");
+  const wt = join(tmp("xwf-wt-"), "wt");
+  git(main, `worktree add -q ${wt}`);
+  cli(wt, ["install", "--yes"]);
+  const text = readFileSync(join(wt, ".xworkflows/installed.json"), "utf8");
+  assert.deepEqual(Object.keys(JSON.parse(text).files).filter((f) => /\.git\/hooks\//.test(f)).sort(), [".git/hooks/post-commit", ".git/hooks/post-merge", ".git/hooks/pre-push"]);
+  assert.doesNotMatch(text, /\.\./);
+  assert.match(cli(wt, ["install", "--yes"]).stdout, /nothing to do/);
+  assert.equal(readFileSync(join(wt, ".xworkflows/installed.json"), "utf8"), text);
+});
+test("a linked worktree records a chained hook of the user under .git/hooks", () => {
+  const main = repo(); git(main, "commit -q --allow-empty -m init");
+  mkdirSync(join(main, ".git/hooks"), { recursive: true });
+  writeFileSync(join(main, ".git/hooks/pre-push"), OLD); chmodSync(join(main, ".git/hooks/pre-push"), 0o755);
+  const wt = join(tmp("xwf-wt-"), "wt");
+  git(main, `worktree add -q ${wt}`);
+  cli(wt, ["install", "--yes"]);
+  assert.deepEqual(readJson(wt, ".xworkflows/installed.json").chained, [{ file: ".git/hooks/pre-push", to: ".git/hooks/pre-push.before-xworkflows" }]);
+  cli(wt, ["uninstall"]);
+  assert.equal(readFileSync(join(main, ".git/hooks/pre-push"), "utf8"), OLD);
+});
+test("uninstall keeps the empty hooks and permissions objects the project had before install", () => {
+  const r = repo({ ".claude/settings.json": JSON.stringify({ hooks: {}, permissions: {} }) });
+  cli(r, ["install", "--yes"]);
+  assert.match(cli(r, ["uninstall"]).stdout, /uninstalled/);
+  assert.deepEqual(readJson(r, ".claude/settings.json"), { hooks: {}, permissions: {} });
+});
+test("uninstall removes the objects install created in a settings file that had other keys", () => {
+  const r = repo({ ".claude/settings.json": JSON.stringify({ model: "x" }) });
+  cli(r, ["install", "--yes"]);
+  cli(r, ["uninstall"]);
+  assert.deepEqual(readJson(r, ".claude/settings.json"), { model: "x" });
+});
+test("uninstall keeps a folder that was there before install, and removes the ones install made", () => {
+  const r = repo(); mkdirSync(join(r, "docs"));
+  const before = tree(r);
+  cli(r, ["install", "--yes"]);
+  assert.ok(!readJson(r, ".xworkflows/installed.json").dirs.includes("docs"));
+  const out = cli(r, ["uninstall"]);
+  assert.doesNotMatch(out.stdout, /^deleted docs\/$/m);
+  assert.equal(tree(r), before);
+  const f = repo(), none = tree(f);
+  cli(f, ["install", "--yes"]); cli(f, ["uninstall"]);
+  assert.equal(tree(f), none);
+});
+test("a second install records the same folders and changes nothing", () => {
+  const r = repo(); cli(r, ["install", "--yes"]);
+  const rec = readFileSync(join(r, ".xworkflows/installed.json"), "utf8");
+  assert.match(cli(r, ["install", "--yes"]).stdout, /nothing to do/);
+  assert.equal(readFileSync(join(r, ".xworkflows/installed.json"), "utf8"), rec);
 });
