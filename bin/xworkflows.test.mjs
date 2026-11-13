@@ -2006,3 +2006,15 @@ test(".graphifyignore: a link that leaves the repository is not written through"
   cli(r, ["uninstall"]);
   assert.equal(readFileSync(join(o, "target"), "utf8"), "outside\n");
 });
+
+test("uninstall leaves nothing when the record has no dirs, and an empty folder is no skill", () => {
+  const r = repo({ "a.txt": "x\n" });
+  const before = tree(r);
+  const env = { PATH: spy(qmdLog()), HOME: EMPTY_HOME };
+  assert.equal(cli(r, ["install"], { env }).status, 0);
+  withRecord(r, (rec) => { delete rec.dirs; });
+  assert.equal(cli(r, ["uninstall"], { env }).status, 0);
+  assert.equal(tree(r), before);
+  const again = cli(r, ["install"], { env });
+  assert.doesNotMatch(again.stdout, /A skill grill exists/);
+});

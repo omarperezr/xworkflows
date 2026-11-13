@@ -392,7 +392,9 @@ export function plan(manifest, root, record, ans = {}) {
     if (record.kept.includes(u)) continue;
     // a unit under a linked folder is dropped below with its note: no question, no record
     if (!(plain(u) && clean(root, u))) { writes.push(...ws); continue; }
-    if (!rename && !mine && existsSync(join(root, u)) && !ws.every((w) => read(root, w.path) === w.text)) {
+    // an empty folder is no skill and no agent of the project
+    const there = lstatSync(join(root, u), { throwIfNoEntry: false });
+    if (!rename && !mine && there && !(there.isDirectory() && !readdirSync(join(root, u)).length) && !ws.every((w) => read(root, w.path) === w.text)) {
       const kind = u.includes("/skills/") ? "skill" : "agent";
       const a = ask(`unit:${u}`, `${kind === "skill" ? "A skill" : "An agent"} ${id} exists. Keep theirs or install ours as xwf-${id}?`, ["keep theirs", `xwf-${id}`]);
       if (a === "keep theirs") { kept.push(u); continue; }
@@ -518,7 +520,7 @@ export function apply(pl, root, manifest, record) {
   for (const w of pl.writes) next.files[w.key ?? w.path] = w.keep ? record.files[w.key ?? w.path] : { piece: w.piece, sha256: hash(w.text) };
   const rp = ".xworkflows/installed.json";
   mk(dirname(rp));
-  next.dirs = [...new Set([...next.dirs, ...made])];
+  if (record.dirs) next.dirs = [...new Set([...next.dirs, ...made])]; else delete next.dirs;
   const text = json(next);
   if (!existsSync(join(root, rp)) || readFileSync(join(root, rp), "utf8") !== text) { put(root, rp, text); out.push(rp); }
   return out;
@@ -537,7 +539,10 @@ async function install(flags) {
   if (!clean(ROOT, ".xworkflows/installed.json")) die(1, "not written (symlink): .xworkflows/installed.json");
   if (existsSync(rp)) {
     try {
-      record = { ...EMPTY, ...JSON.parse(readFileSync(rp, "utf8")) };
+      const parsed = JSON.parse(readFileSync(rp, "utf8"));
+      record = { ...EMPTY, ...parsed };
+      // a record of an earlier version has no dirs: it stays so, because an empty list would switch off the removal of empty parents
+      if (!Array.isArray(parsed.dirs)) record.dirs = undefined;
     } catch {
       die(1, ".xworkflows/installed.json does not parse; fix or remove it");
     }
@@ -781,14 +786,17 @@ const LINES = new Map([[".gitignore", IGNORE.map(([l]) => l)], ["CLAUDE.md", ["@
 // installed.json is the project's text, so it is never the package's word: uninstall removes only what this package version
 // writes (manifest, target(), the fixed lines, keys and hook texts above). The record answers yes-or-no questions about those.
 function uninstall() {
-  let rec;
-  try { rec = { ...EMPTY, ...JSON.parse(readFileSync(join(ROOT, ".xworkflows/installed.json"), "utf8")) }; }
+  let rec, noDirs;
+  try { const raw = JSON.parse(readFileSync(join(ROOT, ".xworkflows/installed.json"), "utf8")); noDirs = !Array.isArray(raw?.dirs); rec = { ...EMPTY, ...raw }; }
   catch (e) { die(1, e.code === "ENOENT" ? "not installed" : ".xworkflows/installed.json does not parse; fix or remove it"); }
   for (const k of ["merged", "blocks", "imports", "scalars", "chained"]) rec[k] = Array.isArray(rec[k]) ? rec[k].filter((e) => e && typeof e === "object") : [];
   for (const k of ["created", "kept", "dirs"]) rec[k] = Array.isArray(rec[k]) ? rec[k] : [];
   if (!rec.files || typeof rec.files !== "object" || Array.isArray(rec.files)) rec.files = {};
   const manifest = readManifest();
   const out = [], gone = [];
+  // the package's own folders go when empty, listed or not; the shared parents only when the record lists them, or has no list at all
+  const units = pkgWrites(manifest).map((w) => w.path.match(UNIT)?.[0]).filter(Boolean).flatMap((u) => [u, `${dirname(u)}/xwf-${basename(u)}`]);
+  const own = (d) => d === ".xworkflows" || d.startsWith(".xworkflows/") || units.some((u) => d === u || d.startsWith(`${u}/`));
   if (rec.xworkflows !== manifest.version) out.push(`record written by xworkflows ${rec.xworkflows || "unknown"}; this is ${manifest.version}`);
 
   const hooksDir = ownHooks(ROOT);
@@ -924,7 +932,7 @@ function uninstall() {
   for (const p of gone) {
     for (let d = dirname(p); d !== "."; d = dirname(d)) {
       if (!lstatSync(join(ROOT, d), { throwIfNoEntry: false })?.isDirectory()) continue;
-      if (!rec.dirs.includes(d) || readdirSync(join(ROOT, d)).length) break;
+      if (!(own(d) || noDirs || rec.dirs.includes(d)) || readdirSync(join(ROOT, d)).length) break;
       rmdirSync(join(ROOT, d));
       out.push(`deleted ${d}/`);
     }
