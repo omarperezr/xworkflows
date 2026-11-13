@@ -1,4 +1,6 @@
 import { test } from "node:test";
+import { writeFileSync } from "node:fs";
+import { join } from "node:path";
 import assert from "node:assert/strict";
 import * as mod from "./change-size.mjs";
 import { makeRepo } from "../test/helpers/repo.mjs";
@@ -91,8 +93,16 @@ test("a file marked -diff by attributes still counts its lines", withRepo(async 
   assert.match(r.lines[0], /30/);
 }));
 
-test("a file that really holds a NUL byte counts 0", withRepo(async (repo) => {
-  repo.commit("bin", { files: { "src/b.bin": `${lines(30)}\0\n` } });
+test("a text file that holds a NUL byte counts by its lines", withRepo(async (repo) => {
+  repo.commit("text", { files: { "src/b.txt": `${lines(30)}\0\n` } });
+  const r = await repo.run(mod);
+  assert.equal(r.ok, false);
+  assert.match(r.lines[0], /31/);
+}));
+
+test("a binary file counts 0", withRepo(async (repo) => {
+  writeFileSync(join(repo.root, "src/b.bin"), Buffer.concat([Buffer.from([0xff, 0xfe, 0]), Buffer.from(lines(30)), Buffer.from([0x80, 0x0a])]));
+  repo.commit("bin");
   assert.deepEqual(await repo.run(mod), { ok: true, lines: [] });
 }));
 
