@@ -558,3 +558,16 @@ test("start in a repository with no commit says so, no stack trace", () => {
   assert.doesNotMatch(r.stderr, /\n\s+at /);
 });
 
+test("start replaces the ignore file the earlier version wrote, never one the user changed", () => {
+  const EARLIER = [".gitignore", "research.md", "research.json", "research.prev.json", "scan.json", "interview.json", "interview.log.jsonl", "adapt-run.json", "rules.json", "kinds.json"].join("\n") + "\n";
+  const d = repo();
+  writeFileSync(X(d, ".gitignore"), EARLIER);
+  assert.equal(cli(d, "start").status, 0);
+  assert.match(rt(d, ".gitignore"), /^screens\.json$/m);
+  assert.match(rt(d, ".gitignore"), /^details\.md$/m);
+  const e = repo();
+  writeFileSync(X(e, ".gitignore"), EARLIER + "mine\n");
+  assert.equal(cli(e, "start").status, 0);
+  assert.equal(rt(e, ".gitignore"), EARLIER + "mine\n");
+});
+

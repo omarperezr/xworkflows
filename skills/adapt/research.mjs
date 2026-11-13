@@ -148,7 +148,12 @@ function cli(cmd, root) {
     for (const f of [dir, join(dir, "interview.log.jsonl")]) if (isLink(f)) refuse(f);
     mkdirSync(dir, { recursive: true });
     // The owner's answers land here from the first question; ignore them now, not at step 4.
-    try { writeFileSync(join(dir, ".gitignore"), [".gitignore", "research.md", "research.json", "research.prev.json", "scan.json", "interview.json", "interview.log.jsonl", "adapt-run.json", "rules.json", "kinds.json", "screens.json", "details.md"].join("\n") + "\n", { flag: "wx" }); } catch {}
+    const ign = join(dir, ".gitignore");
+    const NOW = [".gitignore", "research.md", "research.json", "research.prev.json", "scan.json", "interview.json", "interview.log.jsonl", "adapt-run.json", "rules.json", "kinds.json", "screens.json", "details.md"];
+    const BEFORE = NOW.slice(0, 10).join("\n") + "\n"; // the text the earlier version wrote, replaced only when the file is still exactly that
+    let flag = "wx";
+    try { if (!isLink(ign) && readFileSync(ign, "utf8") === BEFORE) flag = "w"; } catch {}
+    try { writeFileSync(ign, NOW.join("\n") + "\n", { flag }); } catch {}
     const status = statusOf(summary);
     let old = null;
     try { old = readJson(runFile); } catch {}
