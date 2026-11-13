@@ -318,6 +318,14 @@ test("shell: the root under its usual spellings", () => {
   assert.ok(allowed(at("cat ~/proj/docs/src/x")));
 });
 
+test("shell: a reader behind a shell keyword or a NAME=value word, and the root as $(pwd), a rev-parse or ../", () => {
+  const at = (command) => decide({ ...sh(command), root: "/h/proj" }, mk());
+  for (const c of ["for f in a; do cat src/x; done", "if x; then cat src/x; fi", "if x; then :; else head src/x; fi", "time cat src/x", "! cat src/x", "{ cat src/x; }", "LC_ALL=C cat src/x", "A=1 B=2 tail src/x", "cat $(pwd)/src/x", 'cat "$(pwd)"/src/x', "cat $(git rev-parse --show-toplevel)/src/x", "cat /h/proj/docs/../src/x", "cat src/../src/x", "cat ../proj/src/x"])
+    assert.ok(denied(at(c)), c);
+  for (const c of ["do_it cat src/x", "echo then cat src/x", "for f in a; do cat docs/x; done", "cat $(pwd)/docs/x", "cat /h/proj/src/../docs/x", "cat ../other/src/x", "X=src/x echo done"])
+    assert.ok(allowed(at(c)), c);
+});
+
 test("shell: the home folder comes from ctx.home, with its backslashes turned", () => {
   const at = (home, command) => decide({ ...sh(command), root: "C:/Work/u/proj" }, mk({ home }));
   assert.ok(denied(at("C:\\Work\\u", "cat ~/proj/src/x")));

@@ -52,7 +52,10 @@ export function decide(ev, ctx) {
       .replace(/(^|[\s"'=:])~(?=\/)/g, (_, p) => p + home)
       .replace(/\$\{?HOME\}?"?/g, () => home)
       .replace(/\$\{?(PWD|CLAUDE_PROJECT_DIR)\}?"?/g, () => root)
-      .replace(/\/(?:\.?\/)+/g, "/");
+      .replace(/\$\((?:pwd|git rev-parse --show-toplevel)\)"?/g, () => root)
+      .replace(/\/(?:\.?\/)+/g, "/")
+      .replace(/(^|[\s"'=:/])(?!\.\.\/)[^/\s"'=:]+\/\.\.\//g, "$1") // `dir/../` is nothing
+      .replace(new RegExp(`(^|[\\s"'=:])\\.\\./${esc(root.replace(/.*\//, ""))}/`, "g"), (_, p) => p + root + "/");
     const word = "[^\\s;&|()]"; // a word stops at a separator: no pattern runs past it
     const env = `((${word}*/)?env[ \\t]+)?([A-Za-z_]\\w*=${word}*[ \\t]+|-u[ \\t]+${word}+[ \\t]+)*`; // env, its -u NAME and NAME=value words
     // a here-document body is text; a here-string and a shift are not here-documents
@@ -63,7 +66,7 @@ export function decide(ev, ctx) {
     // shortcut: a line inside a quoted text of several lines counts as a command, like `;` inside quotes; upgrade when a real command is denied for it
     // a redirect target is written, not read
     const read = code.replace(/>>?\s*&?[^\s<>;&|()]+/g, " ");
-    if (prefixes && new RegExp(`(^|[;&|(\\n][ \\t\\r]*)(${word}*/)?(cat|sed\\s+-n|head|tail)\\b[^|;&\\n]*(^|[\\s"'=])(\\./|${esc(root)}/)?(${prefixes})`).test(read))
+    if (prefixes && new RegExp(`(^|[;&|(\\n][ \\t\\r]*)(((do|then|else|elif|time|!|\\{)|[A-Za-z_]\\w*=${word}*)[ \\t]+)*(${word}*/)?(cat|sed\\s+-n|head|tail)\\b[^|;&\\n]*(^|[\\s"'=])(\\./|${esc(root)}/)?(${prefixes})`).test(read))
       return deny("Reading that much into the main session costs context: delegate it to an agent.");
     return allow;
   }

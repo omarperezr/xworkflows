@@ -248,12 +248,12 @@
       "files": {
         "skills/adapt/SKILL.md": "80d40a7f73d30f7a7069932a4111b46df688798dd40a4c6a1a41035fcec5a739",
         "skills/adapt/scan.mjs": "710c3445855b7a23d54c5b1b6ce0bf3a4ae102afe9bcdc9360704dc15bfad898",
-        "skills/adapt/rules.mjs": "99766272105524b96372b0ef34ff8a2960d68d674a47de5f4da9e32ba9223a94",
+        "skills/adapt/rules.mjs": "736bb9ee53874d8c9447ab4107780d9b8f5733cee26597dae96862d43d37bde2",
         "skills/adapt/research.workflow.js": "6c523f98c4371d689bdde407aaaa7826472be0baedf83b7341fe654e5ed41424",
         "skills/adapt/research.mjs": "667767df82016b2c23d46b9fb0d9f3765ff13ee30a146ae0e15cf57935175a1a",
         "skills/adapt/screens.mjs": "33e52738916553b141e37964d11205d3ceb6fd3421b0a6ddd449038eb73732b8"
       },
-      "sha256": "298d9aed394473baf0202be76b3d7aee72aff7bd6494d31b08a78fb1b0d940a6"
+      "sha256": "793290a2fd9b2d59e928292273892125042f5adc580d4fbd32d4ce777a639904"
     },
     {
       "id": "full-review",
@@ -287,9 +287,9 @@
         "gemini"
       ],
       "files": {
-        "skills/next-step/SKILL.md": "2ce979fcfe60b9f5350d7fec8fd0f3954a7db523afdf867dfaa5e52e75c62d08"
+        "skills/next-step/SKILL.md": "7f2f67ad85653257158d95c02fe3a174c6bbc5199b59c72990eecf80e22928c3"
       },
-      "sha256": "2f9038a0e25e197e358a418ca2b2e7fd5fa92d4684778a2642765a97d6163567"
+      "sha256": "81a52145374fc89c7e6e165061c31c89653e03bda95c75386ca38636c0977645"
     },
     {
       "id": "orchestrator",
@@ -311,9 +311,9 @@
         }
       ],
       "files": {
-        "hooks/core/orchestrator.mjs": "ef834072239d7fb961552e4081e26d0473b71a5a32ca90c7f418ddfc6b449d8c"
+        "hooks/core/orchestrator.mjs": "570d0c0fb0703bc78598fd899c6c1614452c18bd17dea2ed2f01d8594214d390"
       },
-      "sha256": "739c445a5d374fc9b872e71dafb1258221c0a2e9f348aef25124f6fad6659a03"
+      "sha256": "4077f7510f23890ff3bdf10f22820cca40b45ddd835e6cd0e0db899c7ff33da3"
     },
     {
       "id": "handback",
@@ -574,12 +574,12 @@
         "checks/skills-travel.mjs": "d6188c4677f6ddcaf7bbb6ba6a311976377b318c6d9ddb3612614dce6d7e89cd",
         "checks/patterns.mjs": "b76bd62236b34035c628147793d6d428959a91036f7700389bd6d7c443805e12",
         "checks/ratchet.mjs": "588ee64ef495668ef7c83c790bf825b211fbbcb753478ad8d21ea4394a81ef79",
-        "checks/graph-current.mjs": "128f4d871649d88b9fa2af0a3e8cc52535a197ea3f8df4da20dd4de5f652a019",
+        "checks/graph-current.mjs": "60d97ae303e98af23dcc93324bd06b53d03654882a5fa959782fa2014b33518a",
         "checks/stale-memory.mjs": "9a4e11507f800da3a472a7db4b48645d3fd5ff9fa5f8120006c0b6c6d425529d",
         "checks/index-current.mjs": "52b1d47da0e375d52d970e20b18cbc6e3269f117ab807545d8b73aa258d15bfe",
         "checks/project.mjs": "af3161760f0ac32a4f816a1cd6a4d5a17e848811d8dcdfd95c1b575568a11d87"
       },
-      "sha256": "1e7f8938a0bca22ba7b2e8d629fa7b3d13d82f7929708e5c52ef181e8db20698"
+      "sha256": "c37d09c8b9b52eacc13e8ff8844b8b0011d07ac613d500c95b440db16c88e138"
     },
     {
       "id": "lint",

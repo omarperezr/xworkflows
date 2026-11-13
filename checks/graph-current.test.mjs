@@ -65,3 +65,15 @@ test("the folder and command come from config", async () => {
     assert.equal((await repo.run(mod)).ok, true);
   } finally { repo.cleanup(); }
 });
+
+test("a graph still being updated by the commit's hook is waited for", async () => {
+  const repo = makeRepo({ config: CODE });
+  try {
+    repo.commit("code", { files: { "src/a.js": "1" } });
+    repo.write("graphify-out/graph.json", "{}");
+    at(repo, "graphify-out/graph.json", "2025-06-01T00:00:00Z");
+    repo.write("graphify-out/.update.log", ""); // the hook's log, written after the commit: the update is running
+    setTimeout(() => at(repo, "graphify-out/graph.json", new Date(Date.now() + 5000).toISOString()), 400);
+    assert.deepEqual(await repo.run(mod), { ok: true, lines: [] });
+  } finally { repo.cleanup(); }
+});

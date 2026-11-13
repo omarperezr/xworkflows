@@ -9,8 +9,8 @@ export const art = (dir, f) => (existsSync(join(dir, f)) ? join(dir, f) : join(d
 const ls = (d) => (existsSync(d) ? readdirSync(d).filter((f) => f.endsWith(".md")).sort().map((f) => read(join(d, f))) : []);
 
 const research = (dir) => { try { return JSON.parse(read(art(dir, "research.json"))); } catch { return null; } };
-// "file:line" of each citation render dropped (## Dropped citations in research.md)
-const dropped = (md) => new Set([...(md.split(/^## Dropped citations[^\n]*\n/m)[1]?.split(/^## /m)[0] ?? "").matchAll(/^- \w+: (\S+:\d+)/gm)].map((m) => m[1]));
+// "file:line" of each citation render dropped (## Dropped in research.md; old layout: ## Dropped citations); a line is "- area: what file:line "quote"" or an old "- area: file:line"
+const dropped = (md) => new Set([...(md.split(/^## Dropped[^\n]*\n/m)[1]?.split(/^## /m)[0] ?? "").matchAll(/^- \S+: (?:.* )?(\S+:\d+)(?: ".*")?$/gm)].map((m) => m[1]));
 // kinds with their dropped rules removed; none at all when research.md is missing
 function kindsOf(dir) {
   const md = read(art(dir, "research.md"));
@@ -27,7 +27,8 @@ function heading5(md) {
 }
 
 export function grade(dir, rubric) {
-  const R = heading5(read(art(dir, "research.md")));
+  // version 3 research.md has no heading 5: its verified citations are in details.md
+  const R = heading5(read(art(dir, "research.md"))) || read(art(dir, "details.md"));
   const I = [read(join(dir, "AGENTS.md")).split(/^## Project rules[^\n]*\n/m)[1]?.split(/^## /m)[0] ?? "",
     ...ls(join(dir, ".claude/rules")), read(join(dir, ".claude/agents/risk-review.md"))].join("\n");
   const has = (text, inv) => inv.patterns.every((p) => new RegExp(p, "i").test(text));

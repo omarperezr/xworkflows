@@ -140,7 +140,8 @@ test("next-step: plain text under 2 candidates, reads paths.reviews, names the v
   const s = read("skills/next-step/SKILL.md");
   has(s, ["With fewer than 2 candidates, ask `What is the next step?` in plain text, not `AskUserQuestion`",
     "`paths.reviews` (default `docs/superpowers/reviews`)", "`<review date>-E<n>`", "`P-<n>` for a card",
-    "A picked card whose `Origin:` names a review (a review file, or `review of <branch>, <date>`) counts as a review error.", "pass `verify/<id>`"]);
+    "A picked card whose `Origin:` is a review file counts as a review error.", "pass `verify/<id>`"]);
+  assert.match(s, /`review of <branch>, <date>`[^\n]*not verified/);
   assert.ok(s.split("## Step 2")[0].includes("paths.reviews"));
 });
 test("adapt reuses a fresh research.md when there is no summary", () => {
