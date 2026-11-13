@@ -162,7 +162,7 @@ test("full-review resolves renamed review skills; restructuring question has no 
   assert.match(js, /args\.skills/);
   assert.doesNotMatch(js, /\.claude\/skills\/\$\{review\}/);
 });
-test("adapt: installer files stay uncommitted, existing files are merged, topic 6 list reaches explore", () => {
+test("adapt: installer files stay uncommitted, existing files are merged", () => {
   const s = read("skills/adapt/SKILL.md");
   has(s, ["If an installer file (the `files` keys and `created` list in `.xworkflows/installed.json`) is still uncommitted, tell the owner which ones. Do not commit them.",
     "is merged, never overwritten", "`## Changes to existing files`", "merge into only that section"]);
@@ -266,7 +266,7 @@ test("gitignore lines", () => {
   const s = step(4);
   const l = s.split("\n").find((x) => x.includes("to `.gitignore`"));
   has(l, ["`graphify-out/`", "`.xworkflows/research.md`", "`.xworkflows/research.json`", "`.xworkflows/research.prev.json`", "`.xworkflows/scan.json`",
-    "`.xworkflows/interview.json`", "`.xworkflows/interview.log.jsonl`", "`.xworkflows/adapt-run.json`", "`.xworkflows/rules.json`", "`.xworkflows/kinds.json`", "`.xworkflows/screens.json`", "`.xworkflows/details.md`", "`.xworkflows/research.answered.json`"]);
+    "`.xworkflows/interview.json`", "`.xworkflows/interview.log.jsonl`", "`.xworkflows/adapt-run.json`", "`.xworkflows/rules.json`", "`.xworkflows/screens.json`", "`.xworkflows/details.md`", "`.xworkflows/research.answered.json`"]);
   inOrder(s, ["git commit -m", "research.mjs done"]);
 });
 

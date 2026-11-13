@@ -140,7 +140,7 @@ test("citation kept, fake dropped and listed", () => {
   assert.ok(!verifyCitation(d, { file: "../x", line: 2, quote: "x" }));
 });
 
-test("render writes research.md, screens.json, details.md and kinds.json; an unverified citation reaches none of them but the dropped list", () => {
+test("render writes research.md, screens.json and details.md, and no kinds.json; an unverified citation reaches none of them but the dropped list", () => {
   const d = repo();
   put(d, sample());
   assert.equal(cli(d, "render").status, 0);
@@ -157,10 +157,10 @@ test("render writes research.md, screens.json, details.md and kinds.json; an unv
   assert.match(det, /## Rules found in comments[\s\S]*- \[truth\] Never round twice\. a\.js:1/);
   for (const bad of ["fake rule", "A made up claim", "absent text"]) assert.ok(!det.includes(bad), bad);
   assert.ok(!JSON.stringify(s.drawer1).includes("made up"));
-  assert.deepEqual(rj(d, "kinds.json"), { conc: { general: null, status: "not-present" }, values: { general: "A loan is counted in whole days, in the library's time zone", status: "found" } });
-  const before = [md, rt(d, "details.md"), rt(d, "kinds.json")];
+  assert.ok(!existsSync(X(d, "kinds.json")));
+  const before = [md, rt(d, "details.md")];
   cli(d, "render");
-  assert.deepEqual([rt(d, "research.md"), rt(d, "details.md"), rt(d, "kinds.json")], before);
+  assert.deepEqual([rt(d, "research.md"), rt(d, "details.md")], before);
 });
 
 test("render exits 1 when the Workflow's key order or any value changed", () => {
@@ -202,7 +202,7 @@ test("the printed dropped count includes the mechanism drops, and the line is in
   const out = cli(d, "render");
   assert.match(out.stdout, /dropped: 2$/m); // the made up sentence and the mechanism rule
   assert.match(rt(d, "research.md"), /- snap: general rule: Prices never change\. a\.js:2/);
-  assert.ok(!rt(d, "kinds.json").includes("Prices never change"));
+  assert.ok(!rt(d, "details.md").includes("Prices never change"));
 });
 
 // ---- queue and check
@@ -361,7 +361,7 @@ test("start git-ignores the run's private files from the first question", async 
   g(r, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qam", "x", "--allow-empty"); g(r, "add", "a.txt");
   g(r, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "a");
   start(r);
-  for (const f of ["research.md", "research.json", "research.prev.json", "scan.json", "interview.json", "rules.json", "kinds.json", "screens.json", "details.md", "research.answered.json"]) writeFileSync(join(r, ".xworkflows", f), "{}");
+  for (const f of ["research.md", "research.json", "research.prev.json", "scan.json", "interview.json", "rules.json", "screens.json", "details.md", "research.answered.json"]) writeFileSync(join(r, ".xworkflows", f), "{}");
   appendFileSync(join(r, ".xworkflows", "interview.log.jsonl"), '{"run":"x"}\n');
   assert.equal(g(r, "status", "--porcelain", "--untracked-files=all"), "");
   const r2 = mkdtempSync(join(tmpdir(), "adapt-ign-"));
@@ -379,7 +379,7 @@ test("start git-ignores the run's private files from the first question", async 
 });
 
 test("a tracked symlink under .xworkflows is never written through, and render writes nothing when any output is a link", () => {
-  for (const f of ["research.md", "screens.json", "details.md", "kinds.json"]) {
+  for (const f of ["research.md", "screens.json", "details.md"]) {
     const d = repo();
     put(d, sample());
     const out = join(mkdtempSync(join(tmpdir(), "res-out-")), "outside.txt");
@@ -389,7 +389,7 @@ test("a tracked symlink under .xworkflows is never written through, and render w
     assert.equal(r.status, 1, f);
     assert.match(r.stderr, new RegExp(`${f.replace(".", "\\.")} is a symlink`));
     assert.equal(readFileSync(out, "utf8"), "keep");
-    for (const g of ["research.md", "screens.json", "details.md", "kinds.json"]) if (g !== f) assert.ok(!existsSync(X(d, g)), `${g} written next to a link at ${f}`);
+    for (const g of ["research.md", "screens.json", "details.md"]) if (g !== f) assert.ok(!existsSync(X(d, g)), `${g} written next to a link at ${f}`);
   }
   const d = repo();
   cli(d, "start");
@@ -619,12 +619,13 @@ test("start in a repository with no commit says so, no stack trace", () => {
 
 test("start replaces the ignore file each earlier version wrote, never one the user changed", () => {
   const ALL = [".gitignore", "research.md", "research.json", "research.prev.json", "scan.json", "interview.json", "interview.log.jsonl", "adapt-run.json", "rules.json", "kinds.json", "screens.json", "details.md"];
-  for (const n of [10, 12]) {
+  for (const n of [10, 12, 13]) {
     const EARLIER = ALL.slice(0, n).join("\n") + "\n";
     const d = repo();
     writeFileSync(X(d, ".gitignore"), EARLIER);
     assert.equal(cli(d, "start").status, 0);
     for (const f of ["screens.json", "details.md", "research.answered.json"]) assert.ok(rt(d, ".gitignore").split("\n").includes(f), `${n}: ${f}`);
+    assert.ok(!rt(d, ".gitignore").split("\n").includes("kinds.json"), `${n}: kinds.json`);
     const e = repo();
     writeFileSync(X(e, ".gitignore"), EARLIER + "mine\n");
     assert.equal(cli(e, "start").status, 0);

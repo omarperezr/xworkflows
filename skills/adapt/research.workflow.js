@@ -88,7 +88,7 @@ const AREA_SCHEMA = {
   required: ["area", "status", "ideas", "support", "exceptions", "contradicted", "unprotected", "commentRules", "doubted", "details", "notChecked"],
 };
 
-// The question texts are fixed in research2.mjs; the agent only drafts what each one leans on.
+// The question texts are fixed in screens.mjs; the agent only drafts what each one leans on.
 const QUESTIONS = {
   "B-rules": "a business rule the code must respect that no file states",
   "B-refused": "what the project does not do, on purpose",
@@ -135,7 +135,7 @@ const KIND_SCHEMA = {
         required: ["id", "verdict"],
       },
     },
-    // required when status is found; render shows a found kind without it as "general rule missing"
+    // required when status is found; a found kind without it counts as having no general rule
     general: {
       type: "object",
       properties: { rule: { type: "string" }, short: { type: "string" }, basis: { type: "string", enum: ["written", "code", "both"] }, risk: { type: "string", enum: ["high", "medium", "low"] }, cost: { type: "string" }, ...CITE },
