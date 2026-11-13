@@ -1,4 +1,5 @@
 import path from "node:path";
+import { DEFAULTS, memoryDir } from "./config.mjs";
 import { buildIndex, header } from "./memory-index.mjs";
 
 const OWNER_ONLY = new Set(["user", "feedback"]);
@@ -48,7 +49,7 @@ function start(ev, ctx) {
       lines.push(`Goals written ${months} months ago: run /adapt to refresh them.`);
     }
   }
-  const refused = ctx.outsideLine?.(path.join(config.memory.dir, "MEMORY.md")); // the index write of session end is refused for this: say it
+  const refused = ctx.outsideLine?.(path.join(memoryDir(config.memory.dir) ?? DEFAULTS.memory.dir, "MEMORY.md")); // the index write of session end is refused for this: say it
   if (refused) lines.push(refused);
   const idx = config.lookup?.index;
   if (Array.isArray(config.paths.code) && config.paths.code.length && idx?.command) {

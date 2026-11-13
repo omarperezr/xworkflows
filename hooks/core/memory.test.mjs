@@ -254,3 +254,11 @@ test("sessionStart: a memory folder linked out of the repository, not listed, sa
   assert.match(at([]).context, /ask the owner.*inside the project.*memory\.outside in \.xworkflows\/config\.json/);
   assert.equal(at([real]).context, undefined);
 });
+
+test("sessionStart: a memory.dir that is not a text is read as the default and does not throw", () => {
+  for (const dir of [5, ["docs/memory"]]) {
+    const root = mkdtempSync(join(tmpdir(), "xwf-mem-"));
+    const run = () => decide(ev("sessionStart", { source: "startup", root }), makeCtx({ root, session: "s" }, { env: {}, config: { ...DEFAULTS, memory: { dir, outside: [] } }, stateDir: root }));
+    assert.doesNotThrow(run, JSON.stringify(dir));
+  }
+});
