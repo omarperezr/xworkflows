@@ -99,3 +99,17 @@ test("prose with 'generated with' mid-line passes; emoji-prefixed line fails", a
   r = await check((repo) => repo.commit("x", { body: "🤖 Generated with [Claude Code](https://claude.com/claude-code)" }));
   assert.equal(r.ok, false);
 });
+
+test("a co-author whose address inside <...> is a tool's is refused, even with an @ earlier in the line", async () => {
+  for (const line of ["Co-authored-by: @claude <noreply@anthropic.com>", "Co-authored-by: Claude (@anthropic-ai) <noreply@anthropic.com>", "Co-authored-by: Amp <amp@ampcode.com>"]) {
+    const r = await check((repo) => repo.commit("add thing", { body: line }));
+    assert.equal(r.ok, false, line);
+  }
+});
+
+test("a person named like a tool, with a person's address, passes even with an @ in the name", async () => {
+  for (const line of ["Co-authored-by: Cody Smith <cody.smith@example.org>", "Co-authored-by: Amp Lee (@amp) <lee@example.org>"]) {
+    const r = await check((repo) => repo.commit("add thing", { body: line }));
+    assert.equal(r.ok, true, line);
+  }
+});
