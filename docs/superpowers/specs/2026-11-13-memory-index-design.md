@@ -48,7 +48,7 @@ An existing `.qmd/index.yaml` or `.qmd/index.yml` is left byte-identical, whoeve
 
 When the folder cannot be created, or the yml or the marker cannot be written, install prints `not written: <path>`, records nothing for it and goes on: the rest of the install, its record included, is completed.
 
-`--dry-run` writes nothing and prints `would create <memory.dir>`, `would write .qmd/index.yml` and the existing `would merge .gitignore`.
+`--dry-run` writes nothing and prints `would create <memory.dir>`, `would write .qmd/index.yml`, `would write .qmd/xworkflows` and the existing `would merge .gitignore`.
 
 ## What else changes
 
