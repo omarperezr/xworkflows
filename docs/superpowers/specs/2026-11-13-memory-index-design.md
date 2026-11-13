@@ -51,13 +51,13 @@ An existing `.qmd/index.yml` is left byte-identical, whoever wrote it. A config 
 - `doctor`: its check stays. With no `memory.index`, a failure reads `no qmd collection covers <memory.dir>: run install again` when `.qmd/index.yml` does not exist, and `no qmd collection covers <memory.dir>: .qmd/index.yml names no collection with the path <absolute folder>; add one, or delete .qmd and run install again` when it does. With `memory.index` set the line stays as it is today.
 - `doctor`: when the real location of the memory folder is outside the repository, it prints `warn the memory folder is outside the repository: qmd indexes it only after "qmd trust" is run here`. A path it cannot resolve prints nothing more and never stops `doctor`.
 - `uninstall`: removes the `.qmd/index.yml` that install created, with `index.sqlite`, `index.sqlite-wal` and `index.sqlite-shm` beside it, `.qmd/` when it is then empty, and the `.gitignore` line. It leaves a `.qmd/index.yml` install did not create with everything beside it.
-- `uninstall` and the memory folder: when the record says install created it and it holds nothing, the folder is removed, with the empty parents install made for it, so a fresh project comes back as it was. When install created it and it holds anything, it stays and `uninstall` prints `left in place: <memory.dir>`. A folder install did not create is never touched and never named.
+- `uninstall` and the memory folder: when the record says install created it and it holds nothing, the folder is removed, so a fresh project comes back as it was. As for every file `uninstall` removes, the parent folders that are then empty go too, whether or not install made them: that is the loop `uninstall` already has, accepted for this change by the owner, and card P-112 holds the general fix. When install created it and it holds anything, it stays and `uninstall` prints `left in place: <memory.dir>`. A folder install did not create is never touched and never named.
 - `README.md`, Setup, and `docs/design.md`: what install does with the memory folder; each checkout runs `install` for its own index.
 - This repository runs the real `install` and `doctor` once, on the owner's word, after the review.
 
 ## Known limits
 
-- `memory.dir` changed after the install, or a checkout folder copied with its `.qmd`: the yml names the old path, `doctor` explains, and the fix is to delete `.qmd` and run install again.
+- `memory.dir` changed after the install, or a checkout folder copied with its `.qmd`: the yml names the old path, `doctor` explains, and the fix is to delete `.qmd` and run install again. `uninstall` then leaves the folder install made under the old name and prints `kept (not ours): <old folder>`.
 - A project that registered its memory folder by hand in the global index and holds no `memory.index`: after its next install the local index is the one qmd uses there, and the old global collection stays until the owner removes it.
 - A memory folder linked to a location outside the repository is indexed only after the owner runs `qmd trust`: qmd's own rule.
 - Recall at session start is by keyword only unless `qmd embed` is run, as today.
@@ -80,6 +80,7 @@ None open.
 5. "Yes, build it up to the review": the points above and the first three limits, as shown; the main session stops before the real install in this repository, before the merge and before the push.
 6. "Remove if empty, else say so": what `uninstall` does with a memory folder install created.
 7. "Remove them too": the two side files of `index.sqlite` go with it.
+8. "Accept it and card the gap": `uninstall` removes parent folders that are empty after it, also ones that existed before the install, as it already does for every installed file; card P-112.
 
 ## The dropped design
 

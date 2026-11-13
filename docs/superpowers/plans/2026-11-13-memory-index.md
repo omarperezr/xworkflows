@@ -12,6 +12,8 @@ Spec: docs/superpowers/specs/2026-11-13-memory-index-design.md
 - No agent reads, creates, changes or deletes anything under `~/.cache/qmd` or `~/.config/qmd`.
 - One agent at a time works in this checkout. No agent runs `git stash`, switches branch or checks out a file: an old version is read with `git show`.
 - The smallest change that does the task: no option, flag, helper or behaviour the spec does not name. What the spec leaves open is reported, not decided.
+- "Remove if empty, else say so" and "Remove them too" (owner, 2026-11-13): answers 6 and 7 of the spec, task T1b.
+- "Accept it and card the gap" (owner, 2026-11-13): the loop of `uninstall` that removes empty parent folders stays as it is in this batch; card P-112.
 
 ## Tasks
 
