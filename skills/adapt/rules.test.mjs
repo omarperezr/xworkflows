@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 import { collectRules } from "./rules.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const FIXTURE = join(HERE, "../../test/fixtures/mechanisms");
+const FIXTURE = join(HERE, "../../fixtures/mechanisms");
 const git = (cwd, ...a) => execFileSync("git", ["-c", "user.name=test", "-c", "user.email=test@example.invalid", ...a], { cwd, stdio: "pipe" });
 const tmp = () => mkdtempSync(join(tmpdir(), "rules-"));
 const put = (d, p, t) => { mkdirSync(dirname(join(d, p)), { recursive: true }); writeFileSync(join(d, p), t); };
