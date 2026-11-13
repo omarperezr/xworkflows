@@ -10,7 +10,7 @@ import { makeRepo } from "../test/helpers/repo.mjs";
 
 const config = {
   paths: { code: ["src/"] },
-  tests: { files: ["test/**/*.test.mjs", "test/*.py"], run: "node --test <files>", notRunnable: ["db-tests/"] },
+  tests: { files: ["test/**/*.test.mjs", "test/*.py"], run: "node --test <files>", notRunnable: ["sql-suite/"] },
 };
 const BUG = { "src/x.mjs": "export const x = () => 1;\n" };
 const FIXED = { "src/x.mjs": "export const x = () => 2;\n" };
@@ -81,7 +81,7 @@ test("a fix that touches only docs, and a non-fix, are not checked", withRepo({}
 }));
 
 test("only not-runnable tests: pass with a note", withRepo({}, async (repo) => {
-  repo.commit("fix: x returns 2", { files: { ...FIXED, "db-tests/x.sql": "select 1;\n" } });
+  repo.commit("fix: x returns 2", { files: { ...FIXED, "sql-suite/x.sql": "select 1;\n" } });
   const r = await repo.run(brake);
   assert.equal(r.ok, true);
   assert.equal(r.lines.length, 1);
@@ -150,11 +150,12 @@ await brake.run(rangeFor(ctx, { base: first, head }), ctx);
 `);
     child = spawn(process.execPath, [script], { detached: true, stdio: "ignore" });
     const exited = new Promise((res) => child.on("exit", (code, sig) => res({ code, sig })));
+    const late = new Promise((_, rej) => setTimeout(() => rej(new Error("the child did not end after SIGINT")), 30000).unref());
     for (let i = 0; i < 100 && !existsSync(pidf); i++) await new Promise((r) => setTimeout(r, 100));
     await new Promise((r) => setTimeout(r, 200));
     const pid = Number(readFileSync(pidf, "utf8"));
     process.kill(-child.pid, "SIGINT");
-    const { code, sig } = await exited;
+    const { code, sig } = await Promise.race([exited, late]);
     assert.ok(sig || code !== 0, "child must not end as if nothing happened");
     assert.throws(() => process.kill(pid, 0), /ESRCH/);
     assert.equal(repo.git("worktree", "list").split("\n").length, 1, "worktree left behind");
