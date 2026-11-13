@@ -353,8 +353,8 @@ function renameWrite(w, u) {
 export function plan(manifest, root, record, ans = {}) {
   let writes = pkgWrites(manifest);
   const questions = [], kept = [], renamed = {}, notes = [];
-  const ask = (id, text, labels) => {
-    if (ans[id] === undefined) questions.push({ id, text, labels });
+  const ask = (id, text, labels, yes = 1) => {
+    if (ans[id] === undefined) questions.push({ id, text, labels, yes });
     return ans[id] ?? labels[0];
   };
   const units = {};
@@ -416,8 +416,11 @@ export function plan(manifest, root, record, ans = {}) {
     const cur = read(root, w.path);
     if (cur === null || cur === w.text || w.rename) continue;
     const rec = record.files[w.key ?? w.path];
-    if (!rec) die(1, `exists and is not ours: ${w.path}`);
-    if (hash(cur) !== rec.sha256) { w.keep = true; notes.push(`kept (changed locally): ${w.path}  new: ${w.src}`); }
+    if (!rec) {
+      // --yes answers with label 0 here: a file that is not ours is never written over without a typed answer
+      if (ask(`file:${w.path}`, `${w.path} exists and is not a text this package wrote. Keep it or write ours over it?`, ["keep mine", "overwrite"], 0) === "overwrite") continue;
+      w.keep = true; notes.push(`kept (not ours): ${w.path}  new: ${w.src}`);
+    } else if (hash(cur) !== rec.sha256) { w.keep = true; notes.push(`kept (changed locally): ${w.path}  new: ${w.src}`); }
   }
   const merges = [];
   let mem;
@@ -519,7 +522,7 @@ async function install(flags) {
   const ans = {}, auto = [];
   const rl = pl.questions.length && !flags.yes && !flags["dry-run"] && process.stdin.isTTY ? createInterface({ input: process.stdin, output: process.stdout }) : null;
   for (const q of pl.questions) {
-    if (flags.yes) ans[q.id] = q.labels[1];
+    if (flags.yes) ans[q.id] = q.labels[q.yes];
     else if (rl) {
       const r = (await rl.question(`${q.text} (${q.labels.join(" / ")}) `)).trim().toLowerCase();
       ans[q.id] = r && q.labels[1].toLowerCase().startsWith(r) ? q.labels[1] : q.labels[0];

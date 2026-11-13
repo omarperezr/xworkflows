@@ -395,16 +395,26 @@ test("agent collision and dry-run", () => {
   assert.match(readFileSync(join(r, ".claude/agents/xwf-explore.md"), "utf8"), /^name: xwf-explore$/m);
   assert.equal(readFileSync(join(r, ".claude/agents/explore.md"), "utf8"), "mine\n");
 });
-test("identical unrecorded file is adopted; a different one stops install", () => {
+test("identical unrecorded file is adopted; a different one is asked about, and kept under --yes, no terminal and --dry-run", () => {
   const r = repo();
   cli(r, ["install"]);
   rmSync(join(r, ".xworkflows/installed.json"));
   assert.equal(cli(r, ["install"]).status, 0);
   rmSync(join(r, ".xworkflows/installed.json"));
-  appendFileSync(join(r, ".xworkflows/hooks/run.mjs"), "// mine\n");
-  const out = cli(r, ["install"]);
-  assert.equal(out.status, 1);
-  assert.match(out.stderr, /exists and is not ours: \.xworkflows\/hooks\/run\.mjs/);
+  const f = join(r, ".xworkflows/hooks/run.mjs");
+  appendFileSync(f, "// mine\n");
+  const mine = readFileSync(f, "utf8");
+  const dry = cli(r, ["install", "--dry-run"]);
+  assert.match(dry.stdout, /answered for you: .*\.xworkflows\/hooks\/run\.mjs.* -> keep mine/);
+  assert.equal(readFileSync(f, "utf8"), mine);
+  assert.ok(!existsSync(join(r, ".xworkflows/installed.json")));
+  for (const args of [["install"], ["install", "--yes"]]) {
+    const out = cli(r, args);
+    assert.equal(out.status, 0, out.stderr);
+    assert.match(out.stdout, /^kept \(not ours\): \.xworkflows\/hooks\/run\.mjs {2}new: hooks\/run\.mjs$/m);
+    assert.equal(readFileSync(f, "utf8"), mine);
+    assert.equal(readJson(r, ".xworkflows/installed.json").files[".xworkflows/hooks/run.mjs"], undefined);
+  }
 });
 test("a recorded file changed locally is kept", () => {
   const r = repo();
