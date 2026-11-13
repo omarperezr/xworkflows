@@ -553,7 +553,8 @@ async function doctor() {
   // 2
   for (const [f, { sha256 }] of Object.entries(rec.files)) {
     let t;
-    try { t = readFileSync(join(ROOT, f), "utf8"); } catch { say("fail", `missing or unreadable: ${f}`); continue; }
+    // the record names the three git hooks under .git/, which is a file in a linked worktree: git says where they are
+    try { t = readFileSync(f.startsWith(".git/hooks/") ? join(hooksFolder(ROOT), f.slice(".git/hooks/".length)) : join(ROOT, f), "utf8"); } catch { say("fail", `missing or unreadable: ${f}`); continue; }
     say(hash(t) === sha256 ? "ok" : "warn", hash(t) === sha256 ? f : `changed locally: ${f}`);
   }
   for (const k of rec.kept) {
@@ -658,9 +659,11 @@ async function doctor() {
     }
     const hp = relative(ROOT, resolve(hooksFolder(ROOT), "pre-push"));
     const cur = lstatSync(join(ROOT, hp), { throwIfNoEntry: false })?.isFile() ? read(ROOT, hp) : null;
+    // the record's key for it: .git/hooks/pre-push whichever checkout this is, unless core.hooksPath moved the folder
+    const key = hooksFolder(ROOT) === resolve(ROOT, execFileSync("git", ["rev-parse", "--git-common-dir"], { cwd: ROOT, encoding: "utf8" }).trim(), "hooks") ? ".git/hooks/pre-push" : hp;
     if (cur !== null && [false, true].some((c) => cur === hookText("pre-push", c))) say("ok", "pre-push hook is ours");
-    else if (cur !== null && rec.files[hp]) say("warn", "pre-push hook changed locally: it may no longer run the check");
-    else if (rec.declined.some((d) => d.file === hp && d.what === "chain")) say("warn", "pre-push hook is yours: chaining declined at install");
+    else if (cur !== null && rec.files[key]) say("warn", "pre-push hook changed locally: it may no longer run the check");
+    else if (rec.declined.some((d) => d.file === key && d.what === "chain")) say("warn", "pre-push hook is yours: chaining declined at install");
     else say("fail", "pre-push hook is missing or not ours");
     let st = {}, local = {};
     try { st = JSON.parse(readFileSync(join(ROOT, ".claude/settings.json"), "utf8")); } catch {}

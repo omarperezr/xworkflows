@@ -1655,3 +1655,14 @@ test("a hooks folder under a dangling symlink counts as outside, whatever depth 
   assert.ok(existsSync(join(r, ".xworkflows/installed.json")));
   assert.ok(!existsSync(join(r, "myhooks")));
 });
+
+test("doctor: in a linked worktree the three git hooks are found in the common git dir", () => {
+  const r = repo(); cli(r, ["install"]);
+  git(r, "add -A"); git(r, "-c core.hooksPath=/dev/null commit -q -m init");
+  const wt = join(tmp("xwf-wt-"), "wt");
+  git(r, `worktree add -q ${wt}`);
+  const out = doctor(realpathSync(wt));
+  assert.doesNotMatch(out.stdout, /^fail missing or unreadable: \.git\/hooks/m);
+  assert.match(out.stdout, /^ok +\.git\/hooks\/post-commit$/m);
+  assert.match(out.stdout, /^ok +pre-push hook is ours$/m);
+});
