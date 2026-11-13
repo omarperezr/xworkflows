@@ -43,7 +43,8 @@ const NEG = /\b(not|never|nunca|refuses?|won't|doesn't|don't)\b|\bno\s/i; // wha
 
 // The interview queue: S1-<n> a sentence, X<n> a screen 2 question, the nine ids of screen 3 (all from screens.json `s`),
 // then the shipped questions no screen asks. `prev` is research.prev.json on a re-adapt (then only the config keys still without a value in `cfg`, .xworkflows/config.json).
-export function buildQueue(s, research = {}, scan = {}, prev = null, cfg = {}) {
+// `earlier` ({ root, log, docs }: the interview log, the texts of the specs and plans added or changed since the earlier adaptation's commit) lets a re-adapt skip a screen 1 sentence already answered.
+export function buildQueue(s, research = {}, scan = {}, prev = null, cfg = {}, earlier = null) {
   const item = (id, heading, text, options, style = "choice") => ({ id, heading, style, text, ...(options ? { options } : {}) });
   const confirm = (id, h, text) => item(id, h, text, ["Yes", "No", "I don't know"], "confirm");
   const lines = Object.keys(research.topics || {}).sort().flatMap((t) => research.topics[t]?.lines || []);
@@ -65,10 +66,25 @@ export function buildQueue(s, research = {}, scan = {}, prev = null, cfg = {}) {
     item("H8-reply", "8", "How should I reply to you?"),
     item("H8-budget", "8", "What model budget per session or month should I keep to?"),
   ];
+  const asked = (x) => {
+    if (!prev || !earlier) return true;
+    const text = `${x.text} (${x.at})${seen(x)}`;
+    const a = earlier.log.filter((l) => l.question === text && l.answer !== undefined && l.answer !== "").pop()?.answer;
+    if (!a || a === SENTENCE[3]) return true;
+    const claim = [...(prev.plain?.claims || []), ...(prev.plain?.rest || [])].find((c) => c.text === x.text);
+    const cites = (claim?.from || []).flatMap((id) => {
+      const [key, n] = id.split(".");
+      const a = prev.areas?.[key], k = id.startsWith("kind:") ? prev.kinds?.[id.slice(5)] : null;
+      return k ? [k.general] : n ? [a?.ideas?.[n - 1]] : a?.general ? [a.general, ...(a.support || [])] : [undefined];
+    });
+    if (!cites.length || !cites.every((c) => c && verifyCitation(earlier.root, c))) return true;
+    return cites.some((c) => earlier.docs.some((d) => d.includes(String(c.file).replace(resolve(earlier.root) + sep, "")))); // a newer spec or plan names a cited file
+  };
   const sentence = (x, i) => item(`S1-${i + 1}`, "1", `${x.text} (${x.at})${seen(x)}`, SENTENCE);
-  const left = s.drawer1LeftOut.length, more = s.drawer1LeftOut.slice(0, MAX_MORE);
+  const first = s.drawer1.filter(asked), out = s.drawer1LeftOut.filter(asked);
+  const left = out.length, more = out.slice(0, MAX_MORE);
   return [
-    ...s.drawer1.map(sentence),
+    ...first.map(sentence),
     ...(left ? [item("S1-more", "1", `${left} more sentence(s) were left out of the first ${MAX_RULES}. Show up to ${more.length} of them?`, MORE)] : []),
     ...more.map((x, i) => sentence(x, MAX_RULES + i)),
     ...s.drawer2.map((g) => item(g.id, "2", g.text, g.options)),
@@ -107,6 +123,19 @@ const isLink = (f) => { try { return lstatSync(f).isSymbolicLink(); } catch { re
 const refuse = (f) => { console.error(`adapt: ${f} is a symlink; remove it, adapt will not write through it`); process.exit(1); };
 const put = (f, data) => { if (isLink(f)) refuse(f); writeFileSync(f, data); };
 const putCopy = (from, to) => { if (isLink(to)) refuse(to); copyFileSync(from, to); };
+
+// What the earlier adaptation left: the answers in the log and the specs and plans added or changed since the commit its summary names; null (ask everything) when that commit cannot be read.
+function earlier(root, dir, cfg) {
+  try {
+    const commit = (readFileSync(join(dir, "summary.md"), "utf8").match(/^commit:\s*["']?([0-9a-f]{7,40})/mi) || [])[1];
+    if (!commit) return null;
+    const log = [];
+    try { for (const l of readFileSync(join(dir, "interview.log.jsonl"), "utf8").split("\n")) try { log.push(JSON.parse(l)); } catch {} } catch {}
+    const dirs = [cfg.paths?.specs ?? "docs/superpowers/specs", cfg.paths?.plans ?? "docs/superpowers/plans"];
+    const files = new Set([...git(root, ["diff", "--name-only", commit, "--", ...dirs]).split("\n"), ...git(root, ["ls-files", "-o", "--exclude-standard", "--", ...dirs]).split("\n")].filter(Boolean));
+    return { root, log, docs: [...files].filter((f) => existsSync(join(root, f))).map((f) => readFileSync(join(root, f), "utf8")) };
+  } catch { return null; }
+}
 
 function cli(cmd, root) {
   const dir = join(root, ".xworkflows");
@@ -166,7 +195,8 @@ function cli(cmd, root) {
     const need = (f) => { try { return readJson(join(dir, f)); } catch { console.error(`adapt: ${f} is missing or unreadable`); process.exit(1); } };
     if (cmd === "queue") {
       const opt = (f) => { try { return readJson(join(dir, f)); } catch { return null; } };
-      const q = buildQueue(need("screens.json"), need("research.json"), need("scan.json"), opt("research.prev.json"), opt("config.json") || {});
+      const prevRun = opt("research.prev.json"), cfg = opt("config.json") || {};
+      const q = buildQueue(need("screens.json"), need("research.json"), need("scan.json"), prevRun, cfg, prevRun && earlier(root, dir, cfg));
       put(join(dir, "interview.json"), JSON.stringify(q, null, 2) + "\n");
     } else {
       const { run } = need("adapt-run.json");

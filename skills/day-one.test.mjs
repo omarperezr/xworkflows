@@ -76,7 +76,7 @@ test("adapt pins its questions, headings, keys and outputs", () => {
 });
 test("adapt leaves the tree clean on an unchanged re-run and commits only its files", () => {
   const s = read("skills/adapt/SKILL.md");
-  assert.ok(s.includes("the three screens are asked again and only config keys that already have a value are skipped"));
+  assert.ok(s.includes("a screen 1 sentence is not asked again when the owner answered it in the earlier adaptation"));
   assert.ok(s.includes('git commit -m "chore: adapt xworkflows to this project" -- <the same paths>'));
 });
 
@@ -228,10 +228,10 @@ test("playback by section", () => {
   has(read("skills/adapt/SKILL.md"), ["research.mjs check --approved"]);
   assert.ok(!read("skills/adapt/SKILL.md").includes("Did I understand correctly?"));
 });
-test("screen 2 answers say what they write; a re-adapt asks the three screens again", () => {
+test("screen 2 answers say what they write; a re-adapt asks only what changed", () => {
   has(step(4), ["`The written rule`: that rule and a card to change the code", "`The code`: the code's rule and a card to change the doc", "`Mistake: fix it`: the rule and one card per place",
     "`Exception: keep it`: the rule with its exceptions named", "`Not on purpose: protect it`: a card", "`On purpose` and `I don't know`: nothing; the log keeps them", "with no reason, ask for the reason once"]);
-  has(step(1).split("\n").find((x) => x.includes("`status: approved`")), ["the three screens are asked again", "only config keys that already have a value are skipped"]);
+  has(step(1).split("\n").find((x) => x.includes("`status: approved`")), ["a screen 1 sentence is not asked again", "`I don't know`", "no spec or plan", "only config keys that already have a value are skipped"]);
 });
 test("step 5 question id", () => has(step(5), ["header `S5-next`"]));
 test("resume runs start", () => {

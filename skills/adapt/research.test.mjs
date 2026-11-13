@@ -464,3 +464,59 @@ test("a citation whose file is a folder does not verify; render drops it and goe
   assert.equal(out.status, 0, out.stderr);
   assert.match(rt(d, "research.md"), /idea: In a folder\./);
 });
+
+// ---- a re-adaptation asks only what changed (P-69)
+
+const Q1 = "Totals are rounded once. (a.js:2)";
+function again(over = {}) {
+  const d = repo();
+  const prev = sample();
+  const earlier = { root: d, log: [L("S1-1", "Right", "old")].map((l) => ({ ...l, question: Q1 })), docs: [], ...over };
+  return { d, prev, earlier, ids: (sc = SC()) => ids(buildQueue(sc, {}, {}, prev, {}, earlier)).filter((i) => i.startsWith("S1-")) };
+}
+
+test("a second adaptation where nothing changed does not ask a sentence the owner answered", () => {
+  assert.deepEqual(again().ids(), ["S1-1"]); // only "Ids are never reused.", never answered
+});
+
+test("a sentence whose cited line changed is asked again", () => {
+  const t = again();
+  writeFileSync(join(t.d, "a.js"), "line1\nconst total = 5;\nline3\n");
+  assert.deepEqual(t.ids(), ["S1-1", "S1-2"]);
+});
+
+test("a sentence answered I don't know is asked again", () => {
+  const t = again();
+  t.earlier.log[0].answer = "I don't know";
+  assert.deepEqual(t.ids(), ["S1-1", "S1-2"]);
+});
+
+test("a sentence with a new wording is asked", () => {
+  const t = again();
+  const sc = SC(); sc.drawer1[0].text = "Totals are rounded one time.";
+  assert.deepEqual(t.ids(sc), ["S1-1", "S1-2"]);
+});
+
+test("a sentence whose cited file a newer spec or plan names is asked again", () => {
+  const t = again({ docs: ["The plan changes how a.js rounds."] });
+  assert.deepEqual(t.ids(), ["S1-1", "S1-2"]);
+});
+
+test("a first adaptation asks every sentence", () => {
+  const t = again();
+  assert.deepEqual(ids(buildQueue(SC(), {}, {}, null, {}, t.earlier)).filter((i) => i.startsWith("S1-")), ["S1-1", "S1-2"]);
+});
+
+test("queue finds the earlier answers in the log and the newer specs and plans since the summary's commit", () => {
+  const d = repo();
+  const head = execFileSync("git", ["rev-parse", "HEAD"], { cwd: d, encoding: "utf8" }).trim();
+  writeFileSync(X(d, "screens.json"), JSON.stringify(SC())); put(d, sample());
+  writeFileSync(X(d, "research.prev.json"), JSON.stringify(sample()));
+  writeFileSync(X(d, "summary.md"), `---\nstatus: approved\ncommit: ${head}\n---\n`);
+  writeFileSync(X(d, "interview.log.jsonl"), JSON.stringify({ run: "old", id: "S1-1", question: Q1, answer: "Right" }) + "\n");
+  const s1 = () => { cli(d, "queue"); return ids(JSON.parse(rt(d, "interview.json"))).filter((i) => i.startsWith("S1-")); };
+  assert.deepEqual(s1(), ["S1-1"]);
+  mkdirSync(join(d, "docs/superpowers/plans"), { recursive: true });
+  writeFileSync(join(d, "docs/superpowers/plans/new.md"), "Change a.js.\n");
+  assert.deepEqual(s1(), ["S1-1", "S1-2"]);
+});
