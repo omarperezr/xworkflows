@@ -520,3 +520,16 @@ test("queue finds the earlier answers in the log and the newer specs and plans s
   writeFileSync(join(d, "docs/superpowers/plans/new.md"), "Change a.js.\n");
   assert.deepEqual(s1(), ["S1-1", "S1-2"]);
 });
+
+test("queue reads a new plan whose file name holds a non-ASCII letter", () => {
+  const d = repo();
+  const head = execFileSync("git", ["rev-parse", "HEAD"], { cwd: d, encoding: "utf8" }).trim();
+  writeFileSync(X(d, "screens.json"), JSON.stringify(SC())); put(d, sample());
+  writeFileSync(X(d, "research.prev.json"), JSON.stringify(sample()));
+  writeFileSync(X(d, "summary.md"), `---\nstatus: approved\ncommit: ${head}\n---\n`);
+  writeFileSync(X(d, "interview.log.jsonl"), JSON.stringify({ run: "old", id: "S1-1", question: Q1, answer: "Right" }) + "\n");
+  mkdirSync(join(d, "docs/superpowers/plans"), { recursive: true });
+  writeFileSync(join(d, "docs/superpowers/plans/nuevo-diseño.md"), "Change a.js.\n");
+  cli(d, "queue");
+  assert.deepEqual(ids(JSON.parse(rt(d, "interview.json"))).filter((i) => i.startsWith("S1-")), ["S1-1", "S1-2"]);
+});

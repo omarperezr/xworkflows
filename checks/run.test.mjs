@@ -404,3 +404,14 @@ test("two full reviews: the newest decides", withRepo({}, async (repo) => {
   assert.equal(range.commits.includes(c5), true);
   assert.equal(range.commits.includes(c3), false);
 }));
+
+test("a review folder with a non-ASCII letter in its name is still read", withRepo({}, async (repo) => {
+  const { c3 } = history(repo);
+  const dir = "docs/revisión";
+  const rv = repo.commit("docs: full review", { files: { [`${dir}/2026-11-13-full-review.md`]: `Reviewed commit: ${c3.slice(0, 7)}\n` } });
+  const out = [];
+  repo.write(".xworkflows/config.json", JSON.stringify({ paths: { reviews: dir } }));
+  const got = [];
+  await main(["--pre-push", "origin", "--only", "signature"], { cwd: repo.root, stdin: `refs/heads/main ${rv} refs/heads/main ${ZERO}\n`, print: (l) => out.push(l), load: loader({ signature: { run: (r) => { got.push(r); return pass.run(); } } }) });
+  assert.equal(got[0].commits.length, 1);
+}));
