@@ -132,7 +132,7 @@ function earlier(root, dir, cfg) {
     const log = [];
     try { for (const l of readFileSync(join(dir, "interview.log.jsonl"), "utf8").split("\n")) try { log.push(JSON.parse(l)); } catch {} } catch {}
     const dirs = [cfg.paths?.specs ?? "docs/superpowers/specs", cfg.paths?.plans ?? "docs/superpowers/plans"];
-    const files = new Set([...git(root, ["diff", "--name-only", commit, "--", ...dirs]).split("\n"), ...git(root, ["ls-files", "-o", "--exclude-standard", "--", ...dirs]).split("\n")].filter(Boolean));
+    const files = new Set([...git(root, ["diff", "-z", "--name-only", commit, "--", ...dirs]).split("\0"), ...git(root, ["ls-files", "-z", "-o", "--exclude-standard", "--", ...dirs]).split("\0")].filter(Boolean));
     return { root, log, docs: [...files].filter((f) => existsSync(join(root, f))).map((f) => readFileSync(join(root, f), "utf8")) };
   } catch { return null; }
 }

@@ -43,7 +43,7 @@ export function rangeFor(ctx, { base, head, ref = null, remote = null, manual = 
 // after a full review the push judges only what came after the commit the newest review names; any doubt leaves the range as it is
 function afterReview(ctx, range, print) {
   const dir = ctx.config.paths.reviews.replace(/\/+$/, "");
-  const files = ctx.tryGit("ls-tree", "--name-only", range.head, "--", `${dir}/`).out.split("\n")
+  const files = ctx.tryGit("ls-tree", "-z", "--name-only", range.head, "--", `${dir}/`).out.split("\0")
     .map((f) => [f, /^(\d{4}-\d\d-\d\d)-full-review(?:-(\d+))?\.md$/.exec(f.slice(dir.length + 1))])
     .filter(([, m]) => m).map(([f, m]) => [f, m[1], Number(m[2] ?? 1)])
     .sort((a, b) => (a[1] < b[1] ? 1 : a[1] > b[1] ? -1 : b[2] - a[2]));
