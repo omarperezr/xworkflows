@@ -93,7 +93,41 @@ error: failed to push some refs
 
 Add the test to the commit and the same push goes through.
 
+## How it fits together
+
+Installing and adapting happen once per project. The other three steps happen for every change.
+
+```mermaid
+flowchart LR
+    I["Install<br/>one command"] -->|the method's pieces| A["Adapt<br/>/adapt studies your code<br/>and asks you"]
+    A -->|your project's rules| W["Work<br/>seven steps<br/>for every change"]
+    W -->|sealed commits| P["Push<br/>the checks judge it"]
+    P -->|what was learned| R["Remember<br/>notes, pending list,<br/>code graph"]
+    R -.->|next change| W
+```
+
+Inside a session, the main session plans and hands the work to agents. Two barriers hold the rules: the hooks, early, inside the session; and the pre-push checks, last, whatever tool wrote the code.
+
+```mermaid
+flowchart TB
+    You(["You"]) -->|ask for a change| Main["Main session<br/>plans and hands out the work"]
+    Main -->|starts| Agents["Agents<br/>implement and review"]
+    Agents -->|report| Main
+    Main -.->|every action| Hooks{{"Hooks<br/>allow or deny"}}
+    Agents -.->|every report| Hooks
+    Agents -->|commits, test first| Branch["Batch branch"]
+    Branch -->|merge --no-ff| Trunk["main"]
+    Trunk -->|git push| Checks{{"Pre-push checks<br/>14 of them"}}
+    Checks -->|all pass| Remote[("Remote")]
+    Checks -->|one fails| Stop["The push stays here,<br/>and the message says what is missing"]
+```
+
 ## The method in seven steps
+
+```mermaid
+flowchart LR
+    S1["1<br/>Deepen"] --> S2["2<br/>Design<br/>questions"] --> S3["3<br/>Plan"] --> S4["4<br/>Implement"] --> S5["5<br/>Review<br/>by risk"] --> S6["6<br/>Brakes"] --> S7["7<br/>Pending<br/>list"]
+```
 
 | # | Step | What happens | What enforces it |
 |---|---|---|---|
