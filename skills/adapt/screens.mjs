@@ -1,7 +1,8 @@
 // Checks every citation of the area research and sorts the findings into the three screens the owner sees,
 // plus the detail file. No judgment here: agents judged, this file verifies, caps and orders.
 // Standalone: node: built-ins only (it is copied into projects).
-import { resolve, sep, posix } from "node:path";
+import { resolve, sep, posix, isAbsolute } from "node:path";
+import { realpathSync } from "node:fs";
 import { verifyCitation } from "./research.mjs";
 
 export const MAX_RULES = 12, MAX_MORE = 12, MAX_GAPS = 6, MAX_WORDS = 14; // about what one short screen holds (owner, 2026-11-12)
@@ -20,18 +21,21 @@ const ASK = {
 const collapse = (t) => String(t).replace(/\s+/g, " ").trim();
 const words = (t) => String(t).split(/\s+/).filter(Boolean).length;
 
-// Agents sometimes cite absolute paths inside the root; keep them repo-relative.
+// Agents sometimes cite absolute paths inside the root, spelled through a link of it or through its real path; keep them repo-relative.
 const checker = (root) => {
-  const base = resolve(root) + sep;
+  const bases = [resolve(root), (() => { try { return realpathSync(root); } catch { return resolve(root); } })()].map((b) => b + sep);
+  const real = (f) => { try { return realpathSync(f); } catch { return f; } };
+  const rel = (f) => { f = String(f); for (const g of isAbsolute(f) ? [f, real(f)] : []) { const b = bases.find((x) => g.startsWith(x)); if (b) return g.slice(b.length); } return f; };
   return {
-    ok: (c) => Boolean(c && c.file) && verifyCitation(root, c),
-    at: (c) => `${String(c.file).startsWith(base) ? String(c.file).slice(base.length) : c.file}:${c.line}`,
+    ok: (c) => Boolean(c && c.file) && verifyCitation(root, { ...c, file: rel(c.file) }),
+    at: (c) => `${rel(c.file)}:${c.line}`,
+    rel,
   };
 };
 
 // Verified general rules by area key (the risk and the detail), and verified ideas by id `<key>.<n>`, n from 1 in the area's own list.
 function ruleIndex(root, r) {
-  const { ok, at } = checker(root);
+  const { ok, at, rel } = checker(root);
   const rules = new Map(), seconds = new Map(), ideas = new Map();
   for (const key of r.areaOrder || []) {
     const a = r.areas?.[key];
@@ -39,8 +43,8 @@ function ruleIndex(root, r) {
     if (a.status === "found" && a.second?.rule && ok(a.second)) seconds.set(key, { rule: a.second.rule, risk: a.second.risk, cost: a.second.cost, at: at(a.second) });
     // A support counts, and is listed, only when its file is not the example's nor an earlier support's.
     if (a.status === "found" && a.general?.rule && ok(a.general)) {
-      const seen = new Set([resolve(root, a.general.file)]);
-      const sup = (a.support || []).filter((c) => ok(c) && !seen.has(resolve(root, c.file)) && seen.add(resolve(root, c.file)));
+      const seen = new Set([resolve(root, rel(a.general.file))]);
+      const sup = (a.support || []).filter((c) => ok(c) && !seen.has(resolve(root, rel(c.file))) && seen.add(resolve(root, rel(c.file))));
       rules.set(key, { rule: a.general.rule, basis: a.general.basis, risk: a.general.risk, cost: a.general.cost, at: [at(a.general), ...sup.map(at)] });
     }
     (a.ideas || []).forEach((i, n) => { if (i?.text && ok(i)) ideas.set(`${key}.${n + 1}`, { area: key, text: i.text, at: at(i) }); });
@@ -63,7 +67,8 @@ export function screens(root, r) {
     const keep = (list, what) => (list || []).filter((c) => ok(c) || (dropped.push({ area: key, what, at: at(c), quote: c.quote }), false));
     const g = a.status === "found" && a.general?.rule ? a.general : null;
     const risk = RISK[g?.risk] ?? 1;
-    const exceptions = keep(a.exceptions, "exception");
+    const blank = (v) => !String(v ?? "").trim();
+    const exceptions = keep(a.exceptions, "exception").filter((e) => !blank(e.how) || (dropped.push({ area: key, what: `exception: ${at(e)}`, reason: "no written how" }), false));
     for (const i of a.ideas || []) if (i?.text && !ok(i)) dropped.push({ area: key, what: `idea: ${i.text}`, at: at(i), quote: i.quote });
     if (a.status === "found") for (const c of a.support || []) if (!ok(c)) dropped.push({ area: key, what: `support: ${g?.rule ?? "no general rule"}`, at: at(c), quote: c.quote });
     if (g && !ok(g)) dropped.push({ area: key, what: `general rule: ${g.rule}`, at: at(g), quote: g.quote });
@@ -72,12 +77,13 @@ export function screens(root, r) {
     if (s2 && !ok(s2)) dropped.push({ area: key, what: `second rule: ${s2.rule}`, at: at(s2), quote: s2.quote });
     // A written rule counts as contradicted only when both its doc line and the code line hold.
     for (const c of a.contradicted || []) {
-      if (ok(c) && ok({ file: c.wfile, line: c.wline, quote: c.wquote })) gaps.push({ kind: "contradicted", area: key, risk, text: `The docs say: "${c.written}" (${at({ file: c.wfile, line: c.wline })}). The code does otherwise at ${at(c)}: ${c.how}. Which one is right?`, options: ["The written rule", "The code", "I don't know"] });
+      if (ok(c) && ok({ file: c.wfile, line: c.wline, quote: c.wquote }) && blank(c.how)) dropped.push({ area: key, what: `contradicted: ${c.written}`, reason: "no written how" });
+      else if (ok(c) && ok({ file: c.wfile, line: c.wline, quote: c.wquote })) gaps.push({ kind: "contradicted", area: key, risk, text: `The docs say: "${c.written}" (${at({ file: c.wfile, line: c.wline })}). The code does otherwise at ${at(c)}: ${c.how}. Which one is right?`, options: ["The written rule", "The code", "I don't know"] });
       else dropped.push({ area: key, what: `contradicted: ${c.written}`, at: at(c), quote: c.quote });
     }
     for (const d of keep(a.doubted, "doubted")) if (!String(d.why ?? "").trim()) dropped.push({ area: key, what: `doubted: ${d.rule}`, reason: "no written reason" }); else gaps.push({ kind: "doubted", area: key, risk, text: `The code follows this rule: "${d.rule}" (${at(d)}). Research doubts it: ${d.why}. What do you say?`, options: ["You are right: a pending card", "Keep it, because ...", "I don't know"] });
     if (g && ok(g) && exceptions.length) gaps.push({ kind: "exceptions", area: key, risk, text: `Rule: "${g.rule}" The rule itself holds at ${at(g)}. Done differently in ${exceptions.length} place${exceptions.length > 1 ? "s" : ""}: ${exceptions.map((e) => `${at(e)} (${e.how})`).join("; ")}. Mistake or exception?`, options: ["Mistake: fix it", "Exception: keep it", "I don't know"] });
-    for (const u of keep(a.unprotected, "unprotected")) gaps.push({ kind: "unprotected", area: key, risk, text: `Nothing protects this: ${u.risk} (${at(u)}). Is that on purpose?`, options: ["On purpose", "Not on purpose: protect it", "I don't know"] });
+    for (const u of keep(a.unprotected, "unprotected")) if (blank(u.risk)) dropped.push({ area: key, what: `unprotected: ${at(u)}`, reason: "no written risk" }); else gaps.push({ kind: "unprotected", area: key, risk, text: `Nothing protects this: ${u.risk} (${at(u)}). Is that on purpose?`, options: ["On purpose", "Not on purpose: protect it", "I don't know"] });
   }
   // A sentence shows when a general rule it names (id `<key>` of an area, `kind:<kind>`) verified, or, naming none, an idea (id `<key>.<n>`) did; the first verified rule gives the example (its own citation) and `also`, the count of its verified support; else the first verified idea's citation.
   // Its risk is the highest of the rules it names or whose area its ideas belong to. A rule it names that did not verify gets its own Dropped line.
@@ -125,7 +131,7 @@ export function mechanism(root, r) {
     const x = r.kinds[k];
     if (!x) { errors.push(`${k}: agent returned nothing`); continue; }
     if (!["found", "absent", "not-present"].includes(x.status)) { errors.push(`${k}: invalid status ${JSON.stringify(x.status)}`); continue; }
-    for (const v of x.verdicts || []) if (v.verdict !== "no-evidence" && !ok(v)) dropped.push({ area: k, what: `verdict ${v.id} ${v.verdict}`, at: at(v), quote: v.quote });
+    for (const v of x.verdicts || []) if (v.verdict !== "no-evidence" && !ok(v)) dropped.push({ area: k, what: `verdict ${v.id} ${v.verdict}`, ...(v.file ? { at: at(v), quote: v.quote } : { reason: "no citation" }) });
     if (x.status !== "found") { state[k] = { general: null, status: x.status }; continue; }
     // A found kind whose general rule is missing or does not verify counts as absent; what failed gets a line.
     const g = x.general?.rule && ok(x.general) ? x.general : null;

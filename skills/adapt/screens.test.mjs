@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, symlinkSync, realpathSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { screens, render, details, mechanism, MAX_RULES, MAX_GAPS, MAX_WORDS } from "./screens.mjs";
@@ -478,4 +478,37 @@ test("a question about a contradicted written rule never points at the area's ge
   }) }));
   const q = s.drawer2.find((g) => g.kind === "contradicted");
   assert.doesNotMatch(q.text, /The rule itself holds at/);
+});
+
+test("a screen 2 item with a blank how or risk is dropped with a line, never asked with empty text", () => {
+  const s = screens(root, research({ truth: area({
+    general: general("r", "low", c(1, "days(loan)")),
+    contradicted: [c(2, "late(loan)", { written: "Whole days.", wfile: "README.md", wline: 1, wquote: "whole days", how: "  " })],
+    exceptions: [c(3, "old(loan)", { how: "" }), c(2, "late(loan)", { how: "counts hours" })],
+    unprotected: [c(2, "late(loan)", { risk: " " })],
+  }), state: area({ general: general("r", "low", c(1, "days(loan)")), exceptions: [c(3, "old(loan)")] }) }));
+  assert.deepEqual(s.drawer2.map((g) => g.kind), ["exceptions"]);
+  assert.match(s.drawer2[0].text, /in 1 place: src\/a\.js:2 \(counts hours\)/);
+  assert.deepEqual(s.dropped.map((d) => [d.area, d.what.split(":")[0], d.reason]), [["truth", "exception", "no written how"], ["truth", "contradicted", "no written how"], ["truth", "unprotected", "no written risk"], ["state", "exception", "no written how"]]);
+  assert.ok(!render(research({}), s, "abc").includes("undefined"));
+});
+
+test("a citation spelled through a link of the project root, or through its real path, verifies and is shown repo-relative", () => {
+  const link = join(mkdtempSync(join(tmpdir(), "xwf-link-")), "p");
+  symlinkSync(root, link);
+  const real = realpathSync(root);
+  for (const [base, file] of [[link, join(real, "src/a.js")], [real, join(link, "src/a.js")], [link, join(link, "src/a.js")]]) {
+    const r = research({ truth: area({ general: general("Loans count whole days.", "high", at(file, 1, "days(loan)")), support: [at(file, 1, "days(loan)"), at(join(real, "src/b.js"), 1, "late(loan)"), at(join(link, "src/b.js"), 1, "late(loan)")] }) }, { claims: [claim("From a rule.", "truth")] });
+    const s = screens(base, r);
+    assert.deepEqual(s.drawer1.map((x) => [x.at, x.also]), [["src/a.js:1", 1]], base + " " + file);
+    assert.deepEqual(s.dropped, []);
+  }
+});
+
+test("a verdict with no citation at all is dropped with the reason no citation, not with undefined", () => {
+  const m = mechanism(root, research({}, undefined, { kinds: { values: { status: "found", rules: [], verdicts: [{ id: "W1", verdict: "enforced" }, { id: "W2", verdict: "contradicted", ...c(2, "zzz") }] } } }));
+  assert.deepEqual(m.dropped.map((d) => [d.what, d.reason]), [["verdict W1 enforced", "no citation"], ["verdict W2 contradicted", undefined]]);
+  const md = render(research({}), { drawer1: [], drawer1LeftOut: [], drawer2: [], drawer2LeftOut: [], drawer3: [], noRule: [], notPresent: [], dropped: m.dropped }, "abc");
+  assert.match(md, /- values: verdict W1 enforced no citation\n/);
+  assert.ok(!md.includes("undefined"));
 });
