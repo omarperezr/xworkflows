@@ -30,7 +30,7 @@ function sample(over = {}) {
   const cite = { file: "a.js", line: 2, quote: "round(x)" };
   const areas = { truth: { area: "truth", status: "found", ideas: [{ text: "Totals are rounded once.", ...cite }], general: { rule: "Round once", basis: "both", risk: "high", cost: "wrong totals", ...cite }, support: [], exceptions: [], contradicted: [], unprotected: [], commentRules: [{ text: "Never round twice.", file: "a.js", line: 1, quote: "line1" }], details: [], notChecked: [], doubted: [{ rule: "Totals are rounded.", why: "no test covers it", ...cite }] } };
   const kinds = {
-    values: { kind: "values", status: "found", general: { rule: "Round once, only when shown", basis: "both", ...cite }, verdicts: [], rules: [{ rule: "round once", ...cite }, { rule: "fake rule", file: "a.js", line: 2, quote: "absent text" }], notChecked: [] },
+    values: { kind: "values", status: "found", general: { rule: "A loan is counted in whole days, in the library's time zone", basis: "both", ...cite }, verdicts: [], rules: [{ rule: "round once", ...cite }, { rule: "fake rule", file: "a.js", line: 2, quote: "absent text" }], notChecked: [] },
     conc: { kind: "conc", status: "not-present", rules: [], notChecked: [] },
   };
   const plain = { claims: [{ text: "Totals are rounded once.", from: ["truth.1"] }, { text: "A made up claim.", from: ["ghost.1"] }] };
@@ -157,7 +157,7 @@ test("render writes research.md, screens.json, details.md and kinds.json; an unv
   assert.match(det, /## Rules found in comments[\s\S]*- \[truth\] Never round twice\. a\.js:1/);
   for (const bad of ["fake rule", "A made up claim", "absent text"]) assert.ok(!det.includes(bad), bad);
   assert.ok(!JSON.stringify(s.drawer1).includes("made up"));
-  assert.deepEqual(rj(d, "kinds.json"), { conc: { general: null, status: "not-present" }, values: { general: "Round once, only when shown", status: "found" } });
+  assert.deepEqual(rj(d, "kinds.json"), { conc: { general: null, status: "not-present" }, values: { general: "A loan is counted in whole days, in the library's time zone", status: "found" } });
   const before = [md, rt(d, "details.md"), rt(d, "kinds.json")];
   cli(d, "render");
   assert.deepEqual([rt(d, "research.md"), rt(d, "details.md"), rt(d, "kinds.json")], before);
