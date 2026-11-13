@@ -134,3 +134,5 @@ From the confirmation at `1399e1e`, of the same kind as the ones above and liste
 - `bin/xworkflows.mjs` `uninstall`: a record edited by hand that names `.qmd/index.yml` in `created`, with the real marker present and a folder at that name, stops it with a raw `EISDIR`.
 
 ## Seals
+
+risk-review ok at 1399e1e
