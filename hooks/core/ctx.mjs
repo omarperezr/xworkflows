@@ -48,6 +48,7 @@ export function makeCtx(ev, { env, config, stateDir }) {
     exists: (p) => existsSync(at(p)),
     mtime: (p) => { try { return statSync(at(p)).mtimeMs; } catch { return null; } },
     listDir: (p) => { try { return readdirSync(at(p)); } catch { return []; } },
+    outsideLine: (p) => outsideLine(ev.root, p, config?.memory?.outside),
     writeFile: (p, text) => { // never through a symlink: it could lead outside the tree
       try { if (lstatSync(at(p)).isSymbolicLink()) return false; } catch { /* absent: fine */ }
       if (outsideLine(ev.root, p, config?.memory?.outside)) return false;

@@ -1,10 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync as makeTmp, mkdirSync, writeFileSync, readFileSync, utimesSync, symlinkSync, chmodSync, statSync, lstatSync, lutimesSync, rmSync } from "node:fs";
+import { realpathSync, mkdtempSync as makeTmp, mkdirSync, writeFileSync, readFileSync, utimesSync, symlinkSync, chmodSync, statSync, lstatSync, lutimesSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { decide } from "./memory.mjs";
+import { makeCtx } from "./ctx.mjs";
+import { DEFAULTS } from "./config.mjs";
 const madeTmp = [];
 const mkdtempSync = (p) => { const d = makeTmp(p); madeTmp.push(d); return d; };
 test.after(() => { for (const d of madeTmp) rmSync(d, { recursive: true, force: true }); });
@@ -242,4 +244,13 @@ test("code graph: the command it starts sets the time of a linked graph file its
   assert.equal(r.status, 0, r.stderr);
   assert.equal(statSync(join(dir, "elsewhere.json")).mtimeMs, old.getTime(), "the file behind the link was touched");
   assert.ok(lstatSync(join(dir, "-out/graph.json")).mtimeMs > old.getTime(), "the link's own time was not set");
+});
+
+test("sessionStart: a memory folder linked out of the repository, not listed, says to ask the owner; listed, it says nothing", () => {
+  const root = mkdtempSync(join(tmpdir(), "xwf-mem-")), real = realpathSync(mkdtempSync(join(tmpdir(), "xwf-mem-")));
+  mkdirSync(join(root, "docs"));
+  symlinkSync(real, join(root, "docs", "memory"));
+  const at = (outside) => decide(ev("sessionStart", { source: "startup", root }), makeCtx({ root, session: "s" }, { env: {}, config: { ...DEFAULTS, memory: { dir: "docs/memory", outside } }, stateDir: root }));
+  assert.match(at([]).context, /ask the owner.*inside the project.*memory\.outside in \.xworkflows\/config\.json/);
+  assert.equal(at([real]).context, undefined);
 });
