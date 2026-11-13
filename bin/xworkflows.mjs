@@ -99,7 +99,9 @@ export function main(argv) {
 }
 
 const EMPTY = { xworkflows: "", tools: ["claude"], pieces: {}, files: {}, merged: [], blocks: [], imports: [], created: [], dirs: [], declined: [], kept: [], renamed: {}, scalars: [], chained: [] };
-const json = (v) => JSON.stringify(v, null, 2) + "\n";
+// the file's own indent, so install and uninstall leave a project's layout as it was
+const indentOf = (text) => text?.match(/^([ \t]+)\S/m)?.[1] ?? 2;
+const json = (v, text) => JSON.stringify(v, null, indentOf(text)) + "\n";
 
 function target(f) {
   if (f === "hooks/mark.mjs") return ".xworkflows/mark.mjs";
@@ -211,7 +213,7 @@ function mergeSettings(root, manifest, record) {
   }
   const scalars = [];
   changed = setScalar(s, path, "attribution", ATTRIBUTION, scalars) || changed;
-  return { path, notes, text: changed ? json(s) : null, rec: { merged, scalars, created: old === null && changed ? [path] : [] } };
+  return { path, notes, text: changed ? json(s, old) : null, rec: { merged, scalars, created: old === null && changed ? [path] : [] } };
 }
 
 // Claude Code ignores this key in the shared file; the local one holds a path of this machine.
@@ -366,6 +368,8 @@ export function plan(manifest, root, record, ans = {}) {
     const mine = ws.some((w) => record.files[w.path]);
     let rename = !!record.renamed[nu];
     if (record.kept.includes(u)) continue;
+    // a unit under a linked folder is dropped below with its note: no question, no record
+    if (!(plain(u) && clean(root, u))) { writes.push(...ws); continue; }
     if (!rename && !mine && existsSync(join(root, u)) && !ws.every((w) => read(root, w.path) === w.text)) {
       const kind = u.includes("/skills/") ? "skill" : "agent";
       const a = ask(`unit:${u}`, `${kind === "skill" ? "A skill" : "An agent"} ${id} exists. Keep theirs or install ours as xwf-${id}?`, ["keep theirs", `xwf-${id}`]);
@@ -830,7 +834,7 @@ function uninstall() {
         for (const k of key) parents.push(parents.at(-1)?.[k]);
         for (let d = key.length; d > 0 && made.has(JSON.stringify(key.slice(0, d))) && parents[d] && typeof parents[d] === "object" && Object.keys(parents[d]).length === 0; d--) { delete parents[d - 1][key[d - 1]]; changed = true; }
       }
-      if (changed) write(SETTINGS, json(s));
+      if (changed) write(SETTINGS, json(s, text));
     }
   }
   let memory;
@@ -849,7 +853,7 @@ function uninstall() {
     const { [key]: _, ...rest } = s;
     let ok = false;
     try { ok = cut !== null && isDeepStrictEqual(JSON.parse(cut), rest); } catch {}
-    write(file, ok ? cut : json(rest));
+    write(file, ok ? cut : json(rest, text));
   }
   for (const b of rec.blocks) {
     const t = read(ROOT, b.file), a = t?.indexOf(START) ?? -1, e = a < 0 ? -1 : t.indexOf(END, a);

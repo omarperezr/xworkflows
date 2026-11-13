@@ -1292,6 +1292,31 @@ test("install writes nothing through a symlink; uninstall has nothing to undo th
   assert.equal(readFileSync(join(r3, "AGENTS.md"), "utf8"), "# mine\n");
   assert.doesNotMatch(un.stdout, /not ours/);
 });
+test("a skill of the same name under a linked .claude/skills is not asked about, not recorded as kept, and a later install asks nothing", () => {
+  const o = tmp("xwf-out-"); mkdirSync(join(o, "grill")); writeFileSync(join(o, "grill/SKILL.md"), "---\nname: grill\n---\nmine\n");
+  const r = repo(); mkdirSync(join(r, ".claude")); symlinkSync(o, join(r, ".claude/skills"));
+  const out = cli(r, ["install"]);
+  assert.equal(out.status, 0, out.stderr);
+  assert.doesNotMatch(out.stdout, /answered for you/);
+  assert.match(out.stdout, /^not written \(symlink\): \.claude\/skills\/grill\/SKILL\.md$/m);
+  assert.deepEqual(readJson(r, ".xworkflows/installed.json").kept, []);
+  assert.doesNotMatch(cli(r, ["install"]).stdout, /answered for you/);
+  assert.doesNotMatch(doctor(r).stdout, /grill/);
+  assert.equal(readFileSync(join(o, "grill/SKILL.md"), "utf8"), "---\nname: grill\n---\nmine\n");
+});
+test("uninstall writes settings.json back with the indent the file had", () => {
+  for (const indent of ["    ", "\t", 1]) {
+    const r = repo(); mkdirSync(join(r, ".claude"));
+    const mine = JSON.stringify({ theme: "dark", permissions: { deny: ["x"] } }, null, indent) + "\n";
+    writeFileSync(join(r, ".claude/settings.json"), mine);
+    cli(r, ["install", "--yes"]);
+    assert.equal(JSON.parse(readFileSync(join(r, ".claude/settings.json"), "utf8")).hooks.PreToolUse.length, PRE);
+    assert.equal(cli(r, ["uninstall"]).status, 0);
+    const back = readFileSync(join(r, ".claude/settings.json"), "utf8");
+    assert.deepEqual(JSON.parse(back), { theme: "dark", permissions: { deny: ["x"] } });
+    assert.equal(back, mine, JSON.stringify(indent));
+  }
+});
 test("a tracked settings.local.json: the ignore line is added once, not on every install", () => {
   const r = repo({ ".claude/settings.local.json": '{"x":1}' });
   git(r, "add -A"); git(r, "commit -qm t");
