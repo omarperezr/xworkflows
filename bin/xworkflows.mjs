@@ -7,7 +7,7 @@ import { homedir, tmpdir } from "node:os";
 import { basename, dirname, isAbsolute, join, normalize, posix, relative, resolve, sep } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { DEFAULTS, PROJECT_KEYS, load as loadConfig, missing } from "../hooks/core/config.mjs";
+import { DEFAULTS, PROJECT_KEYS, load as loadConfig, memoryDir as memName, missing } from "../hooks/core/config.mjs";
 
 export const PKG = dirname(dirname(fileURLToPath(import.meta.url)));
 export let ROOT;
@@ -248,11 +248,6 @@ const QMARK = ".qmd/xworkflows";
 const MARK_TEXT = "written by xworkflows install: uninstall removes index.yml and its database here only while this file exists\n";
 // qmd reads index.yaml before index.yml: either one is a local config
 const localYml = (root) => [".qmd/index.yaml", YML].find((f) => existsSync(join(root, f)));
-// memory.dir as checks/index-current.mjs reads it; null when it is not a folder name inside the repository
-const memName = (d) => {
-  const n = typeof d === "string" ? posix.normalize(d.trim()).replace(/^\.\/|\/+$/g, "") : "";
-  return n === "" || n === "." || n.startsWith("/") || n === ".." || n.startsWith("../") ? null : n;
-};
 const IGNORE = [["graphify-out/", "graphify-out/x"], [".claude/settings.local.json", ".claude/settings.local.json"], [".qmd/", ".qmd/x"]];
 // `.qmd/` is added only in a run that writes the yml
 function mergeIgnore(root, qmd) {
@@ -312,7 +307,7 @@ function hookText(name, chain) {
     // git feeds the pushed refs on stdin once: keep them for both runs
     return `#!/bin/sh\nin=$(mktemp) || exit 1\ncat > "$in"\n${old}if [ -x "$old" ]; then "$old" "$@" < "$in" || { c=$?; rm -f "$in"; exit $c; }; fi\n${CHECK} < "$in"\nc=$?\nrm -f "$in"\nexit $c\n`;
   }
-  return `#!/bin/sh\nc=0\n${chain ? `${old}[ -x "$old" ] && { "$old" "$@"; c=$?; }\n` : ""}cd "$(git rev-parse --show-toplevel)" || exit $c\nmain=$(${MAIN}) || main=main\n[ "$(git symbolic-ref --short -q HEAD)" = "$main" ] || exit $c\ntool=$(${TOOL}) || tool=graphify\nfolder=$(${FOLDER}) || folder=graphify-out\ncommand -v "$tool" >/dev/null 2>&1 || exit $c\nmkdir -p "$folder"\n{ "$tool" update . && touch -c "$folder/graph.json"; } > "$folder/.update.log" 2>&1 < /dev/null &\nexit $c\n`;
+  return `#!/bin/sh\nc=0\n${chain ? `${old}[ -x "$old" ] && { "$old" "$@"; c=$?; }\n` : ""}cd "$(git rev-parse --show-toplevel)" || exit $c\nmain=$(${MAIN}) || main=main\n[ "$(git symbolic-ref --short -q HEAD)" = "$main" ] || exit $c\ntool=$(${TOOL}) || tool=graphify\nfolder=$(${FOLDER}) || folder=graphify-out\ncommand -v "$tool" >/dev/null 2>&1 || exit $c\nmkdir -p "$folder"\n{ "$tool" update . && touch -c -h -- "$folder/graph.json"; } > "$folder/.update.log" 2>&1 < /dev/null &\nexit $c\n`;
 }
 
 export function agentsBlock() {

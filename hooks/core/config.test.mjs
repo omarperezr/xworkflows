@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { DEFAULTS, PROJECT_KEYS, merge, load, get, missing, inPaths } from "./config.mjs";
+import { DEFAULTS, PROJECT_KEYS, merge, load, get, missing, inPaths, memoryDir } from "./config.mjs";
 
 test("DEFAULTS has the product defaults and none of the project keys", () => {
   assert.equal(DEFAULTS.mainBranch, "main");
@@ -88,4 +88,11 @@ test("DEFAULTS: a project command is cut after 10 minutes, and a project can set
   assert.equal(DEFAULTS.checks.timeoutMinutes, 10);
   assert.equal(merge(DEFAULTS, { checks: { project: [] } }).checks.timeoutMinutes, 10);
   assert.equal(merge(DEFAULTS, { checks: { timeoutMinutes: 2 } }).checks.timeoutMinutes, 2);
+});
+
+test("memoryDir: a folder name inside the repository comes back plain, anything else is null", () => {
+  for (const [dir, want] of [["docs/memory", "docs/memory"], ["./x", "x"], ["x/", "x"], ["x//", "x"], [" x ", "x"], ["docs//memory", "docs/memory"], ["..x", "..x"], ["a/..b", "a/..b"],
+    ["", null], [" ", null], [".", null], ["./", null], ["/x", null], ["..", null], ["../x", null], ["a/../..", null], [undefined, null], [{ a: 1 }, null]]) {
+    assert.equal(memoryDir(dir), want, JSON.stringify(dir));
+  }
 });

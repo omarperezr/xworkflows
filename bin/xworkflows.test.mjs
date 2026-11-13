@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { appendFileSync, chmodSync, cpSync, existsSync, mkdtempSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
+import { appendFileSync, chmodSync, cpSync, existsSync, lstatSync, lutimesSync, mkdtempSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -1466,6 +1466,22 @@ test("the graph hook sets the graph file's time after an update that rewrote not
   assert.ok(statSync(g).mtimeMs > old.getTime());
 });
 
+test("the graph hook sets the time of a linked graph file itself, never the file behind it, in a folder named with a leading dash", () => {
+  const r = repo();
+  cli(r, ["install"]);
+  writeJson(r, ".xworkflows/config.json", { lookup: { index: { command: "graphify query", folder: "-out", minutes: 30 } } });
+  const d = mkdtempSync(join(tmpdir(), "xwf-bin-")); writeFileSync(join(d, "graphify"), "#!/bin/sh\nexit 0\n"); chmodSync(join(d, "graphify"), 0o755);
+  mkdirSync(join(r, "-out"), { recursive: true });
+  const out = join(d, "elsewhere.json"), old = new Date("2020-01-01T00:00:00Z");
+  writeFileSync(out, "{}"); utimesSync(out, old, old);
+  symlinkSync(out, join(r, "-out/graph.json")); lutimesSync(join(r, "-out/graph.json"), old, old);
+  const pause = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+  assert.equal(commit(r, "a.txt", "x\n", { PATH: `${d}:${process.env.PATH}` }).status, 0);
+  for (let i = 0; i < 100 && lstatSync(join(r, "-out/graph.json")).mtimeMs === old.getTime(); i++) pause(50);
+  assert.ok(lstatSync(join(r, "-out/graph.json")).mtimeMs > old.getTime(), "the link's own time was not set");
+  assert.equal(statSync(out).mtimeMs, old.getTime(), "the file behind the link was touched");
+});
+
 // install: the memory folder and the project-local qmd index (.qmd/index.yml); no qmd ever starts
 const qmdLog = () => join(tmp("xwf-log-"), "qmd.log");
 const spy = (log) => tools({ qmd: `echo "$@" >> ${log}` });
@@ -2071,6 +2087,18 @@ for (const [state, lost] of [["record holds the new hashes", false], ["record lo
     });
   }
 }
+test("git hooks: the text that followed the config and followed the link is replaced with no question", () => {
+  const r = repo();
+  cli(r, ["install"]);
+  const now = GRAPH_HOOKS.map((n) => readFileSync(hookFile(r, n), "utf8"));
+  for (const [i, n] of GRAPH_HOOKS.entries()) {
+    assert.ok(now[i].includes('touch -c -h -- "$folder/graph.json"'), n);
+    writeFileSync(hookFile(r, n), now[i].replace('touch -c -h -- "$folder/graph.json"', 'touch -c "$folder/graph.json"'));
+  }
+  const out = cli(r, ["install"]);
+  assert.doesNotMatch(out.stdout, /Chain it|answered for you/);
+  assert.deepEqual(GRAPH_HOOKS.map((n) => readFileSync(hookFile(r, n), "utf8")), now);
+});
 test("git hooks: uninstall removes an earlier text of the package's hook, chained or not, and puts the user's hook back", () => {
   const r = repo();
   cli(r, ["install"]);

@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, posix } from "node:path";
 
 export const DEFAULTS = {
   owner: "the owner",
@@ -47,6 +47,12 @@ export const PROJECT_KEYS = [
   "tests.files", "tests.run", "tests.notRunnable",
   "checks.project", "checks.patterns", "checks.ratchets",
 ];
+
+// memory.dir as a folder name inside the repository; null when it is not one
+export function memoryDir(d) {
+  const n = typeof d === "string" ? posix.normalize(d.trim()).replace(/^\.\/|\/+$/g, "") : "";
+  return n === "" || n === "." || n.startsWith("/") || n === ".." || n.startsWith("../") ? null : n;
+}
 
 const isObj = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
 

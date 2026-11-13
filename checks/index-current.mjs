@@ -1,11 +1,11 @@
-import { posix } from "node:path";
+import { memoryDir } from "../hooks/core/config.mjs";
 import { buildIndex } from "../hooks/core/memory-index.mjs";
 
 export function run(range, ctx) {
   const dir = ctx.config.memory?.dir;
   if (typeof dir !== "string" || !dir.trim()) return { ok: false, cannotRun: true, lines: ["memory.dir must be a folder name"] };
-  const d = posix.normalize(dir.trim()).replace(/^\.\/|\/+$/g, "");
-  if (d === "" || d === "." || d.startsWith("/") || d === ".." || d.startsWith("../")) return { ok: false, cannotRun: true, lines: ["memory.dir must be a folder inside the repository"] };
+  const d = memoryDir(dir);
+  if (d === null) return { ok: false, cannotRun: true, lines: ["memory.dir must be a folder inside the repository"] };
   // a real git failure throws; an absent folder prints nothing
   const names = ctx.git("ls-tree", "-z", range.head, "--", d + "/").split("\0").filter(Boolean)
     .map((e) => /^\d+ blob \w+\t(.*)$/s.exec(e)?.[1]?.slice(d.length + 1)).filter((n) => n?.endsWith(".md") && !n.includes("/") && n !== "MEMORY.md");

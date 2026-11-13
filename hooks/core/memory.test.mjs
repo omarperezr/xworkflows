@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, utimesSync, symlinkSync, chmodSync, statSync, lstatSync, lutimesSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { decide } from "./memory.mjs";
@@ -128,7 +128,7 @@ test("code graph: older than HEAD or missing starts the update; current does not
   const head = Math.floor(NOW / 1000);
   const stale = fake({ config: cfg, git: String(head), mtimes: { "graphify-out/graph.json": NOW - DAY } });
   assert.match(decide(ev("sessionStart", {}), stale.ctx).context, /code graph/);
-  assert.deepEqual(stale.calls.bg, [["sh", ["-c", '"$0" update . && touch -c "$1"', "graphify", "graphify-out/graph.json"]]]);
+  assert.deepEqual(stale.calls.bg, [["sh", ["-c", '"$0" update . && touch -c -h -- "$1"', "graphify", "graphify-out/graph.json"]]]);
   const gone = fake({ config: cfg, git: String(head) });
   assert.match(decide(ev("sessionStart", {}), gone.ctx).context, /code graph/);
   const fresh = fake({ config: cfg, git: String(head), mtimes: { "graphify-out/graph.json": NOW } });
@@ -221,4 +221,22 @@ test("through the real runner: a deny on a feedback write, an index on preCompac
   const p = go({ hook_event_name: "PreCompact" });
   assert.equal(p.status, 0);
   assert.equal(readFileSync(join(root, "docs", "memory", "MEMORY.md"), "utf8"), "- [A](a.md) — first\n");
+});
+
+test("code graph: the command it starts sets the time of a linked graph file itself, in a folder named with a leading dash", () => {
+  const cfg = { ...base, paths: { code: ["src/"] }, lookup: { index: { command: "tool query", folder: "-out", minutes: 30 } } };
+  const stale = fake({ config: cfg, git: String(Math.floor(NOW / 1000)) });
+  decide(ev("sessionStart", {}), stale.ctx);
+  const dir = mkdtempSync(join(tmpdir(), "xwf-mem-"));
+  mkdirSync(join(dir, "-out")); mkdirSync(join(dir, "bin"));
+  writeFileSync(join(dir, "elsewhere.json"), "{}");
+  const old = new Date("2020-01-01T00:00:00Z");
+  utimesSync(join(dir, "elsewhere.json"), old, old);
+  symlinkSync("../elsewhere.json", join(dir, "-out/graph.json")); lutimesSync(join(dir, "-out/graph.json"), old, old);
+  writeFileSync(join(dir, "bin/tool"), "#!/bin/sh\nexit 0\n"); chmodSync(join(dir, "bin/tool"), 0o755);
+  const [cmd, args] = stale.calls.bg[0];
+  const r = spawnSync(cmd, args, { cwd: dir, env: { ...process.env, PATH: `${join(dir, "bin")}:${process.env.PATH}` }, encoding: "utf8" });
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(statSync(join(dir, "elsewhere.json")).mtimeMs, old.getTime(), "the file behind the link was touched");
+  assert.ok(lstatSync(join(dir, "-out/graph.json")).mtimeMs > old.getTime(), "the link's own time was not set");
 });
