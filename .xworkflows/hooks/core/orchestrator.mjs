@@ -44,11 +44,26 @@ export function decide(ev, ctx) {
 
   const heavy = list(get(config, "paths.heavyRead"));
   if (ev.kind === "shell") {
-    const cmd = String(ev.command ?? "");
     const idx = config.lookup.index.command;
-    if (new RegExp(`(^|[;&|(]\\s*)(\\S*/)?${esc(idx).replace(/\s+/g, "\\s+")}\\b`).test(cmd.replaceAll("\\", "/"))) ctx.save("index", ctx.now());
+    const root = ev.root.replaceAll("\\", "/").replace(/\/{2,}/g, "/").replace(/(.)\/$/, "$1");
+    // the root under its usual spellings, one way; `//` and `/./` collapse
+    const home = String(ctx.home ?? "~").replaceAll("\\", "/");
+    const text = String(ev.command ?? "").replace(/\\\r?\n/g, " ").replaceAll("\\", "/")
+      .replace(/(^|[\s"'=:])~(?=\/)/g, (_, p) => p + home)
+      .replace(/\$\{?HOME\}?"?/g, () => home)
+      .replace(/\$\{?(PWD|CLAUDE_PROJECT_DIR)\}?"?/g, () => root)
+      .replace(/\/(?:\.?\/)+/g, "/");
+    const word = "[^\\s;&|()]"; // a word stops at a separator: no pattern runs past it
+    const env = `((${word}*/)?env[ \\t]+)?([A-Za-z_]\\w*=${word}*[ \\t]+|-u[ \\t]+${word}+[ \\t]+)*`; // env, its -u NAME and NAME=value words
+    // a here-document body is text; a here-string and a shift are not here-documents
+    let end = null;
+    const code = text.split("\n").filter((l) => end === null ? ((end = /(?<!<)<<(?!<)-?\s*['"]?([A-Za-z_][\w.-]*)/.exec(l)?.[1] ?? null), true) : (l.trim() === end && (end = null), false)).join("\n");
+    if (new RegExp(`(^|[;&|(\\n][ \\t\\r]*)${env}(${word}*/)?${esc(idx).replace(/\s+/g, "\\s+")}\\b`).test(code)) ctx.save("index", ctx.now());
     const prefixes = (heavy ?? []).map((p) => esc(p.replace(/\/?$/, "/"))).join("|");
-    if (prefixes && new RegExp(`(^|[;&|(]\\s*)(\\S*/)?(cat|sed\\s+-n|head|tail)\\b[^|;&]*(^|[\\s/"'=])(${prefixes})`).test(cmd.replaceAll("\\", "/")))
+    // shortcut: a line inside a quoted text of several lines counts as a command, like `;` inside quotes; upgrade when a real command is denied for it
+    // a redirect target is written, not read
+    const read = code.replace(/>>?\s*&?[^\s<>;&|()]+/g, " ");
+    if (prefixes && new RegExp(`(^|[;&|(\\n][ \\t\\r]*)(${word}*/)?(cat|sed\\s+-n|head|tail)\\b[^|;&\\n]*(^|[\\s"'=])(\\./|${esc(root)}/)?(${prefixes})`).test(read))
       return deny("Reading that much into the main session costs context: delegate it to an agent.");
     return allow;
   }
@@ -76,9 +91,11 @@ export function decide(ev, ctx) {
       const dirs = [paths.plans, paths.specs].map((p) => esc(p.replace(/\/$/, ""))).join("|");
       if (!new RegExp(`(${dirs})/\\S+\\.md`).test(String(ev.prompt ?? "").replaceAll("\\", "/")))
         return deny(`${type} reviews against a plan or spec: name its .md path under ${paths.plans} or ${paths.specs}.`);
-      const head = ctx.git("rev-parse", "HEAD") ?? "";
+      // the commits the prompt names and the root HEAD, each cut to 7: the same commit is one key in any spelling, and a fix commit opens a new review
+      const named = String(ev.prompt ?? "").match(/(?<![0-9A-Za-z])[0-9a-f]{7,40}(?![0-9A-Za-z])/g) ?? [];
+      const head = [...new Set([...named, ctx.git("rev-parse", "HEAD") ?? ""].map((x) => x.slice(0, 7)).filter(Boolean))].sort().join(",");
       if (head && ctx.state("risk") === head)
-        return deny(`${type} already reviewed this commit: confirm the fixes with ${roles.reviewer}, or commit before another review.`);
+        return deny(`${type} already reviewed this commit: name the commit to review in the prompt and commit the fixes, or confirm them with ${roles.reviewer}.`);
       ctx.save("risk", head);
     } else {
       const n = Number(ctx.state("agents")) || 0;
