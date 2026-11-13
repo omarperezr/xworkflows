@@ -1644,3 +1644,14 @@ test("doctor: a CLAUDE.md that is a link to AGENTS.md is right", () => {
   assert.doesNotMatch(out.stdout, /does not import/);
   assert.equal(out.status, 0, out.stdout);
 });
+
+test("a hooks folder under a dangling symlink counts as outside, whatever depth the link is at", () => {
+  const r = repo();
+  git(r, "config core.hooksPath hk/sub/hooks");
+  symlinkSync("myhooks", join(r, "hk"));
+  const out = cli(r, ["install", "--yes"]);
+  assert.equal(out.status, 0, out.stderr);
+  assert.match(out.stdout, /hooks folder .* outside/);
+  assert.ok(existsSync(join(r, ".xworkflows/installed.json")));
+  assert.ok(!existsSync(join(r, "myhooks")));
+});

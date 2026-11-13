@@ -130,8 +130,12 @@ const real = (p, depth = 0) => {
 };
 function ownHooks(root) {
   const dir = hooksFolder(root);
-  // a dangling link names a folder that is not there: no hook of ours can live in it
-  if (!existsSync(dir) && lstatSync(dir, { throwIfNoEntry: false })?.isSymbolicLink()) return null;
+  // a dangling link, at the folder or above it, names a folder that is not there: no hook of ours can live in it
+  for (let a = dir; ; a = dirname(a)) {
+    const st = lstatSync(a, { throwIfNoEntry: false });
+    if (st) { if (st.isSymbolicLink() && !existsSync(a)) return null; break; }
+    if (a === dirname(a)) break;
+  }
   const gitDirs =["--absolute-git-dir", "--git-common-dir"].map((f) => real(resolve(root, execFileSync("git", ["rev-parse", f], { cwd: root, encoding: "utf8" }).trim())));
   const rd = real(dir);
   return [realpathSync(root), ...gitDirs].some((d) => rd === d || rd.startsWith(d + sep)) ? dir : null;
