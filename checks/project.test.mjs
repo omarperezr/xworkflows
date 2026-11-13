@@ -138,3 +138,16 @@ test("an interrupted check leaves no project command running", () =>
       try { process.kill(-child.pid, "SIGKILL"); } catch {}
     }
   }));
+
+test("a timeoutMinutes that is not a positive number in the timer's range falls back to the default and says so", async () => {
+  for (const bad of [0, null, "x", 40000, -1]) {
+    const repo = makeRepo({ config: { checks: { timeoutMinutes: bad, project: [{ name: "unit", run: "sleep 0.3; echo fine" }] } } });
+    try {
+      const r = await repo.run(brake);
+      assert.equal(r.ok, true, `timeoutMinutes ${JSON.stringify(bad)}`);
+      assert.equal(r.lines.length, 1);
+      assert.match(r.lines[0], /checks\.timeoutMinutes/);
+      assert.match(r.lines[0], /10 minutes/);
+    } finally { repo.cleanup(); }
+  }
+});

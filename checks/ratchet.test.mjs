@@ -130,3 +130,13 @@ test("a count command that ends in time is not cut by the limit", async () => {
     assert.match(r.lines[0], /7 is above the baseline 5/);
   } finally { repo.cleanup(); }
 });
+
+test("a timeoutMinutes of 0 falls back to the default and says so; the count command still runs", async () => {
+  const repo = makeRepo({ config: { checks: { timeoutMinutes: 0, ratchets: debt(5) } }, files: { [BASE]: '{"todo":5}' } });
+  try {
+    const r = await repo.run(brake);
+    assert.equal(r.ok, true);
+    assert.equal(r.lines.length, 1);
+    assert.match(r.lines[0], /checks\.timeoutMinutes/);
+  } finally { repo.cleanup(); }
+});

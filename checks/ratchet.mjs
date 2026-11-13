@@ -1,4 +1,4 @@
-import { runLimited, cutLine } from "./project.mjs";
+import { runLimited, cutLine, limitNote } from "./project.mjs";
 
 export const needs = ["checks.ratchets"];
 
@@ -23,7 +23,7 @@ export async function run(range, ctx) {
       return cannot(`${BASELINE} is not an object of { "<name>": n }`);
     }
   }
-  const fails = [], notes = [];
+  const fails = [], notes = limitNote(ctx);
   for (const { name, count } of list) {
     const r = await runLimited(count, ctx);
     if (r.timedOut) return { ok: false, cannotRun: true, lines: [cutLine(name, count, ctx)] };
