@@ -72,7 +72,7 @@ export function screens(root, r) {
     if (s2 && !ok(s2)) dropped.push({ area: key, what: `second rule: ${s2.rule}`, at: at(s2), quote: s2.quote });
     // A written rule counts as contradicted only when both its doc line and the code line hold.
     for (const c of a.contradicted || []) {
-      if (ok(c) && ok({ file: c.wfile, line: c.wline, quote: c.wquote })) gaps.push({ kind: "contradicted", area: key, risk, text: `The docs say: "${c.written}" (${at({ file: c.wfile, line: c.wline })}). The code does otherwise at ${at(c)}: ${c.how}. ${g && ok(g) ? ` The rule itself holds at ${at(g)}.` : ""} Which one is right?`, options: ["The written rule", "The code", "I don't know"] });
+      if (ok(c) && ok({ file: c.wfile, line: c.wline, quote: c.wquote })) gaps.push({ kind: "contradicted", area: key, risk, text: `The docs say: "${c.written}" (${at({ file: c.wfile, line: c.wline })}). The code does otherwise at ${at(c)}: ${c.how}. Which one is right?`, options: ["The written rule", "The code", "I don't know"] });
       else dropped.push({ area: key, what: `contradicted: ${c.written}`, at: at(c), quote: c.quote });
     }
     for (const d of keep(a.doubted, "doubted")) if (!String(d.why ?? "").trim()) dropped.push({ area: key, what: `doubted: ${d.rule}`, reason: "no written reason" }); else gaps.push({ kind: "doubted", area: key, risk, text: `The code follows this rule: "${d.rule}" (${at(d)}). Research doubts it: ${d.why}. What do you say?`, options: ["You are right: a pending card", "Keep it, because ...", "I don't know"] });

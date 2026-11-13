@@ -456,16 +456,12 @@ test("with more sentences than one page holds, every high-risk sentence is on th
   assert.deepEqual(s.drawer1LeftOut.map((x) => x.risk).sort(), ["high", "low", "low"]);
 });
 
-test("a question about an exception, or about a contradicted written rule, carries the place where the rule itself holds", () => {
+test("a question about an exception carries the place where the rule itself holds", () => {
   const s = screens(root, research({ truth: area({
     general: general("Loans count whole days.", "high", c(1, "days(loan)")),
     exceptions: [at("src/b.js", 1, "late(loan)")].map((e) => ({ ...e, how: "counts hours" })),
-    contradicted: [at("src/b.js", 1, "late(loan)")].map((e) => ({ ...e, written: "Loans are counted in whole days.", wfile: "README.md", wline: 1, wquote: "whole days", how: "it uses hours" })),
   }) }));
-  for (const kind of ["exceptions", "contradicted"]) {
-    const q = s.drawer2.find((g) => g.kind === kind);
-    assert.match(q.text, /The rule itself holds at src\/a\.js:1\./);
-  }
+  assert.match(s.drawer2.find((g) => g.kind === "exceptions").text, /The rule itself holds at src\/a\.js:1\./);
 });
 
 test("inside one risk a kind's sentence and an area's alternate, as before", () => {
@@ -473,4 +469,13 @@ test("inside one risk a kind's sentence and an area's alternate, as before", () 
   const areas = { a1: area({ general: general("r", "high", c(1, "days(loan)")) }), a2: area({ general: general("r", "high", c(1, "days(loan)")) }) };
   const r = research(areas, { claims: [claim("A1.", "a1"), claim("A2.", "a2"), claim("K1.", "kind:snap"), claim("K2.", "kind:idem")] }, { kinds: { snap: hi(), idem: hi() } });
   assert.deepEqual(screens(root, r).drawer1.map((x) => x.text), ["K1.", "A1.", "K2.", "A2."]);
+});
+
+test("a question about a contradicted written rule never points at the area's general rule as the place where that written rule holds", () => {
+  const s = screens(root, research({ truth: area({
+    general: general("Loans count whole days.", "high", c(1, "days(loan)")),
+    contradicted: [at("src/b.js", 1, "late(loan)")].map((e) => ({ ...e, written: "Fees are charged only after the due date.", wfile: "README.md", wline: 1, wquote: "whole days", how: "it charges early" })),
+  }) }));
+  const q = s.drawer2.find((g) => g.kind === "contradicted");
+  assert.doesNotMatch(q.text, /The rule itself holds at/);
 });
