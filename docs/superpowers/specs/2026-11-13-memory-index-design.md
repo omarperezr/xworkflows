@@ -28,9 +28,9 @@ Proof: `query`, the hook's session-start command, follows the same rule and retu
 
 Install makes no qmd call. The two steps below do not depend on each other, and both go through the checks and the record that the other writes of `install` use (`plain`, `clean`, `plan`, `apply`), so `--dry-run`, a second install and `uninstall` follow from the same machinery.
 
-When `memory.dir` is not a folder name inside the repository (an absolute path, or one that climbs out with `..`), install does neither step and prints `not written: memory.dir must be a folder inside the repository: <memory.dir>`.
+`memory.dir` is read as the memory checks read it (`checks/index-current.mjs:6-8`): trimmed, normalised, without a leading `./` or trailing slashes, so `./docs/memory` and `docs/memory/` name the same folder as `docs/memory`. When it is then not a folder name inside the repository (an absolute path, or one that climbs out with `..`), install does neither step and prints `not written: memory.dir must be a folder inside the repository: <memory.dir>`.
 
-1. **Folder.** When `memory.dir` does not exist, install creates it. It never creates it through a symlink: it then prints `not written (symlink): <memory.dir>`. The folder is not in the record: `uninstall` never removes it.
+1. **Folder.** When `memory.dir` does not exist, install creates it. It never creates it through a symlink: it then prints `not written (symlink): <memory.dir>`. The record notes that install created the folder.
 2. **Index.** When `.qmd/index.yml` does not exist and the config holds no `memory.index`, install writes it:
 
    ```
@@ -50,7 +50,8 @@ An existing `.qmd/index.yml` is left byte-identical, whoever wrote it. A config 
 
 - `doctor`: its check stays. With no `memory.index`, a failure reads `no qmd collection covers <memory.dir>: run install again` when `.qmd/index.yml` does not exist, and `no qmd collection covers <memory.dir>: .qmd/index.yml names no collection with the path <absolute folder>; add one, or delete .qmd and run install again` when it does. With `memory.index` set the line stays as it is today.
 - `doctor`: when the real location of the memory folder is outside the repository, it prints `warn the memory folder is outside the repository: qmd indexes it only after "qmd trust" is run here`. A path it cannot resolve prints nothing more and never stops `doctor`.
-- `uninstall`: removes the `.qmd/index.yml` that install created, `index.sqlite` beside it, `.qmd/` when it is then empty, and the `.gitignore` line. It leaves the memory folder, and a `.qmd/index.yml` install did not create with everything beside it.
+- `uninstall`: removes the `.qmd/index.yml` that install created, with `index.sqlite`, `index.sqlite-wal` and `index.sqlite-shm` beside it, `.qmd/` when it is then empty, and the `.gitignore` line. It leaves a `.qmd/index.yml` install did not create with everything beside it.
+- `uninstall` and the memory folder: when the record says install created it and it holds nothing, the folder is removed, with the empty parents install made for it, so a fresh project comes back as it was. When install created it and it holds anything, it stays and `uninstall` prints `left in place: <memory.dir>`. A folder install did not create is never touched and never named.
 - `README.md`, Setup, and `docs/design.md`: what install does with the memory folder; each checkout runs `install` for its own index.
 - This repository runs the real `install` and `doctor` once, on the owner's word, after the review.
 
@@ -77,6 +78,8 @@ None open.
 3. "Remove both, keep notes": `uninstall` removes the yml and `index.sqlite` when install created the yml.
 4. "Fresh branch from main": the new work takes over only the folder creation with its guard and tests, and card P-98; the proof-harness change is left behind.
 5. "Yes, build it up to the review": the points above and the first three limits, as shown; the main session stops before the real install in this repository, before the merge and before the push.
+6. "Remove if empty, else say so": what `uninstall` does with a memory folder install created.
+7. "Remove them too": the two side files of `index.sqlite` go with it.
 
 ## The dropped design
 

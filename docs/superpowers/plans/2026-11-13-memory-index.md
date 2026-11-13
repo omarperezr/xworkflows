@@ -36,6 +36,13 @@ About 40 code lines, all in `bin/xworkflows.mjs`.
   - `uninstall`: the yml, `index.sqlite`, the empty `.qmd/` and the `.gitignore` line are gone, a note in the memory folder stays; a yml install did not create stays with its `index.sqlite`.
 - Done: `node --test bin/xworkflows.test.mjs` passes and `node bin/xworkflows.mjs pack --check` prints nothing.
 
+**T1b: `uninstall` takes back an empty memory folder and the database's side files; `memory.dir` is read as the checks read it** (owner's answers 6 and 7; spec section "What install does", first paragraph)
+- Files: `bin/xworkflows.mjs`, `bin/xworkflows.test.mjs` (the agent of T1, after T1 is committed)
+- Role: implement
+- `install` and `doctor` read `memory.dir` by one rule, the one of `checks/index-current.mjs:6-8`.
+- Tests, each seen failing first: install then uninstall on a fresh project leaves nothing; with a note in the folder it stays and the line is printed; a folder that existed before the install is neither removed nor named; install, install, uninstall still removes an empty folder; the two side files are removed with `index.sqlite`; `./docs/memory` and `docs/memory/` give the folder `docs/memory`, the yml path without the extra characters, and an `ok` line from `doctor`.
+- Done: `node --test bin/xworkflows.test.mjs` passes and `node bin/xworkflows.mjs pack --check` prints nothing.
+
 **T2: the README and the design say what `install` does with the memory folder** (spec section "What else changes", item 4)
 - Files: `README.md`, `docs/design.md`
 - Role: main session
@@ -50,7 +57,8 @@ About 40 code lines, all in `bin/xworkflows.mjs`.
 ## Review Focus
 
 - Nothing is created or written outside the repository or through a symlink: the folder, `.qmd/index.yml`, the `.gitignore` line.
-- An existing `.qmd/index.yml` is never changed by `install`. `uninstall` removes a yml and an `index.sqlite` only when the record says install created that yml, and never the memory folder.
+- An existing `.qmd/index.yml` is never changed by `install`. `uninstall` removes a yml and its database files only when the record says install created that yml.
+- `uninstall` removes the memory folder only when the record says install created it and it holds nothing at all; a folder with any entry, or one install did not create, stays.
 - `install` and `uninstall` start no `qmd`, on any path through the code.
 - The path written is valid YAML for any folder name and is the value `doctor` compares.
 - `--dry-run` writes nothing; a second install changes nothing.
