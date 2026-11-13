@@ -722,13 +722,17 @@ function uninstall() {
   let md = null;
   try { md = memName(loadConfig(ROOT).memory.dir); } catch {}
 
+  // the marker, not the record, says this checkout's install wrote the yml: only install's exact text is the marker
+  let marked = false;
+  try { marked = lstatSync(join(ROOT, QMARK), { throwIfNoEntry: false })?.isFile() && clean(ROOT, QMARK) && read(ROOT, QMARK) === MARK_TEXT; } catch {} // .qmd is a plain file
+
   const named = {
     files: (_, p) => wanted.has(p) || hookSet.has(p),
     merged: (m) => m.file === SETTINGS && wants.some((w) => isDeepStrictEqual(w.key, m.key)),
     scalars: (x) => (x.file === SETTINGS && isDeepStrictEqual(x.key, ["attribution"])) || (x.file === LOCAL && isDeepStrictEqual(x.key, [LOCAL_KEY])),
     blocks: (b) => b.file === "AGENTS.md",
     imports: (i) => !!LINES.get(i.file)?.includes(i.line),
-    created: (p) => FIVE.includes(p) || p === md,
+    created: (p) => FIVE.includes(p) || p === md || (p === YML && marked),
     chained: (c) => hookSet.has(c.file) && c.to === c.file + ".before-xworkflows",
   };
   const said = new Set();
@@ -827,9 +831,6 @@ function uninstall() {
     try { empty ||= t !== null && isDeepStrictEqual(JSON.parse(t), {}); } catch {}
     if (empty && !rec.kept.includes(p)) { rm(p); out.push(`deleted ${p}`); }
   }
-  // the marker, not the record, says this checkout's install wrote the yml
-  let marked = false;
-  try { marked = lstatSync(join(ROOT, QMARK), { throwIfNoEntry: false })?.isFile() && clean(ROOT, QMARK); } catch {} // .qmd is a plain file
   if (marked) {
     for (const f of [YML, ".qmd/index.sqlite", ".qmd/index.sqlite-wal", ".qmd/index.sqlite-shm", QMARK]) if (lstatSync(join(ROOT, f), { throwIfNoEntry: false })?.isFile()) rm(f);
   }

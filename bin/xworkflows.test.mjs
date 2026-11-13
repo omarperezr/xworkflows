@@ -1516,6 +1516,24 @@ test("install: a plain .qmd/xworkflows the user already has is left byte for byt
   const r = repo({ ".qmd/xworkflows": "mine\r\n" });
   assert.equal(inst(r).status, 0);
   assert.equal(readFileSync(join(r, ".qmd/xworkflows"), "utf8"), "mine\r\n");
+  assert.equal(cli(r, ["uninstall"]).status, 0);
+  assert.equal(readFileSync(join(r, ".qmd/xworkflows"), "utf8"), "mine\r\n");
+});
+test("uninstall: a project's own .qmd/xworkflows, yml and database stay byte for byte", () => {
+  const files = { ".qmd/xworkflows": "mine\n", ".qmd/index.yml": "mine: 1\n", ".qmd/index.sqlite": "DB" };
+  const r = repo(files); inst(r);
+  assert.equal(cli(r, ["uninstall"]).status, 0);
+  for (const [f, t] of Object.entries(files)) assert.equal(readFileSync(join(r, f), "utf8"), t, f);
+});
+test("uninstall: a record naming the yml with the real marker removes it without a kept line", () => {
+  const r = repo(); inst(r);
+  const rp = join(r, ".xworkflows/installed.json"), rec = readJson(r, ".xworkflows/installed.json");
+  rec.created.push(".qmd/index.yml");
+  writeFileSync(rp, JSON.stringify(rec));
+  const out = cli(r, ["uninstall"]);
+  assert.equal(out.status, 0);
+  assert.ok(!existsSync(join(r, ".qmd/index.yml")));
+  assert.ok(!out.stdout.includes("kept (not ours): .qmd/index.yml"), out.stdout);
 });
 test("uninstall: a .qmd linked out of the repository keeps its marker, yml and database", () => {
   const o = tmp("xwf-out-");
