@@ -188,6 +188,7 @@ test("a redirect glued to the word before it is denied", () => {
     deny(decide(sh(c), ctx()), /summary\.md is written with Write/);
 });
 test("tee that reads the summary writes nothing", () => ok(decide(sh("tee /tmp/copy < .xworkflows/summary.md"), ctx())));
+test("tee with a redirect source before the summary writes it", () => deny(decide(sh("tee < in.txt .xworkflows/summary.md"), ctx()), /summary\.md is written with Write/));
 test("many tee words are judged in linear time", () => {
   const time = (n) => { const e = sh("tee ".repeat(n)); const t = process.hrtime.bigint(); ok(decide(e, ctx())); return Number(process.hrtime.bigint() - t) / 1e6; };
   time(1000);
