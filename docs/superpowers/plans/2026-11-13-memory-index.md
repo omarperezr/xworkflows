@@ -66,6 +66,22 @@ The owner's answers, 2026-11-13: "Yes, one fix round", "Marker file per checkout
 - Its own commit, subject `feat(install): ...`.
 - Done for the round: `node --test bin/xworkflows.test.mjs` passes and `node bin/xworkflows.mjs pack --check` prints nothing.
 
+### Batch 1, second fix round after the confirmation at `424286e`
+
+The confirmation closed findings 1 to 3 and left one blocking finding. The owner's answers, 2026-11-13: "Fix it plus the three one-liners", and both `ask-owner` findings accepted as known limits (spec, answers 12 and 13). This is the last fix round the method allows for the batch.
+
+**G1: the marker is not written through a symlink nor over something that is there** (confirmation, blocking, `bin/xworkflows.mjs:410`)
+- red: from the verifier, branch `verify/marker-symlink`
+- Files: `bin/xworkflows.mjs`, `bin/xworkflows.test.mjs`
+- Role: implement
+
+**G2: three small corrections in the same code** (confirmation, the three `pending` findings in `bin/xworkflows.mjs`)
+- A test that fails when the guard of the delete in `uninstall` is removed: `.qmd` linked out of the repository, the marker, the yml and the database there, and they stay.
+- The record no longer makes `uninstall` delete an empty `.qmd/index.yml` that has no marker: the leftover condition near line 730 goes, and such a record gets `kept (not ours): .qmd/index.yml`.
+- `uninstall` does not stop with a raw error when `.qmd` is a plain file.
+- Files: the same two, the same agent, one commit with G1, subject `fix(install): ...`.
+- Done: `node --test bin/xworkflows.test.mjs` passes and `node bin/xworkflows.mjs pack --check` prints nothing.
+
 **T2: the README and the design say what `install` does with the memory folder** (spec section "What else changes", item 4)
 - Files: `README.md`, `docs/design.md`
 - Role: main session
@@ -79,7 +95,7 @@ The owner's answers, 2026-11-13: "Yes, one fix round", "Marker file per checkout
 
 ## Review Focus
 
-- Nothing is created or written outside the repository or through a symlink: the folder, `.qmd/index.yml`, the `.gitignore` line.
+- Nothing is created or written outside the repository or through a symlink: the folder, `.qmd/index.yml`, the marker `.qmd/xworkflows`, the `.gitignore` line.
 - An existing `.qmd/index.yml` is never changed by `install`. `uninstall` removes a yml and its database files only when the record says install created that yml.
 - `uninstall` removes the memory folder only when the record says install created it and it holds nothing at all; a folder with any entry, or one install did not create, stays.
 - `install` and `uninstall` start no `qmd`, on any path through the code.

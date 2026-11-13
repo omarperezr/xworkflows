@@ -40,9 +40,9 @@ Install makes no qmd call. The two steps below do not depend on each other, and 
        pattern: "**/*.md"
    ```
 
-   The path is the repo root joined with `memory.dir`, the same value `doctor` compares, written as a JSON string so that any folder name is valid YAML. Install then adds the line `.qmd/` to `.gitignore`, only in a run that writes the yml. Never through a symlink.
+   The path is the repo root joined with `memory.dir`, the same value `doctor` compares, written as a JSON string so that any folder name is valid YAML. Install then adds the line `.qmd/` to `.gitignore`, in a run that plans to write the yml; the line stays when that write then fails. Never through a symlink.
 
-Beside the yml, install writes the marker `.qmd/xworkflows`, one line of text. The marker, not the record, says that the install of this checkout created the yml: the record is a tracked file shared by every checkout, and the yml belongs to one. The yml and the marker are not in the record.
+Beside the yml, install writes the marker `.qmd/xworkflows`, one line of text. The marker, not the record, says that the install of this checkout created the yml: the record is a tracked file shared by every checkout, and the yml belongs to one. The yml and the marker are not in the record. The marker passes the same test as the yml: it is never written through a symlink and never over something that is already there.
 
 An existing `.qmd/index.yaml` or `.qmd/index.yml` is left byte-identical, whoever wrote it. A config that holds `memory.index` gets the folder and no `.qmd`: that project keeps its named index.
 
@@ -67,6 +67,8 @@ When the folder cannot be created, or the yml or the marker cannot be written, i
 - A memory folder linked to a location outside the repository is indexed only after the owner runs `qmd trust`: qmd's own rule.
 - Recall at session start is by keyword only unless `qmd embed` is run, as today.
 - Collections the owner adds later to a yml that install created are removed with it by `uninstall`.
+- A `.qmd/index.yaml` the owner adds after the install is the config qmd then reads, and `index.sqlite` serves it; `uninstall` still removes that database with the yml of the marker. qmd builds it again.
+- A folder above the repository that has its own `.qmd` config: inside the repository qmd uses the yml install wrote, not that one, until `uninstall` takes it back.
 - The local index needs a qmd that reads `.qmd`; its changelog documents it from 2.6.3 (read not tested). An older qmd falls back to the global index and `doctor` fails the line.
 - Not tested: a path written as a JSON string printed back by `collection show` (the probe wrote it unquoted), and `qmd query` against a local index. The real `install` and `doctor` in this repository show the first.
 
@@ -89,6 +91,8 @@ None open.
 9. "Yes, one fix round": after the risk review of `2fe5e16`, for its two blocking findings: the config name `.qmd/index.yaml`, and a memory folder that cannot be created.
 10. "Marker file per checkout": what tells `uninstall` that this checkout's install created the yml.
 11. "Drop them": the seven small findings of that review, listed in the plan under `Declined findings`.
+12. "Fix it plus the three one-liners": a second fix round after the confirmation at `424286e`: the marker passes the symlink test; a test holds the guard of the delete; no deletion of an empty yml on the word of the record; no raw error at uninstall when `.qmd` is a plain file.
+13. "Accept, write it as a known limit": a `.qmd/index.yaml` added after the install, and a `.qmd` config in a folder above the repository.
 
 Not tested: qmd with the extra file `.qmd/xworkflows` in its folder. The real `install` and `doctor` in this repository show it.
 
