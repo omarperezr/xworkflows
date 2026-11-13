@@ -2109,3 +2109,43 @@ test("hook entry: uninstall keeps and names an entry the user changed", () => {
   assert.match(out, /kept \(changed locally\): \.claude\/settings\.json hooks\.PreToolUse/);
   assert.equal(matcherOf(r), "Write");
 });
+
+// a command doctor prints can be pasted: a value of the config is quoted unless it is plain
+test("doctor: memory.dir and memory.index are shell-quoted in the commands it prints, and a plain one is not", () => {
+  const r = repo(); cli(r, ["install"]);
+  mkdirSync(join(r, "my docs/memory"), { recursive: true });
+  const q = tools({ qmd: "exit 0" });
+  withConfig(r, { memory: { dir: "my docs/memory", index: "team idx" } });
+  const out = doctor(r, { PATH: q }).stdout;
+  assert.match(out, /^fail no qmd collection covers my docs\/memory: qmd --index 'team idx' collection add 'my docs\/memory'$/m);
+  withConfig(r, { memory: { dir: "my docs/memory", index: "a;b'c" } });
+  assert.match(doctor(r, { PATH: q }).stdout, /collection add 'my docs\/memory'$/m);
+  assert.match(doctor(r, { PATH: q }).stdout, /qmd --index 'a;b'\\''c' collection add /);
+  withConfig(r, { memory: { index: "mine" } });
+  assert.match(doctor(r, { PATH: q }).stdout, /^fail no qmd collection covers docs\/memory: qmd --index mine collection add docs\/memory$/m);
+  const down = tools({ qmd: 'case "$*" in *"collection list"*) echo boom >&2; exit 1;; esac' });
+  withConfig(r, { memory: { index: "team idx" } });
+  assert.match(doctor(r, { PATH: down }).stdout, /^warn qmd did not answer: collections of docs\/memory not checked: run qmd --index 'team idx' collection list to see why$/m);
+});
+test("doctor: the code index advice names the tool of lookup.index.command, and the install command only for graphify", () => {
+  const r = repo(); cli(r, ["install"]);
+  const bare = tools({ qmd: "exit 0" });
+  withConfig(r, { paths: { ...ALL_KEYS.paths, code: ["src/"] }, lookup: { index: { command: "mytool query", folder: "idx-out" } } });
+  const out = doctor(r, { PATH: bare }).stdout;
+  assert.match(out, /^fail mytool command is missing$/m);
+  assert.match(out, /^fail idx-out\/graph\.json is missing: mytool update \.$/m);
+  assert.doesNotMatch(out, /graphify/);
+  const fake = tools({ qmd: "exit 0", mytool: "exit 0" });
+  mkdirSync(join(r, "idx-out")); writeFileSync(join(r, "idx-out/graph.json"), "{}");
+  assert.match(doctor(r, { PATH: fake }).stdout, /^ok +mytool command$/m);
+  withConfig(r, { paths: { ...ALL_KEYS.paths, code: ["src/"] } });
+  assert.match(doctor(r, { PATH: bare }).stdout, /^fail graphify command is missing: uv tool install graphifyy$/m);
+});
+test("doctor: the qmd upgrade advice is printed only when the collection list answered and covers nothing", () => {
+  const r = repo(); cli(r, ["install"]);
+  const failing = tools({ qmd: 'case "$*" in *"collection list"*) echo boom >&2; exit 1;; esac' });
+  const out = doctor(r, { PATH: failing }).stdout;
+  assert.match(out, /^warn qmd did not answer: collections of docs\/memory not checked: run qmd collection list to see why$/m);
+  assert.doesNotMatch(out, /this qmd does not read/);
+  assert.match(doctor(r, { PATH: tools({ qmd: "exit 0" }) }).stdout, /^fail no qmd collection covers docs\/memory: this qmd does not read \.qmd\/index\.yml, which names it: npm install -g @tobilu\/qmd@latest$/m);
+});

@@ -12,6 +12,8 @@ import { DEFAULTS, PROJECT_KEYS, load as loadConfig, missing } from "../hooks/co
 export const PKG = dirname(dirname(fileURLToPath(import.meta.url)));
 export let ROOT;
 
+// a config value in a command doctor prints: plain stays as it is, anything else in single quotes
+const sh = (v) => (/^[\w\/.-]+$/.test(v) ? v : `'${v.replaceAll("'", "'\\''")}'`);
 const COMMANDS = ["install", "doctor", "uninstall", "pack", "check"];
 const BOOL = ["--yes", "--dry-run", "--check"];
 
@@ -699,8 +701,10 @@ async function doctor() {
     } catch (e) { say("fail", `config: ${e.message}: ${e.message.startsWith(".xworkflows/config.json does not parse") ? "fix the JSON of .xworkflows/config.json" : `if a file of the package is named "changed locally" above, delete it; then ${INSTALL}`}`); }
     if (conf.paths.code?.length) {
       const dir = conf.lookup.index.folder;
-      say(has("graphify") ? "ok" : "fail", has("graphify") ? "graphify command" : "graphify command is missing: uv tool install graphifyy");
-      say(existsSync(join(ROOT, dir, "graph.json")) ? "ok" : "fail", existsSync(join(ROOT, dir, "graph.json")) ? "graphify index" : `${dir}/graph.json is missing: graphify update .`);
+      // the tool is the first word of lookup.index.command, as the git hooks read it
+      const tool = conf.lookup.index.command.split(" ")[0];
+      say(has(sh(tool)) ? "ok" : "fail", has(sh(tool)) ? `${tool} command` : `${tool} command is missing${tool === "graphify" ? ": uv tool install graphifyy" : ""}`);
+      say(existsSync(join(ROOT, dir, "graph.json")) ? "ok" : "fail", existsSync(join(ROOT, dir, "graph.json")) ? `${tool} index` : `${dir}/graph.json is missing: ${sh(tool)} update .`);
     }
     const mem = memName(conf.memory.dir) ?? conf.memory.dir;
     if (!has("qmd")) say("fail", "qmd command is missing: npm install -g @tobilu/qmd");
@@ -708,13 +712,13 @@ async function doctor() {
     else {
       const abs = resolve(ROOT, mem);
       const q = (...a) => spawnSync("qmd", [...(conf.memory.index ? ["--index", conf.memory.index] : []), "collection", ...a], { cwd: ROOT, encoding: "utf8", timeout: TIMEOUT });
-      const qcmd = `qmd${conf.memory.index ? ` --index ${conf.memory.index}` : ""}`;
+      const qcmd = `qmd${conf.memory.index ? ` --index ${sh(conf.memory.index)}` : ""}`;
       // no minimum is compared: the line only says which qmd this is
       const v = spawnSync("qmd", ["--version"], { cwd: ROOT, encoding: "utf8", timeout: TIMEOUT });
       const ver = v.error || v.status !== 0 ? "" : (v.stdout ?? "").trim().split("\n")[0];
       say(ver ? "ok" : "warn", ver || "qmd does not answer --version: run qmd --version to see why");
       const l = q("list");
-      if (l.error) say("warn", `qmd did not answer: collections of ${mem} not checked: run ${qcmd} collection list to see why`);
+      if (l.error || l.status !== 0) say("warn", `qmd did not answer: collections of ${mem} not checked: run ${qcmd} collection list to see why`);
       else {
         // only `collection show <name>` prints the path
         const names = [...(l.stdout ?? "").matchAll(/^(\S+) \(qmd:\/\//gm)].map((m) => m[1]);
@@ -723,7 +727,7 @@ async function doctor() {
           return t && (abs === t || abs.startsWith(t + "/"));
         });
         const yml = localYml(ROOT);
-        const why = conf.memory.index ? `${qcmd} collection add ${mem}` : !yml ? INSTALL : (read(ROOT, yml) ?? "").includes(abs) ? `this qmd does not read ${yml}, which names it: npm install -g @tobilu/qmd@latest` : `${yml} names no collection with the path ${abs}; add one, or delete .qmd and run install again`;
+        const why = conf.memory.index ? `${qcmd} collection add ${sh(mem)}` : !yml ? INSTALL : (read(ROOT, yml) ?? "").includes(abs) ? `this qmd does not read ${yml}, which names it: npm install -g @tobilu/qmd@latest` : `${yml} names no collection with the path ${abs}; add one, or delete .qmd and run install again`;
         say(covers ? "ok" : "fail", covers ? `qmd collection covers ${mem}` : `no qmd collection covers ${mem}: ${why}`);
       }
     }
