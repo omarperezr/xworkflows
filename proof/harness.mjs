@@ -1,7 +1,7 @@
 // Development-only: runs /adapt in fresh repo copies through the Claude Agent SDK.
 // usage: node proof/harness.mjs --source <dir> --commit <sha> [--init] [--strip a,b] --answers <file|none> --trials <n> --mode full|research-only --out <dir> [--spend-file <file>]
-// Spending is summed across runs in --spend-file (default <out>/../proof-spend.json); --max-usd-total caps that sum.
-import { KEPT_FILES, addSpend, apiKeyGuard, budgetStop, countedCost, prepareCopy, readLedger, acquireLock, releaseLock, restoreOwner, stopFor, withOwnerBackup } from "./trial-lib.mjs";
+// Spending is summed across runs in --spend-file (default docs/proof/private/proof-spend.json of this repository, git-ignored); --max-usd-total caps that sum.
+import { KEPT_FILES, addSpend, apiKeyGuard, budgetStop, countedCost, prepareCopy, readLedger, spendFilePath, acquireLock, releaseLock, restoreOwner, stopFor, withOwnerBackup } from "./trial-lib.mjs";
 import { answerFor, loadAnswers } from "./answers.mjs";
 import { execFileSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -108,7 +108,7 @@ if (!lock.ok) { console.error(`proof: another harness run (pid ${lock.pid}) hold
 process.on("exit", () => releaseLock(homedir())); // covers normal end, die() and the signal handlers (they call process.exit)
 if (restoreOwner(homedir())) console.log("restored ~/.xworkflows/owner.md from a backup left by an earlier killed run");
 for (const sig of ["SIGINT", "SIGTERM"]) process.on(sig, () => { restoreOwner(homedir()); process.exit(1); });
-const spendFile = o["spend-file"] || join(resolve(o.out), "..", "proof-spend.json");
+const spendFile = spendFilePath(REPO, o["spend-file"]);
 let spent;
 try { spent = readLedger(spendFile).totalUsd; } catch (e) { die(`spend ledger ${spendFile}: ${e.message}`); }
 console.log(`spend ledger ${spendFile}: ${spent.toFixed(2)} USD spent before this run`);

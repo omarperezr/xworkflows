@@ -76,7 +76,7 @@ test("adapt pins its questions, headings, keys and outputs", () => {
 });
 test("adapt leaves the tree clean on an unchanged re-run and commits only its files", () => {
   const s = read("skills/adapt/SKILL.md");
-  assert.ok(s.includes("the three screens are asked again and only config keys that already have a value are skipped"));
+  assert.ok(s.includes("a screen 1 sentence is not asked again when the owner answered it in the earlier adaptation"));
   assert.ok(s.includes('git commit -m "chore: adapt xworkflows to this project" -- <the same paths>'));
 });
 
@@ -85,7 +85,7 @@ test("full-review pins zones, file names, card form and decisions", () => {
   assert.ok(firstBodyLine(s).includes("node .xworkflows/mark.mjs full-review"));
   for (const t of ["No zones yet: run /adapt first.", "docs/superpowers/reviews", "YYYY-MM-DD-full-review.md",
     "## Errors", "## Restructurings", "## Owner's decisions", "- **P-<n>** —", "Status: unscheduled.",
-    "Do it", "Drop it", "Pending list", "red:", "# Pending"]) assert.ok(s.includes(t), t);
+    "Do it", "Drop it", "Pending list", "red:", "# Pending", "Reviewed commit: <sha>"]) assert.ok(s.includes(t), t);
 });
 test("full-review's Workflow script compiles as an async body", () => {
   const js = read("skills/full-review/SKILL.md").match(/```js\n([\s\S]*?)```/)[1];
@@ -228,10 +228,10 @@ test("playback by section", () => {
   has(read("skills/adapt/SKILL.md"), ["research.mjs check --approved"]);
   assert.ok(!read("skills/adapt/SKILL.md").includes("Did I understand correctly?"));
 });
-test("screen 2 answers say what they write; a re-adapt asks the three screens again", () => {
+test("screen 2 answers say what they write; a re-adapt asks only what changed", () => {
   has(step(4), ["`The written rule`: that rule and a card to change the code", "`The code`: the code's rule and a card to change the doc", "`Mistake: fix it`: the rule and one card per place",
     "`Exception: keep it`: the rule with its exceptions named", "`Not on purpose: protect it`: a card", "`On purpose` and `I don't know`: nothing; the log keeps them", "with no reason, ask for the reason once"]);
-  has(step(1).split("\n").find((x) => x.includes("`status: approved`")), ["the three screens are asked again", "only config keys that already have a value are skipped"]);
+  has(step(1).split("\n").find((x) => x.includes("`status: approved`")), ["a screen 1 sentence is not asked again", "`I don't know`", "no spec or plan", "only config keys that already have a value are skipped"]);
 });
 test("step 5 question id", () => has(step(5), ["header `S5-next`"]));
 test("resume runs start", () => {
@@ -326,7 +326,8 @@ test("adapt: second page, what Right writes, English labels, language without an
   has(s.split("## Step 1")[0], ["`Keep it, because ...`, `Yes, show them`, `No, skip them`"]);
   has(step(3), ["When the queue holds `S1-more`, ask it in a call of its own", "On `Yes, show them`, ask `S1-13` and on, 4 per call, like the first twelve", "on `No, skip them`, go on to screen 2"]);
   has(step(4), ["`Right`: only the items the sentence names, each from `details.md`; a rule the owner did not see is never written",
-    "A rule's path: a screen 1 rule takes it from `details.md`, a screen 2 rule (`Keep it, because ...`, `The written rule`, `The code`, `Mistake: fix it`, `Exception: keep it`) from its question in `interview.json`"]);
+    "A rule's path: a screen 1 rule takes it from `details.md`, a screen 2 rule (`Keep it, because ...`, `The written rule`, `The code`, `Mistake: fix it`, `Exception: keep it`) from its question in `interview.json`. For an exception question (`Mistake: fix it`, `Exception: keep it`) take it from the place where the rule itself holds, which the question names (`The rule itself holds at <path:line>`), never from the place that differs."]);
+  assert.ok(!step(4).includes("doc line"), "a contradicted written rule gets no path rule of its own: the research holds no place where it holds");
   has(step(2), ["`language` is the owner's language in an interview; leave it out with `research-only`, where the sentences come out in English"]);
   assert.ok(s.split("\n").length < 200);
 });

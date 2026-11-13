@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { grade, stats, kindsFound, noMoneyCheck, recommendedReport } from "./grade.mjs";
 import { spawnSync, execFileSync } from "node:child_process";
 import { answerFor, toAnswers, stripPlan, stripLeft, loadAnswers } from "./answers.mjs";
-import { prepareCopy, stopFor, withOwnerBackup, apiKeyGuard, budgetStop, countedCost, restoreOwner, readLedger, addSpend, acquireLock, releaseLock, KEPT_FILES } from "./trial-lib.mjs";
+import { prepareCopy, stopFor, withOwnerBackup, apiKeyGuard, budgetStop, countedCost, restoreOwner, readLedger, addSpend, spendFilePath, acquireLock, releaseLock, KEPT_FILES } from "./trial-lib.mjs";
 
 const FX = new URL("../test/fixtures/proof/", import.meta.url).pathname;
 const TRIAL = FX + "trial";
@@ -167,6 +167,17 @@ test("spend ledger sums counted costs across runs and the total cap applies to i
   assert.match(budgetStop(readLedger(f).totalUsd, 15, 60), /exceed/);
   writeFileSync(f, "{}");
   assert.throws(() => readLedger(f), /not a spend ledger/);
+});
+
+test("the default spend ledger is one fixed git-ignored file of the repository", () => {
+  const repo = join(import.meta.dirname, "..");
+  const a = spendFilePath(repo, undefined);
+  assert.equal(a, spendFilePath(repo, undefined));
+  assert.ok(a.startsWith(repo + "/"));
+  assert.equal(spawnSync("git", ["check-ignore", "-q", a], { cwd: repo }).status, 0);
+  const nested = tmp() + "/new/dir/l.json";
+  assert.equal(addSpend(nested, { trial: 1, countedUsd: 1 }), 1);
+  assert.equal(spendFilePath(repo, "/x/mine.json"), "/x/mine.json");
 });
 
 test("budgetStop keeps spent plus one trial cap within the total", () => {

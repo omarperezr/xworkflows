@@ -14,7 +14,7 @@
     },
     "adapt-gates": {
       "version": "0.1.0",
-      "sha256": "986c5468a064660aa758935fbf8a5f716b55e6af5f4495617a81fd3585fc1e67"
+      "sha256": "b304f14d231fb15349308c52ee62555341646d6a04ef5dc346f77dc85f2b37d7"
     },
     "adapt-record": {
       "version": "0.1.0",
@@ -50,11 +50,11 @@
     },
     "adapt": {
       "version": "0.1.0",
-      "sha256": "793290a2fd9b2d59e928292273892125042f5adc580d4fbd32d4ce777a639904"
+      "sha256": "8e014db9897a3dc1b41939d39c26b7c2638f6a1e701f8d3517eae988a7d99c0c"
     },
     "full-review": {
       "version": "0.1.0",
-      "sha256": "b858f0eb28ae009180c9fa81c3bf544af6bbf0a358d49c6b1b1c5b870dbe0c1c"
+      "sha256": "1b88d528730f10579a93214064c02bec654728b7318887c720188a65f4f19696"
     },
     "next-step": {
       "version": "0.1.0",
@@ -118,7 +118,7 @@
     },
     "checks": {
       "version": "0.1.0",
-      "sha256": "c37d09c8b9b52eacc13e8ff8844b8b0011d07ac613d500c95b440db16c88e138"
+      "sha256": "429c144d33a6906772b01c048e4facaefd2ceda400e8e7a317c2a46b633ea6e8"
     },
     "lint": {
       "version": "0.1.0",
@@ -168,7 +168,7 @@
     },
     ".xworkflows/hooks/core/adapt-gates.mjs": {
       "piece": "adapt-gates",
-      "sha256": "439a609adabbf78a1841b4b41ba0c7013728d3ddf7265fe8b90c524df6eaa025"
+      "sha256": "1ff68c0157f42d5a7776857f755d6ca427276988ceb6ffbc58fdfb956d44a137"
     },
     ".xworkflows/hooks/core/adapt-record.mjs": {
       "piece": "adapt-record",
@@ -200,7 +200,7 @@
     },
     ".xworkflows/checks/run.mjs": {
       "piece": "checks",
-      "sha256": "ee14948dbc6fc54c58e0aeaf77784e624e000b8ea0fe140f91ae220be9b15b7f"
+      "sha256": "a8ab013b38d3b354b8ff6fe7940e34c5782faa1a60a8818ac7bad4723df63a6a"
     },
     ".xworkflows/checks/comment-lines.mjs": {
       "piece": "checks",
@@ -328,7 +328,7 @@
     },
     ".claude/skills/adapt/SKILL.md": {
       "piece": "adapt",
-      "sha256": "80d40a7f73d30f7a7069932a4111b46df688798dd40a4c6a1a41035fcec5a739"
+      "sha256": "1a2d1e5bdfb6d47fcbda8122a276c1d21da97576af5b6163106c61001bc8453b"
     },
     ".claude/skills/adapt/scan.mjs": {
       "piece": "adapt",
@@ -344,15 +344,15 @@
     },
     ".claude/skills/adapt/research.mjs": {
       "piece": "adapt",
-      "sha256": "667767df82016b2c23d46b9fb0d9f3765ff13ee30a146ae0e15cf57935175a1a"
+      "sha256": "9e138e89f16a23b35afcad3edb2aec0580c0f47df2d248b965a4ceb74420e0b5"
     },
     ".claude/skills/adapt/screens.mjs": {
       "piece": "adapt",
-      "sha256": "33e52738916553b141e37964d11205d3ceb6fd3421b0a6ddd449038eb73732b8"
+      "sha256": "de9ed59a9c521ce5aa388c6ea19f97c4071590b0d2a4b4cf818ea1d54c6c6951"
     },
     ".claude/skills/full-review/SKILL.md": {
       "piece": "full-review",
-      "sha256": "d8879b367674c739fdce0806a290c0f240ef3bd30f6359f1609a275abcf48d15"
+      "sha256": "f386871a6efd6765ee6fa44e0f53bcafdff536fc3a4ec0e410d74bfcc6939e97"
     },
     ".claude/skills/next-step/SKILL.md": {
       "piece": "next-step",
@@ -456,23 +456,6 @@
         ]
       },
       "createdKey": true
-    },
-    {
-      "file": ".claude/settings.json",
-      "key": [
-        "hooks",
-        "PreToolUse"
-      ],
-      "entry": {
-        "matcher": "Write|Edit|MultiEdit|Workflow",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node \"$(git rev-parse --show-toplevel)/.xworkflows/hooks/run.mjs\" claude adapt-gates"
-          }
-        ]
-      },
-      "createdKey": false
     },
     {
       "file": ".claude/settings.json",
@@ -630,6 +613,23 @@
       ],
       "entry": "Bash(node .xworkflows/mark.mjs:*)",
       "createdKey": true
+    },
+    {
+      "file": ".claude/settings.json",
+      "key": [
+        "hooks",
+        "PreToolUse"
+      ],
+      "entry": {
+        "matcher": "Write|Edit|MultiEdit|Workflow|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$(git rev-parse --show-toplevel)/.xworkflows/hooks/run.mjs\" claude adapt-gates"
+          }
+        ]
+      },
+      "createdKey": false
     }
   ],
   "blocks": [

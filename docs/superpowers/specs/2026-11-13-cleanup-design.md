@@ -32,6 +32,8 @@ Methods: One batch per tier, one task per area, each task one agent that takes i
 3. "Fix blocking, drop the rest": during this clean-up a review finding that blocks is fixed in the batch; the others are listed once under `Declined findings` in the plan and do not become cards.
 4. Cheap tiers first ("an agent just good enough for that task"): docs and skill texts start on the cheap tier, code under the risk paths on the medium tier; a task that fails is run once more one tier up.
 
+5. The cards of tier A that waited for a ruling: P-4 keeps both files as written rules and is closed; P-89 takes option (b), the question carries the rule's own location; P-94 puts the high-risk sentences first whatever their source; P-60: a full review covers every commit before it, and without one the push judges the old commits as today; P-18 is really blocked. Still open: P-22 and P-69.
+
 ## Questions for the owner
 
 None open.

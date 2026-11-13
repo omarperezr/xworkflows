@@ -11,7 +11,7 @@
         ]
       },
       {
-        "matcher": "Write|Edit|MultiEdit|Workflow",
+        "matcher": "Write|Edit|MultiEdit|Workflow|Bash",
         "hooks": [
           {
             "type": "command",
