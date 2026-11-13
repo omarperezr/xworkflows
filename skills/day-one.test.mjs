@@ -85,7 +85,7 @@ test("full-review pins zones, file names, card form and decisions", () => {
   assert.ok(firstBodyLine(s).includes("node .xworkflows/mark.mjs full-review"));
   for (const t of ["No zones yet: run /adapt first.", "docs/superpowers/reviews", "YYYY-MM-DD-full-review.md",
     "## Errors", "## Restructurings", "## Owner's decisions", "- **P-<n>** —", "Status: unscheduled.",
-    "Do it", "Drop it", "Pending list", "red:", "# Pending"]) assert.ok(s.includes(t), t);
+    "Do it", "Drop it", "Pending list", "red:", "# Pending", "Reviewed commit: <sha>"]) assert.ok(s.includes(t), t);
 });
 test("full-review's Workflow script compiles as an async body", () => {
   const js = read("skills/full-review/SKILL.md").match(/```js\n([\s\S]*?)```/)[1];

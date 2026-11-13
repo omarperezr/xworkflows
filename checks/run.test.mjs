@@ -336,3 +336,71 @@ test("--only for a pack that is not on could not run, never a silent pass", with
   assert.equal(r.code, 2);
   assert.match(r.out[0], /^semgrep: could not run: not on in packs/);
 }));
+
+const REVIEWS = "docs/superpowers/reviews";
+const review = (name, sha) => ({ files: { [`${REVIEWS}/${name}`]: `# Full review\n\n${sha === null ? "no commit here" : `Reviewed commit: ${sha}`}\n` } });
+const pushed = async (repo, head) => {
+  const got = [];
+  const r = await check(repo, ["--pre-push", "origin", "--only", "signature"], { signature: { run: (range) => { got.push(range); return pass.run(); } } }, `refs/heads/main ${head} refs/heads/main ${ZERO}\n`);
+  return { range: got[0], out: r.out };
+};
+const history = (repo) => { // two old commits, then the old tip c3 is reviewed
+  repo.remote();
+  repo.git("push", "-q", "origin", "main");
+  const base = repo.git("rev-parse", "HEAD");
+  repo.branch("feature");
+  const c2 = repo.commit("two"), c3 = repo.commit("three");
+  return { base, c2, c3 };
+};
+
+test("a full review names the last old commit: the push judges only the later one, and says so", withRepo({}, async (repo) => {
+  const { c3 } = history(repo);
+  const rv = repo.commit("docs: full review", review("2026-11-13-full-review.md", c3.slice(0, 7)));
+  const c5 = repo.commit("five");
+  const { range, out } = await pushed(repo, c5);
+  assert.deepEqual(range.commits, [rv, c5]);
+  assert.equal(range.base, c3);
+  assert.deepEqual(out, [`xworkflows check: full review 2026-11-13-full-review.md names ${c3.slice(0, 7)}: the history up to it is not judged`]);
+}));
+
+test("no full-review file: the old commits are all judged, nothing is said", withRepo({}, async (repo) => {
+  const { c2, c3 } = history(repo);
+  const { range, out } = await pushed(repo, c3);
+  assert.deepEqual(range.commits, [c2, c3]);
+  assert.deepEqual(out, []);
+}));
+
+test("a review that names a commit that is not an ancestor of the head changes nothing", withRepo({}, async (repo) => {
+  const { base } = history(repo);
+  repo.checkout("main");
+  repo.branch("side");
+  const side = repo.commit("side");
+  repo.checkout("feature");
+  const rv = repo.commit("docs: full review", review("2026-11-13-full-review.md", side));
+  const { range, out } = await pushed(repo, rv);
+  assert.equal(range.base, base);
+  assert.equal(range.commits.length, 3);
+  assert.deepEqual(out, []);
+}));
+
+test("a review with no commit in it, or one that does not resolve, changes nothing", withRepo({}, async (repo) => {
+  const { base } = history(repo);
+  repo.commit("docs: full review", review("2026-11-13-full-review.md", null));
+  assert.equal((await pushed(repo, repo.git("rev-parse", "HEAD"))).range.base, base);
+  const rv = repo.commit("docs: full review 2", review("2026-11-13-full-review-2.md", "deadbee"));
+  const { range, out } = await pushed(repo, rv);
+  assert.equal(range.base, base);
+  assert.deepEqual(out, []);
+}));
+
+test("two full reviews: the newest decides", withRepo({}, async (repo) => {
+  const { c2, c3 } = history(repo);
+  repo.commit("docs: full review", review("2026-11-13-full-review.md", c2));
+  const c5 = repo.commit("five");
+  repo.commit("docs: full review 2", review("2026-11-13-full-review-2.md", c3));
+  const c7 = repo.commit("seven");
+  const { range } = await pushed(repo, c7);
+  assert.equal(range.base, c3);
+  assert.equal(range.commits.includes(c5), true);
+  assert.equal(range.commits.includes(c3), false);
+}));
