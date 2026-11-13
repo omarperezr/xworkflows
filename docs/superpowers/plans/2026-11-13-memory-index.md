@@ -129,4 +129,8 @@ The second confirmation closed its four findings and left one blocking finding. 
 - `bin/xworkflows.mjs`: `memory.dir` is still read raw for `autoMemoryDirectory`, in `uninstall` and for a byte count of `doctor`, so a space at its end gives two folders.
 - `bin/xworkflows.mjs` `uninstall`: a `null` entry in `created` of a record broken by hand stops it half way when `memory.dir` is not valid.
 
+From the confirmation at `1399e1e`, of the same kind as the ones above and listed with them by the main session, as told to the owner on 2026-11-13:
+
+- `bin/xworkflows.mjs` `uninstall`: a record edited by hand that names `.qmd/index.yml` in `created`, with the real marker present and a folder at that name, stops it with a raw `EISDIR`.
+
 ## Seals

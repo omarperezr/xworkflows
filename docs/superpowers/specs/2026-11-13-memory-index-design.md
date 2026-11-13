@@ -69,6 +69,7 @@ When the folder cannot be created, or the yml or the marker cannot be written, i
 - Collections the owner adds later to a yml that install created are removed with it by `uninstall`.
 - A `.qmd/index.yaml` the owner adds after the install is the config qmd then reads, and `index.sqlite` serves it; `uninstall` still removes that database with the yml of the marker. qmd builds it again.
 - A folder above the repository that has its own `.qmd` config: inside the repository qmd uses the yml install wrote, not that one, until `uninstall` takes it back.
+- A project that already has its own file named `.qmd/xworkflows` and no qmd config: install writes the yml and cannot write its marker, so `uninstall` leaves that yml in place and says nothing about it. Nothing of the project's is lost.
 - The local index needs a qmd that reads `.qmd`; its changelog documents it from 2.6.3 (read not tested). An older qmd falls back to the global index and `doctor` fails the line.
 - Not tested: a path written as a JSON string printed back by `collection show` (the probe wrote it unquoted), and `qmd query` against a local index. The real `install` and `doctor` in this repository show the first.
 
@@ -93,6 +94,8 @@ None open.
 11. "Drop them": the seven small findings of that review, listed in the plan under `Declined findings`.
 12. "Fix it plus the three one-liners": a second fix round after the confirmation at `424286e`: the marker passes the symlink test; a test holds the guard of the delete; no deletion of an empty yml on the word of the record; no raw error at uninstall when `.qmd` is a plain file.
 13. "Accept, write it as a known limit": a `.qmd/index.yaml` added after the install, and a `.qmd` config in a folder above the repository.
+15. "Accept it as a known limit": after the confirmation at `1399e1e`, which left nothing blocking: a yml written where the marker's name was already taken stays after `uninstall`.
+16. "Yes: install here, merge and push": the real `install` and `doctor` in this repository, then the merge and the push.
 14. "Fix it, one narrow check after": a third round, on the owner's word, after the confirmation at `11aca5b`: `uninstall` takes a file named `.qmd/xworkflows` as the marker only when it holds the marker's text, so a file of that name the project already had is never deleted, nor the config and database beside it.
 
 Not tested: qmd with the extra file `.qmd/xworkflows` in its folder. The real `install` and `doctor` in this repository show it.
