@@ -165,6 +165,45 @@ await brake.run(rangeFor(ctx, { base: first, head }), ctx);
   }
 });
 
+test("SIGINT while git runs between two test runs still removes the worktree", async () => {
+  const tmp = mkdtempSync(join(tmpdir(), "xwf-sig-"));
+  const repo = makeRepo({ config, files: BUG });
+  let child;
+  try {
+    repo.commit("fix: x returns 2", { files: { ...FIXED, ...NODE_TEST } });
+    const hook = join(repo.root, ".git", "hooks", "post-checkout");
+    writeFileSync(hook, `#!/bin/sh\necho 1 > '${join(tmp, "in-git")}'\nsleep 1\n`, { mode: 0o755 });
+    const script = join(tmp, "child.mjs");
+    writeFileSync(script, `import * as brake from ${JSON.stringify(new URL("./fix-has-test.mjs", import.meta.url).href)};
+import { load } from ${JSON.stringify(new URL("../hooks/core/config.mjs", import.meta.url).href)};
+import { makeCtx, rangeFor } from ${JSON.stringify(new URL("./run.mjs", import.meta.url).href)};
+const ctx = makeCtx(${JSON.stringify(repo.root)}, load(${JSON.stringify(repo.root)}));
+const first = ${JSON.stringify(repo.git("rev-parse", "HEAD~1"))}, head = ${JSON.stringify(repo.git("rev-parse", "HEAD"))};
+await brake.run(rangeFor(ctx, { base: first, head }), ctx);
+`);
+    child = spawn(process.execPath, [script], { stdio: "ignore" });
+    const exited = new Promise((res) => child.on("exit", (code, sig) => res({ code, sig })));
+    for (let i = 0; i < 100 && !existsSync(join(tmp, "in-git")); i++) await new Promise((r) => setTimeout(r, 50));
+    process.kill(child.pid, "SIGINT");
+    const { code, sig } = await Promise.race([exited, new Promise((_, rej) => setTimeout(() => rej(new Error("the child did not end after SIGINT")), 30000).unref())]);
+    assert.ok(sig || code !== 0, "child must not end as if nothing happened");
+    await new Promise((r) => setTimeout(r, 1500)); // a git the child left running ends
+    assert.equal(repo.git("worktree", "list").split("\n").length, 1, "worktree left behind");
+  } finally {
+    try { child.kill("SIGKILL"); } catch {}
+    repo.cleanup(); rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test("a test in a package with its own node_modules sees it", withRepo({ files: { ...BUG, "pkg/package.json": "{}\n", ".gitignore": "node_modules\n" } }, async (repo) => {
+  repo.write("pkg/node_modules/dep.txt", "here\n");
+  const t = { "test/x.test.mjs": `import { test } from "node:test";\nimport assert from "node:assert/strict";\nimport { existsSync } from "node:fs";\nimport { x } from "../src/x.mjs";\ntest("x", () => { assert.ok(existsSync(new URL("../pkg/node_modules/dep.txt", import.meta.url))); assert.equal(x(), 2); });\n` };
+  repo.commit("fix: x returns 2", { files: { ...FIXED, ...t } });
+  const r = await repo.run(brake);
+  assert.doesNotMatch(r.lines.join("\n"), /pass at the parent/);
+  assert.deepEqual(r, { ok: true, lines: [] });
+}));
+
 test("the test command does not inherit GIT_DIR", withRepo({}, async (repo) => {
   const t = { "test/x.test.mjs": `import { test } from "node:test";\nimport assert from "node:assert/strict";\nimport { x } from "../src/x.mjs";\ntest("x", () => { assert.equal(process.env.GIT_DIR, undefined); assert.equal(x(), 2); });\n` };
   repo.commit("fix: x returns 2", { files: { ...FIXED, ...t } });
