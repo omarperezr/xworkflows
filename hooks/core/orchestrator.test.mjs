@@ -343,6 +343,18 @@ test("shell: no pattern grows with the square of a long command", () => {
   }
 });
 
+test("shell: a line past 4000 characters is judged by its first 4000 characters", () => {
+  const files = Array.from({ length: 200 }, (_, i) => `src/module-number-${i}/file.ts`);
+  assert.ok(files.join(" ").length > 4000);
+  assert.ok(denied(decide(sh("cat " + files.join(" ")), mk())));
+  assert.ok(denied(decide(sh("cat \\\n" + files.join(" \\\n")), mk())));
+  assert.ok(allowed(decide(sh('git commit -m "' + "x".repeat(4500) + '"'), mk())));
+});
+
+test("shell: a read that starts after character 4000 of one line is still allowed (known limit)", () => {
+  assert.ok(allowed(decide(sh('git commit -m "' + "x".repeat(4500) + '" && cat src/big.ts'), mk())));
+});
+
 test("shell: a continued line that ends in CR LF is joined, a redirect `>&` is not a reader's argument, a root with backslashes is the root", () => {
   assert.ok(denied(decide(sh("cat \\\r\nsrc/a.ts"), mk())));
   assert.ok(denied(decide(sh("cat >&2 src/a.ts"), mk())));
