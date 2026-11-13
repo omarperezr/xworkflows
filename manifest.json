@@ -65,7 +65,12 @@
       "claude": [
         {
           "event": "PreToolUse",
-          "matcher": "Write|Edit|MultiEdit|Workflow|Bash"
+          "matcher": "Write|Edit|MultiEdit|Workflow|Bash",
+          "earlier": [
+            {
+              "matcher": "Write|Edit|MultiEdit|Workflow"
+            }
+          ]
         }
       ],
       "files": {

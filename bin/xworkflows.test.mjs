@@ -230,11 +230,12 @@ test("an entry of ours with the old matcher, as the record holds it, is replaced
   const rec = readJson(r, ".xworkflows/installed.json").merged.filter((m) => adapt(m.entry));
   assert.deepEqual(rec.map((m) => m.entry.matcher), ["Write|Edit|MultiEdit|Workflow|Bash"]);
 });
+const KEPT_EDIT = /kept: \.claude\/settings\.json hook adapt-gates differs from every text the package published; to get the package's entry, delete it and run xworkflows install\n/;
 test("an entry of ours edited by hand is kept and install says so", () => {
   const r = repo();
   const adapt = installedOld(r, "Write");
   const out = cli(r, ["install"]);
-  assert.match(out.stdout, /kept \(changed locally\): \.claude\/settings\.json hook adapt-gates\n/);
+  assert.match(out.stdout, KEPT_EDIT);
   assert.equal(readJson(r, ".claude/settings.json").hooks.PreToolUse.find(adapt).matcher, "Write");
   assert.equal(readJson(r, ".xworkflows/installed.json").merged.find((m) => adapt(m.entry)).entry.matcher, OLD_MATCHER);
 });
@@ -259,6 +260,51 @@ test("the record of a merged hook entry only holds text the package wrote: a han
   cli(r, ["install"]);
   cli(r, ["install"]);
   assert.equal(readJson(r, ".claude/settings.json").hooks.PreToolUse.find(adapt).matcher, "Write");
+});
+// the four states of an entry at the package's place, each with an unedited old text or a hand edit
+const adaptOf = (e) => e.hooks?.[0]?.command?.endsWith(" claude adapt-gates");
+const matcherOf = (r) => readJson(r, ".claude/settings.json").hooks.PreToolUse.find(adaptOf).matcher;
+const STATES = [
+  ["record lost, old text", (r) => { installedOld(r); rmSync(join(r, ".xworkflows/installed.json")); }, OLD_MATCHER, false],
+  ["record present, old text", (r) => { installedOld(r); }, OLD_MATCHER, false],
+  ["record lost, hand edit", (r) => { installedOld(r, "Write"); rmSync(join(r, ".xworkflows/installed.json")); }, "Write", true],
+  ["record from the earlier version holds the hand edit", (r) => { installedOld(r, "Write"); const rec = readJson(r, ".xworkflows/installed.json"); rec.merged.find((m) => adaptOf(m.entry)).entry.matcher = "Write"; writeJson(r, ".xworkflows/installed.json", rec); }, "Write", true],
+  ["record present, hand edit", (r) => { installedOld(r, "Write"); }, "Write", true],
+];
+for (const [name, setup, before, edited] of STATES) {
+  test(`hook entry, ${name}: install replaces an old text and keeps an edit; a second install and uninstall follow`, () => {
+    const r = repo();
+    setup(r);
+    assert.equal(matcherOf(r), before);
+    const first = cli(r, ["install"]).stdout;
+    assert.equal(KEPT_EDIT.test(first), edited, first);
+    assert.equal(matcherOf(r), edited ? "Write" : "Write|Edit|MultiEdit|Workflow|Bash");
+    const files = [".claude/settings.json", ".xworkflows/installed.json"].map((f) => existsSync(join(r, f)) ? readFileSync(join(r, f), "utf8") : null);
+    assert.equal(KEPT_EDIT.test(cli(r, ["install"]).stdout), edited);
+    assert.deepEqual([".claude/settings.json", ".xworkflows/installed.json"].map((f) => existsSync(join(r, f)) ? readFileSync(join(r, f), "utf8") : null), files);
+    const s = readJson(r, ".claude/settings.json");
+    s.hooks.PreToolUse.push(theirs);
+    writeJson(r, ".claude/settings.json", s);
+    assert.equal(cli(r, ["uninstall"]).status, 0);
+    const left = readJson(r, ".claude/settings.json").hooks.PreToolUse;
+    assert.deepEqual(left.filter((e) => !adaptOf(e)), [theirs]);
+    assert.equal(left.some((e) => adaptOf(e) && !edited), false);
+    assert.equal(left.filter(adaptOf).length, edited ? 1 : 0);
+  });
+}
+test("hook entry, record present: uninstall removes the settings file install created when only the package's entries are left", () => {
+  const r = repo();
+  installedOld(r);
+  cli(r, ["install"]);
+  assert.equal(cli(r, ["uninstall"]).status, 0);
+  assert.ok(!existsSync(join(r, ".claude/settings.json")));
+});
+test("a hook entry holding an old text is replaced when the record is lost, and the record holds the package's text", () => {
+  const r = repo();
+  installedOld(r);
+  rmSync(join(r, ".xworkflows/installed.json"));
+  cli(r, ["install"]);
+  assert.deepEqual(readJson(r, ".xworkflows/installed.json").merged.filter((m) => adaptOf(m.entry)).map((m) => m.entry.matcher), ["Write|Edit|MultiEdit|Workflow|Bash"]);
 });
 test("broken settings.json: exit 1, tree unchanged", () => {
   const r = repo({ ".claude/settings.json": "{oops" });
@@ -1766,7 +1812,8 @@ const DOCTOR_LINES = [
   ["file missing", (r) => { cli(r, ["install"]); rmSync(join(r, ".xworkflows/hooks/run.mjs")); }, {}, `fail missing or unreadable: .xworkflows/hooks/run.mjs: ${FIX}`],
   ["file changed", (r) => { cli(r, ["install"]); appendFileSync(join(r, ".claude/agents/explore.md"), "x\n"); }, {}, "warn changed locally: .claude/agents/explore.md; to put the package's copy back run xworkflows install (it overwrites your change)"],
   ["file kept", (r) => cli(r, ["install"]), {}, null, { ".claude/agents/explore.md": "mine\n" }],
-  ["merged entry changed", (r) => { cli(r, ["install"]); settingsEdit(r, (s) => { for (const e of s.hooks.PreToolUse) for (const h of e.hooks) h.timeout = 99; }); }, {}, "warn changed locally: .claude/settings.json hooks.PreToolUse; to put the package's entry back run xworkflows install"],
+  ["merged entry changed", (r) => { cli(r, ["install"]); settingsEdit(r, (s) => { for (const e of s.hooks.PreToolUse) for (const h of e.hooks) h.timeout = 99; }); }, {}, "warn .claude/settings.json hooks.PreToolUse hook adapt-gates differs from every text the package published; to get the package's entry, delete it and run xworkflows install"],
+  ["merged entry edited, record lost then install", (r) => { cli(r, ["install"]); settingsEdit(r, (s) => { s.hooks.PreToolUse.find(adaptOf).matcher = "Write"; }); rmSync(join(r, ".xworkflows/installed.json")); cli(r, ["install"]); }, {}, "warn .claude/settings.json hooks.PreToolUse hook adapt-gates differs from every text the package published; to get the package's entry, delete it and run xworkflows install"],
   ["merged entry missing", (r) => { cli(r, ["install"]); writeJson(r, ".claude/settings.json", { permissions: { allow: [] } }); }, {}, `fail merged entry missing: .claude/settings.json hooks.PreToolUse: ${FIX}`],
   ["block never written", (r) => { cli(r, ["install"]); const x = readJson(r, ".xworkflows/installed.json"); x.blocks = []; writeJson(r, ".xworkflows/installed.json", x); }, {}, `fail AGENTS.md block was never written: ${FIX}`],
   ["block differs", (r) => { cli(r, ["install"]); writeFileSync(join(r, "AGENTS.md"), readFileSync(join(r, "AGENTS.md"), "utf8").replace("<!-- xworkflows:start -->", "<!-- xworkflows:start -->\nedited")); }, {}, `fail AGENTS.md block differs from the template: ${FIX}`],

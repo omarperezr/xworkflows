@@ -170,7 +170,8 @@ function settingsWants(manifest) {
     for (const c of p.claude ?? []) {
       const entry = { ...(c.matcher && { matcher: c.matcher }), hooks: [{ type: "command", command: hookCmd(p.id) }] };
       const ours = (e) => isOurs(e, p.id);
-      want.push({ key: ["hooks", c.event], entry, ours, id: p.id });
+      const earlier = (c.earlier ?? []).map((x) => ({ ...(x.matcher && { matcher: x.matcher }), hooks: entry.hooks }));
+      want.push({ key: ["hooks", c.event], entry, ours, id: p.id, earlier });
     }
   }
   if (want.length) want.push({ key: ["permissions", "allow"], entry: MARK, ours: () => false });
@@ -183,7 +184,7 @@ function mergeSettings(root, manifest, record) {
   const want = settingsWants(manifest);
   const merged = [], notes = [];
   let changed = false;
-  for (const { key, entry, ours, id } of want) {
+  for (const { key, entry, ours, id, earlier } of want) {
     let o = s, made = 0;
     for (const k of key.slice(0, -1)) {
       if (!(k in o)) { o[k] = {}; made++; }
@@ -195,11 +196,14 @@ function mergeSettings(root, manifest, record) {
     if (!Array.isArray(o[last])) die(1, `${path}: ${key.join(".")} is not an array`);
     const found = o[last].find((e) => isDeepStrictEqual(e, entry) || ours(e));
     if (found) {
-      // an entry of ours that is not the one the manifest gives: replace it when it is exactly what the record holds, else it is a hand edit
-      const recorded = record.merged.find((m) => m.file === path && isDeepStrictEqual(m.key, key) && ours(m.entry));
+      // an entry of ours: the present text stays, an earlier text the package published is replaced, anything else is the user's and is not recorded
       if (id && ours(found) && !isDeepStrictEqual(found, entry)) {
-        if (recorded && isDeepStrictEqual(recorded.entry, found)) { o[last][o[last].indexOf(found)] = entry; changed = true; merged.push({ file: path, key, entry, createdKey: recorded.createdKey, levels: recorded.levels }); }
-        else notes.push(`kept (changed locally): ${path} hook ${id}`);
+        if (earlier.some((x) => isDeepStrictEqual(x, found))) {
+          const recorded = record.merged.find((m) => m.file === path && isDeepStrictEqual(m.key, key) && ours(m.entry));
+          o[last][o[last].indexOf(found)] = entry; changed = true;
+          merged.push({ file: path, key, entry, createdKey: recorded?.createdKey ?? false, ...(recorded?.levels && { levels: recorded.levels }) });
+        }
+        else notes.push(`kept: ${path} hook ${id} differs from every text the package published; to get the package's entry, delete it and run xworkflows install`);
         continue;
       }
       // ours but unrecorded (installed.json lost): record it so uninstall can remove it
@@ -604,16 +608,25 @@ async function doctor() {
     else say("warn", `kept theirs: ${k}; to use the package's copy, delete ${k}, take it out of "kept" in .xworkflows/installed.json and ${INSTALL}`);
   }
   // 3
+  const readArr = (file, key) => { try { const a = key.reduce((o, k) => o[k], JSON.parse(readFileSync(join(ROOT, file), "utf8"))); return Array.isArray(a) ? a : []; } catch { return []; } };
+  // an entry at the package's place that is not the present text: said from the manifest, whether the record holds it or not
+  const differs = (w, arr, lbl) => {
+    const mine = arr.find((e) => w.ours(e));
+    if (!mine || isDeepStrictEqual(mine, w.entry)) return false;
+    say("warn", w.earlier.some((x) => isDeepStrictEqual(x, mine)) ? `${lbl} hook ${w.id} holds an earlier text of the package: ${INSTALL} replaces it` : `${lbl} hook ${w.id} differs from every text the package published; to get the package's entry, delete it and ${INSTALL}`);
+    return true;
+  };
+  const wants = settingsWants(readManifest()).filter((w) => w.id);
   for (const m of rec.merged) {
-    let arr;
-    try { arr = m.key.reduce((o, k) => o[k], JSON.parse(readFileSync(join(ROOT, m.file), "utf8"))); } catch { arr = null; }
-    arr = Array.isArray(arr) ? arr : [];
+    const arr = readArr(m.file, m.key);
     const id = m.entry?.hooks?.[0]?.command?.match(/run\.mjs" claude (\S+)/)?.[1];
     const lbl = `${m.file} ${m.key.join(".")}`;
+    const w = id && wants.find((x) => x.id === id && isDeepStrictEqual(x.key, m.key));
+    if (w && differs(w, arr, lbl)) continue;
     if (arr.some((e) => isDeepStrictEqual(e, m.entry))) say("ok", `merged: ${lbl}`);
-    else if (id && arr.some((e) => isOurs(e, id))) say("warn", `changed locally: ${lbl}; to put the package's entry back ${INSTALL}`);
     else say("fail", `merged entry missing: ${lbl}: ${INSTALL}`);
   }
+  for (const w of wants) if (!rec.merged.some((m) => isDeepStrictEqual(m.key, w.key) && w.ours(m.entry))) differs(w, readArr(".claude/settings.json", w.key), `.claude/settings.json ${w.key.join(".")}`);
   // 4
   if (!rec.blocks.length) say("fail", `AGENTS.md block was never written: ${INSTALL}`);
   else if ((read(ROOT, "AGENTS.md") ?? "").includes(agentsBlock())) say("ok", "AGENTS.md block matches the template");
