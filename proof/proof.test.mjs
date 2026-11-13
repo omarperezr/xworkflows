@@ -35,7 +35,7 @@ test("grade counts R on heading 5 and I on the rules", () => {
   // inv-gamma is only in research.md heading 4: in neither; inv-batch only in rules (I)
   assert.deepEqual(g.R, ["inv-idem"]);
   assert.deepEqual(g.I, ["inv-idem", "inv-batch"]);
-  const g2 = grade(TRIAL, { invariants: [{ id: "x", patterns: ["wrap multi-step"] }, { id: "y", patterns: ["IDEMPOTENCY KEY", "every write"] }] });
+  const g2 = grade(TRIAL, { invariants: [{ id: "x", patterns: ["wrap multi-step"] }, { id: "y", patterns: ["RECORDED ONCE", "a book and a member"] }] });
   assert.deepEqual(g2.R, ["y"]);
   assert.deepEqual(g2.I, ["x", "y"]);
 });
@@ -202,7 +202,7 @@ test("grade and report ignore dropped citations; empty stats; missing research.m
 test("a version 3 research.md: R reads details.md and the Dropped list drops its citations", () => {
   const d = copy();
   writeFileSync(d + "/research.md", "---\ncommit: abc\nversion: 3\n---\n\n## What it is\n\nx\n\n## Dropped\n\n- idem: rule: Keys src/idem.js:10 \"q\"\n- plain: sentence: Made up. no file\n");
-  writeFileSync(d + "/details.md", "# Detail\n\n- every write carries an idempotency key (src/idem.js:10)\n");
+  writeFileSync(d + "/details.md", "# Detail\n\n- a loan is recorded once for a book and a member (src/idem.js:10)\n");
   assert.deepEqual(grade(d, RUBRIC).R, ["inv-idem"]);
   assert.equal(kindsFound(d).includes("idem"), false);
   assert.equal(kindsFound(d).length, 10);

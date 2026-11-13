@@ -5,7 +5,7 @@ installer text
 
 ## Project rules
 
-- Every write carries an idempotency key.
+- A loan is recorded once for a book and a member.
 - A loan is counted in whole days, in the library's time zone.
 
 ## Other
