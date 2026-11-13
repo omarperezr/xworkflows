@@ -164,7 +164,7 @@ function settingsWants(manifest) {
     for (const c of p.claude ?? []) {
       const entry = { ...(c.matcher && { matcher: c.matcher }), hooks: [{ type: "command", command: hookCmd(p.id) }] };
       const ours = (e) => isOurs(e, p.id);
-      want.push({ key: ["hooks", c.event], entry, ours });
+      want.push({ key: ["hooks", c.event], entry, ours, id: p.id });
     }
   }
   if (want.length) want.push({ key: ["permissions", "allow"], entry: MARK, ours: () => false });
@@ -175,9 +175,9 @@ function mergeSettings(root, manifest, record) {
   const path = ".claude/settings.json";
   const { old, s } = readObject(root, path);
   const want = settingsWants(manifest);
-  const merged = [];
+  const merged = [], notes = [];
   let changed = false;
-  for (const { key, entry, ours } of want) {
+  for (const { key, entry, ours, id } of want) {
     let o = s, createdKey = false;
     for (const k of key.slice(0, -1)) {
       if (!(k in o)) { o[k] = {}; createdKey = true; }
@@ -189,6 +189,13 @@ function mergeSettings(root, manifest, record) {
     if (!Array.isArray(o[last])) die(1, `${path}: ${key.join(".")} is not an array`);
     const found = o[last].find((e) => isDeepStrictEqual(e, entry) || ours(e));
     if (found) {
+      // an entry of ours that is not the one the manifest gives: replace it when it is exactly what the record holds, else it is a hand edit
+      const recorded = record.merged.find((m) => m.file === path && isDeepStrictEqual(m.key, key) && ours(m.entry));
+      if (id && ours(found) && !isDeepStrictEqual(found, entry) && recorded) {
+        if (isDeepStrictEqual(recorded.entry, found)) { o[last][o[last].indexOf(found)] = entry; changed = true; merged.push({ file: path, key, entry, createdKey: recorded.createdKey }); }
+        else notes.push(`kept (changed locally): ${path} hook ${id}`);
+        continue;
+      }
       // ours but unrecorded (installed.json lost): record it so uninstall can remove it
       const known = record.merged.some((m) => m.file === path && isDeepStrictEqual(m.key, key) && (isDeepStrictEqual(m.entry, found) || ours(m.entry)));
       if (ours(found) && !known) merged.push({ file: path, key, entry: found, createdKey: false });
@@ -200,7 +207,7 @@ function mergeSettings(root, manifest, record) {
   }
   const scalars = [];
   changed = setScalar(s, path, "attribution", ATTRIBUTION, scalars) || changed;
-  return { path, text: changed ? json(s) : null, rec: { merged, scalars, created: old === null && changed ? [path] : [] } };
+  return { path, notes, text: changed ? json(s) : null, rec: { merged, scalars, created: old === null && changed ? [path] : [] } };
 }
 
 // Claude Code ignores this key in the shared file; the local one holds a path of this machine.
@@ -410,7 +417,7 @@ export function plan(manifest, root, record, ans = {}) {
     // the marker passes the yml's test and is never written over something that is there
     if (qmd && !off(QMARK) && !lstatSync(join(root, QMARK), { throwIfNoEntry: false })) merges.push({ path: QMARK, text: MARK_TEXT, verb: "write", rec: {} });
   }
-  if (!off(SETTINGS)) merges.push(mergeSettings(root, manifest, record));
+  if (!off(SETTINGS)) { const ms = mergeSettings(root, manifest, record); notes.push(...ms.notes); merges.push(ms); }
   if (!off(LOCAL)) { const local = mergeLocal(root); if (local.note) notes.push(local.note); merges.push(local); }
   if (!off(".gitignore")) merges.push(mergeIgnore(root, qmd));
   if (!off("AGENTS.md")) merges.push(mergeAgents(root));
@@ -453,6 +460,8 @@ export function apply(pl, root, manifest, record) {
     }
     for (const [k, list] of Object.entries(m.rec)) {
       next[k] = [...next[k]];
+      // the replaced entry of a hook leaves the record
+      if (k === "merged") next[k] = next[k].filter((y) => !list.some((x) => x.entry?.hooks && x.file === y.file && isDeepStrictEqual(x.key, y.key) && x.entry.hooks[0].command === y.entry?.hooks?.[0]?.command));
       for (const x of list) if (!next[k].some((y) => (k === "merged" ? x.file === y.file && isDeepStrictEqual(x.key, y.key) && isDeepStrictEqual(x.entry, y.entry) : (k === "blocks" || k === "imports" ? x.file === y.file && x.line === y.line : isDeepStrictEqual(x, y))))) next[k].push(x);
     }
   }

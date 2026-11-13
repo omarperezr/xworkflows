@@ -205,6 +205,49 @@ test("an edited entry of ours is not duplicated", () => {
   cli(r, ["install"]);
   assert.equal(readJson(r, ".claude/settings.json").hooks.PreToolUse.length, PRE);
 });
+// a project installed before the matcher changed: the entry and the record both hold the old one
+const OLD_MATCHER = "Write|Edit|MultiEdit|Workflow";
+function installedOld(r, onDisk = OLD_MATCHER) {
+  cli(r, ["install"]);
+  const adapt = (e) => e.hooks?.[0]?.command?.endsWith(" claude adapt-gates");
+  const s = readJson(r, ".claude/settings.json");
+  s.hooks.PreToolUse.find(adapt).matcher = onDisk;
+  writeJson(r, ".claude/settings.json", s);
+  const rec = readJson(r, ".xworkflows/installed.json");
+  rec.merged.find((m) => adapt(m.entry)).entry.matcher = OLD_MATCHER;
+  writeJson(r, ".xworkflows/installed.json", rec);
+  return adapt;
+}
+test("an entry of ours with the old matcher, as the record holds it, is replaced and the record follows", () => {
+  const r = repo();
+  const adapt = installedOld(r);
+  assert.match(cli(r, ["install", "--dry-run"]).stdout, /would merge \.claude\/settings\.json/);
+  assert.equal(readJson(r, ".claude/settings.json").hooks.PreToolUse.find(adapt).matcher, OLD_MATCHER);
+  cli(r, ["install"]);
+  const pre = readJson(r, ".claude/settings.json").hooks.PreToolUse;
+  assert.equal(pre.length, PRE);
+  assert.equal(pre.find(adapt).matcher, "Write|Edit|MultiEdit|Workflow|Bash");
+  const rec = readJson(r, ".xworkflows/installed.json").merged.filter((m) => adapt(m.entry));
+  assert.deepEqual(rec.map((m) => m.entry.matcher), ["Write|Edit|MultiEdit|Workflow|Bash"]);
+});
+test("an entry of ours edited by hand is kept and install says so", () => {
+  const r = repo();
+  const adapt = installedOld(r, "Write");
+  const out = cli(r, ["install"]);
+  assert.match(out.stdout, /kept \(changed locally\): \.claude\/settings\.json hook adapt-gates\n/);
+  assert.equal(readJson(r, ".claude/settings.json").hooks.PreToolUse.find(adapt).matcher, "Write");
+  assert.equal(readJson(r, ".xworkflows/installed.json").merged.find((m) => adapt(m.entry)).entry.matcher, OLD_MATCHER);
+});
+test("a second install after the replacement changes nothing, and uninstall leaves no entry of the hook", () => {
+  const r = repo();
+  const adapt = installedOld(r);
+  cli(r, ["install"]);
+  const files = [".claude/settings.json", ".xworkflows/installed.json"].map((f) => readFileSync(join(r, f), "utf8"));
+  assert.match(cli(r, ["install"]).stdout, /nothing to do/);
+  assert.deepEqual([".claude/settings.json", ".xworkflows/installed.json"].map((f) => readFileSync(join(r, f), "utf8")), files);
+  cli(r, ["uninstall"]);
+  assert.equal(existsSync(join(r, ".claude/settings.json")) && readFileSync(join(r, ".claude/settings.json"), "utf8").includes("adapt-gates"), false);
+});
 test("broken settings.json: exit 1, tree unchanged", () => {
   const r = repo({ ".claude/settings.json": "{oops" });
   assert.equal(cli(r, ["install"]).status, 1);
