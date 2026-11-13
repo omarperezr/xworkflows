@@ -1,4 +1,4 @@
-import { mkdtempSync as makeTmp, readFileSync, writeFileSync, rmSync } from "node:fs";
+import { mkdtempSync as makeTmp, existsSync, readFileSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -159,6 +159,7 @@ test("a daemon that leaves the group and holds the pipe does not hold the check 
   writeFileSync(script, `import { spawn } from "node:child_process";
 import { writeFileSync } from "node:fs";
 const d = spawn("sleep", ["31"], { detached: true, stdio: ["ignore", 1, 2] });
+writeFileSync(${JSON.stringify(pidFile + ".self")}, String(process.pid));
 writeFileSync(${JSON.stringify(pidFile)}, String(d.pid));
 setInterval(() => {}, 1000);
 `);
@@ -172,4 +173,66 @@ setInterval(() => {}, 1000);
     try { process.kill(Number(readFileSync(pidFile, "utf8")), "SIGKILL"); } catch {}
     repo.cleanup();
   }
+});
+
+// a project command that starts a daemon outside its group, the daemon holding the output pipe
+const daemonCommand = (dir) => {
+  const pidFile = join(dir, "pid"), script = join(dir, "start.mjs");
+  writeFileSync(script, `import { spawn } from "node:child_process";
+import { writeFileSync } from "node:fs";
+const d = spawn("sleep", ["32"], { detached: true, stdio: ["ignore", 1, 2] });
+writeFileSync(${JSON.stringify(pidFile + ".self")}, String(process.pid));
+writeFileSync(${JSON.stringify(pidFile)}, String(d.pid));
+setInterval(() => {}, 1000);
+`);
+  return { pidFile, cmd: `node '${script}'` };
+};
+
+// runs the check as its own process, waits for the daemon, sends the signal; resolves how it ended
+const dieBySignal = async (repo, only, pidFile, signal) => {
+  const { spawn } = await import("node:child_process");
+  const run = new URL("./run.mjs", import.meta.url).pathname;
+  const child = spawn(process.execPath, [run, "--only", only], { cwd: repo.root, detached: true, stdio: "ignore" });
+  const ended = new Promise((r) => child.on("exit", (code, sig) => r({ code, sig })));
+  try {
+    for (let i = 0; i < 100 && !existsSync(pidFile); i++) await new Promise((r) => setTimeout(r, 100));
+    assert.ok(existsSync(pidFile), "the daemon did not start");
+    const t0 = Date.now();
+    child.kill(signal);
+    const r = await Promise.race([ended, new Promise((r) => setTimeout(() => r({ late: true }), 3000))]);
+    await new Promise((r) => setTimeout(r, 300));
+    let self = true;
+    try { process.kill(Number(readFileSync(pidFile + ".self", "utf8")), 0); } catch { self = false; }
+    return { ...r, ms: Date.now() - t0, self };
+  } finally {
+    try { process.kill(Number(readFileSync(pidFile, "utf8")), "SIGKILL"); } catch {}
+    try { process.kill(-child.pid, "SIGKILL"); } catch {}
+  }
+};
+
+for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"]) {
+  test(`${signal} ends the check by that signal at once, though a daemon holds the pipe`, async () => {
+    const dir = mkdtempSync(join(tmpdir(), "xwf-sig-"));
+    const { pidFile, cmd } = daemonCommand(dir);
+    const repo = makeRepo({ config: { checks: { timeoutMinutes: 0.1, project: [{ name: "unit", run: cmd }] } } });
+    try {
+      const r = await dieBySignal(repo, "project", pidFile, signal);
+      assert.equal(r.late, undefined, `the check was still running 3 s after ${signal}`);
+      assert.equal(r.sig, signal);
+      assert.equal(r.self, false, "the project command is left running");
+    } finally { repo.cleanup(); }
+  });
+}
+
+test("a run leaves the listeners of SIGINT, SIGTERM and SIGHUP as it found them", async () => {
+  const sigs = ["SIGINT", "SIGTERM", "SIGHUP"];
+  const count = () => sigs.map((s) => process.listenerCount(s));
+  const before = count();
+  const repo = makeRepo({ config: { checks: { timeoutMinutes: 0.01, project: [] } } });
+  try {
+    await brake.runLimited("true", { root: repo.root, config: { checks: { timeoutMinutes: 1 } } });
+    assert.deepEqual(count(), before);
+    await brake.runLimited("sleep 30", { root: repo.root, config: { checks: { timeoutMinutes: 0.01 } } });
+    assert.deepEqual(count(), before);
+  } finally { repo.cleanup(); }
 });
