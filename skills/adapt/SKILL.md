@@ -147,7 +147,7 @@ Goals in `docs/BUSINESS.md`, one line per aspiration, no dates. G1 is the 3-mont
 What each answer writes (the playback shows it, step 4 writes it):
 
 - `Right`: only the items the sentence names, each from `details.md`; a rule the owner did not see is never written.
-- A rule's path: a screen 1 rule takes it from `details.md`, a screen 2 rule (`Keep it, because ...`, `The written rule`, `The code`, `Mistake: fix it`, `Exception: keep it`) from its question in `interview.json`. For an exception question (`Mistake: fix it`, `Exception: keep it`) take it from the place where the rule itself holds, which the question names (`The rule itself holds at <path:line>`), never from the place that differs; a contradicted written rule's question names no such place, so take the path from the doc line it quotes.
+- A rule's path: a screen 1 rule takes it from `details.md`, a screen 2 rule (`Keep it, because ...`, `The written rule`, `The code`, `Mistake: fix it`, `Exception: keep it`) from its question in `interview.json`. For an exception question (`Mistake: fix it`, `Exception: keep it`) take it from the place where the rule itself holds, which the question names (`The rule itself holds at <path:line>`), never from the place that differs.
 - `Real, but a bad rule` and `You are right` (on a doubted rule): a card through the `pending` skill, and no rule.
 - `Keep it, because ...`: the rule, with the reason; with no reason, ask for the reason once.
 - `The written rule`: that rule and a card to change the code.
