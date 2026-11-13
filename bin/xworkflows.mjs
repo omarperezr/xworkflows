@@ -499,17 +499,21 @@ export function apply(pl, root, manifest, record) {
   const out = [], made = [];
   // the folders install had to make, so uninstall stops at the ones that were there; the git folder is not ours to record
   const mk = (d) => { for (; plain(d) && d.split("/")[0] !== ".git" && !existsSync(join(root, d)); d = dirname(d)) made.push(d); };
-  const put = (root, path, text, mode) => { mk(dirname(path)); putFile(root, path, text, mode); };
-  for (const p of pl.retired) { rmSync(join(root, p)); out.push(`removed ${p}`); }
+  // plan() read the tree earlier: a link made since is not written through (a hook's folder was vetted by ownHooks)
+  const linked = (path, hook) => { if (!hook && !clean(root, path)) throw new Error(`not written (symlink): ${path}`); };
+  const put = (root, path, text, mode, hook) => { linked(path, hook); mk(dirname(path)); putFile(root, path, text, mode); };
+  for (const p of pl.retired) { linked(p); rmSync(join(root, p)); out.push(`removed ${p}`); }
   for (const w of pl.writes) if (!w.keep && differs(root, w)) {
+    const hook = HOOKS.includes(w.src);
+    linked(w.path, hook);
     if (w.rename) renameSync(join(root, w.path), join(root, w.rename));
-    put(root, w.path, w.text, w.mode);
+    put(root, w.path, w.text, w.mode, hook);
     out.push(w.path);
   }
   const next = { ...record, xworkflows: manifest.version, tools: ["claude"], pieces: {}, files: {}, dirs: [...new Set([...(record.dirs ?? []), ...made])], kept: [...new Set([...record.kept, ...pl.kept])], renamed: { ...record.renamed, ...pl.renamed } };
   for (const m of pl.merges) {
     try {
-      if (m.dir) { mk(m.path); mkdirSync(join(root, m.path), { recursive: true }); out.push(m.path); }
+      if (m.dir) { linked(m.path); mk(m.path); mkdirSync(join(root, m.path), { recursive: true }); out.push(m.path); }
       if (m.text !== null) { put(root, m.path, m.text); out.push(m.path); }
     } catch (e) {
       // the new writes of the memory folder and the yml: say so, record nothing, go on
@@ -952,4 +956,5 @@ function uninstall() {
   console.log(out.join("\n") + (out.length ? "\n" : "") + "uninstalled");
 }
 
-main(process.argv.slice(2));
+// not on import: a test calls plan() and apply() itself
+if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) main(process.argv.slice(2));

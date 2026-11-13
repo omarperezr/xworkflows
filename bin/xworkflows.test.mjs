@@ -5,7 +5,7 @@ import { createHash } from "node:crypto";
 import { appendFileSync, chmodSync, cpSync, existsSync, lstatSync, lutimesSync, mkdtempSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, dirname, join, relative } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 // the developer's own git config never reaches a test
 const ISO = { GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_SYSTEM: "/dev/null" };
@@ -2205,4 +2205,25 @@ test("install: chaining a hook of the project prints one line that a hook which 
   assert.equal(out.status, 0, out.stderr);
   assert.equal(out.stdout.split("\n").filter((l) => /depends on its own file name will not work chained/.test(l)).length, 1);
   assert.doesNotMatch(cli(repo(), ["install", "--yes"]).stdout, /will not work chained/);
+});
+
+// P-50: a link made between plan() and apply() is never written through
+test("apply writes nothing through a symlink put in place after plan() read the tree", async () => {
+  const { plan, apply } = await import(pathToFileURL(BIN).href);
+  const m = JSON.parse(readFileSync(join(SHARED, "manifest.json"), "utf8"));
+  const empty = { xworkflows: "", tools: ["claude"], pieces: {}, files: {}, merged: [], blocks: [], imports: [], created: [], dirs: [], declined: [], kept: [], renamed: {}, scalars: [], chained: [] };
+  const saved = { ...process.env };
+  Object.assign(process.env, ISO);
+  try {
+    for (const [what, link, target] of [["a folder the package writes into", ".xworkflows", "dir"], ["a file the install merges into", "AGENTS.md", "file"], [".claude/skills", ".claude/skills", "dir"]]) {
+      const r = repo(), o = tmp("xwf-out-");
+      const pl = plan(m, r, empty);
+      if (target === "file") writeFileSync(join(o, "x"), "theirs\n");
+      mkdirSync(dirname(join(r, link)), { recursive: true });
+      symlinkSync(target === "file" ? join(o, "x") : o, join(r, link));
+      try { apply(pl, r, m, empty); } catch {}
+      assert.deepEqual(readdirSync(o), target === "file" ? ["x"] : [], what);
+      if (target === "file") assert.equal(readFileSync(join(o, "x"), "utf8"), "theirs\n", what);
+    }
+  } finally { process.env = saved; }
 });
