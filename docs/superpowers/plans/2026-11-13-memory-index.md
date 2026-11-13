@@ -82,6 +82,20 @@ The confirmation closed findings 1 to 3 and left one blocking finding. The owner
 - Files: the same two, the same agent, one commit with G1, subject `fix(install): ...`.
 - Done: `node --test bin/xworkflows.test.mjs` passes and `node bin/xworkflows.mjs pack --check` prints nothing.
 
+### Batch 1, third round, on the owner's word, after the confirmation at `11aca5b`
+
+The second confirmation closed its four findings and left one blocking finding. The method allows two fix rounds; the owner chose this third one: "Fix it, one narrow check after" (2026-11-13; spec, answer 14).
+
+**H1: `uninstall` takes `.qmd/xworkflows` as the marker only when it holds the marker's text** (second confirmation, blocking, `bin/xworkflows.mjs:832`)
+- red: from the verifier, branch `verify/marker-text`
+- Files: `bin/xworkflows.mjs`, `bin/xworkflows.test.mjs`
+- Role: implement
+
+**H2: `uninstall` does not print `kept (not ours): .qmd/index.yml` for a yml it then removes** (second confirmation, `pending`, `bin/xworkflows.mjs:731`)
+- State: the record names `.qmd/index.yml` in `created` and the marker is present.
+- Files: the same two, the same agent, one commit with H1, subject `fix(install): ...`.
+- Done: `node --test bin/xworkflows.test.mjs` passes and `node bin/xworkflows.mjs pack --check` prints nothing.
+
 **T2: the README and the design say what `install` does with the memory folder** (spec section "What else changes", item 4)
 - Files: `README.md`, `docs/design.md`
 - Role: main session

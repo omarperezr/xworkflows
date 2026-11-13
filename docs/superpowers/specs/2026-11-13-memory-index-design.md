@@ -54,7 +54,7 @@ When the folder cannot be created, or the yml or the marker cannot be written, i
 
 - `doctor`: its check stays. With no `memory.index`, a failure reads `no qmd collection covers <memory.dir>: run install again` when `.qmd/index.yml` does not exist, and `no qmd collection covers <memory.dir>: .qmd/index.yml names no collection with the path <absolute folder>; add one, or delete .qmd and run install again` when it does. With `memory.index` set the line stays as it is today.
 - `doctor`: when the real location of the memory folder is outside the repository, it prints `warn the memory folder is outside the repository: qmd indexes it only after "qmd trust" is run here`. A path it cannot resolve prints nothing more and never stops `doctor`.
-- `uninstall`: only where the marker `.qmd/xworkflows` exists, it removes `.qmd/index.yml`, `index.sqlite`, `index.sqlite-wal` and `index.sqlite-shm` beside it, and the marker; then `.qmd/` when it is empty. It removes the `.gitignore` line. Without the marker it touches nothing in `.qmd/`, whatever the record says.
+- `uninstall`: only where the marker `.qmd/xworkflows` exists and holds the text install writes in it, it removes `.qmd/index.yml`, `index.sqlite`, `index.sqlite-wal` and `index.sqlite-shm` beside it, and the marker; then `.qmd/` when it is empty. It removes the `.gitignore` line. Without the marker it touches nothing in `.qmd/`, whatever the record says.
 - `doctor`: where its text names the local config, it names the file that exists, `.qmd/index.yaml` or `.qmd/index.yml`.
 - `uninstall` and the memory folder: when the record says install created it and it holds nothing, the folder is removed, so a fresh project comes back as it was. As for every file `uninstall` removes, the parent folders that are then empty go too, whether or not install made them: that is the loop `uninstall` already has, accepted for this change by the owner, and card P-112 holds the general fix. When install created it and it holds anything, it stays and `uninstall` prints `left in place: <memory.dir>`. A folder install did not create is never touched and never named.
 - `README.md`, Setup, and `docs/design.md`: what install does with the memory folder; each checkout runs `install` for its own index.
@@ -93,6 +93,7 @@ None open.
 11. "Drop them": the seven small findings of that review, listed in the plan under `Declined findings`.
 12. "Fix it plus the three one-liners": a second fix round after the confirmation at `424286e`: the marker passes the symlink test; a test holds the guard of the delete; no deletion of an empty yml on the word of the record; no raw error at uninstall when `.qmd` is a plain file.
 13. "Accept, write it as a known limit": a `.qmd/index.yaml` added after the install, and a `.qmd` config in a folder above the repository.
+14. "Fix it, one narrow check after": a third round, on the owner's word, after the confirmation at `11aca5b`: `uninstall` takes a file named `.qmd/xworkflows` as the marker only when it holds the marker's text, so a file of that name the project already had is never deleted, nor the config and database beside it.
 
 Not tested: qmd with the extra file `.qmd/xworkflows` in its folder. The real `install` and `doctor` in this repository show it.
 
