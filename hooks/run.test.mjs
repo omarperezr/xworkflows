@@ -61,3 +61,19 @@ test("a recorded command keeps a path that only starts like the folders", () => 
   const c = recordCommand((h) => `cat ${h}/client-workshop/other/a.txt ${h}/client-work-old/x`);
   assert.equal(c, "cat /home/user/client-workshop/other/a.txt /home/user/client-work-old/x");
 });
+const spellings = [
+  ["~", () => "~/client-work", "/home/user"],
+  ["$HOME", () => "$HOME/client-work", "/home/user"],
+  ["${HOME}", () => "${HOME}/client-work", "/home/user"],
+  ["absolute", (h) => `${h}/client-work`, "/home/user"],
+  ["home", (h) => h, "/home/user"],
+  ["dashed", (h) => `${h.replace(/[\\/]/g, "-")}-client-work`, "-home-user"],
+];
+for (const [form, write, to] of spellings) {
+  for (const sep of [";", ":", ")", ",", "|", "&", ">", "\n"]) {
+    test(`a recorded command hides the folder written as ${form} before ${JSON.stringify(sep)}`, () => {
+      const c = recordCommand((h) => `cd ${write(h)}${sep}ls`);
+      assert.equal(c, `cd ${to}${sep}ls`);
+    });
+  }
+}
