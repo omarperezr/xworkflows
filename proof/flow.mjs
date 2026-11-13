@@ -2,7 +2,7 @@
 // project, answering every question dialog with its first option, and records what happened.
 // usage: node proof/flow.mjs --cwd <project> --prompt <text> --out <dir> --api-credits [--spend-file <file>] [--model <id>] [--max-usd <n>]
 // Spending goes to the harness's ledger (--spend-file, else the default of proof/trial-lib.mjs).
-import { acquireLock, releaseLock, addSpend, apiKeyGuard, budgetStop, outsideTrial, readLedger, spendFilePath, withOwnerBackup } from "./trial-lib.mjs";
+import { acquireLock, releaseLock, addSpend, apiKeyGuard, budgetStop, outsideTrial, readLedger, restoreOwner, spendFilePath, withOwnerBackup } from "./trial-lib.mjs";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
@@ -25,6 +25,10 @@ export async function runFlow(argv, deps = {}) {
   if (why) { err(`not starting: ${why}`); return 2; }
   const lock = acquireLock(home);
   if (!lock.ok) { err(`another proof run (pid ${lock.pid}) holds the owner profile lock`); return 2; }
+  if (restoreOwner(home)) log("restored ~/.xworkflows/owner.md from a backup left by an earlier killed run");
+  const onSignal = () => { restoreOwner(home); releaseLock(home); process.exit(1); };
+  const sigs = ["SIGINT", "SIGTERM"];
+  for (const sig of sigs) process.on(sig, onSignal);
   try {
     const query = deps.query ?? (await import("@anthropic-ai/claude-agent-sdk")).query;
     mkdirSync(o.out, { recursive: true });
@@ -56,7 +60,7 @@ export async function runFlow(argv, deps = {}) {
     writeFileSync(join(o.out, "flow.json"), JSON.stringify({ model: o.model, prompt: o.prompt, costUsd, turns, error, result, asked, events }, null, 2) + "\n");
     log(`flow: ${turns} turns, ${events.length} tool calls, ${asked.length} questions answered, recorded ${costUsd.toFixed(2)} USD, ledger total ${total.toFixed(2)} USD${error ? `, error: ${error}` : ""}`);
     return 0;
-  } finally { releaseLock(home); }
+  } finally { for (const sig of sigs) process.off(sig, onSignal); releaseLock(home); }
 }
 
 if (import.meta.filename === process.argv[1]) process.exitCode = await runFlow(process.argv.slice(2));

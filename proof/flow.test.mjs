@@ -1,6 +1,6 @@
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, existsSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { runFlow } from "./flow.mjs";
@@ -84,4 +84,15 @@ test("flow refuses a cap that is not a positive number, with exit 2, before any 
     assert.equal(called, false, `--max-usd ${bad} started a run`);
     assert.equal(existsSync(spendOf(t.repo)), false, `--max-usd ${bad} wrote the ledger`);
   }
+});
+
+test("flow at start restores a profile backup an earlier killed run left behind", async () => {
+  const t = setup();
+  const dir = join(t.home, ".xworkflows");
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, "owner.md.proof-backup"), "REAL");
+  writeFileSync(join(dir, "owner.md"), "NEWER");
+  const query = async function* () { yield { type: "result", total_cost_usd: 0, result: "done", num_turns: 1 }; };
+  await runFlow(t.argv(), { ...t.deps, query });
+  assert.equal(readFileSync(join(dir, "owner.md"), "utf8"), "REAL");
 });
