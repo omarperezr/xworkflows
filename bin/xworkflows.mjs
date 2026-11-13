@@ -571,7 +571,9 @@ async function doctor() {
   // 4
   if (!rec.blocks.length) say("fail", "AGENTS.md block was never written");
   else say((read(ROOT, "AGENTS.md") ?? "").includes(agentsBlock()) ? "ok" : "fail", "AGENTS.md block matches the template");
-  if (/^@AGENTS\.md\s*$/m.test(read(ROOT, "CLAUDE.md") ?? "")) say("ok", "CLAUDE.md imports AGENTS.md");
+  // a CLAUDE.md that is a link to AGENTS.md is the same file
+  const one = (() => { try { return realpathSync(join(ROOT, "CLAUDE.md")) === realpathSync(join(ROOT, "AGENTS.md")); } catch { return false; } })();
+  if (one || /^@AGENTS\.md\s*$/m.test(read(ROOT, "CLAUDE.md") ?? "")) say("ok", "CLAUDE.md imports AGENTS.md");
   else if (rec.declined.some((d) => d.file === "CLAUDE.md" && d.what === "import")) say("warn", "CLAUDE.md does not import AGENTS.md: add the line @AGENTS.md");
   else say("fail", "CLAUDE.md does not import AGENTS.md");
   // config

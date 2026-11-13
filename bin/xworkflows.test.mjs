@@ -1635,3 +1635,12 @@ test("uninstall: a plain file .qmd stops nothing and stays", () => {
   assert.ok(!existsSync(join(r, ".xworkflows/installed.json")));
   assert.equal(readFileSync(join(r, ".qmd"), "utf8"), "mine\n");
 });
+
+test("doctor: a CLAUDE.md that is a link to AGENTS.md is right", () => {
+  const r = repo(); cli(r, ["install"]);
+  rmSync(join(r, "CLAUDE.md")); symlinkSync("AGENTS.md", join(r, "CLAUDE.md"));
+  const out = doctor(r);
+  assert.match(out.stdout, /^ok +CLAUDE\.md imports AGENTS\.md$/m);
+  assert.doesNotMatch(out.stdout, /does not import/);
+  assert.equal(out.status, 0, out.stdout);
+});
