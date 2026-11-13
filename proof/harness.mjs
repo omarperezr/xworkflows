@@ -1,7 +1,7 @@
 // Development-only: runs /adapt in fresh repo copies through the Claude Agent SDK.
 // usage: node proof/harness.mjs --source <dir> --commit <sha> [--init] [--strip a,b] --answers <file|none> --trials <n> --mode full|research-only --out <dir> [--spend-file <file>]
 // Spending is summed across runs in --spend-file (default docs/proof/private/proof-spend.json of this repository, git-ignored); --max-usd-total caps that sum.
-import { KEPT_FILES, addSpend, apiKeyGuard, budgetStop, countedCost, prepareCopy, readLedger, spendFilePath, acquireLock, releaseLock, restoreOwner, stopFor, withOwnerBackup } from "./trial-lib.mjs";
+import { addSpend, keepFiles, outNotIgnored, outsideTrial, apiKeyGuard, budgetStop, countedCost, prepareCopy, readLedger, spendFilePath, acquireLock, releaseLock, restoreOwner, stopFor, withOwnerBackup } from "./trial-lib.mjs";
 import { answerFor, loadAnswers } from "./answers.mjs";
 import { execFileSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -33,6 +33,8 @@ if (!/^[1-9]\d*$/.test(o.trials)) die("--trials must be a positive integer");
 if (!o.commit && !o.init) die("--commit is required (or --init)");
 let answers = {};
 if (o.answers !== "none") { try { answers = loadAnswers(readFileSync(o.answers, "utf8")); } catch (e) { die(`--answers ${o.answers}: ${e.message}`); } }
+const notIgnored = outNotIgnored(o.out, exec);
+if (notIgnored) die(notIgnored);
 const strip = (o.strip || "").split(",").filter(Boolean);
 
 async function trial(n) {
@@ -50,6 +52,8 @@ async function trial(n) {
   const stop = (why) => { stoppedAt = why; fallback ??= setTimeout(() => { failed = true; ac.abort(); }, 60_000); };
   const timer = setTimeout(() => { stoppedAt = "timeout"; failed = true; ac.abort(); }, TIMEOUT_MS);
   const canUseTool = async (name, input) => {
+    const outside = outsideTrial(name, input, cwd);
+    if (outside) return { behavior: "deny", message: outside };
     const skip = stopFor(name, input);
     if (skip) { stop(skip); return { behavior: "deny", message: "trial ends here", interrupt: true }; }
     if (name !== "AskUserQuestion") return { behavior: "allow", updatedInput: input };
@@ -86,12 +90,7 @@ function save(n, r) {
   const dir = join(o.out, `trial-${n}`);
   rmSync(dir, { recursive: true, force: true });
   mkdirSync(dir, { recursive: true });
-  const X = join(r.cwd, ".xworkflows");
-  const copy = (from, to, opts) => { if (existsSync(from)) { mkdirSync(join(to, ".."), { recursive: true }); cpSync(from, to, opts); } };
-  for (const f of KEPT_FILES) copy(join(X, f), join(dir, f));
-  copy(join(r.cwd, "AGENTS.md"), join(dir, "AGENTS.md"));
-  copy(join(r.cwd, ".claude/rules"), join(dir, ".claude/rules"), { recursive: true });
-  copy(join(r.cwd, ".claude/agents/risk-review.md"), join(dir, ".claude/agents/risk-review.md"));
+  keepFiles(r.cwd, dir);
   const kinds = {};
   let skillHash = null;
   try { skillHash = JSON.parse(readFileSync(join(REPO, "manifest.json"), "utf8")).pieces.find((p) => p.id === "adapt").sha256; } catch { /* unknown */ }
