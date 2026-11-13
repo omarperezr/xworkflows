@@ -532,6 +532,7 @@ async function install(flags) {
 async function doctor() {
   const out = [];
   let nf = 0, nw = 0;
+  const INSTALL = "run xworkflows install";
   const say = (lvl, t) => { out.push(`${lvl === "ok" ? "ok  " : lvl} ${t}`); if (lvl === "fail") nf++; if (lvl === "warn") nw++; };
   const finish = () => {
     console.log(out.join("\n") + `\ndoctor: ${nf} fail, ${nw} warn`);
@@ -550,23 +551,23 @@ async function doctor() {
   };
   let rec;
   try { rec = { ...EMPTY, ...JSON.parse(readFileSync(join(ROOT, ".xworkflows/installed.json"), "utf8")) }; }
-  catch (e) { say("fail", e.code === "ENOENT" ? "not installed" : "installed.json does not parse"); return finish(); }
+  catch (e) { say("fail", e.code === "ENOENT" ? `not installed: ${INSTALL}` : `installed.json does not parse: fix or remove .xworkflows/installed.json, then ${INSTALL}`); return finish(); }
   say("ok", "installed.json parses");
   const major = Number(process.versions.node.split(".")[0]);
-  say(major >= 22 ? "ok" : "fail", `node ${process.versions.node}`);
+  say(major >= 22 ? "ok" : "fail", `node ${process.versions.node}${major >= 22 ? "" : ": install Node 22 or newer"}`);
   const g = spawnSync("git", ["--version"], { encoding: "utf8" });
-  say(g.status === 0 ? "ok" : "fail", g.status === 0 ? g.stdout.trim() : "git does not answer");
+  say(g.status === 0 ? "ok" : "fail", g.status === 0 ? g.stdout.trim() : "git does not answer: install git and put it on PATH");
   // 2
   for (const [f, { sha256 }] of Object.entries(rec.files)) {
     let t;
     // the record names the three git hooks under .git/, which is a file in a linked worktree: git says where they are
-    try { t = readFileSync(f.startsWith(".git/hooks/") ? join(hooksFolder(ROOT), f.slice(".git/hooks/".length)) : join(ROOT, f), "utf8"); } catch { say("fail", `missing or unreadable: ${f}`); continue; }
-    say(hash(t) === sha256 ? "ok" : "warn", hash(t) === sha256 ? f : `changed locally: ${f}`);
+    try { t = readFileSync(f.startsWith(".git/hooks/") ? join(hooksFolder(ROOT), f.slice(".git/hooks/".length)) : join(ROOT, f), "utf8"); } catch { say("fail", `missing or unreadable: ${f}: ${INSTALL}`); continue; }
+    say(hash(t) === sha256 ? "ok" : "warn", hash(t) === sha256 ? f : `changed locally: ${f}; to put the package's copy back ${INSTALL} (it overwrites your change)`);
   }
   for (const k of rec.kept) {
     const gs = k === ".claude/skills/grill" && rec.pieces["design-first"] ? read(ROOT, `${k}/SKILL.md`) : null;
     if (gs !== null && !gs.includes("node .xworkflows/mark.mjs grill")) say("fail", 'kept grill never marks itself: spec writes will be denied. Add the line "node .xworkflows/mark.mjs grill" to its first step');
-    else say("warn", `kept theirs: ${k}`);
+    else say("warn", `kept theirs: ${k}; to use the package's copy, delete ${k}, take it out of "kept" in .xworkflows/installed.json and ${INSTALL}`);
   }
   // 3
   for (const m of rec.merged) {
@@ -576,17 +577,18 @@ async function doctor() {
     const id = m.entry?.hooks?.[0]?.command?.match(/run\.mjs" claude (\S+)/)?.[1];
     const lbl = `${m.file} ${m.key.join(".")}`;
     if (arr.some((e) => isDeepStrictEqual(e, m.entry))) say("ok", `merged: ${lbl}`);
-    else if (id && arr.some((e) => isOurs(e, id))) say("warn", `changed locally: ${lbl}`);
-    else say("fail", `merged entry missing: ${lbl}`);
+    else if (id && arr.some((e) => isOurs(e, id))) say("warn", `changed locally: ${lbl}; to put the package's entry back ${INSTALL}`);
+    else say("fail", `merged entry missing: ${lbl}: ${INSTALL}`);
   }
   // 4
-  if (!rec.blocks.length) say("fail", "AGENTS.md block was never written");
-  else say((read(ROOT, "AGENTS.md") ?? "").includes(agentsBlock()) ? "ok" : "fail", "AGENTS.md block matches the template");
+  if (!rec.blocks.length) say("fail", `AGENTS.md block was never written: ${INSTALL}`);
+  else if ((read(ROOT, "AGENTS.md") ?? "").includes(agentsBlock())) say("ok", "AGENTS.md block matches the template");
+  else say("fail", `AGENTS.md block differs from the template: ${INSTALL}`);
   // a CLAUDE.md that is a link to AGENTS.md is the same file
   const one = (() => { try { return realpathSync(join(ROOT, "CLAUDE.md")) === realpathSync(join(ROOT, "AGENTS.md")); } catch { return false; } })();
   if (one || /^@AGENTS\.md\s*$/m.test(read(ROOT, "CLAUDE.md") ?? "")) say("ok", "CLAUDE.md imports AGENTS.md");
   else if (rec.declined.some((d) => d.file === "CLAUDE.md" && d.what === "import")) say("warn", "CLAUDE.md does not import AGENTS.md: add the line @AGENTS.md");
-  else say("fail", "CLAUDE.md does not import AGENTS.md");
+  else say("fail", "CLAUDE.md does not import AGENTS.md: add the line @AGENTS.md");
   // config
   let cfg = {};
   try { cfg = JSON.parse(readFileSync(join(ROOT, ".xworkflows/config.json"), "utf8")); } catch {}
@@ -599,12 +601,12 @@ async function doctor() {
     const s = JSON.parse(readFileSync(join(ROOT, ".claude/settings.json"), "utf8"));
     command = Object.values(s.hooks ?? {}).flat().find((e) => isOurs(e, "design-first"))?.hooks.find((h) => `${h.command} `.includes('claude design-first '))?.command;
   } catch {}
-  if (!command) say("fail", "probe: no design-first hook entry");
+  if (!command) say("fail", `probe: no design-first hook entry: ${INSTALL}`);
   else {
     const event = { session_id: `doctor-${process.pid}`, cwd: ROOT, hook_event_name: "PreToolUse", tool_name: "Write", tool_input: { file_path: join(ROOT, specs, "xwf-doctor-probe.md"), content: "# probe\n" } };
     const r = fire(command, event);
     let d; try { d = JSON.parse(r.stdout).hookSpecificOutput?.permissionDecision; } catch {}
-    say(d === "deny" ? "ok" : "fail", d === "deny" ? "probe: design-first denies a spec write" : `probe: expected deny, got ${d ?? "no valid output"}`);
+    say(d === "deny" ? "ok" : "fail", d === "deny" ? "probe: design-first denies a spec write" : `probe: expected deny, got ${d ?? "no valid output"}: ${INSTALL} to put the hook files back`);
   }
   // 6
   const seen = new Set();
@@ -623,7 +625,7 @@ async function doctor() {
   load(join(ROOT, "CLAUDE.md"));
   const mem = join(ROOT, memDir, "MEMORY.md");
   if (existsSync(mem) && !seen.has(mem)) { seen.add(mem); bytes += statSync(mem).size; }
-  say(bytes > budget ? "fail" : "ok", `always-loaded: ${bytes} bytes of ${budget}`);
+  say(bytes > budget ? "fail" : "ok", `always-loaded: ${bytes} bytes of ${budget}${bytes > budget ? ": shorten CLAUDE.md, AGENTS.md and what they import, or raise tokens.alwaysLoadedBytes in .xworkflows/config.json" : ""}`);
   // 7
   const has = (cmd) => spawnSync("sh", ["-c", `command -v ${cmd}`]).status === 0;
   // the installed copy first: the project runs that one; the package's when a piece is not installed there
@@ -638,7 +640,7 @@ async function doctor() {
       const gone = missing(conf, PROJECT_KEYS);
       for (const k of gone) say("fail", `not configured: ${k}${needs[k] ? ` (needed by ${needs[k].join(", ")})` : ""}, run /adapt`);
       if (!gone.length) say("ok", "config: every project key is set");
-    } catch (e) { say("fail", `config: ${e.message}`); }
+    } catch (e) { say("fail", `config: ${e.message}: ${e.message.startsWith(".xworkflows/config.json does not parse") ? "fix the JSON of .xworkflows/config.json" : INSTALL}`); }
     if (conf.paths.code?.length) {
       const dir = conf.lookup.index.folder;
       say(has("graphify") ? "ok" : "fail", has("graphify") ? "graphify command" : "graphify command is missing: uv tool install graphifyy");
@@ -646,12 +648,17 @@ async function doctor() {
     }
     const mem = memName(conf.memory.dir) ?? conf.memory.dir;
     if (!has("qmd")) say("fail", "qmd command is missing: npm install -g @tobilu/qmd");
-    else if (!existsSync(join(ROOT, mem))) say("warn", `no memory folder yet: ${mem}`);
+    else if (!existsSync(join(ROOT, mem))) say("warn", `no memory folder yet: ${mem}: ${INSTALL}`);
     else {
       const abs = resolve(ROOT, mem);
       const q = (...a) => spawnSync("qmd", [...(conf.memory.index ? ["--index", conf.memory.index] : []), "collection", ...a], { cwd: ROOT, encoding: "utf8", timeout: TIMEOUT });
+      const qcmd = `qmd${conf.memory.index ? ` --index ${conf.memory.index}` : ""}`;
+      // no minimum is compared: the line only says which qmd this is
+      const v = spawnSync("qmd", ["--version"], { cwd: ROOT, encoding: "utf8", timeout: TIMEOUT });
+      const ver = v.error || v.status !== 0 ? "" : (v.stdout ?? "").trim().split("\n")[0];
+      say(ver ? "ok" : "warn", ver || "qmd does not answer --version: run qmd --version to see why");
       const l = q("list");
-      if (l.error) say("warn", `qmd did not answer: collections of ${mem} not checked`);
+      if (l.error) say("warn", `qmd did not answer: collections of ${mem} not checked: run ${qcmd} collection list to see why`);
       else {
         // only `collection show <name>` prints the path
         const names = [...(l.stdout ?? "").matchAll(/^(\S+) \(qmd:\/\//gm)].map((m) => m[1]);
@@ -659,7 +666,8 @@ async function doctor() {
           const t = q("show", n).stdout?.match(/^\s*Path:\s+(.+?)\s*$/m)?.[1]?.replace(/\/$/, "");
           return t && (abs === t || abs.startsWith(t + "/"));
         });
-        const why = conf.memory.index ? `qmd collection add ${mem}` : localYml(ROOT) ? `${localYml(ROOT)} names no collection with the path ${abs}; add one, or delete .qmd and run install again` : "run install again";
+        const yml = localYml(ROOT);
+        const why = conf.memory.index ? `${qcmd} collection add ${mem}` : !yml ? INSTALL : (read(ROOT, yml) ?? "").includes(abs) ? `this qmd does not read ${yml}, which names it: npm install -g @tobilu/qmd@latest` : `${yml} names no collection with the path ${abs}; add one, or delete .qmd and run install again`;
         say(covers ? "ok" : "fail", covers ? `qmd collection covers ${mem}` : `no qmd collection covers ${mem}: ${why}`);
       }
     }
@@ -668,9 +676,9 @@ async function doctor() {
     // the record's key for it: .git/hooks/pre-push whichever checkout this is, unless core.hooksPath moved the folder
     const key = hooksFolder(ROOT) === resolve(ROOT, execFileSync("git", ["rev-parse", "--git-common-dir"], { cwd: ROOT, encoding: "utf8" }).trim(), "hooks") ? ".git/hooks/pre-push" : hp;
     if (cur !== null && [false, true].some((c) => cur === hookText("pre-push", c))) say("ok", "pre-push hook is ours");
-    else if (cur !== null && rec.files[key]) say("warn", "pre-push hook changed locally: it may no longer run the check");
-    else if (rec.declined.some((d) => d.file === key && d.what === "chain")) say("warn", "pre-push hook is yours: chaining declined at install");
-    else say("fail", "pre-push hook is missing or not ours");
+    else if (cur !== null && rec.files[key]) say("warn", `pre-push hook changed locally: it may no longer run the check; make it run: ${CHECK}`);
+    else if (rec.declined.some((d) => d.file === key && d.what === "chain")) say("warn", `pre-push hook is yours: chaining declined at install; add this line to it: ${CHECK}`);
+    else say("fail", `pre-push hook is missing or not ours: ${INSTALL}`);
     let st = {}, local = {};
     try { st = JSON.parse(readFileSync(join(ROOT, ".claude/settings.json"), "utf8")); } catch {}
     try { local = JSON.parse(readFileSync(join(ROOT, ".claude/settings.local.json"), "utf8")); } catch {}
@@ -680,24 +688,24 @@ async function doctor() {
       bytes += Buffer.byteLength(fire(h.command, { session_id: `doctor-${process.pid}`, cwd: ROOT, hook_event_name: "SessionStart", source: "startup" }).stdout ?? "");
     }
     const sb = conf.tokens.sessionStartBytes;
-    say(bytes > sb ? "fail" : "ok", `session-start text: ${bytes} bytes of ${sb}`);
+    say(bytes > sb ? "fail" : "ok", `session-start text: ${bytes} bytes of ${sb}${bytes > sb ? ": raise tokens.sessionStartBytes in .xworkflows/config.json or cut what the hook prints" : ""}`);
     const ai = st.attribution && typeof st.attribution === "object" ? [st.attribution.commit, st.attribution.pr].some((x) => x) : !!st.attribution;
-    if (ai) say("warn", "attribution in .claude/settings.json shows an AI line");
+    if (ai) say("warn", 'attribution in .claude/settings.json shows an AI line: set "attribution" to {"commit": "", "pr": ""} there');
     const amd = local.autoMemoryDirectory, abs = resolve(ROOT, mem);
     try {
       const where = real(abs), base = real(ROOT);
       if (where !== base && !where.startsWith(base + sep)) say("warn", 'the memory folder is outside the repository: qmd indexes it only after "qmd trust" is run here');
     } catch {}
-    if (amd === undefined) say("warn", "autoMemoryDirectory is not set in .claude/settings.local.json");
-    else if (typeof amd !== "string" || !(resolve(ROOT, amd) + sep).startsWith(abs + sep)) say("warn", `autoMemoryDirectory is not the memory folder ${mem}`);
+    if (amd === undefined) say("warn", `autoMemoryDirectory is not set in .claude/settings.local.json: add "autoMemoryDirectory": "${abs}" to it`);
+    else if (typeof amd !== "string" || !(resolve(ROOT, amd) + sep).startsWith(abs + sep)) say("warn", `autoMemoryDirectory is not the memory folder ${mem}: set it to "${abs}" in .claude/settings.local.json`);
     for (const n of Object.keys(conf.packs).filter((n) => run.PACKS.includes(n))) {
       let tool;
       try { tool = (await mod(`checks/packs/${n}.mjs`)).TOOL; } catch { continue; }
       if (!tool) continue;
-      if (!has(tool.command)) { say("fail", `pack ${n}: ${tool.command} command is missing`); continue; }
+      if (!has(tool.command)) { say("fail", `pack ${n}: ${tool.command} command is missing: install ${tool.command}, or take "${n}" out of packs in .xworkflows/config.json`); continue; }
       const v = spawnSync(tool.command, ["--version"], { encoding: "utf8", timeout: TIMEOUT });
       const got = `${v.stdout}${v.stderr}`.match(/\d+\.\d+\.\d+/)?.[0];
-      say(got === tool.version ? "ok" : "warn", got === tool.version ? `pack ${n}: ${got}` : `pack ${n}: version ${got ?? "unknown"}, tested with ${tool.version}`);
+      say(got === tool.version ? "ok" : "warn", got === tool.version ? `pack ${n}: ${got}` : `pack ${n}: version ${got ?? "unknown"}, tested with ${tool.version}: install ${tool.command} ${tool.version}`);
     }
     // shortcut: reads the whole session file, when sessions grow past a few MB read only the first lines
     const sess = join(homedir(), ".claude/projects", ROOT.replace(/[^a-zA-Z0-9]/g, "-"));

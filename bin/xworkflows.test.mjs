@@ -882,11 +882,11 @@ test("doctor: qmd missing fails with its fix line; a collection must cover the m
   assert.equal(none.status, 1);
   assert.match(none.stdout, /^fail qmd command is missing: npm install -g @tobilu\/qmd$/m);
   rmSync(join(r, "docs/memory"), { recursive: true });
-  assert.match(doctor(r, { PATH: tools({ qmd: "exit 0" }) }).stdout, /^warn no memory folder yet: docs\/memory$/m);
+  assert.match(doctor(r, { PATH: tools({ qmd: "exit 0" }) }).stdout, /^warn no memory folder yet: docs\/memory: /m);
   mkdirSync(join(r, "docs/memory"), { recursive: true });
   const out = doctor(r, { PATH: tools({ qmd: "exit 0" }) });
   assert.equal(out.status, 1);
-  assert.match(out.stdout, /^fail no qmd collection covers docs\/memory: .qmd\/index.yml names no collection/m);
+  assert.match(out.stdout, /^fail no qmd collection covers docs\/memory: this qmd does not read \.qmd\/index\.yml, which names it: npm install -g @tobilu\/qmd@latest$/m);
   // the real formats: `list` names the collections, only `show <name>` prints the path
   const fake = (dir) => tools({ qmd: `case "$*" in *"collection list"*) printf 'Collections (1):\\n\\nmemory (qmd://memory/)\\n  Pattern:  **/*.md\\n  Files:    3\\n';; *"collection show memory"*) printf 'Collection: memory\\n  Path:     ${dir}\\n  Pattern:  **/*.md\\n';; esac` });
   const covers = fake(join(realpathSync(r), "docs"));
@@ -909,11 +909,11 @@ test("doctor: the pre-push hook must be ours; a declined one warns", () => {
   const r = repo(); cli(r, ["install"]);
   assert.match(doctor(r).stdout, /^ok +pre-push hook is ours$/m);
   rmSync(join(r, ".git/hooks/pre-push"));
-  assert.match(doctor(r).stdout, /^fail pre-push hook is missing or not ours$/m);
+  assert.match(doctor(r).stdout, /^fail pre-push hook is missing or not ours: /m);
   const d = repo({ ".git/hooks/pre-push": "#!/bin/sh\nexit 0\n" }); chmodSync(join(d, ".git/hooks/pre-push"), 0o755);
   cli(d, ["install"]);
   const out = doctor(d);
-  assert.match(out.stdout, /^warn pre-push hook is yours: chaining declined at install$/m);
+  assert.match(out.stdout, /^warn pre-push hook is yours: chaining declined at install; /m);
 });
 test("doctor prints the session-start bytes and fails above the budget", () => {
   const r = repo(); cli(r, ["install"]);
@@ -925,7 +925,7 @@ test("doctor prints the session-start bytes and fails above the budget", () => {
   withConfig(r, { tokens: { sessionStartBytes: 10 } });
   const over = doctor(r, { HOME: home });
   assert.equal(over.status, 1);
-  assert.match(over.stdout, /^fail session-start text: [1-9]\d* bytes of 10$/m);
+  assert.match(over.stdout, /^fail session-start text: [1-9]\d* bytes of 10: /m);
 });
 test("doctor warns on an attribution that shows an AI line and on a memory folder outside the repository", () => {
   const r = repo(); cli(r, ["install"]);
@@ -935,21 +935,21 @@ test("doctor warns on an attribution that shows an AI line and on a memory folde
   writeJson(r, ".claude/settings.local.json", { autoMemoryDirectory: "/elsewhere/memory" });
   const out = doctor(r);
   assert.equal(out.status, 0, out.stdout);
-  assert.match(out.stdout, /^warn attribution in \.claude\/settings\.json shows an AI line$/m);
-  assert.match(out.stdout, /^warn autoMemoryDirectory is not the memory folder docs\/memory$/m);
+  assert.match(out.stdout, /^warn attribution in \.claude\/settings\.json shows an AI line: /m);
+  assert.match(out.stdout, /^warn autoMemoryDirectory is not the memory folder docs\/memory: /m);
   rmSync(join(r, ".claude/settings.local.json"));
-  assert.match(doctor(r).stdout, /^warn autoMemoryDirectory is not set in \.claude\/settings\.local\.json$/m);
+  assert.match(doctor(r).stdout, /^warn autoMemoryDirectory is not set in \.claude\/settings\.local\.json: /m);
 });
 test("doctor: a pack that is on needs its tool, at the version it was tested with", () => {
   const r = repo(); cli(r, ["install"]);
   withConfig(r, { packs: { semgrep: { configs: ["auto"] }, lint: { run: "true" } } });
   const out = doctor(r);
   assert.equal(out.status, 1);
-  assert.match(out.stdout, /^fail pack semgrep: semgrep command is missing$/m);
+  assert.match(out.stdout, /^fail pack semgrep: semgrep command is missing: /m);
   assert.doesNotMatch(out.stdout, /pack lint/);
   const old = doctor(r, { PATH: tools({ qmd: COVERS, semgrep: "echo 1.0.0" }) });
   assert.equal(old.status, 0, old.stdout);
-  assert.match(old.stdout, /^warn pack semgrep: version 1\.0\.0, tested with 1\.179\.0$/m);
+  assert.match(old.stdout, /^warn pack semgrep: version 1\.0\.0, tested with 1\.179\.0: /m);
   assert.match(doctor(r, { PATH: tools({ qmd: COVERS, semgrep: "echo 1.179.0" }) }).stdout, /^ok +pack semgrep: 1\.179\.0$/m);
 });
 test("doctor prints the first-turn input tokens of the newest session, or says none is recorded", () => {
@@ -1438,13 +1438,13 @@ test("doctor: the two qmd failures name the cause, a linked folder outside warns
   const r = repo(); inst(r);
   const q = tools({ qmd: "exit 0" });
   rmSync(join(r, ".qmd"), { recursive: true });
-  assert.match(doctor(r, { PATH: q }).stdout, /^fail no qmd collection covers docs\/memory: run install again$/m);
+  assert.match(doctor(r, { PATH: q }).stdout, /^fail no qmd collection covers docs\/memory: run xworkflows install$/m);
   mkdirSync(join(r, ".qmd")); writeFileSync(join(r, ".qmd/index.yml"), "collections: {}\n");
   const abs = join(top(r), "docs/memory");
   assert.ok(doctor(r, { PATH: q }).stdout.split("\n").includes(`fail no qmd collection covers docs/memory: .qmd/index.yml names no collection with the path ${abs}; add one, or delete .qmd and run install again`));
   assert.doesNotMatch(doctor(r, { PATH: q }).stdout, /outside the repository/);
   withConfig(r, { memory: { index: "mine" } });
-  assert.match(doctor(r, { PATH: q }).stdout, /^fail no qmd collection covers docs\/memory: qmd collection add docs\/memory$/m);
+  assert.match(doctor(r, { PATH: q }).stdout, /^fail no qmd collection covers docs\/memory: qmd --index mine collection add docs\/memory$/m);
   withConfig(r, {});
   const o = tmp("xwf-out-"); rmSync(join(r, "docs"), { recursive: true }); symlinkSync(o, join(r, "docs"));
   mkdirSync(join(o, "memory"));
@@ -1679,4 +1679,86 @@ test("the graph hooks run the index command and folder of the config, not graphi
   assert.equal(readFileSync(mine, "utf8").trim(), "update .");
   assert.ok(waitFor(join(r, "idx-out/.update.log")));
   assert.ok(!existsSync(theirs) && !existsSync(join(r, "graphify-out")));
+});
+
+// every fail and warn line of doctor ends with the command or the action that fixes it
+const FIX = "run xworkflows install";
+const lineOf = (out, re) => out.stdout.split("\n").find((l) => re.test(l));
+const old22 = () => { const f = join(tmp("xwf-ver-"), "ver.cjs"); writeFileSync(f, 'Object.defineProperty(process, "versions", { value: { ...process.versions, node: "20.1.0" } });\n'); return f; };
+const noGitVersion = () => {
+  const d = tools({}).split(":")[0], real = spawnSync("sh", ["-c", "command -v git"], { encoding: "utf8" }).stdout.trim();
+  rmSync(join(d, "git")); writeFileSync(join(d, "git"), `#!/bin/sh\n[ "$1" = --version ] && exit 1\nexec ${real} "$@"\n`); chmodSync(join(d, "git"), 0o755);
+  return `${d}:/usr/bin:/bin`;
+};
+const settingsEdit = (r, f) => { const s = readJson(r, ".claude/settings.json"); f(s); writeJson(r, ".claude/settings.json", s); };
+const DOCTOR_LINES = [
+  ["not installed", () => repo(), {}, `fail not installed: ${FIX}`],
+  ["installed.json does not parse", (r) => { cli(r, ["install"]); writeFileSync(join(r, ".xworkflows/installed.json"), "{"); }, {}, `fail installed.json does not parse: fix or remove .xworkflows/installed.json, then ${FIX}`],
+  ["old node", (r) => cli(r, ["install"]), () => ({ NODE_OPTIONS: `--require ${old22()}` }), "fail node 20.1.0: install Node 22 or newer"],
+  ["git does not answer", (r) => cli(r, ["install"]), () => ({ PATH: noGitVersion() }), "fail git does not answer: install git and put it on PATH"],
+  ["file missing", (r) => { cli(r, ["install"]); rmSync(join(r, ".xworkflows/hooks/run.mjs")); }, {}, `fail missing or unreadable: .xworkflows/hooks/run.mjs: ${FIX}`],
+  ["file changed", (r) => { cli(r, ["install"]); appendFileSync(join(r, ".claude/agents/explore.md"), "x\n"); }, {}, "warn changed locally: .claude/agents/explore.md; to put the package's copy back run xworkflows install (it overwrites your change)"],
+  ["file kept", (r) => cli(r, ["install"]), {}, null, { ".claude/agents/explore.md": "mine\n" }],
+  ["merged entry changed", (r) => { cli(r, ["install"]); settingsEdit(r, (s) => { for (const e of s.hooks.PreToolUse) for (const h of e.hooks) h.timeout = 99; }); }, {}, "warn changed locally: .claude/settings.json hooks.PreToolUse; to put the package's entry back run xworkflows install"],
+  ["merged entry missing", (r) => { cli(r, ["install"]); writeJson(r, ".claude/settings.json", { permissions: { allow: [] } }); }, {}, `fail merged entry missing: .claude/settings.json hooks.PreToolUse: ${FIX}`],
+  ["block never written", (r) => { cli(r, ["install"]); const x = readJson(r, ".xworkflows/installed.json"); x.blocks = []; writeJson(r, ".xworkflows/installed.json", x); }, {}, `fail AGENTS.md block was never written: ${FIX}`],
+  ["block differs", (r) => { cli(r, ["install"]); writeFileSync(join(r, "AGENTS.md"), readFileSync(join(r, "AGENTS.md"), "utf8").replace("<!-- xworkflows:start -->", "<!-- xworkflows:start -->\nedited")); }, {}, `fail AGENTS.md block differs from the template: ${FIX}`],
+  ["import missing", (r) => { cli(r, ["install"]); writeFileSync(join(r, "CLAUDE.md"), ""); }, {}, "fail CLAUDE.md does not import AGENTS.md: add the line @AGENTS.md"],
+  ["probe: no entry", (r) => { cli(r, ["install"]); settingsEdit(r, (s) => { s.hooks = {}; }); }, {}, `fail probe: no design-first hook entry: ${FIX}`],
+  ["probe: allows", (r) => { cli(r, ["install"]); writeFileSync(join(r, ".xworkflows/hooks/core/design-first.mjs"), "export const SKILL='grill'; export const decide=()=>({decision:'allow'});\n"); }, {}, "fail probe: expected deny, got no valid output: run xworkflows install to put the hook files back"],
+  ["always-loaded over", (r) => { cli(r, ["install"]); writeFileSync(join(r, "AGENTS.md"), readFileSync(join(r, "AGENTS.md"), "utf8") + "x".repeat(30000)); }, {}, /^fail always-loaded: \d+ bytes of 24000: shorten CLAUDE\.md, AGENTS\.md and what they import, or raise tokens\.alwaysLoadedBytes in \.xworkflows\/config\.json$/],
+  ["config does not parse", (r) => { cli(r, ["install"]); writeFileSync(join(r, ".xworkflows/config.json"), "{"); }, {}, /^fail config: \.xworkflows\/config\.json does not parse: .*: fix the JSON of \.xworkflows\/config\.json$/],
+  ["config: a check file does not load", (r) => { cli(r, ["install"]); writeFileSync(join(r, ".xworkflows/checks/run.mjs"), "export const = ;\n"); }, {}, new RegExp(`^fail config: .*: ${FIX}$`)],
+  ["no memory folder", (r) => { cli(r, ["install"]); rmSync(join(r, "docs"), { recursive: true }); }, {}, `warn no memory folder yet: docs/memory: ${FIX}`],
+  ["qmd does not answer a list", (r) => cli(r, ["install"]), () => ({ PATH: tools({ qmd: "case \"$*\" in *--version*) echo 'qmd 2.8.3 (facd35e)';; *) exec sleep 30;; esac" }), XWORKFLOWS_PROBE_TIMEOUT_MS: "400" }), "warn qmd did not answer: collections of docs/memory not checked: run qmd collection list to see why"],
+  ["no collection, no yml", (r) => { cli(r, ["install"]); rmSync(join(r, ".qmd"), { recursive: true }); }, () => ({ PATH: tools({ qmd: "exit 0" }) }), `fail no qmd collection covers docs/memory: ${FIX}`],
+  ["pre-push changed", (r) => { cli(r, ["install"]); appendFileSync(join(r, ".git/hooks/pre-push"), "echo hi\n"); }, {}, 'warn pre-push hook changed locally: it may no longer run the check; make it run: node "$(git rev-parse --show-toplevel)/.xworkflows/checks/run.mjs" --pre-push "$1"'],
+  ["pre-push declined", (r) => cli(r, ["install"]), {}, 'warn pre-push hook is yours: chaining declined at install; add this line to it: node "$(git rev-parse --show-toplevel)/.xworkflows/checks/run.mjs" --pre-push "$1"', { ".git/hooks/pre-push": "#!/bin/sh\nexit 0\n" }],
+  ["pre-push missing", (r) => { cli(r, ["install"]); rmSync(join(r, ".git/hooks/pre-push")); }, {}, `fail pre-push hook is missing or not ours: ${FIX}`],
+  ["session-start over", (r) => { cli(r, ["install"]); withConfig(r, { tokens: { sessionStartBytes: 10 } }); }, () => { const home = tmp("xwf-home-"); mkdirSync(join(home, ".xworkflows")); writeFileSync(join(home, ".xworkflows/owner.md"), "Replies: short and direct.\n"); return { HOME: home }; }, /^fail session-start text: \d+ bytes of 10: raise tokens\.sessionStartBytes in \.xworkflows\/config\.json or cut what the hook prints$/],
+  ["attribution", (r) => { cli(r, ["install"]); settingsEdit(r, (s) => { s.attribution = { commit: "Co-Authored-By: someone", pr: "" }; }); }, {}, 'warn attribution in .claude/settings.json shows an AI line: set "attribution" to {"commit": "", "pr": ""} there'],
+  ["autoMemoryDirectory unset", (r) => { cli(r, ["install"]); rmSync(join(r, ".claude/settings.local.json")); }, {}, (r) => `warn autoMemoryDirectory is not set in .claude/settings.local.json: add "autoMemoryDirectory": "${join(top(r), "docs/memory")}" to it`],
+  ["autoMemoryDirectory elsewhere", (r) => { cli(r, ["install"]); writeJson(r, ".claude/settings.local.json", { autoMemoryDirectory: "/elsewhere/memory" }); }, {}, (r) => `warn autoMemoryDirectory is not the memory folder docs/memory: set it to "${join(top(r), "docs/memory")}" in .claude/settings.local.json`],
+  ["pack tool missing", (r) => { cli(r, ["install"]); withConfig(r, { packs: { semgrep: { configs: ["auto"] } } }); }, {}, 'fail pack semgrep: semgrep command is missing: install semgrep, or take "semgrep" out of packs in .xworkflows/config.json'],
+  ["pack tool at another version", (r) => { cli(r, ["install"]); withConfig(r, { packs: { semgrep: { configs: ["auto"] } } }); }, () => ({ PATH: tools({ qmd: COVERS, semgrep: "echo 1.0.0" }) }), "warn pack semgrep: version 1.0.0, tested with 1.179.0: install semgrep 1.179.0"],
+];
+for (const [name, setup, env, want, files] of DOCTOR_LINES) test(`doctor line: ${name}`, () => {
+  const r = repo(files ?? {});
+  setup(r);
+  const out = doctor(r, typeof env === "function" ? env() : env);
+  if (name === "file kept") return assert.ok(lineOf(out, /^warn kept theirs: \.claude\/agents\/explore\.md/)?.endsWith(`; to use the package's copy, delete .claude/agents/explore.md, take it out of "kept" in .xworkflows/installed.json and ${FIX}`), out.stdout);
+  const w = typeof want === "function" ? want(r) : want;
+  assert.ok(out.stdout.split("\n").some((l) => (w instanceof RegExp ? w.test(l) : l === w)), `${w}\n${out.stdout}`);
+});
+
+const QMD_V = "qmd 2.8.3 (facd35e)";
+test("doctor prints the version qmd answers; a qmd that does not answer it warns", () => {
+  const r = repo(); cli(r, ["install"]);
+  const ok = doctor(r, { PATH: tools({ qmd: `case "$*" in *--version*) echo '${QMD_V}';; *) ${COVERS};; esac` }) });
+  assert.match(ok.stdout, /^ok +qmd 2\.8\.3 \(facd35e\)$/m);
+  assert.equal(ok.status, 0, ok.stdout);
+  for (const body of ["exit 1", "exit 0", "exec sleep 30"]) {
+    const out = doctor(r, { PATH: tools({ qmd: `case "$*" in *--version*) ${body};; *) ${COVERS};; esac` }), XWORKFLOWS_PROBE_TIMEOUT_MS: "400" });
+    assert.ok(out.stdout.split("\n").includes("warn qmd does not answer --version: run qmd --version to see why"), body);
+    assert.equal(out.stderr, "");
+    assert.equal(out.status, 0, out.stdout);
+  }
+});
+test("doctor: a yml that names the memory folder while no collection covers it says this qmd does not read it", () => {
+  const r = repo(); cli(r, ["install"]);
+  const abs = join(top(r), "docs/memory");
+  writeFileSync(join(r, ".qmd/index.yml"), `collections:\n  memory:\n    path: ${abs}\n`);
+  const out = doctor(r, { PATH: tools({ qmd: `case "$*" in *--version*) echo '${QMD_V}';; esac` }) });
+  assert.ok(out.stdout.split("\n").includes("fail no qmd collection covers docs/memory: this qmd does not read .qmd/index.yml, which names it: npm install -g @tobilu/qmd@latest"), out.stdout);
+  assert.doesNotMatch(out.stdout, /names no collection/);
+  writeFileSync(join(r, ".qmd/index.yml"), "collections: {}\n");
+  assert.match(doctor(r, { PATH: tools({ qmd: "exit 0" }) }).stdout, /^fail no qmd collection covers docs\/memory: \.qmd\/index\.yml names no collection with the path /m);
+});
+test("doctor: with memory.index set, every qmd line names that index", () => {
+  const r = repo(); cli(r, ["install"]);
+  withConfig(r, { memory: { index: "mine" } });
+  const none = doctor(r, { PATH: tools({ qmd: "exit 0" }) }).stdout.split("\n");
+  assert.ok(none.includes("fail no qmd collection covers docs/memory: qmd --index mine collection add docs/memory"), none.join("\n"));
+  const dead = doctor(r, { PATH: tools({ qmd: `case "$*" in *--version*) echo '${QMD_V}';; *) exec sleep 30;; esac` }), XWORKFLOWS_PROBE_TIMEOUT_MS: "400" }).stdout.split("\n");
+  assert.ok(dead.includes("warn qmd did not answer: collections of docs/memory not checked: run qmd --index mine collection list to see why"), dead.join("\n"));
 });
