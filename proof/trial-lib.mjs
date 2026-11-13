@@ -1,6 +1,6 @@
 // Pure-ish trial helpers (no SDK import): the tests load this file with a stubbed exec.
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { stripLeft, stripPlan } from "./answers.mjs";
 
 // Files a run leaves in the copy's .xworkflows that the harness keeps.
@@ -86,11 +86,15 @@ export function readLedger(file) {
   return l;
 }
 
+// The ledger file: --spend-file when given, else one fixed file of the repository in the git-ignored private proof folder.
+export const spendFilePath = (repo, flag) => flag || join(repo, "docs", "proof", "private", "proof-spend.json");
+
 // Adds one trial's counted cost to the ledger file and returns the new total.
 export function addSpend(file, entry) {
   const l = readLedger(file);
   l.trials.push(entry);
   l.totalUsd = Math.round((l.totalUsd + entry.countedUsd) * 1e6) / 1e6;
+  mkdirSync(dirname(file), { recursive: true });
   writeFileSync(file, JSON.stringify(l, null, 2) + "\n");
   return l.totalUsd;
 }
