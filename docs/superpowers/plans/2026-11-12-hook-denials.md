@@ -17,7 +17,7 @@ Spec: `docs/superpowers/specs/2026-11-12-hook-denials-design.md`
 About 30 code lines. The reviewer is `risk-review`: `hooks/` is a risk path.
 
 **T1: the three cases of the spec, each with its test, and the denials that must stay** (spec, whole)
-- Files: `hooks/core/orchestrator.mjs`, `hooks/core/orchestrator.test.mjs`
+- Files: `hooks/core/orchestrator.mjs`, `hooks/core/orchestrator.test.mjs`, `skills/orchestrate/SKILL.md` (the two lines of its Review section that speak of the reviewed commit)
 - Role: implement
 - Done: `node --test hooks/core/orchestrator.test.mjs` passes.
 
