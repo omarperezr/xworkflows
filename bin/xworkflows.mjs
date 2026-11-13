@@ -269,11 +269,13 @@ function mergeIgnore(root, qmd) {
 
 // .graphifyignore: the folders install writes, one line each, so the graph does not index the method's own files
 const GI = ".graphifyignore";
+// a skill folder, or an agent file, by its exact path
+const giLine = (p) => p.match(/^\.claude\/skills\/[^/]+/)?.[0]?.concat("/") ?? p.match(/^\.claude\/agents\/[^/]+\.md$/)?.[0];
 function mergeGraphifyIgnore(root, writes) {
   const old = read(root, GI);
   let text = old ?? "";
   const imports = [];
-  const want = [".xworkflows/", ...new Set(writes.filter((w) => !w.keep).map((w) => w.path.match(/^\.claude\/skills\/[^/]+/)?.[0]).filter(Boolean).map((u) => u + "/"))];
+  const want = [".xworkflows/", ...new Set(writes.filter((w) => !w.keep).map((w) => giLine(w.path)).filter(Boolean))];
   for (const line of want) {
     if (text.split("\n").includes(line)) continue;
     const addedNewline = text !== "" && !text.endsWith("\n");
@@ -298,9 +300,12 @@ const MAIN = CFG(`${CONF}.mainBranch`, "main");
 // the first word of lookup.index.command is the tool that builds the index, as the session-start hook runs it
 const TOOL = CFG(`(${CONF}.lookup.index.command||"graphify query").split(" ")[0]`, "graphify");
 const FOLDER = CFG(`${CONF}.lookup.index.folder`, "graphify-out");
-// With `chain` the project's own hook, renamed <name>.before-xworkflows, runs first.
+// the folder inside the hooks folder where install keeps the project's own hooks, each under its own file name
+const CHAINED = "xworkflows-chained";
+const HOOK_TEXTS = [false, true, "earlier"];
+// With `chain` the project's own hook runs first. "earlier" is the text of a project chained by renaming it <name>.before-xworkflows.
 function hookText(name, chain) {
-  const old = `old="$(dirname "$0")/${name}.before-xworkflows"\n`;
+  const old = chain === "earlier" ? `old="$(dirname "$0")/${name}.before-xworkflows"\n` : `d="$(dirname "$0")"\nold="$d/${CHAINED}/${name}"\n[ -x "$old" ] || old="$d/${name}.before-xworkflows"\n`;
   if (name === "pre-push") {
     if (!chain) return `#!/bin/sh\n${CHECK}\nexit $?\n`;
     // git feeds the pushed refs on stdin once: keep them for both runs
@@ -407,13 +412,24 @@ export function plan(manifest, root, record, ans = {}) {
     const path = relative(root, resolve(hooksDir, name)), key = hookKey(root, name);
     const lst = lstatSync(join(root, path), { throwIfNoEntry: false });
     const cur = lst?.isFile() ? read(root, path) : null;
-    const mine = cur !== null && ([false, true].some((c) => cur === hookText(name, c)) || (!!record.files[key] && hash(cur) === record.files[key].sha256));
-    let chain = record.chained.some((c) => c.file === key) || (cur !== null && cur === hookText(name, true)), rename;
+    const mine = cur !== null && (HOOK_TEXTS.some((c) => cur === hookText(name, c)) || (!!record.files[key] && hash(cur) === record.files[key].sha256));
+    let chain = record.chained.some((c) => c.file === key) || (cur !== null && [true, "earlier"].some((c) => cur === hookText(name, c))), rename;
+    const chainedDir = `${dirname(path)}/${CHAINED}`, to = `${chainedDir}/${name}`, toKey = `${dirname(key)}/${CHAINED}/${name}`;
     const before = `${path}.before-xworkflows`;
-    // the user's hook renamed by an install that never recorded it: ours is the only code that makes this name
-    if ((!lst || mine) && lstatSync(join(root, before), { throwIfNoEntry: false }) && !record.chained.some((c) => c.file === key)) {
+    const needDir = () => {
+      const d = lstatSync(join(root, chainedDir), { throwIfNoEntry: false });
+      if (d && !d.isDirectory()) die(1, `exists and is not a folder: ${chainedDir}`);
+      if (lstatSync(join(root, to), { throwIfNoEntry: false })) die(1, `exists and is not ours: ${to}`);
+    };
+    // the user's hook renamed beside ours by an earlier install: ours is the only code that makes this name, the hook moves to the folder
+    if ((!lst || mine) && lstatSync(join(root, before), { throwIfNoEntry: false })) {
+      needDir();
       chain = true;
-      hookMerges.push({ path, text: null, rec: { chained: [{ file: key, to: `${key}.before-xworkflows` }] } });
+      rename = [before, to];
+      hookMerges.push({ path, text: null, rec: { chained: [{ file: key, to: toKey }] } });
+    } else if (chain && !record.chained.some((c) => c.file === key) && lstatSync(join(root, to), { throwIfNoEntry: false })) {
+      // the record was lost: the folder still holds their hook
+      hookMerges.push({ path, text: null, rec: { chained: [{ file: key, to: toKey }] } });
     }
     if (lst && !mine) {
       if (record.declined.some((d) => d.file === key && d.what === "chain")) continue;
@@ -421,10 +437,10 @@ export function plan(manifest, root, record, ans = {}) {
         hookMerges.push({ path, text: null, rec: { declined: [{ file: key, what: "chain" }] } });
         continue;
       }
-      rename = `${path}.before-xworkflows`;
-      if (lstatSync(join(root, rename), { throwIfNoEntry: false })) die(1, `exists and is not ours: ${rename}`);
+      needDir();
+      rename = [path, to];
       chain = true;
-      hookMerges.push({ path, text: null, rec: { chained: [{ file: key, to: `${key}.before-xworkflows` }] } });
+      hookMerges.push({ path, text: null, rec: { chained: [{ file: key, to: toKey }] } });
     }
     writes.push({ path, key, text: hookText(name, chain), piece: "checks", src: name, mode: 0o755, rename });
   }
@@ -489,7 +505,7 @@ export function apply(pl, root, manifest, record) {
   const mk = (d) => { for (; plain(d) && d.split("/")[0] !== ".git" && !existsSync(join(root, d)); d = dirname(d)) made.push(d); };
   const put = (root, path, text, mode) => { mk(dirname(path)); putFile(root, path, text, mode); };
   for (const w of pl.writes) if (!w.keep && differs(root, w)) {
-    if (w.rename) renameSync(join(root, w.path), join(root, w.rename));
+    if (w.rename) { mkdirSync(dirname(join(root, w.rename[1])), { recursive: true }); renameSync(join(root, w.rename[0]), join(root, w.rename[1])); }
     put(root, w.path, w.text, w.mode);
     out.push(w.path);
   }
@@ -557,7 +573,7 @@ async function install(flags) {
   if (pl.questions.length) pl = plan(m, ROOT, record, ans);
   for (const n of pl.notes) console.log(n);
   if (flags["dry-run"]) {
-    for (const w of pl.writes) if (!w.keep && differs(ROOT, w)) console.log(`${w.rename ? `would rename ${w.path} to ${w.rename}\n` : ""}would write ${w.path}`);
+    for (const w of pl.writes) if (!w.keep && differs(ROOT, w)) console.log(`${w.rename ? `would rename ${w.rename[0]} to ${w.rename[1]}\n` : ""}would write ${w.path}`);
     for (const m of pl.merges) if (m.text !== null || m.dir) console.log(`would ${m.verb ?? "merge"} ${m.path}`);
   } else {
     const done = apply(pl, ROOT, m, record);
@@ -722,7 +738,7 @@ async function doctor() {
     const cur = lstatSync(join(ROOT, hp), { throwIfNoEntry: false })?.isFile() ? read(ROOT, hp) : null;
     // the record's key for it: .git/hooks/pre-push whichever checkout this is, unless core.hooksPath moved the folder
     const key = hookKey(ROOT, "pre-push");
-    if (cur !== null && [false, true].some((c) => cur === hookText("pre-push", c))) say("ok", "pre-push hook is ours");
+    if (cur !== null && HOOK_TEXTS.some((c) => cur === hookText("pre-push", c))) say("ok", "pre-push hook is ours");
     else if (cur !== null && rec.files[key]) say("warn", `pre-push hook changed locally: it may no longer run the check; make it run: ${CHECK}`);
     else if (rec.declined.some((d) => d.file === key && d.what === "chain")) say("warn", `pre-push hook is yours: chaining declined at install; add this line to it: ${CHECK}`);
     else say("fail", `pre-push hook is missing or not ours: ${INSTALL}`);
@@ -799,7 +815,7 @@ function uninstall() {
     if (u) { const x = renameWrite(w, u); wanted.set(x.path, x.text); }
   }
   const wants = settingsWants(manifest);
-  const giLines = new Set([".xworkflows/", ...[...wanted.keys()].map((p) => p.match(/^\.claude\/skills\/[^/]+/)?.[0]).filter(Boolean).map((u) => u + "/")]);
+  const giLines = new Set([".xworkflows/", ...[...wanted.keys()].map(giLine).filter(Boolean)]);
   let md = null;
   try { md = memName(loadConfig(ROOT).memory.dir); } catch {}
 
@@ -814,7 +830,7 @@ function uninstall() {
     blocks: (b) => b.file === "AGENTS.md",
     imports: (i) => !!LINES.get(i.file)?.includes(i.line) || (i.file === GI && giLines.has(i.line)),
     created: (p) => FIVE.includes(p) || p === md || (p === YML && marked),
-    chained: (c) => hookSet.has(c.file) && c.to === c.file + ".before-xworkflows",
+    chained: (c) => hookSet.has(c.file) && [c.file + ".before-xworkflows", `${dirname(c.file)}/${CHAINED}/${basename(c.file)}`].includes(c.to),
   };
   const said = new Set();
   const keep = (kind, e, p) => {
@@ -835,12 +851,14 @@ function uninstall() {
     else out.push(`kept (changed locally): ${p}`);
   }
   for (const [name, p] of hookRel) {
-    const abs = join(hooksDir, name), before = abs + ".before-xworkflows";
+    const abs = join(hooksDir, name), dir = join(hooksDir, CHAINED), moved = join(dir, name);
+    const before = lstatSync(dir, { throwIfNoEntry: false })?.isDirectory() && lstatSync(moved, { throwIfNoEntry: false }) ? moved : abs + ".before-xworkflows";
     if (!lstatSync(abs, { throwIfNoEntry: false })?.isFile()) continue;
     const cur = readFileSync(abs, "utf8");
-    if (![false, true].some((c) => cur === hookText(name, c))) { if (recFiles.has(p)) out.push(hash(cur) === rec.files[p].sha256 ? `kept (not ours): ${p}` : `kept (changed locally): ${p}`); continue; }
+    if (!HOOK_TEXTS.some((c) => cur === hookText(name, c))) { if (recFiles.has(p)) out.push(hash(cur) === rec.files[p].sha256 ? `kept (not ours): ${p}` : `kept (changed locally): ${p}`); continue; }
     rmSync(abs); out.push(`deleted ${p}`);
     if (lstatSync(before, { throwIfNoEntry: false })) { renameSync(before, abs); out.push(`restored ${p}`); }
+    try { rmdirSync(dir); } catch {} // only an empty folder goes
   }
   const merged = rec.merged;
   const text = merged.length ? read(ROOT, SETTINGS) : null;
