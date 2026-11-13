@@ -214,3 +214,20 @@ test("a write spelled in another case is the summary only on a disk that ignores
   const r = decide(e(join(d, ".XWORKFLOWS/Summary.md")), c);
   if (folded) deny(r, /H1-a/); else ok(r);
 });
+test("the table of shell commands that write the summary during a run", () => {
+  const DENIED = ["echo x > .xworkflows/summary.md", "echo x >> .xworkflows/summary.md", "echo x>.xworkflows/summary.md", "cat draft.md>.xworkflows/summary.md", "{ echo a; }>.xworkflows/summary.md", "cat <<'EOF'>.xworkflows/summary.md", "echo x 2> .xworkflows/summary.md", "echo x > .xworkflows//summary.md", `echo x > .xworkflows/"summary.md"`, "echo x > ./.xworkflows/summary.md", "echo x | tee .xworkflows/summary.md", "echo x | tee -a .xworkflows/summary.md", "echo x | tee /tmp/copy .xworkflows/summary.md", "tee < in.txt .xworkflows/summary.md", `tee <<< "$x" .xworkflows/summary.md`, "tee <<EOF .xworkflows/summary.md",
+    // known and accepted: a quoted text that only mentions a write is denied; telling it apart needs a shell parser
+    `echo "a > .xworkflows/summary.md"`];
+  const ALLOWED = ["cat .xworkflows/summary.md", "grep -n status .xworkflows/summary.md", `git commit -m "adapt: research -> .xworkflows/summary.md"`, "grep -n \\> .xworkflows/summary.md", "cat /home/u/teemo/.xworkflows/summary.md", "tee /tmp/copy < .xworkflows/summary.md", "cat .xworkflows/summary.md > /tmp/copy", "ls > /tmp/out; cat .xworkflows/summary.md", "echo tee; cat .xworkflows/summary.md"];
+  for (const c of DENIED) deny(decide(sh(c), ctx()), /summary\.md is written with Write/);
+  for (const c of ALLOWED) assert.equal(decide(sh(c), ctx()).decision, "allow", `allowed: ${c}`);
+});
+test("every shape of a long command grows linearly with its length", () => {
+  const shapes = { "a long word": (n) => "tee -" + "a".repeat(n), "digits": (n) => "1".repeat(n), "tee words": (n) => "tee ".repeat(n / 4), "tee < words": (n) => "tee < ".repeat(n / 6), "the path": (n) => ".xworkflows/summary.md ".repeat(n / 23) };
+  for (const [name, make] of Object.entries(shapes)) {
+    const time = (n) => { const e = sh(make(n)); const t = process.hrtime.bigint(); decide(e, ctx()); return Number(process.hrtime.bigint() - t) / 1e6; };
+    time(1000);
+    const small = time(20000), big = time(80000);
+    assert.ok(big < 8 * Math.max(small, 1) + 20, `${name}: 20000 chars ${small} ms, 80000 chars ${big} ms`);
+  }
+});
