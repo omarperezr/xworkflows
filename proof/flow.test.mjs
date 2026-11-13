@@ -74,3 +74,14 @@ test("flow releases the owner profile lock when it ends", async () => {
   await runFlow(t.argv(), { ...t.deps, query });
   assert.ok(!existsSync(join(t.home, ".xworkflows", "owner.md.proof-lock")));
 });
+
+test("flow refuses a cap that is not a positive number, with exit 2, before any model call or ledger write", async () => {
+  for (const bad of ["6usd", "0", "-1", "abc"]) {
+    const t = setup();
+    let called = false;
+    const never = async function* () { called = true; };
+    assert.equal(await runFlow(t.argv("--max-usd", bad), { ...t.deps, query: never }), 2, `--max-usd ${bad}`);
+    assert.equal(called, false, `--max-usd ${bad} started a run`);
+    assert.equal(existsSync(spendOf(t.repo)), false, `--max-usd ${bad} wrote the ledger`);
+  }
+});

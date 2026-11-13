@@ -16,9 +16,10 @@ export async function runFlow(argv, deps = {}) {
     "api-credits": { type: "boolean" }, model: { type: "string", default: "claude-sonnet-5-5" }, "max-usd": { type: "string", default: "6" },
   } });
   if (!o.cwd || !o.prompt || !o.out) { err("usage: flow.mjs --cwd <project> --prompt <text> --out <dir> --api-credits [--spend-file <file>]"); return 2; }
+  const cap = Number(o["max-usd"]);
+  if (!(cap > 0)) { err("--max-usd must be a positive number"); return 2; }
   const guard = apiKeyGuard(env, o["api-credits"]);
   if (guard) { err(guard); return 1; }
-  const cap = Number(o["max-usd"]);
   const spendFile = spendFilePath(repo, o["spend-file"]);
   const why = budgetStop(readLedger(spendFile).totalUsd, cap, 60);
   if (why) { err(`not starting: ${why}`); return 2; }
