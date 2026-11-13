@@ -188,6 +188,15 @@ test("grade and report ignore dropped citations; empty stats; missing research.m
   assert.equal(noMoneyCheck(d).ok, false);
 });
 
+test("a version 3 research.md: R reads details.md and the Dropped list drops its citations", () => {
+  const d = copy();
+  writeFileSync(d + "/research.md", "---\ncommit: abc\nversion: 3\n---\n\n## What it is\n\nx\n\n## Dropped\n\n- idem: rule: Keys src/idem.js:10 \"q\"\n- plain: sentence: Made up. no file\n");
+  writeFileSync(d + "/details.md", "# Detail\n\n- every write carries an idempotency key (src/idem.js:10)\n");
+  assert.deepEqual(grade(d, RUBRIC).R, ["inv-idem"]);
+  assert.equal(kindsFound(d).includes("idem"), false);
+  assert.equal(kindsFound(d).length, 10);
+});
+
 test("grade reads a live copy's .xworkflows/ and warns when research.md is missing", () => {
   const d = copy();
   mkdirSync(d + "/.xworkflows");
