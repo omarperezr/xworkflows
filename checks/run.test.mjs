@@ -238,6 +238,16 @@ test("an extra argument: exit 2", withRepo({}, async (repo) => {
   assert.equal((await check(repo, ["--pre-push", "origin", "HEAD"])).code, 2);
 }));
 
+test("pre-push: an empty remote name is an error", withRepo({}, async (repo) => {
+  assert.deepEqual(await check(repo, ["--pre-push", ""]), { code: 2, out: ["xworkflows check: --pre-push needs a remote"] });
+}));
+
+test("pre-push: a line that is not git's four fields is an error", withRepo({}, async (repo) => {
+  const head = repo.git("rev-parse", "HEAD");
+  const r = await check(repo, ["--pre-push", "origin", "--only", "signature"], {}, `refs/heads/main ${head} refs/heads/main\n`);
+  assert.deepEqual(r, { code: 2, out: ["xworkflows check: malformed pre-push line: refs/heads/main " + head + " refs/heads/main"] });
+}));
+
 test("needs that are not key names: could not run", withRepo({}, async (repo) => {
   const r = await check(repo, ["--only", "ratchet"], { ratchet: { needs: [5], run: () => ({ ok: true, lines: [] }) } });
   assert.deepEqual(r, { code: 2, out: ["ratchet: could not run: its needs must be config key names", "xworkflows check: 1 of 1 failed"] });

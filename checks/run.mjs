@@ -79,7 +79,7 @@ export async function main(argv, io = {}) {
     const pos = [];
     for (let i = 0; i < argv.length; i++) {
       const a = argv[i];
-      if (a === "--pre-push") remote = argv[++i] ?? (() => { throw new Error("--pre-push needs a remote"); })();
+      if (a === "--pre-push") remote = argv[++i] || (() => { throw new Error("--pre-push needs a remote"); })();
       else if (a === "--only") only = (argv[++i] ?? "").split(",");
       else if (a.startsWith("-")) throw new Error(`unknown flag ${a}`);
       else pos.push(a);
@@ -104,7 +104,10 @@ export async function main(argv, io = {}) {
       ranges = [afterReview(ctx, rangeFor(ctx, { head, base: pos[0] ? rev(pos[0]) : mergeBase(head, main) }), print)];
     } else {
       for (const line of stdin.split("\n")) {
-        const [, local, ref, remoteSha] = line.trim().split(/\s+/);
+        if (!line.trim()) continue;
+        const fields = line.trim().split(/\s+/);
+        if (fields.length !== 4) throw new Error(`malformed pre-push line: ${line.trim()}`);
+        const [, local, ref, remoteSha] = fields;
         if (!local || isZero(local)) continue;
         const head = rev(local);
         let base = isZero(remoteSha) ? mergeBase(head, `${remote}/${main}`) : rev(remoteSha);
