@@ -90,10 +90,23 @@ test("full-review pins zones, file names, card form and decisions", () => {
 });
 test("full-review writes the reviewed commit only when every agent returned", () => {
   const s = read("skills/full-review/SKILL.md");
-  for (const t of ["is written only when every agent the skill launched returned",
-    "when one did not, write the review file without that line and tell the owner which zones were not read",
+  for (const t of ["is written only when every agent the skill launched returned, that is when `missing` in the script's result is empty",
+    "when it is not, write the review file without that line and tell the owner which zones were not read, the `{ review, zone }` pairs of `missing`",
     "the sha is the head the agents were given, noted before they start, not the head when the file is written"]) assert.ok(s.includes(t), t);
   assert.ok(s.split("\n").length < 120);
+});
+test("full-review's script returns the review and zone pairs whose agent returned nothing, an empty list when all returned", async () => {
+  const js = read("skills/full-review/SKILL.md").match(/```js\n([\s\S]*?)```/)[1];
+  const body = js.replace(/export const meta = \{[\s\S]*?\n\};\n/, "");
+  const AsyncFunction = (async () => {}).constructor;
+  const run = (agent) => new AsyncFunction("args", "agent", "parallel", "pipeline", "log", "phase", body)(
+    { zones: [{ key: "a", paths: ["a"] }, { key: "b", paths: ["b"] }], skills: { "thermo-nuclear-review": "s1", "thermo-nuclear-code-quality-review": "s2" } },
+    agent, (jobs) => Promise.all(jobs.map((j) => j().catch(() => null))), null, () => {}, () => {});
+  const found = [{ severity: "low", kind: "error", file: "x.js", line: 1, title: "t", case: "c" }];
+  assert.deepEqual((await run(async () => ({ findings: [] }))).missing, []);
+  const r = await run(async (prompt) => (prompt.includes("s2/") && prompt.includes('Zone "b"') ? undefined : { findings: found }));
+  assert.deepEqual(r.missing, [{ review: "thermo-nuclear-code-quality-review", zone: "b" }]);
+  assert.equal(r.errors.length, 3);
 });
 test("full-review's Workflow script compiles as an async body", () => {
   const js = read("skills/full-review/SKILL.md").match(/```js\n([\s\S]*?)```/)[1];
