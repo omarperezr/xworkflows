@@ -67,6 +67,8 @@ fail not configured: paths.code (needed by fix-has-test, graph-current), run /ad
 
 **3. Teach it your project.** Open Claude Code in the project and type `/adapt`. It studies your code and its history, shows you a summary, asks you about what it found, and then writes the rules for your project. After that, `doctor` has nothing left to say about `/adapt`.
 
+**4. Start working.** Type `/next-step`: it shows what is left to do, and `/next-step` hands the chosen step to `/deepen`, the first stage of the method.
+
 Good to know:
 
 - Nothing is committed or pushed for you. You decide when to commit what the installer wrote.
@@ -141,7 +143,7 @@ Some checks run only on a push to the main branch, so a push of a work branch ru
 <details>
 <summary><strong>Other tools it works with</strong></summary>
 
-`/adapt` needs the `graphify` command and Claude Code's `Workflow` tool; without `graphify` it stops and tells you so. The agent's notes are searched with [`qmd`](https://www.npmjs.com/package/@tobilu/qmd) (`npm install -g @tobilu/qmd`); `doctor` prints the version it found and tells you when it is missing or does not read the project's index.
+`/adapt` needs the `graphify` command installed and Claude Code's `Workflow` tool; without `graphify` it stops and tells you so. The agent's notes are searched with [`qmd`](https://www.npmjs.com/package/@tobilu/qmd) (`npm install -g @tobilu/qmd`); `doctor` prints the version it found and tells you when it is missing or does not read the project's index.
 
 </details>
 
