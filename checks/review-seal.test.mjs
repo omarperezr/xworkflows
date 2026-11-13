@@ -28,6 +28,27 @@ test("a sealed batch passes, with a short sha", () => withRepo(async (repo) => {
   assert.deepEqual(await repo.run(mod), { ok: true, lines: [] });
 }));
 
+test("a seal inside a fenced code block does not count", () => withRepo(async (repo) => {
+  const c = repo.commit("feat: one", { files: { "src/a.js": "const a = 2;\n" } });
+  seal(repo, `Example:\n\n\`\`\`\nreview ok at ${c.slice(0, 7)}\n\`\`\`\n\n~~~md\nreview ok at ${c.slice(0, 7)}\n~~~`);
+  assert.equal((await repo.run(mod)).ok, false);
+  seal(repo, `\`\`\`\nopen block\nreview ok at ${c.slice(0, 7)}`, "docs/superpowers/plans/q.md");
+  assert.equal((await repo.run(mod)).ok, false);
+  seal(repo, `\`\`\`\nx\n\`\`\`\nreview ok at ${c.slice(0, 7)}`, "docs/superpowers/plans/r.md");
+  assert.equal((await repo.run(mod)).ok, true);
+}));
+
+test("a seal written as a numbered item or a check box does not count", () => withRepo(async (repo) => {
+  const c = repo.commit("feat: one", { files: { "src/a.js": "const a = 2;\n" } });
+  seal(repo, `1. review ok at ${c.slice(0, 7)}\n- [x] review ok at ${c.slice(0, 7)}`);
+  assert.equal((await repo.run(mod)).ok, false);
+}));
+
+test("a commit that touches only .gitignore is not code", () => withRepo(async (repo) => {
+  repo.commit("chore: ignore", { files: { ".gitignore": "node_modules/\n" } });
+  assert.deepEqual(await repo.run(mod), { ok: true, lines: [] });
+}));
+
 test("a seal in a spec counts, also one naming a later commit", () => withRepo(async (repo) => {
   repo.commit("feat: one", { files: { "src/a.js": "const a = 2;\n" } });
   const s = seal(repo, "nothing yet");

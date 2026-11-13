@@ -6,6 +6,17 @@ export const needs = ["paths.codeAnyway", "paths.risk"];
 
 const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
+// a seal inside a fenced code block is an example, not a seal; an unclosed fence runs to the end
+function unfenced(text) {
+  let open = null;
+  return text.split("\n").filter((l) => {
+    const m = /^ {0,3}(`{3,}|~{3,})/.exec(l)?.[1];
+    if (!open) { open = m ?? null; return !m; }
+    if (m && m[0] === open[0] && m.length >= open.length) open = null;
+    return false;
+  }).join("\n");
+}
+
 export function run(range, ctx) {
   const { paths, roles } = ctx.config;
   const line = (c) => ctx.git("log", "-1", "--format=%h %s", c);
@@ -29,7 +40,7 @@ export function run(range, ctx) {
   const docs = ctx.git("ls-tree", "-r", "--name-only", "-z", range.head).split("\0")
     .filter((f) => inPaths(f, [paths.plans, paths.specs]));
   for (const f of docs) {
-    for (const [, sha] of (ctx.show(range.head, f) ?? "").matchAll(re)) {
+    for (const [, sha] of unfenced(ctx.show(range.head, f) ?? "").matchAll(re)) {
       const full = ctx.tryGit("rev-parse", "-q", "--verify", `${sha}^{commit}`);
       if (full.code !== 0) continue;
       if (unsealed.every((c) => ctx.tryGit("merge-base", "--is-ancestor", c, full.out).code === 0)) return { ok: true, lines: [] };
