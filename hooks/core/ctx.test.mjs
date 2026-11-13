@@ -157,3 +157,14 @@ test("writeFile: a folder inside the repository is written as before, also when 
   assert.equal(c.writeFile("docs/memory/a.md", "x"), true);
   assert.equal(readFileSync(join(root, "docs/memory/a.md"), "utf8"), "x");
 });
+
+test("writeFile: a memory.outside that is not a list of texts counts as empty, the write is refused and the line names the key", () => {
+  for (const bad of [null, "x", 5, [5], ["ok", 5]]) {
+    const { root, real } = linked();
+    const config = { ...DEFAULTS, memory: { ...DEFAULTS.memory, outside: bad === "x" ? real : Array.isArray(bad) && bad[0] === "ok" ? [real, 5] : Array.isArray(bad) ? bad : bad } };
+    const c = makeCtx({ root, session: "s1" }, { env: {}, config, stateDir: tmp() });
+    assert.equal(c.writeFile("docs/memory/a.md", "x"), false, JSON.stringify(bad));
+    assert.equal(existsSync(join(real, "a.md")), false);
+    assert.match(outsideLine(root, "docs/memory/a.md", bad), /memory\.outside/);
+  }
+});

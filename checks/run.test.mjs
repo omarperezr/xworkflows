@@ -469,3 +469,15 @@ test("index: a memory folder linked out of the repository is refused with the li
   assert.equal((await check(repo, ["index"])).code, 2);
   rmSync(real, { recursive: true, force: true });
 }));
+
+test("index: a memory.outside that is not a list of texts counts as empty and the write is refused", withRepo({}, async (repo) => {
+  const real = outsideRepo(repo, false);
+  for (const bad of [null, real, [5], [real, 5]]) {
+    repo.write(".xworkflows/config.json", JSON.stringify({ memory: { dir: "docs-memory", outside: bad } }));
+    const r = await check(repo, ["index"]);
+    assert.equal(r.code, 2, JSON.stringify(bad));
+    assert.match(r.out[0], /memory\.outside/);
+    assert.equal(existsSync(join(real, "MEMORY.md")), false);
+  }
+  rmSync(real, { recursive: true, force: true });
+}));
