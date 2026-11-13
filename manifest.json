@@ -564,7 +564,7 @@
       "files": {
         "checks/run.mjs": "aefed9b4bd5f2a1e931fa31034a666b78578e4258ff7feb7548b094c525d4c52",
         "checks/comment-lines.mjs": "7cc1262dc37358f5c2436e47f3808baa4af7c39d5579d5c428996c90c446dcf7",
-        "checks/signature.mjs": "50d47e5c7d7850858f6d5c40e4a467c5ce19182696555f3b9190cebdf8635206",
+        "checks/signature.mjs": "394df96913b7cc4a6f60b7fe9e87b23c6bc13ca7d54020fb864b5222bbf94f92",
         "checks/review-seal.mjs": "0462ccdf890362fc49798728e79f1d2bed9310b78e762da4a826e84a27965632",
         "checks/goal-cited.mjs": "ece9e129e2bdb39a619bf8680195101364e67d2d6ab318eef00cf4cb11c9eb8d",
         "checks/pending.mjs": "0eb036116ed41676dd1fb2bed3c8a96d1357360e246bead864af6b311559c0cb",
@@ -579,7 +579,7 @@
         "checks/index-current.mjs": "52b1d47da0e375d52d970e20b18cbc6e3269f117ab807545d8b73aa258d15bfe",
         "checks/project.mjs": "af3161760f0ac32a4f816a1cd6a4d5a17e848811d8dcdfd95c1b575568a11d87"
       },
-      "sha256": "627591d23deda5a5731460f609ad35e5818f9ad2f4805255c8bf6581ed1bf7dd"
+      "sha256": "2c34a976f5dee819a64cc0ce27f8f297571eb60619e16eb73320c4faa1e931cc"
     },
     {
       "id": "lint",
