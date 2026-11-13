@@ -248,6 +248,18 @@ test("a second install after the replacement changes nothing, and uninstall leav
   cli(r, ["uninstall"]);
   assert.equal(existsSync(join(r, ".claude/settings.json")) && readFileSync(join(r, ".claude/settings.json"), "utf8").includes("adapt-gates"), false);
 });
+test("the record of a merged hook entry only holds text the package wrote: a hand-edited entry stays edited when the record is lost and install runs twice", () => {
+  const r = repo();
+  cli(r, ["install"]);
+  const adapt = (e) => e.hooks?.[0]?.command?.endsWith(" claude adapt-gates");
+  const s = readJson(r, ".claude/settings.json");
+  s.hooks.PreToolUse.find(adapt).matcher = "Write";
+  writeJson(r, ".claude/settings.json", s);
+  rmSync(join(r, ".xworkflows/installed.json"));
+  cli(r, ["install"]);
+  cli(r, ["install"]);
+  assert.equal(readJson(r, ".claude/settings.json").hooks.PreToolUse.find(adapt).matcher, "Write");
+});
 test("broken settings.json: exit 1, tree unchanged", () => {
   const r = repo({ ".claude/settings.json": "{oops" });
   assert.equal(cli(r, ["install"]).status, 1);
@@ -310,6 +322,16 @@ test("hook removed by the user then reinstalled: merged stays one entry, created
   const m = readJson(r, ".xworkflows/installed.json").merged.filter((x) => x.key[0] === "hooks");
   assert.equal(m.length, WIRED.length);
   assert.equal(m[0].createdKey, true);
+});
+test("a record that is replaced passes its flags on: hook removed by the user then reinstalled, uninstall still removes the settings file this install created", () => {
+  const r = repo();
+  cli(r, ["install"]);
+  const s = readJson(r, ".claude/settings.json");
+  s.hooks.PreToolUse = [];
+  writeJson(r, ".claude/settings.json", s);
+  cli(r, ["install"]);
+  assert.equal(cli(r, ["uninstall"]).status, 0);
+  assert.ok(!existsSync(join(r, ".claude/settings.json")));
 });
 test("installed.json deleted: found entries of ours are recorded again", () => {
   const r = repo();

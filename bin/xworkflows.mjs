@@ -191,8 +191,8 @@ function mergeSettings(root, manifest, record) {
     if (found) {
       // an entry of ours that is not the one the manifest gives: replace it when it is exactly what the record holds, else it is a hand edit
       const recorded = record.merged.find((m) => m.file === path && isDeepStrictEqual(m.key, key) && ours(m.entry));
-      if (id && ours(found) && !isDeepStrictEqual(found, entry) && recorded) {
-        if (isDeepStrictEqual(recorded.entry, found)) { o[last][o[last].indexOf(found)] = entry; changed = true; merged.push({ file: path, key, entry, createdKey: recorded.createdKey }); }
+      if (id && ours(found) && !isDeepStrictEqual(found, entry)) {
+        if (recorded && isDeepStrictEqual(recorded.entry, found)) { o[last][o[last].indexOf(found)] = entry; changed = true; merged.push({ file: path, key, entry, createdKey: recorded.createdKey }); }
         else notes.push(`kept (changed locally): ${path} hook ${id}`);
         continue;
       }
@@ -461,6 +461,7 @@ export function apply(pl, root, manifest, record) {
     for (const [k, list] of Object.entries(m.rec)) {
       next[k] = [...next[k]];
       // the replaced entry of a hook leaves the record
+      if (k === "merged") for (const x of list) { const gone = next[k].find((y) => x.entry?.hooks && x.file === y.file && isDeepStrictEqual(x.key, y.key) && x.entry.hooks[0].command === y.entry?.hooks?.[0]?.command); if (gone?.createdKey) x.createdKey = true; }
       if (k === "merged") next[k] = next[k].filter((y) => !list.some((x) => x.entry?.hooks && x.file === y.file && isDeepStrictEqual(x.key, y.key) && x.entry.hooks[0].command === y.entry?.hooks?.[0]?.command));
       for (const x of list) if (!next[k].some((y) => (k === "merged" ? x.file === y.file && isDeepStrictEqual(x.key, y.key) && isDeepStrictEqual(x.entry, y.entry) : (k === "blocks" || k === "imports" ? x.file === y.file && x.line === y.line : isDeepStrictEqual(x, y))))) next[k].push(x);
     }
