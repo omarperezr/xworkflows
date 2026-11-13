@@ -118,7 +118,7 @@
     },
     "checks": {
       "version": "0.1.0",
-      "sha256": "2c34a976f5dee819a64cc0ce27f8f297571eb60619e16eb73320c4faa1e931cc"
+      "sha256": "623ec0553c45f51aa58418e52f36ce303dbdf23b04fde72fa81fc93fdb33ff53"
     },
     "lint": {
       "version": "0.1.0",
@@ -208,7 +208,7 @@
     },
     ".xworkflows/checks/signature.mjs": {
       "piece": "checks",
-      "sha256": "394df96913b7cc4a6f60b7fe9e87b23c6bc13ca7d54020fb864b5222bbf94f92"
+      "sha256": "369f1c717d975692f082dc71d05540a2279408807969254f987ae01a0ef5d28f"
     },
     ".xworkflows/checks/review-seal.mjs": {
       "piece": "checks",
