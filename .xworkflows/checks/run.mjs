@@ -40,6 +40,22 @@ export function rangeFor(ctx, { base, head, ref = null, remote = null, manual = 
     mainPush: ref === `refs/heads/${ctx.config.mainBranch}`, manual };
 }
 
+// after a full review the push judges only what came after the commit the newest review names; any doubt leaves the range as it is
+function afterReview(ctx, range, print) {
+  const dir = ctx.config.paths.reviews.replace(/\/+$/, "");
+  const files = ctx.tryGit("ls-tree", "--name-only", range.head, "--", `${dir}/`).out.split("\n")
+    .map((f) => [f, /^(\d{4}-\d\d-\d\d)-full-review(?:-(\d+))?\.md$/.exec(f.slice(dir.length + 1))])
+    .filter(([, m]) => m).map(([f, m]) => [f, m[1], Number(m[2] ?? 1)])
+    .sort((a, b) => (a[1] < b[1] ? 1 : a[1] > b[1] ? -1 : b[2] - a[2]));
+  if (!files.length) return range;
+  const sha = /^Reviewed commit: ([0-9a-f]{7,40})\s*$/m.exec(ctx.show(range.head, files[0][0]) ?? "")?.[1];
+  const named = sha && ctx.tryGit("rev-parse", "--verify", "--quiet", `${sha}^{commit}`);
+  if (!named || named.code !== 0 || !range.commits.includes(named.out)) return range;
+  const later = new Set(ctx.git("rev-list", range.head, "--not", named.out).split("\n"));
+  print(`xworkflows check: full review ${files[0][0].split("/").pop()} names ${named.out.slice(0, 7)}: the history up to it is not judged`);
+  return { ...range, base: named.out, diffBase: named.out, commits: range.commits.filter((c) => later.has(c)) };
+}
+
 export async function main(argv, io = {}) {
   const { cwd = process.cwd(), stdin = "", print = console.log, load = (n) => import(`./${n}.mjs`) } = io;
   if (argv[0] === "index") {
@@ -85,7 +101,7 @@ export async function main(argv, io = {}) {
     const main = ctx.config.mainBranch;
     if (remote === null) {
       const head = rev(pos[1] ?? "HEAD");
-      ranges = [rangeFor(ctx, { head, base: pos[0] ? rev(pos[0]) : mergeBase(head, main) })];
+      ranges = [afterReview(ctx, rangeFor(ctx, { head, base: pos[0] ? rev(pos[0]) : mergeBase(head, main) }), print)];
     } else {
       for (const line of stdin.split("\n")) {
         const [, local, ref, remoteSha] = line.trim().split(/\s+/);
@@ -97,7 +113,7 @@ export async function main(argv, io = {}) {
           base = head;
           print(`xworkflows check: first push to ${remote}: the history already written is not judged`);
         }
-        ranges.push(rangeFor(ctx, { head, base, ref, remote, manual: false }));
+        ranges.push(afterReview(ctx, rangeFor(ctx, { head, base, ref, remote, manual: false }), print));
       }
     }
   } catch (e) {

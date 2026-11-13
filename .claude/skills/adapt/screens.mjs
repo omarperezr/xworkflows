@@ -72,11 +72,11 @@ export function screens(root, r) {
     if (s2 && !ok(s2)) dropped.push({ area: key, what: `second rule: ${s2.rule}`, at: at(s2), quote: s2.quote });
     // A written rule counts as contradicted only when both its doc line and the code line hold.
     for (const c of a.contradicted || []) {
-      if (ok(c) && ok({ file: c.wfile, line: c.wline, quote: c.wquote })) gaps.push({ kind: "contradicted", area: key, risk, text: `The docs say: "${c.written}" (${at({ file: c.wfile, line: c.wline })}). The code does otherwise at ${at(c)}: ${c.how}. Which one is right?`, options: ["The written rule", "The code", "I don't know"] });
+      if (ok(c) && ok({ file: c.wfile, line: c.wline, quote: c.wquote })) gaps.push({ kind: "contradicted", area: key, risk, text: `The docs say: "${c.written}" (${at({ file: c.wfile, line: c.wline })}). The code does otherwise at ${at(c)}: ${c.how}. ${g && ok(g) ? ` The rule itself holds at ${at(g)}.` : ""} Which one is right?`, options: ["The written rule", "The code", "I don't know"] });
       else dropped.push({ area: key, what: `contradicted: ${c.written}`, at: at(c), quote: c.quote });
     }
     for (const d of keep(a.doubted, "doubted")) if (!String(d.why ?? "").trim()) dropped.push({ area: key, what: `doubted: ${d.rule}`, reason: "no written reason" }); else gaps.push({ kind: "doubted", area: key, risk, text: `The code follows this rule: "${d.rule}" (${at(d)}). Research doubts it: ${d.why}. What do you say?`, options: ["You are right: a pending card", "Keep it, because ...", "I don't know"] });
-    if (g && ok(g) && exceptions.length) gaps.push({ kind: "exceptions", area: key, risk, text: `Rule: "${g.rule}". Done differently in ${exceptions.length} place${exceptions.length > 1 ? "s" : ""}: ${exceptions.map((e) => `${at(e)} (${e.how})`).join("; ")}. Mistake or exception?`, options: ["Mistake: fix it", "Exception: keep it", "I don't know"] });
+    if (g && ok(g) && exceptions.length) gaps.push({ kind: "exceptions", area: key, risk, text: `Rule: "${g.rule}" The rule itself holds at ${at(g)}. Done differently in ${exceptions.length} place${exceptions.length > 1 ? "s" : ""}: ${exceptions.map((e) => `${at(e)} (${e.how})`).join("; ")}. Mistake or exception?`, options: ["Mistake: fix it", "Exception: keep it", "I don't know"] });
     for (const u of keep(a.unprotected, "unprotected")) gaps.push({ kind: "unprotected", area: key, risk, text: `Nothing protects this: ${u.risk} (${at(u)}). Is that on purpose?`, options: ["On purpose", "Not on purpose: protect it", "I don't know"] });
   }
   // A sentence shows when a general rule it names (id `<key>` of an area, `kind:<kind>`) verified, or, naming none, an idea (id `<key>.<n>`) did; the first verified rule gives the example (its own citation) and `also`, the count of its verified support; else the first verified idea's citation.
@@ -97,11 +97,13 @@ export function screens(root, r) {
     for (const id of failed) dropped.push({ area: "plain", what: `rule ${id}, named by: ${c.text}`, reason: "did not verify" });
     if (!why) verified.push({ text: c.text, from: c.from, at: rule ? rules.get(rule).at[0] : ideas.get(named[0]).at, ...(rule && !rule.startsWith("kind:") && { also: rules.get(rule).at.length - 1 }), general: Boolean(rule), first: { id: rule ?? named[0] }, kind: named.some((id) => id.startsWith("kind:")), risk: named.map((id) => (rules.get(id) ?? rules.get(ideas.get(id).area))?.risk).filter((k) => k in RISK).sort((x, y) => RISK[x] - RISK[y])[0] });
   }
-  // The script picks the page: sentences from general rules first, one that names a kind in turn with one that names only an area, each list by risk; then the ones from ideas by risk.
-  const by = (f) => verified.filter(f).sort(byRisk);
-  const [kindList, areaList] = [by((x) => x.general && x.kind), by((x) => x.general && !x.kind)];
-  const mixed = Array.from({ length: Math.max(kindList.length, areaList.length) }, (_, i) => [kindList[i], areaList[i]].filter(Boolean)).flat();
-  const sentences = [...mixed, ...by((x) => !x.general)].map(({ kind, general, first, ...x }) => x);
+  // One list by risk, high first, whatever the sentence comes from; inside a risk: general rules first, a kind's and an area-only one in turn, then the ideas.
+  const sentences = [0, 1, 2, 3].flatMap((k) => {
+    const by = (f) => verified.filter((x) => (RISK[x.risk] ?? 3) === k && f(x)).sort(byRisk);
+    const [kindList, areaList] = [by((x) => x.general && x.kind), by((x) => x.general && !x.kind)];
+    const mixed = Array.from({ length: Math.max(kindList.length, areaList.length) }, (_, i) => [kindList[i], areaList[i]].filter(Boolean)).flat();
+    return [...mixed, ...by((x) => !x.general)];
+  }).map(({ kind, general, first, ...x }) => x);
   // Screen 2: contradictions first, then a doubted rule, exceptions, unprotected places.
   const order = { contradicted: 0, doubted: 1, exceptions: 2, unprotected: 3 };
   gaps.sort((x, y) => order[x.kind] - order[y.kind] || x.risk - y.risk);

@@ -35,6 +35,10 @@ export function decide(ev, ctx) {
     return { decision: "allow" };
   }
 
+  // shortcut: only a redirect or tee naming .xworkflows/summary.md is seen; cp, mv, sed -i or a cd first are not, upgrade by parsing ev.command.
+  if (ev.kind === "shell" && /(?:>\|?|\btee(?:\s+-\S+)*)\s*["']?[^\s;&|<>"']*\.xworkflows\/summary\.md(?![\w.])/.test(ev.command ?? ""))
+    return deny("summary.md is written with Write, not by a shell redirect or tee.");
+
   for (const w of ev.writes ?? []) {
     const abs = realFile(path.resolve(ev.root, w.path.replaceAll("\\", "/")));
     // Files the adapt scripts write; the agent never writes them directly.
