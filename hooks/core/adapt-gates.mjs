@@ -10,7 +10,7 @@ const json = (s) => { try { return JSON.parse(s); } catch { return null; } };
 
 // A > after any character but - or \ (an arrow, an escaped >); tee at a word start, its gap stops at the next tee word and at a <, so the scan stays linear and a read is not a write; a path starts at a word start.
 const FILE = String.raw`(?<![^\s"'>|])["']?[^\s;&|<>"']*\.xworkflows\/+["']?summary\.md(?![\w.])`;
-const SUMMARY_WRITE = new RegExp(String.raw`(?:^|[^-\\])\d*>>?\|?\s*${FILE}|(?:^|[\s;&|])tee(?=\s)(?:(?!(?<!\S)tee\s)[^;&|<])*?${FILE}`);
+const SUMMARY_WRITE = new RegExp(String.raw`(?:^|[^-\\])>>?\|?\s*${FILE}|(?:^|[\s;&|])tee(?=\s)(?:(?!(?<!\S)tee\s)[^;&|<])*?${FILE}`);
 
 export function decide(ev, ctx) {
   const x = (f) => path.join(ev.root, ".xworkflows", f);

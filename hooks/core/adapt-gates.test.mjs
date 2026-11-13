@@ -177,6 +177,12 @@ test("a long word after tee is judged in linear time", () => {
   const small = time(20000), big = time(80000);
   assert.ok(big < 8 * Math.max(small, 1) + 20, `20000 chars ${small} ms, 80000 chars ${big} ms`);
 });
+test("a long run of digits is judged in linear time", () => {
+  const time = (n) => { const e = sh("1".repeat(n)); const t = process.hrtime.bigint(); ok(decide(e, ctx())); return Number(process.hrtime.bigint() - t) / 1e6; };
+  time(1000);
+  const small = time(20000), big = time(80000);
+  assert.ok(big < 8 * Math.max(small, 1) + 20, `20000 digits ${small} ms, 80000 digits ${big} ms`);
+});
 test("a redirect glued to the word before it is denied", () => {
   for (const c of ["echo x>.xworkflows/summary.md", "cat draft.md>.xworkflows/summary.md", "{ echo a; }>.xworkflows/summary.md", "cat <<'EOF'>.xworkflows/summary.md"])
     deny(decide(sh(c), ctx()), /summary\.md is written with Write/);
