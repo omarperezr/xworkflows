@@ -455,7 +455,9 @@ export function plan(manifest, root, record, ans = {}) {
   const shipped = new Set(writes.map((w) => w.key ?? w.path));
   const retired = [];
   for (const [f, hashes] of manifest.pieces.flatMap((p) => Object.entries(p.retired ?? {}))) {
-    const t = target(f), u = t.match(UNIT)?.[0], nu = u && `${dirname(u)}/xwf-${basename(u)}`;
+    const t = target(f);
+    if (!t) continue;
+    const u = t.match(UNIT)?.[0], nu = u && `${dirname(u)}/xwf-${basename(u)}`;
     if (kept.includes(u) || record.kept.includes(u)) continue;
     const p = nu && (renamed[nu] || record.renamed[nu]) ? nu + t.slice(u.length) : t;
     if (shipped.has(p) || !plain(p) || !clean(root, p) || !lstatSync(join(root, p), { throwIfNoEntry: false })?.isFile()) continue;

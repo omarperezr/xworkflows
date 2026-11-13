@@ -2411,3 +2411,9 @@ test("install: a retired file inside the user's own skill that install keeps is 
   assert.ok(existsSync(join(r, topics)), "the user's file is still there");
   assert.ok(!out.stdout.includes("adapt/topics.md"), out.stdout);
 });
+
+test("install: a retired entry naming a file this tool's adapter never installs is skipped", () => {
+  const copy = retiringCopy({ "hooks/adapters/other.mjs": [sha("old\n")] });
+  const out = cliAt(copy, repo(), ["install", "--yes"]);
+  assert.equal(out.status, 0, out.stderr);
+});
