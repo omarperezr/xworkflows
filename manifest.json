@@ -566,6 +566,16 @@
       "tools": [
         "claude"
       ],
+      "earlierHooks": {
+        "post-merge": [
+          "1505466be2b9c89a950027d28235ee05f7c01f72c658053a976c3b58d9fe3c4c",
+          "2baacba828e357ab2a35f3efe7cfb72b5c5f0a578475be4406ef874323c1bc7a"
+        ],
+        "post-commit": [
+          "1505466be2b9c89a950027d28235ee05f7c01f72c658053a976c3b58d9fe3c4c",
+          "d3e17de70e228aceec092ee1b8068e9f20466c9a90b463b259801a6d28a43aad"
+        ]
+      },
       "files": {
         "checks/run.mjs": "aefed9b4bd5f2a1e931fa31034a666b78578e4258ff7feb7548b094c525d4c52",
         "checks/comment-lines.mjs": "7cc1262dc37358f5c2436e47f3808baa4af7c39d5579d5c428996c90c446dcf7",

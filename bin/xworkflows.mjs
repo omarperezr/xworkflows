@@ -20,7 +20,7 @@ export const digest = (files) =>
   hash(Object.keys(files).sort().map((p) => `${p} ${files[p]}\n`).join(""));
 export const readManifest = () => JSON.parse(readFileSync(join(PKG, "manifest.json"), "utf8"));
 
-const KEYS = ["id", "kind", "origin", "source", "version", "license", "modified", "scope", "tools", "claude", "files", "sha256"];
+const KEYS = ["id", "kind", "origin", "source", "version", "license", "modified", "scope", "tools", "claude", "earlierHooks", "files", "sha256"];
 
 function pack(check) {
   const m = readManifest();
@@ -300,6 +300,8 @@ const MAIN = CFG(`${CONF}.mainBranch`, "main");
 // the first word of lookup.index.command is the tool that builds the index, as the session-start hook runs it
 const TOOL = CFG(`(${CONF}.lookup.index.command||"graphify query").split(" ")[0]`, "graphify");
 const FOLDER = CFG(`${CONF}.lookup.index.folder`, "graphify-out");
+// a git hook on disk that is an earlier text the package published: the manifest holds their hashes per hook
+const earlierHook = (manifest, name, cur) => (manifest.pieces.find((p) => p.id === "checks")?.earlierHooks?.[name] ?? []).includes(hash(cur));
 // With `chain` the project's own hook, renamed <name>.before-xworkflows, runs first.
 function hookText(name, chain) {
   const old = `old="$(dirname "$0")/${name}.before-xworkflows"\n`;
@@ -411,7 +413,7 @@ export function plan(manifest, root, record, ans = {}) {
     const path = relative(root, resolve(hooksDir, name)), key = hookKey(root, name);
     const lst = lstatSync(join(root, path), { throwIfNoEntry: false });
     const cur = lst?.isFile() ? read(root, path) : null;
-    const mine = cur !== null && ([false, true].some((c) => cur === hookText(name, c)) || (!!record.files[key] && hash(cur) === record.files[key].sha256));
+    const mine = cur !== null && ([false, true].some((c) => cur === hookText(name, c)) || earlierHook(manifest, name, cur) || (!!record.files[key] && hash(cur) === record.files[key].sha256));
     let chain = record.chained.some((c) => c.file === key) || (cur !== null && cur === hookText(name, true)), rename;
     const before = `${path}.before-xworkflows`;
     // the user's hook renamed by an install that never recorded it: ours is the only code that makes this name
@@ -442,7 +444,7 @@ export function plan(manifest, root, record, ans = {}) {
   writes = writes.filter((w) => !off(w.path));
   for (const w of writes) {
     const cur = read(root, w.path);
-    if (cur === null || cur === w.text || w.rename) continue;
+    if (cur === null || cur === w.text || w.rename || (w.key && earlierHook(manifest, w.src, cur))) continue;
     const rec = record.files[w.key ?? w.path];
     if (!rec) {
       // --yes answers with label 0 here: a file that is not ours is never written over without a typed answer
@@ -848,7 +850,7 @@ function uninstall() {
     const abs = join(hooksDir, name), before = abs + ".before-xworkflows";
     if (!lstatSync(abs, { throwIfNoEntry: false })?.isFile()) continue;
     const cur = readFileSync(abs, "utf8");
-    if (![false, true].some((c) => cur === hookText(name, c))) { if (recFiles.has(p)) out.push(hash(cur) === rec.files[p].sha256 ? `kept (not ours): ${p}` : `kept (changed locally): ${p}`); continue; }
+    if (![false, true].some((c) => cur === hookText(name, c)) && !earlierHook(manifest, name, cur)) { if (recFiles.has(p)) out.push(hash(cur) === rec.files[p].sha256 ? `kept (not ours): ${p}` : `kept (changed locally): ${p}`); continue; }
     rmSync(abs); out.push(`deleted ${p}`);
     if (lstatSync(before, { throwIfNoEntry: false })) { renameSync(before, abs); out.push(`restored ${p}`); }
   }
@@ -863,7 +865,7 @@ function uninstall() {
       for (const w of wants.filter(recorded)) {
         const arr = w.key.reduce((o, k) => o?.[k], s);
         if (!Array.isArray(arr)) continue;
-        const i = arr.findIndex((e) => isDeepStrictEqual(e, w.entry));
+        const i = arr.findIndex((e) => isDeepStrictEqual(e, w.entry) || w.earlier?.some((x) => isDeepStrictEqual(x, e)));
         if (i >= 0) { arr.splice(i, 1); changed = true; }
         else if (arr.some(w.ours)) out.push(`kept (changed locally): ${SETTINGS} ${w.key.join(".")}`);
       }

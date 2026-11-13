@@ -2042,3 +2042,70 @@ test("doctor: a git hook changed by hand comes back when the line's action is do
   cli(r, ["install"]);
   assert.equal(lineOf(doctor(r), re), undefined);
 });
+
+// the text of the post-merge and post-commit hooks that main's install wrote, before the graph hooks read the config
+const MAIN_CMD = `node -e 'try{process.stdout.write(JSON.parse(require("fs").readFileSync(".xworkflows/config.json","utf8")).mainBranch||"main")}catch{process.stdout.write("main")}'`;
+const mainHook = (name, chain) => `#!/bin/sh\nc=0\n${chain ? `old="$(dirname "$0")/${name}.before-xworkflows"\n[ -x "$old" ] && { "$old" "$@"; c=$?; }\n` : ""}cd "$(git rev-parse --show-toplevel)" || exit $c\nmain=$(${MAIN_CMD}) || main=main\n[ "$(git symbolic-ref --short -q HEAD)" = "$main" ] || exit $c\ncommand -v graphify >/dev/null 2>&1 || exit $c\nmkdir -p graphify-out\n{ graphify update . && touch -c graphify-out/graph.json; } > graphify-out/.update.log 2>&1 < /dev/null &\nexit $c\n`;
+const GRAPH_HOOKS = ["post-merge", "post-commit"];
+const hookFile = (r, n) => join(r, ".git/hooks", n);
+const bytesOf = (r) => [".xworkflows/installed.json", ...GRAPH_HOOKS.map((n) => `.git/hooks/${n}`)].map((f) => readFileSync(join(r, f), "utf8"));
+for (const [state, lost] of [["record holds the new hashes", false], ["record lost", true]]) {
+  for (const args of [["install"], ["install", "--yes"]]) {
+    test(`git hooks, ${state}, ${args.join(" ")}: the earlier text of the package's own hook is replaced with no question, and uninstall leaves none`, () => {
+      const r = repo();
+      cli(r, ["install"]);
+      const now = GRAPH_HOOKS.map((n) => readFileSync(hookFile(r, n), "utf8"));
+      for (const n of GRAPH_HOOKS) writeFileSync(hookFile(r, n), mainHook(n, false));
+      if (lost) rmSync(join(r, ".xworkflows/installed.json"));
+      const out = cli(r, args);
+      assert.doesNotMatch(out.stdout, /Chain it|answered for you/);
+      assert.deepEqual(GRAPH_HOOKS.map((n) => readFileSync(hookFile(r, n), "utf8")), now);
+      for (const n of GRAPH_HOOKS) assert.ok(!existsSync(`${hookFile(r, n)}.before-xworkflows`));
+      const rec = readJson(r, ".xworkflows/installed.json");
+      assert.deepEqual([rec.declined, rec.chained], [[], []]);
+      const first = bytesOf(r);
+      assert.match(cli(r, args).stdout, /^nothing to do$/m);
+      assert.deepEqual(bytesOf(r), first);
+      assert.equal(cli(r, ["uninstall"]).status, 0);
+      for (const n of GRAPH_HOOKS) assert.ok(!existsSync(hookFile(r, n)), n);
+    });
+  }
+}
+test("git hooks: uninstall removes an earlier text of the package's hook, chained or not, and puts the user's hook back", () => {
+  const r = repo();
+  cli(r, ["install"]);
+  writeFileSync(hookFile(r, "post-merge"), mainHook("post-merge", false));
+  writeFileSync(hookFile(r, "post-commit"), mainHook("post-commit", true));
+  writeFileSync(`${hookFile(r, "post-commit")}.before-xworkflows`, "#!/bin/sh\necho mine\n");
+  const out = cli(r, ["uninstall"]).stdout;
+  assert.doesNotMatch(out, /kept/);
+  assert.ok(!existsSync(hookFile(r, "post-merge")));
+  assert.equal(readFileSync(hookFile(r, "post-commit"), "utf8"), "#!/bin/sh\necho mine\n");
+});
+test("git hooks: a hook the user changed, on an earlier text or on the present one, is kept, and uninstall names the one it recorded", () => {
+  const r = repo();
+  cli(r, ["install"]);
+  const mine = mainHook("post-commit", false) + "echo mine\n";
+  writeFileSync(hookFile(r, "post-commit"), mine);
+  assert.match(cli(r, ["install"]).stdout, /answered for you: A post-commit hook exists\..* -> no/);
+  appendFileSync(hookFile(r, "post-merge"), "echo mine\n");
+  const out = cli(r, ["uninstall"]).stdout;
+  assert.match(out, /kept \(changed locally\): \.git\/hooks\/post-merge/);
+  assert.equal(readFileSync(hookFile(r, "post-commit"), "utf8"), mine);
+});
+test("hook entry, record present: uninstall removes an entry holding an earlier text, as it removes the present one", () => {
+  const r = repo();
+  installedOld(r);
+  const s = readJson(r, ".claude/settings.json");
+  s.hooks.PreToolUse.push(theirs);
+  writeJson(r, ".claude/settings.json", s);
+  assert.doesNotMatch(cli(r, ["uninstall"]).stdout, /kept \(changed locally\): \.claude\/settings\.json/);
+  assert.deepEqual(readJson(r, ".claude/settings.json").hooks.PreToolUse, [theirs]);
+});
+test("hook entry: uninstall keeps and names an entry the user changed", () => {
+  const r = repo();
+  installedOld(r, "Write");
+  const out = cli(r, ["uninstall"]).stdout;
+  assert.match(out, /kept \(changed locally\): \.claude\/settings\.json hooks\.PreToolUse/);
+  assert.equal(matcherOf(r), "Write");
+});
