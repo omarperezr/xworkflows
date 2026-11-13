@@ -83,3 +83,9 @@ test("inPaths: globs", () => {
   assert.ok(!inPaths("a.test.mjs.bak", ["*.test.mjs"]));
   assert.ok(!inPaths("axb", ["a.*b"]));
 });
+
+test("DEFAULTS: a project command is cut after 10 minutes, and a project can set it", () => {
+  assert.equal(DEFAULTS.checks.timeoutMinutes, 10);
+  assert.equal(merge(DEFAULTS, { checks: { project: [] } }).checks.timeoutMinutes, 10);
+  assert.equal(merge(DEFAULTS, { checks: { timeoutMinutes: 2 } }).checks.timeoutMinutes, 2);
+});

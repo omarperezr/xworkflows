@@ -33,6 +33,7 @@ export const DEFAULTS = {
   tokens: { sessionStartBytes: 2000, alwaysLoadedBytes: 24000 },
   limits: { inlineReadLines: 40, agentsBeforeWorkflow: 2, commentRatio: 0.2, commentMinLines: 30 },
   lookup: { index: { command: "graphify query", folder: "graphify-out", minutes: 30 } },
+  checks: { timeoutMinutes: 10 },
   mainSession: { denyWeb: true, denyExtensions: ["png", "jpg", "jpeg", "pdf"] },
   comments: {
     marks: { ts: ["//"], tsx: ["//"], js: ["//"], jsx: ["//"], mjs: ["//"], cjs: ["//"], sql: ["--"], sh: ["#"], py: ["#"] },

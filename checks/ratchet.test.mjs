@@ -107,3 +107,26 @@ for (const [what, list] of [["an object", { name: "a", count: "echo 1" }], ["an 
     assert.equal(r.cannotRun, true);
   }));
 }
+
+test("a count command that passes the limit is cut: the line gives the command, the minutes and the key", async () => {
+  const repo = makeRepo({ config: { checks: { timeoutMinutes: 0.01, ratchets: [{ name: "todo", count: "sleep 30" }] } }, files: { [BASE]: '{"todo":5}' } });
+  try {
+    const r = await repo.run(brake);
+    assert.equal(r.ok, false);
+    assert.notEqual(r.cannotRun, true);
+    const line = r.lines.join("\n");
+    assert.match(line, /todo/);
+    assert.match(line, /sleep 30/);
+    assert.match(line, /0\.01 minutes/);
+    assert.match(line, /checks\.timeoutMinutes/);
+    assert.match(line, /by hand/);
+  } finally { repo.cleanup(); }
+});
+
+test("a count command that ends in time is not cut by the limit", async () => {
+  const repo = makeRepo({ config: { checks: { timeoutMinutes: 0.5, ratchets: debt(7) } }, files: { [BASE]: '{"todo":5}' } });
+  try {
+    const r = await repo.run(brake);
+    assert.match(r.lines[0], /7 is above the baseline 5/);
+  } finally { repo.cleanup(); }
+});

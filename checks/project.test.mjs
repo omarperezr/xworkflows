@@ -1,3 +1,6 @@
+import { mkdtempSync, readFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { makeRepo } from "../test/helpers/repo.mjs";
@@ -75,4 +78,41 @@ test("a checks.project that is not a list of { name, run } cannot run", async ()
       assert.deepEqual(r.lines, ["checks.project is not a list of { name, run }"]);
     });
   }
+});
+
+const alive = (pid) => { try { process.kill(pid, 0); return true; } catch { return false; } };
+
+test("a command that passes the limit is cut: the line gives the command, the minutes and the key", async () => {
+  const repo = makeRepo({ config: { checks: { timeoutMinutes: 0.01, project: [{ name: "unit", run: "sleep 30" }] } } });
+  try {
+    const r = await repo.run(brake);
+    assert.equal(r.ok, false);
+    assert.notEqual(r.cannotRun, true);
+    const line = r.lines.join("\n");
+    assert.match(line, /unit/);
+    assert.match(line, /sleep 30/);
+    assert.match(line, /0\.01 minutes/);
+    assert.match(line, /checks\.timeoutMinutes/);
+    assert.match(line, /by hand/);
+  } finally { repo.cleanup(); }
+});
+
+test("a command that ends in time is not cut by the limit", async () => {
+  const repo = makeRepo({ config: { checks: { timeoutMinutes: 0.5, project: [{ name: "unit", run: "echo fine; exit 3" }] } } });
+  try {
+    const r = await repo.run(brake);
+    assert.equal(r.lines[0], "unit failed (exit 3)");
+    assert.equal(r.lines[1], "fine");
+  } finally { repo.cleanup(); }
+});
+
+test("a child the cut command started is not left running", async () => {
+  const pidFile = join(mkdtempSync(join(tmpdir(), "xwf-pid-")), "pid");
+  const repo = makeRepo({ config: { checks: { timeoutMinutes: 0.01, project: [{ name: "unit", run: `sleep 30 & echo $! > '${pidFile}'; wait` }] } } });
+  try {
+    assert.equal((await repo.run(brake)).ok, false);
+    const pid = Number(readFileSync(pidFile, "utf8"));
+    for (let i = 0; i < 50 && alive(pid); i++) await new Promise((r) => setTimeout(r, 100));
+    assert.equal(alive(pid), false);
+  } finally { repo.cleanup(); }
 });
