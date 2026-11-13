@@ -311,9 +311,9 @@
         }
       ],
       "files": {
-        "hooks/core/orchestrator.mjs": "82a61598c75dbbbddbf05c87d08707307da36a89b7c06285e6793adea815d6e3"
+        "hooks/core/orchestrator.mjs": "ef834072239d7fb961552e4081e26d0473b71a5a32ca90c7f418ddfc6b449d8c"
       },
-      "sha256": "dd561567775c0fc8136e96c4fd3b70d0ae8eaf4b1ab6a43f51886aa91b643ca0"
+      "sha256": "739c445a5d374fc9b872e71dafb1258221c0a2e9f348aef25124f6fad6659a03"
     },
     {
       "id": "handback",
@@ -473,9 +473,9 @@
         "claude"
       ],
       "files": {
-        "skills/orchestrate/SKILL.md": "2f11bb6c15b5d837a31fca75b9ba189e71ca1e05be26d30f896f1f4183296f2a"
+        "skills/orchestrate/SKILL.md": "7f299f52ec1b17f7bf5e43dd9eb49648683f4913fde3839cc1c9fcebbac7c2a4"
       },
-      "sha256": "9ee349860b39a140454c44b0bf268e24599a6915498d633b901fa9c9eaaae944"
+      "sha256": "dd19df1cdc12237e40efba78549a2430ee50caaee64da05e20f2ef9552aca584"
     },
     {
       "id": "pending",

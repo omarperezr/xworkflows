@@ -16,10 +16,10 @@ const read = (path, limit) => ev("read", { path, limit });
 const sh = (command) => ev("shell", { command });
 const SUMMARY = "/r/.xworkflows/summary.md";
 // a ctx where the session is oriented: approved summary, orchestrate mark, every agent type defined, index fresh
-function mk({ marks = ["orchestrate"], files = { [SUMMARY]: "status: approved\n" }, exist = [".claude/agents/", "graphify-out"], head = "h1", state = {}, config = cfg } = {}) {
+function mk({ marks = ["orchestrate"], files = { [SUMMARY]: "status: approved\n" }, exist = [".claude/agents/", "graphify-out"], head = "h1", state = {}, config = cfg, home = "/h" } = {}) {
   const st = new Map(Object.entries({ index: T0 - 1000, ...state }));
   return {
-    config, st,
+    config, st, home,
     marked: (s) => marks.includes(s),
     readFile: (p) => files[p] ?? null,
     exists: (p) => exist.includes(p) || (p.startsWith(".claude/agents/") && exist.includes(".claude/agents/")),
@@ -106,7 +106,7 @@ test("risk reviewer twice on the same HEAD denies; a new HEAD passes", () => {
   const c = mk();
   assert.ok(allowed(decide(e, c)));
   assert.equal(c.st.get("risk"), "h1");
-  assert.ok(denied(decide(e, c), /already reviewed/));
+  assert.ok(denied(decide(e, c), /already reviewed.*name the commit to review/));
   assert.ok(allowed(decide(e, { ...c, git: () => "h2" })));
 });
 
@@ -247,17 +247,89 @@ test("the index query counts behind env, -u and NAME=value words", () => {
     assert.equal(q(c), 0, c);
 });
 
-test("risk reviewer keys on the commit ids the prompt names", () => {
+test("risk reviewer keys on the commit ids the prompt names, cut to 7, with the root HEAD", () => {
   const p = (ids) => agent("risk-review", { prompt: `docs/superpowers/specs/x.md ${ids}` });
-  const c = mk();
+  const c = mk({ head: "h000000" });
   assert.ok(allowed(decide(p("abc1234 and def5678"), c)));
-  assert.equal(c.st.get("risk"), "abc1234,def5678");
+  assert.equal(c.st.get("risk"), "abc1234,def5678,h000000");
   assert.ok(denied(decide(p("def5678 abc1234 abc1234"), c), /already reviewed/));
   assert.ok(allowed(decide(p("abc1234"), c))); // other ids: another review
-  assert.ok(allowed(decide(p("abc1234 0123456789abcdef0123456789abcdef01234567"), c)));
-  assert.ok(denied(decide(p("0123456789abcdef0123456789abcdef01234567 abc1234"), c)));
-  assert.ok(allowed(decide(p("abc123"), c))); // 6 chars is no id: keys on HEAD h1
-  assert.equal(c.st.get("risk"), "h1");
+  assert.ok(denied(decide(p("abc1234abcdef0123456789abcdef0123456789"), c))); // the long spelling of the same commit is the same key
+  assert.ok(allowed(decide(p("abc123"), c))); // 6 chars is no id: keys on HEAD alone
+  assert.equal(c.st.get("risk"), "h000000");
   assert.ok(denied(decide(p("abc123"), c)));
   assert.ok(allowed(decide(p("abc123"), { ...c, git: () => "h2" })));
+});
+
+test("the same ids after a fix commit moved HEAD are another review", () => {
+  const p = (t) => agent("risk-review", { prompt: `docs/superpowers/plans/x.md ${t}` });
+  const c = mk({ head: "1d81d4e0000000000000000000000000000000aa" });
+  assert.ok(allowed(decide(p("main...1d81d4e (reviewed sha 1d81d4e)"), c)));
+  assert.ok(denied(decide(p("main...1d81d4e (reviewed sha 1d81d4e)"), c), /name the commit to review/));
+  const moved = { ...c, git: () => "9999999ffffffffffffffffffffffffffffffffff" };
+  assert.ok(allowed(decide(p("findings; reviewed sha 1d81d4e, git diff 1d81d4e..HEAD"), moved)));
+});
+
+test("the same commit under another spelling is the same key", () => {
+  const p = (t) => agent("risk-review", { prompt: `docs/superpowers/plans/x.md ${t}` });
+  const full = "1d81d4e0000000000000000000000000000000aa";
+  const a = mk({ head: full });
+  assert.ok(allowed(decide(p("1d81d4e"), a)));
+  assert.ok(denied(decide(p(full), a)));
+  const b = mk({ head: full });
+  assert.ok(allowed(decide(p("no id here"), b)));
+  assert.ok(denied(decide(p("1d81d4e"), b)));
+});
+
+test("shell: a redirect target stops at a separator", () => {
+  assert.ok(denied(decide(sh("ls x 2>/dev/null; cat src/a.ts"), mk())));
+  assert.ok(denied(decide(sh("echo hi > /tmp/o; cat src/a.ts"), mk())));
+  assert.ok(denied(decide(sh("git status 2>&1; cat src/a.ts"), mk())));
+  assert.ok(allowed(decide(sh("cat README.md 2>/dev/null; ls src/"), mk())));
+  assert.ok(allowed(decide(sh("head -3 f 2>/dev/null; git add src/x"), mk())));
+});
+
+test("shell: a line break is a command boundary, and here-document bodies are not searched for the index query", () => {
+  assert.ok(allowed(decide(sh("cat > /tmp/n.md <<'EOF'\nx\nEOF\ngit add src/x.mjs"), mk())));
+  assert.ok(allowed(decide(sh("git commit -m \"$(cat <<'EOF'\nmsg\nEOF\n)\"\ngit status -- src/"), mk())));
+  assert.ok(denied(decide(sh("ls\ncat src/a.ts"), mk())));
+  for (const c of ["cat \\\n  src/a.ts", "cat \\\n src/a.ts \\\n src/b.ts", "head -50 \\\n src/a.ts", "sed -n '1,80p' \\\n src/a.ts"]) assert.ok(denied(decide(sh(c), mk())), c);
+  assert.ok(allowed(decide(sh("git add \\\n src/a.ts"), mk())));
+  const q = (command) => { const c = mk({ state: { index: 0 } }); decide(sh(command), c); return c.st.get("index"); };
+  assert.equal(q('cd /p\ngraphify query "x"'), T0);
+  assert.equal(q("cat <<EOF\ngraphify query x\nEOF"), 0);
+});
+
+test("shell: a here-string and a shift are not here-documents; a delimiter with a dot or a dash is read whole", () => {
+  for (const c of ['head -1 <<< "abc"\ncat src/a.ts', "head -c $((1<<10)) f\ncat src/a.ts", "cat <<'END-X' > /tmp/o\nbody\nEND-X\ncat src/a.ts", "cat <<E.OF > /tmp/o\nbody\nE.OF\ncat src/a.ts", "head -c $((1 << 10)) f\ncat src/a.ts", "python3 -c 'print(1 << 10)'\ncat src/a.ts"])
+    assert.ok(denied(decide(sh(c), mk())), c);
+  assert.ok(allowed(decide(sh("cat <<'END-X'\ncat src/b.ts\nEND-X"), mk())));
+  assert.ok(allowed(decide(sh('python3<<EOF\nhead = open("src/a.ts")\nEOF'), mk())));
+});
+
+test("shell: the root under its usual spellings", () => {
+  const at = (command, c = mk()) => decide({ ...sh(command), root: "/h/proj" }, c);
+  for (const c of ["cat ~/proj/src/x", "cat $HOME/proj/src/x", "cat ${HOME}/proj/src/x", "cat $PWD/src/x", 'cat "$CLAUDE_PROJECT_DIR/src/x"', 'cat "$CLAUDE_PROJECT_DIR"/src/x', 'cat "${CLAUDE_PROJECT_DIR}"/src/x', 'cat "$PWD"/src/x', 'cat "$HOME"/proj/src/x', "cat /h/proj//src/x", "cat /h/proj/./src/x", "cat /h//proj/src/x"])
+    assert.ok(denied(at(c)), c);
+  assert.ok(denied(decide({ ...sh("cat /h/proj/src/x"), root: "/h/proj/" }, mk())));
+  assert.ok(allowed(at("cat ~/other/src/x")));
+  assert.ok(allowed(at('cat "$HOME"/other/src/x')));
+  assert.ok(allowed(at('cat a > "$PWD"/src/x')));
+  assert.ok(allowed(at("cat ~/proj/docs/src/x")));
+});
+
+test("shell: the home folder comes from ctx.home, with its backslashes turned", () => {
+  const at = (home, command) => decide({ ...sh(command), root: "C:/Work/u/proj" }, mk({ home }));
+  assert.ok(denied(at("C:\\Work\\u", "cat ~/proj/src/x")));
+  assert.ok(denied(at("C:/Work/u", "cat $HOME/proj/src/x")));
+  assert.ok(allowed(at("/other", "cat ~/proj/src/x")));
+});
+
+test("shell: no pattern grows with the square of a long command", () => {
+  const shapes = ["echo " + "7".repeat(200000), ";A=x".repeat(50000), "(".repeat(200000), ";".repeat(200000), "a;".repeat(100000), "cat " + "a/".repeat(100000), "A=x ".repeat(50000), "\n".repeat(200000), " \n".repeat(100000), "\r\n".repeat(100000), "A=x\n".repeat(50000), "-u a\n".repeat(50000), "env\n".repeat(50000)];
+  for (const c of shapes) {
+    const t = Date.now();
+    decide(sh(c), mk());
+    assert.ok(Date.now() - t < 200, `${c.slice(0, 12)} took ${Date.now() - t} ms`);
+  }
 });
