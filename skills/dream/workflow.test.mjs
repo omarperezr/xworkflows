@@ -155,3 +155,15 @@ test("the limit of the mask is said in the report step, in design 7.9 and in the
   assert.match(d.slice(d.indexOf("### 7.9")), /The limit of the mask[\s\S]*?not\sseen/);
   assert.match(read("../../docs/gaps.md"), /dream[^\n]*mask[^\n]*password[^\n]*(?:no|without) (?:credential )?word[^\n]*not seen/i);
 });
+
+test("SKILL.md: the question says only what the lists know; a refused close is shown whole", () => {
+  const t = read("./SKILL.md");
+  const ask = t.split("\n").find((l) => l.includes("AskUserQuestion"));
+  assert.match(ask, /`notes`/);
+  assert.match(ask, /`unfinished`/);
+  assert.match(ask, /not merged into main/);
+  assert.doesNotMatch(ask, /not on the main branch/);
+  assert.doesNotMatch(ask, /waiting[^;]*read again/);
+  const close = t.split("\n").find((l) => l.startsWith("7."));
+  for (const k of ["`refused`", "`look`", "`masked`", "`worktree`", "`finish`"]) assert.ok(close.includes(k), k);
+});
