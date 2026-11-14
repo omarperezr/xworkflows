@@ -431,7 +431,7 @@ a valid answer. The reference column is not the default (owner, 2026-11-11).
 | `comments.marks` | Comment marks per file extension | `//` family, `--` for SQL, `#` for shell |
 | `checks.project` | The project's own commands | type check, unit tests |
 | `checks.patterns`, `checks.ratchets` | Forbidden patterns; counters that may only go down | project lists |
-| `packs` | Enabled check packs with their options | `semgrep trivy squawk lint bundle` |
+| `packs` | Enabled check packs with their options: an object keyed by pack name | `{ "semgrep": { "configs": ["p/default"] }, "trivy": {}, "lint": { "run": "npm run lint" } }` |
 | `memory.index` | Optional: the name of a `qmd` index the project already has. When it is set, `install` writes no `.qmd/index.yml` and every `qmd` call names that index | not set: the project-local `.qmd/index.yml` |
 | `tokens.alwaysLoadedBytes` | The budget of section 13 | 24000 |
 | `memory.dir` | The one memory folder | `docs/memory` |
