@@ -623,13 +623,15 @@ whole 3.6 MB), `memory.dir`. Where sessions live is an adapter fact.
 
 A run is due when at least `dream.suggestAfterDays` days (7) have passed since
 the last adopted run, or at least `dream.suggestAfterSessions` sessions (10)
-have new text since it, whichever comes first; where it never ran, when the
+have new text since it, whichever comes first; by days only when at least one
+session is newer than the last run; where it never ran, when the
 project has that many sessions. The suggestion is one line among the lines the
 memory hook gives at the start of a session; the agent tells the owner, and
 nothing runs by itself. It appears at the start of every new session while a
 run is due, and ends when a run is adopted; `dream.suggest: false` turns it
 off. It does not appear after a compact or a resume, in a sub-agent's session,
-in a tool other than Claude Code, or in a project with no memory note. The last
+in a tool other than Claude Code, in a project with no memory note, or where
+the memory folder is a link (`dream` refuses to run there). The last
 adopted run is the field `ran` that `close` writes into `dream.json`.
 
 Grade: `tested` on Claude Code only, once it runs. Codex and Cursor give a

@@ -39,9 +39,10 @@ function typed(transcript) {
 // the line that suggests /dream when work has piled up unread, or null; it reads no session and starts nothing
 function dreamLine(ev, ctx) {
   const o = { ...DEFAULTS.dream, ...ctx.config.dream };
-  if (o.suggest === false || (ev.source !== "startup" && ev.source !== "clear") || !ev.transcript || ev.isSubagent) return null;
+  if (o.suggest === false || (ev.source !== "startup" && ev.source !== "clear") || typeof ev.transcript !== "string" || !ev.transcript || ev.isSubagent) return null;
   const { dir } = memoryFolder(ctx.config, ev.root);
   if (!dir || !ctx.listDir(dir).some((f) => f.endsWith(".md") && f !== "MEMORY.md")) return null;
+  if (ctx.realPath(dir) !== path.join(ctx.realPath(""), dir)) return null; // a link, or under one: dream refuses to run there
   let ran = NaN;
   try { const r = JSON.parse(ctx.readFile(path.resolve(ev.root, dir, "dream.json")))?.ran; if (typeof r === "string") ran = Date.parse(r); } catch { /* no state: never ran */ }
   const never = Number.isNaN(ran);
@@ -52,7 +53,7 @@ function dreamLine(ev, ctx) {
     return t !== null && (never || t > ran);
   }).length;
   const days = never ? 0 : Math.max(0, Math.floor((ctx.now() - ran) / 86400000));
-  if (!(count >= o.suggestAfterSessions || (!never && days >= o.suggestAfterDays))) return null;
+  if (!(count >= o.suggestAfterSessions || (!never && count >= 1 && days >= o.suggestAfterDays))) return null;
   return `Dream is due: ${count} sessions since ${never ? "it never ran here" : `the last run ${days} days ago`}. Suggest /dream to the owner; nothing runs by itself.`;
 }
 
