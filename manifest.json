@@ -261,14 +261,14 @@
         ]
       },
       "files": {
-        "skills/adapt/SKILL.md": "2dcc7b45518703641ae77d5c5a6932c6e826737ca905530dc045d437122509e9",
+        "skills/adapt/SKILL.md": "bdeed50b3819e84bb1cd5ec26c80127269083ea2ccb555ba33a5b85aa7e4941e",
         "skills/adapt/scan.mjs": "c7d9a47a268cdf6135057da9eb267826b3d5df6df574b7fc206daccacfe401e9",
         "skills/adapt/rules.mjs": "736bb9ee53874d8c9447ab4107780d9b8f5733cee26597dae96862d43d37bde2",
         "skills/adapt/research.workflow.js": "c7d72c728a5eef056d9a23f56d3334b6f2400fa9730cb96dfcad23dadd579daa",
         "skills/adapt/research.mjs": "fc2540ae234ca560fa4d14f1adf01664ffb4fae157e226dbf29af1a430d82927",
         "skills/adapt/screens.mjs": "0a0f3698ea1e41ebae375416e52eac0df90e8d644f8b452c44e9fe702bc34cdc"
       },
-      "sha256": "be317615c41dd95703ea8a31c5b6108f4e1c3dc67be4698612278d60dbf2cdff"
+      "sha256": "c9847038611e3e149d972b732d4e1c04b651d05935e492c5a5a30fd7669972ca"
     },
     {
       "id": "full-review",
@@ -443,9 +443,9 @@
         "claude"
       ],
       "files": {
-        "agents/review.md": "cc664745c387c9b0fd4f6041bfb17e2a2ac5832c559ffaa418c22cd177646ba8"
+        "agents/review.md": "1ca8ee55c9b2c555517d860b8ac41ad7d0494dec3e77ff25f38706f016306b99"
       },
-      "sha256": "244c129220da386ae3c84d1670d20d2226b0490ac18db984e6c88a59e74cff06"
+      "sha256": "f01aa761e0696d3848e3d3578a72664924288c7fcc10cc6c4ad3b62636771ef5"
     },
     {
       "id": "deepen",
@@ -488,9 +488,9 @@
         "claude"
       ],
       "files": {
-        "skills/orchestrate/SKILL.md": "07f40bc19128e9635b43b23fdf5648821a6f5669e99f4f4a5042cb97ea44ed96"
+        "skills/orchestrate/SKILL.md": "3ebe45fd7c66e0a6d9efaa0fee7c241d071cf28c13f966821bf8217e3aaf564b"
       },
-      "sha256": "c08df093fa9a9a47425ab51ed66194453ab281be9f68bc4a416659f6a41ffa90"
+      "sha256": "a8e765d8addf85568cbafb16f1b87bc8db9533a809b1fd10a199364d7b686a3c"
     },
     {
       "id": "pending",
