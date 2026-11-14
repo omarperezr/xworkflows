@@ -146,14 +146,20 @@ for (const n of ["dream-analyzer", "dream-organizer"]) {
   });
 }
 
-const LIMIT = /the mask sees only a secret of a known form or a value beside a credential word; a password written with no such word beside it is not seen, so read the change before adopting it/;
+const LIMIT = "the mask sees a secret of a known form, a value right after a credential word of its list and `=`, `:` or a quote (or on the next line when the word ends its line), and the values of `-u name:value` and `-p value`; it does not see a value with other words between it and the word, a word outside the list or in another language, a value in a later message, or a password with no such word near it, so read the change before adopting it";
 
-test("the limit of the mask is said in the report step, in design 7.9 and in the gaps", () => {
+test("the limit of the mask is said as it is in the report step, in design 7.9 and in the gaps", () => {
   const report = read("./SKILL.md").split("\n").find((l) => l.startsWith("8."));
-  assert.match(report, LIMIT);
+  assert.ok(report.includes(LIMIT));
   const d = read("../../docs/design.md");
-  assert.match(d.slice(d.indexOf("### 7.9")), /The limit of the mask[\s\S]*?not\sseen/);
-  assert.match(read("../../docs/gaps.md"), /dream[^\n]*mask[^\n]*password[^\n]*(?:no|without) (?:credential )?word[^\n]*not seen/i);
+  assert.ok(d.slice(d.indexOf("### 7.9")).replace(/\s+/g, " ").includes(LIMIT));
+  assert.ok(read("../../docs/gaps.md").includes(LIMIT));
+  assert.doesNotMatch(report, /beside a credential word/);
+});
+
+test("a refused commit says the mask does not see every secret and points at `look`", () => {
+  const close = read("./SKILL.md").split("\n").find((l) => l.startsWith("7."));
+  assert.match(close, /the mask does not see every secret[^.]*`look`[^.]*before adopting/);
 });
 
 test("SKILL.md: the question says only what the lists know; a refused close is shown whole", () => {
