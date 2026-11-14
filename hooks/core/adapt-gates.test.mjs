@@ -4,6 +4,7 @@ import { spawnSync } from "node:child_process";
 import { mkdtempSync as makeTmp, mkdirSync, writeFileSync, symlinkSync, realpathSync, rmSync, readFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { createHash } from "node:crypto";
 import { decide } from "./adapt-gates.mjs";
 import { normalize } from "../adapters/claude.mjs";
 const madeTmp = [];
@@ -15,7 +16,8 @@ const summary = (status, five = "") => `---\nstatus: ${status}\n---\n` + HEADS.m
 const fresh = { run: "r1", startedAt: Date.now() };
 const scan = { kinds: { values: { total: 3 }, snap: { total: 0 }, conc: { total: 0 } } };
 const files = (run = fresh) => ({ "/r/.xworkflows/adapt-run.json": run && JSON.stringify(run), "/r/.xworkflows/scan.json": JSON.stringify(scan) });
-const ctx = (f = files(), check = () => ({ code: 0, out: "" }), skill = "adapt") => ({ readFile: (p) => f[p] ?? null, runCheck: check, skillName: () => skill });
+const ctx = (f = files(), check = () => ({ code: 0, out: "" }), skill = "adapt") => ({ readFile: (p) => f[p] ?? null, runCheck: check, skillName: () => skill, writeFile: (p, t) => { f[p] = t; return true; } });
+const sha = (t) => createHash("sha256").update(t).digest("hex");
 const wf = (extra = {}) => ({ event: "preTool", tool: "Workflow", kind: "workflow", session: "s", root: "/r", inline: false, scriptPath: "/r/.claude/skills/adapt/research.workflow.js", args: { root: "/r", zeroHits: ["conc", "snap"] }, ...extra });
 const wr = (writes) => ({ event: "preTool", tool: "Write", kind: "write", session: "s", root: "/r", writes });
 const sw = (content) => wr([{ path: "/r/.xworkflows/summary.md", content }]);
@@ -63,6 +65,14 @@ test("no run file, nothing denied or recorded", () => {
 });
 test("stale run file denies nothing", () => ok(decide(wf({ inline: true }), ctx(files({ ...fresh, startedAt: Date.now() - 13 * 3600e3 })))));
 test("gates active during a re-adapt", () => deny(decide(wf({ inline: true }), ctx(files())), /fixed research/));
+test("an allowed Write of the summary keeps its sha256 in the run file; a denied one keeps nothing", () => {
+  const f = files(), text = summary("draft", FIVE);
+  ok(decide(sw(text), ctx(f)));
+  assert.deepEqual(JSON.parse(f["/r/.xworkflows/adapt-run.json"]), { ...fresh, summarySha: sha(text) });
+  const g = files();
+  deny(decide(sw(text), ctx(g, missing("H1-a"))), /H1-a/);
+  assert.deepEqual(JSON.parse(g["/r/.xworkflows/adapt-run.json"]), fresh);
+});
 test("summary Edit denied during a run", () => deny(decide(wr([{ path: "/r/.xworkflows/summary.md", old: "a", new: "b" }]), ctx()), /Write the whole summary with Write\./));
 test("deny reason names the installed skill", () => {
   const d = decide(wf({ inline: true }), ctx(files(), undefined, "xwf-adapt"));

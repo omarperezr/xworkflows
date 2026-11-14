@@ -1,5 +1,6 @@
 import path from "node:path";
 import { realpathSync, existsSync } from "node:fs";
+import { createHash } from "node:crypto";
 
 const HEADINGS = ["What it is", "Who pays", "Aspirations at about", "Risks, the costliest", "What must not change", "Zones and which", "How the owner works", "About you"];
 const real = (p) => { try { return realpathSync(p); } catch { return path.resolve(p); } };
@@ -78,6 +79,7 @@ export function decide(ev, ctx) {
   if (ev.kind === "shell" && writesSummary(ev.command ?? ""))
     return deny("summary.md is written with Write, not by a shell redirect or tee.");
 
+  let kept = null;
   for (const w of ev.writes ?? []) {
     const abs = realFile(path.resolve(ev.root, w.path.replaceAll("\\", "/")));
     // Files the adapt scripts write; the agent never writes them directly.
@@ -98,6 +100,9 @@ export function decide(ev, ctx) {
       const lack = HEADINGS.filter((_, i) => at[i] < 0);
       if (lack.length) return deny(`The summary lacks these headings: ${lack.join("; ")}.`);
     }
+    kept = createHash("sha256").update(w.content).digest("hex");
   }
+  // research.mjs done refuses a summary on disk with another hash: a shell write is caught there, not here
+  if (kept) ctx.writeFile(x("adapt-run.json"), JSON.stringify({ ...run, summarySha: kept }, null, 2) + "\n");
   return { decision: "allow" };
 }
