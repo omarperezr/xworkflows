@@ -631,6 +631,10 @@ async function doctor() {
     console.log(out.join("\n") + `\ndoctor: ${nf} fail, ${nw} warn`);
     process.exit(nf ? 1 : 0);
   };
+  // one catch around the body: a throw anywhere is one fail line with its message, and doctor ends as it always does
+  try { await checks(); } catch (e) { say("fail", `doctor stopped: ${e?.message ?? e}`); }
+  finish();
+  async function checks() {
   say("ok", "git repository");
   // a hook run the way Claude Code runs it: the settings command, the event on standard input
   const TIMEOUT = Number(process.env.XWORKFLOWS_PROBE_TIMEOUT_MS) || 10000;
@@ -851,7 +855,7 @@ async function doctor() {
   };
   await tooling();
   say("ok", "Claude Code: tested");
-  finish();
+  }
 }
 
 const SETTINGS = ".claude/settings.json", LOCAL = ".claude/settings.local.json", LOCAL_KEY = "autoMemoryDirectory";

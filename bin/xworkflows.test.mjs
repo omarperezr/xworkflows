@@ -2552,6 +2552,31 @@ test("doctor: a memory.dir that is not text gives one fail line naming the key a
   }
 });
 
+// P-125: doctor never throws; a throw anywhere in it is one fail line, and doctor ends with its count
+const ENDS = /\ndoctor: [1-9]\d* fail, \d+ warn\n$/;
+test("doctor: a pre-push hook it cannot read gives a fail line and doctor ends with its count, no stack trace", { skip: process.getuid?.() === 0 && "root reads a file of mode 000" }, () => {
+  const r = repo(); cli(r, ["install"]);
+  const hook = join(r, ".git/hooks/pre-push");
+  chmodSync(hook, 0o000);
+  const out = doctor(r);
+  chmodSync(hook, 0o755);
+  assert.equal(out.stderr, "");
+  assert.equal(out.status, 1);
+  assert.match(out.stdout, /^fail doctor stopped: EACCES/m);
+  assert.match(out.stdout, ENDS);
+});
+test("doctor: a config section set to null, or a config file holding null, gives fail lines and doctor ends with its count, no stack trace", () => {
+  const r = repo(); cli(r, ["install"]);
+  for (const text of ['{"memory":null}', '{"paths":null}', '{"tokens":null}', '{"packs":null}', "null"]) {
+    writeFileSync(join(r, ".xworkflows/config.json"), text);
+    const out = doctor(r);
+    assert.equal(out.stderr, "", text);
+    assert.equal(out.status, 1, text);
+    assert.match(out.stdout, /^fail doctor stopped: /m, text);
+    assert.match(out.stdout, ENDS, text);
+  }
+});
+
 test("install --yes: a retired file is removed under the xwf- name the record holds, and with no record nothing is removed", () => {
   const published = spawnSync("git", ["show", "f467f65~1:skills/adapt/topics.md"], { cwd: PKG_ROOT, encoding: "utf8" }).stdout;
   const mine = ".claude/skills/adapt/topics.md", ours = ".claude/skills/xwf-adapt/topics.md";
