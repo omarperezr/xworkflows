@@ -16,13 +16,30 @@ const asst = (text, timestamp) => JSON.stringify({ type: "assistant", timestamp,
 const day = (n) => `2030-01-0${n}T10:00:00.000Z`;
 const parse = (r) => { const json = r.stdout.startsWith("{") ? JSON.parse(r.stdout) : null; if (json?.out) made.push(json.out); return { ...r, json }; };
 
-// a fake repository root with one memory note and a sessions folder
+const git = (cwd, ...a) => execFileSync("git", a, { cwd, encoding: "utf8" }).trim();
+// a repository whose main branch holds what the folder holds now
+const repo = (root, branch = "main") => {
+  git(root, "init", "-q", "-b", branch);
+  git(root, "config", "user.email", "t@example.com");
+  git(root, "config", "user.name", "T");
+  git(root, "add", "-A");
+  git(root, "commit", "-q", "--allow-empty", "-m", "init");
+};
+
+// a repository with one memory note on main, and a sessions folder
 function world({ notes = true, config } = {}) {
   const root = tmp(), sessions = tmp();
   if (notes) { mkdirSync(join(root, "docs/memory"), { recursive: true }); writeFileSync(join(root, "docs/memory/a.md"), "note"); writeFileSync(join(root, "docs/memory/MEMORY.md"), "index"); }
   if (config) { mkdirSync(join(root, ".xworkflows")); writeFileSync(join(root, ".xworkflows/config.json"), JSON.stringify(config)); }
+  repo(root, config?.mainBranch);
   const put = (name, ...lines) => writeFileSync(join(sessions, name + ".jsonl"), lines.join("\n") + "\n");
-  const state = (s) => writeFileSync(join(root, "docs/memory/dream.json"), typeof s === "string" ? s : JSON.stringify(s));
+  // the state as an adopted run leaves it: committed on the branch that is checked out (main, unless a test moved)
+  const state = (s) => {
+    mkdirSync(join(root, "docs/memory"), { recursive: true });
+    writeFileSync(join(root, "docs/memory/dream.json"), typeof s === "string" ? s : JSON.stringify(s));
+    git(root, "add", "docs/memory/dream.json");
+    git(root, "commit", "-q", "-m", "state");
+  };
   const go = (...extra) => parse(run([...extra, "--sessions", sessions, "--current", "none"], {}, root, tmp()));
   return { root, sessions, put, state, go };
 }
@@ -270,13 +287,60 @@ test("dream.json: each session is read from the line after the count it holds", 
   assert.equal(json.notes, 1);
 });
 
-test("an old-form or broken dream.json counts as no state", () => {
-  for (const s of [{ name: "s2", time: day(2) }, "{broken", { sessions: [1] }]) {
+const refused = (r) => { assert.equal(r.code, 2); assert.equal(r.stdout, ""); assert.match(r.stderr, /^dream extract: [^\n]+\n$/); };
+
+test("a dream.json on main that does not parse or has another form is refused with one line on standard error and exit 2", () => {
+  for (const s of [{ name: "s2", time: day(2) }, "{broken", { sessions: [1] }, { sessions: { s1: "2" } }, { sessions: { s1: -1 } }, "null",
+    "<<<<<<< HEAD\n{\"sessions\":{\"s1\":1}}\n=======\n{\"sessions\":{\"s1\":2}}\n>>>>>>> dream/2030-01-02\n"]) {
     const w = world();
     w.state(s);
-    for (const n of [1, 2]) w.put("s" + n, user("t" + n, day(n)));
-    assert.deepEqual(w.go().json.sessions.map((x) => x.name), ["s1", "s2"], JSON.stringify(s));
+    w.put("s1", user("t1", day(1)));
+    refused(w.go());
   }
+});
+
+test("the state is read from the main branch: the working folder's copy and the branch checked out are not read", () => {
+  const w = world();
+  w.put("s1", user("t1", day(1)), user("t1 more", day(1)));
+  w.state({ sessions: { s1: 1 } });
+  writeFileSync(join(w.root, "docs/memory/dream.json"), "{broken"); // an edit in the working folder
+  assert.equal(readFileSync(w.go().json.sessions[0].file, "utf8"), "user: t1 more");
+  git(w.root, "checkout", "-q", "-f", "-b", "batch", "HEAD~1"); // a branch made before the run was adopted: no dream.json
+  assert.equal(readFileSync(w.go().json.sessions[0].file, "utf8"), "user: t1 more");
+});
+
+test("the main branch is the one the config names", () => {
+  const w = world({ config: { mainBranch: "trunk" } });
+  w.put("s1", user("t1", day(1)), user("t1 more", day(1)));
+  w.state({ sessions: { s1: 1 } });
+  assert.equal(readFileSync(w.go().json.sessions[0].file, "utf8"), "user: t1 more");
+});
+
+test("no main branch, or no repository, is refused with one line on standard error and exit 2", () => {
+  const noMain = world({ config: { mainBranch: "trunk" } });
+  git(noMain.root, "branch", "-m", "trunk", "other");
+  const empty = tmp(), plain = tmp();
+  mkdirSync(join(empty, "docs/memory"), { recursive: true });
+  writeFileSync(join(empty, "docs/memory/a.md"), "note");
+  git(empty, "init", "-q", "-b", "main"); // no commit: main does not exist yet
+  cpSync(join(empty, "docs"), join(plain, "docs"), { recursive: true });
+  noMain.put("s", user("t", day(1)));
+  for (const root of [noMain.root, empty, plain]) refused(run(["--sessions", noMain.sessions, "--current", "none"], {}, root, tmp()));
+});
+
+test("waiting: the dream branches not merged into main, an empty list when none", () => {
+  const w = world();
+  w.put("s1", user("t1", day(1)));
+  assert.deepEqual(w.go().json.waiting, []);
+  git(w.root, "branch", "dream/2030-01-01"); // merged: it points at main
+  git(w.root, "checkout", "-q", "-b", "dream/2030-01-02");
+  git(w.root, "commit", "-q", "--allow-empty", "-m", "a run");
+  git(w.root, "checkout", "-q", "-b", "other");
+  git(w.root, "commit", "-q", "--allow-empty", "-m", "not a run");
+  git(w.root, "checkout", "-q", "main");
+  assert.deepEqual(w.go().json.waiting, ["dream/2030-01-02"]);
+  w.state({ sessions: { s1: 1 } });
+  assert.deepEqual([w.go().json.reason, w.go().json.waiting], ["no new session", ["dream/2030-01-02"]]);
 });
 
 test("a last line still being written is not read yet", () => {
@@ -328,9 +392,9 @@ test("installed in a project and started through a linked path, the script finds
   const proj = tmp(), sessions = tmp(), link = join(tmp(), "link");
   cpSync(join(pkg, "skills/dream"), join(proj, ".claude/skills/dream"), { recursive: true });
   for (const d of ["hooks", "checks"]) cpSync(join(pkg, d), join(proj, ".xworkflows", d), { recursive: true });
-  execFileSync("git", ["init", "-q"], { cwd: proj });
   mkdirSync(join(proj, "docs/memory"), { recursive: true });
   writeFileSync(join(proj, "docs/memory/a.md"), "note");
+  repo(proj);
   writeFileSync(join(sessions, "s.jsonl"), user("hello", day(1)) + "\n");
   symlinkSync(proj, link);
   const r = parse(spawnSync("node", [join(link, ".claude/skills/dream/extract.mjs"), "--sessions", sessions, "--current", "none"], { cwd: link, encoding: "utf8" }));

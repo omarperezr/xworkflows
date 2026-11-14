@@ -4,6 +4,7 @@ import { readFileSync, readdirSync, statSync, mkdtempSync, writeFileSync, exists
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { spawnSync } from "node:child_process";
 import { shared } from "./shared.mjs";
 
 const { DEFAULTS, load, memoryDir } = await shared("hooks/core/config.mjs");
@@ -90,16 +91,26 @@ export function run(argv, env, root, home) {
   const config = load(root);
   const cap = config.dream?.maxExtractBytes;
   if (!Number.isInteger(cap) || cap <= 0) return refuse(`dream.maxExtractBytes is ${JSON.stringify(cap)}, not a whole number above zero: fix it in .xworkflows/config.json`);
-  const memory = join(root, memoryDir(config.memory.dir) ?? DEFAULTS.memory.dir);
+  const dir = memoryDir(config.memory.dir) ?? DEFAULTS.memory.dir, memory = join(root, dir);
   const notes = existsSync(memory) ? readdirSync(memory).filter((f) => f.endsWith(".md") && f !== "MEMORY.md").length : 0;
   const folder = arg(argv, "--sessions") ?? join(home, ".claude", "projects", root.replace(/[^A-Za-z0-9]/g, "-"));
-  let state = {}; // session name (its file without .jsonl) -> lines read
-  try {
-    const s = JSON.parse(readFileSync(join(memory, "dream.json"), "utf8")).sessions;
-    if (s && typeof s === "object" && !Array.isArray(s)) state = s;
-  } catch { /* no file, or a broken one: no state */ }
 
-  const result = { out: null, sessions: [], bytes: 0, tokens: 0, left: 0, cut: false, notes, skipped: 0 };
+  // the state of the adopted runs is on the main branch, the commit `branch.mjs open` starts from; the working folder is not read
+  const genv = { ...process.env };
+  for (const k of ["GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE"]) delete genv[k];
+  const git = (...a) => spawnSync("git", a, { cwd: root, env: genv, encoding: "utf8", maxBuffer: 1 << 28 });
+  const main = config.mainBranch;
+  if (git("rev-parse", "--verify", "--quiet", `${main}^{commit}`).status !== 0) return refuse(`no branch ${main} to read the state from: ${root} is no git repository, or ${main} has no commit`);
+  const shown = git("cat-file", "-p", `${main}:./${dir}/dream.json`);
+  let state = {}; // session name (its file without .jsonl) -> lines read; no file on main: a first run
+  if (shown.status === 0) {
+    try { state = JSON.parse(shown.stdout).sessions; } catch { state = null; }
+    if (!state || typeof state !== "object" || Array.isArray(state) || !Object.values(state).every((n) => Number.isInteger(n) && n >= 0))
+      return refuse(`${dir}/dream.json on ${main} is not {"sessions": {"<session>": <lines read>}}: fix it on ${main}`);
+  }
+  const waiting = git("for-each-ref", "--format=%(refname:short)", `--no-merged=${main}`, "refs/heads/dream/").stdout.split("\n").filter(Boolean);
+
+  const result = { out: null, sessions: [], bytes: 0, tokens: 0, left: 0, cut: false, notes, skipped: 0, waiting };
   const done = (reason) => {
     const text = JSON.stringify(reason ? { ...result, reason } : result);
     if (result.out) writeFileSync(join(result.out, "extract.json"), text + "\n");
