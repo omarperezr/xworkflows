@@ -106,6 +106,10 @@ Card P-127: the four findings of the confirmation at `741d957` that do not block
 - Role: implement
 - Done: `node --test skills/design-alarm.test.mjs` passes, and it fails for a sentence added anywhere in the section Review.
 
+### Batch 2, review at `66f871b`
+
+No blocking finding. The four points of card P-127 are closed. Three points do not block: two of wording and one about two tests the whole-section test made redundant. By the owner's word for this batch they are a card, P-132, and the text is left alone.
+
 ## Review Focus
 
 - Every main session follows the `orchestrate` text to the letter: a sentence that reads two ways is followed the wrong way. A repeat must never read as a stop by itself; only the owner's answer holds a fix back.
