@@ -167,45 +167,14 @@ test("no run file, the log, queue and run file are writable", () => {
 });
 
 const sh = (command) => ({ event: "preTool", tool: "Bash", kind: "shell", session: "s", root: "/r", command });
-test("a shell redirect or tee into summary.md is denied during a run", () => {
-  for (const c of [`cat <<'EOF' > .xworkflows/summary.md\nx\nEOF`, `echo x >> /r/.xworkflows/summary.md`, `echo x >"$PWD/.xworkflows/summary.md"`, `echo x | tee .xworkflows/summary.md`, `echo x | tee -a '.xworkflows/summary.md'`])
-    deny(decide(sh(c), ctx()), /summary\.md is written with Write/);
+test("during a run every shell command passes, also one that writes the summary: research.mjs done judges the file", () => {
+  for (const c of ["echo x > .xworkflows/summary.md", `echo x > "$(pwd)/.xworkflows/summary.md"`, "tee -a $(git rev-parse --show-toplevel)/.xworkflows/summary.md", "echo x | tee .xworkflows/summary.md", "(cd . && echo x > .xworkflows/summary.md)", "cp draft.md .xworkflows/summary.md", "sed -i s/a/b/ .xworkflows/summary.md", "cat .xworkflows/summary.md", "", "(".repeat(80000)]) {
+    const f = files();
+    ok(decide(sh(c), ctx(f)));
+    assert.equal(f["/r/.xworkflows/adapt-run.json"], JSON.stringify(fresh));
+  }
+  ok(decide(sh(undefined), ctx()));
 });
-test("shell commands that only read summary.md or write elsewhere pass", () => {
-  for (const c of [`cat .xworkflows/summary.md`, `grep a .xworkflows/summary.md > /tmp/out.txt`, `echo x > docs/summary.md`, `echo x > .xworkflows/summary.md.bak`, `diff .xworkflows/summary.md a | tee out.txt`])
-    ok(decide(sh(c), ctx()));
-});
-test("a commit message that mentions the file with an arrow writes nothing", () => ok(decide(sh(`git commit -m "adapt: research -> .xworkflows/summary.md"`), ctx())));
-test("an escaped > before the file writes nothing", () => ok(decide(sh("grep -n \\> .xworkflows/summary.md"), ctx())));
-test("a folder whose name starts with tee writes nothing", () => ok(decide(sh("cat /home/u/teemo/.xworkflows/summary.md"), ctx())));
-test("tee with the file after another file is denied", () => deny(decide(sh("echo x | tee /tmp/copy .xworkflows/summary.md"), ctx()), /summary\.md is written with Write/));
-test("a redirect into a doubled slash path is denied", () => deny(decide(sh("echo x > .xworkflows//summary.md"), ctx()), /summary\.md is written with Write/));
-test("a redirect into a quoted file name is denied", () => deny(decide(sh('echo x > .xworkflows/"summary.md"'), ctx()), /summary\.md is written with Write/));
-test("a long word after tee is judged in linear time", () => {
-  const time = (n) => { const e = sh("tee -" + "a".repeat(n)); const t = process.hrtime.bigint(); ok(decide(e, ctx())); return Number(process.hrtime.bigint() - t) / 1e6; };
-  time(1000);
-  const small = time(20000), big = time(80000);
-  assert.ok(big < 8 * Math.max(small, 1) + 20, `20000 chars ${small} ms, 80000 chars ${big} ms`);
-});
-test("a long run of digits is judged in linear time", () => {
-  const time = (n) => { const e = sh("1".repeat(n)); const t = process.hrtime.bigint(); ok(decide(e, ctx())); return Number(process.hrtime.bigint() - t) / 1e6; };
-  time(1000);
-  const small = time(20000), big = time(80000);
-  assert.ok(big < 8 * Math.max(small, 1) + 20, `20000 digits ${small} ms, 80000 digits ${big} ms`);
-});
-test("a redirect glued to the word before it is denied", () => {
-  for (const c of ["echo x>.xworkflows/summary.md", "cat draft.md>.xworkflows/summary.md", "{ echo a; }>.xworkflows/summary.md", "cat <<'EOF'>.xworkflows/summary.md"])
-    deny(decide(sh(c), ctx()), /summary\.md is written with Write/);
-});
-test("tee that reads the summary writes nothing", () => ok(decide(sh("tee /tmp/copy < .xworkflows/summary.md"), ctx())));
-test("tee with a redirect source before the summary writes it", () => deny(decide(sh("tee < in.txt .xworkflows/summary.md"), ctx()), /summary\.md is written with Write/));
-test("many tee words are judged in linear time", () => {
-  const time = (n) => { const e = sh("tee ".repeat(n)); const t = process.hrtime.bigint(); ok(decide(e, ctx())); return Number(process.hrtime.bigint() - t) / 1e6; };
-  time(1000);
-  const small = time(10000), big = time(40000);
-  assert.ok(big < 8 * Math.max(small, 1) + 20, `10000 words ${small} ms, 40000 words ${big} ms`);
-});
-test("a shell redirect into summary.md passes when no run is in progress", () => ok(decide(sh("echo x > .xworkflows/summary.md"), ctx(files(null)))));
 test("a missing interview.json denies with the command that writes it", () =>
   deny(decide(sw(summary("draft", FIVE)), ctx(files(), () => ({ code: 1, out: "", err: "adapt: interview.json is missing or unreadable\n" }))), /interview\.json is missing or unreadable.*research\.mjs queue/));
 test("an incomplete draft summary is allowed when no run file exists", () => {
@@ -223,23 +192,4 @@ test("a write spelled in another case is the summary only on a disk that ignores
   deny(decide(e(join(d, ".xworkflows/summary.md")), c), /H1-a/);
   const r = decide(e(join(d, ".XWORKFLOWS/Summary.md")), c);
   if (folded) deny(r, /H1-a/); else ok(r);
-});
-test("the table of shell commands that write the summary during a run", () => {
-  const DENIED = ["echo x > .xworkflows/summary.md", "echo x >> .xworkflows/summary.md", "echo x>.xworkflows/summary.md", "cat draft.md>.xworkflows/summary.md", "{ echo a; }>.xworkflows/summary.md", "cat <<'EOF'>.xworkflows/summary.md", "echo x 2> .xworkflows/summary.md", "echo x > .xworkflows//summary.md", `echo x > .xworkflows/"summary.md"`, "echo x > ./.xworkflows/summary.md", "echo x | tee .xworkflows/summary.md", "echo x | tee -a .xworkflows/summary.md", "echo x | tee /tmp/copy .xworkflows/summary.md", "tee < in.txt .xworkflows/summary.md", `tee <<< "$x" .xworkflows/summary.md`, "tee <<EOF .xworkflows/summary.md",
-    // a write inside parentheses, behind another command word, or after a process substitution; "grep tee S" and "echo tee S" are denied on purpose: a harmless command denied is the lesser error
-    "(echo x > .xworkflows/summary.md)", "(cd . && echo x > .xworkflows/summary.md)", "echo $(echo x > .xworkflows/summary.md)", "echo `echo x > .xworkflows/summary.md`", "(echo x | tee .xworkflows/summary.md)", "echo x | (cd . && tee .xworkflows/summary.md)", "echo `echo x | tee .xworkflows/summary.md`", "sudo tee .xworkflows/summary.md", "command tee .xworkflows/summary.md", "env X=1 tee .xworkflows/summary.md", "X=1 tee .xworkflows/summary.md", "xargs tee .xworkflows/summary.md", "time tee .xworkflows/summary.md", "nohup tee .xworkflows/summary.md", "exec tee .xworkflows/summary.md", "! tee .xworkflows/summary.md", "if true; then tee .xworkflows/summary.md; fi", "for i in 1; do tee .xworkflows/summary.md; done", "case x in x) tee .xworkflows/summary.md;; esac", "f(){ tee .xworkflows/summary.md; }", "tee >(cat) .xworkflows/summary.md", "tee <(cat) .xworkflows/summary.md", "grep tee .xworkflows/summary.md", "echo tee .xworkflows/summary.md",
-    // known and accepted: a quoted text that only mentions a write is denied; telling it apart needs a shell parser
-    `echo "a > .xworkflows/summary.md"`];
-  const ALLOWED = ["cat .xworkflows/summary.md", "grep -n status .xworkflows/summary.md", `git commit -m "adapt: research -> .xworkflows/summary.md"`, "grep -n \\> .xworkflows/summary.md", "cat /home/u/teemo/.xworkflows/summary.md", "tee /tmp/copy < .xworkflows/summary.md", "cat .xworkflows/summary.md > /tmp/copy", "ls > /tmp/out; cat .xworkflows/summary.md", "echo tee; cat .xworkflows/summary.md", "(cat .xworkflows/summary.md)", "echo $(cat .xworkflows/summary.md)"];
-  for (const c of DENIED) deny(decide(sh(c), ctx()), /summary\.md is written with Write/);
-  for (const c of ALLOWED) assert.equal(decide(sh(c), ctx()).decision, "allow", `allowed: ${c}`);
-});
-test("every shape of a long command grows linearly with its length", () => {
-  const shapes = { "a long word": (n) => "tee -" + "a".repeat(n), "digits": (n) => "1".repeat(n), "tee words": (n) => "tee ".repeat(n / 4), "tee < words": (n) => "tee < ".repeat(n / 6), "the path": (n) => ".xworkflows/summary.md ".repeat(n / 23), "nested parentheses": (n) => "(".repeat(n), "nested substitutions": (n) => "$(".repeat(n / 2) };
-  for (const [name, make] of Object.entries(shapes)) {
-    const time = (n) => { const e = sh(make(n)); const t = process.hrtime.bigint(); decide(e, ctx()); return Number(process.hrtime.bigint() - t) / 1e6; };
-    time(1000);
-    const small = time(20000), big = time(80000);
-    assert.ok(big < 8 * Math.max(small, 1) + 20, `${name}: 20000 chars ${small} ms, 80000 chars ${big} ms`);
-  }
 });
