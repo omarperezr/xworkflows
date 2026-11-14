@@ -102,15 +102,44 @@ test("tests.run that is not Node", { skip: spawnSync("python3", ["-V"]).error ? 
   } finally { repo.cleanup(); }
 });
 
-test("a run that does not end in time: cannotRun", withRepo({ config: { ...config, tests: { ...config.tests, run: `node -e "setInterval(()=>{},1000)"` } } }, async (repo) => {
-  brake.setLimitMs(500);
-  try {
+test("a run that does not end in time: cannotRun", withRepo({ config: { ...config, brakes: { fixHasTest: { seconds: 1 } }, tests: { ...config.tests, run: `node -e "setInterval(()=>{},1000)"` } } }, async (repo) => {
+  repo.commit("fix: x returns 2", { files: { ...FIXED, ...NODE_TEST } });
+  const r = await repo.run(brake);
+  assert.equal(r.ok, false);
+  assert.equal(r.cannotRun, true);
+}));
+
+const SLOW = { "test/x.test.mjs": `import { test } from "node:test";\nimport assert from "node:assert/strict";\nimport { x } from "../src/x.mjs";\ntest("x", async () => { await new Promise((r) => setTimeout(r, 2500)); assert.equal(x(), 2); });\n` };
+const withSeconds = (seconds) => ({ config: { ...config, brakes: { fixHasTest: { seconds } } } });
+
+test("a test slower than the configured limit cannot run, and the line names the key", withRepo(withSeconds(1), async (repo) => {
+  repo.commit("fix: x returns 2", { files: { ...FIXED, ...SLOW } });
+  const r = await repo.run(brake);
+  assert.equal(r.cannotRun, true);
+  assert.match(r.lines[0], /did not end within 1s/);
+  assert.match(r.lines[0], /brakes\.fixHasTest\.seconds/);
+}));
+
+test("the same slow fix passes with a larger configured limit", withRepo(withSeconds(60), async (repo) => {
+  repo.commit("fix: x returns 2", { files: { ...FIXED, ...SLOW } });
+  assert.deepEqual(await repo.run(brake), { ok: true, lines: [] });
+}));
+
+test("with no value in the config the limit is the default 120 seconds: a slow fix passes", withRepo({}, async (repo) => {
+  repo.commit("fix: x returns 2", { files: { ...FIXED, ...SLOW } });
+  assert.deepEqual(await repo.run(brake), { ok: true, lines: [] });
+}));
+
+for (const bad of [0, -5, "ten", 1.5]) {
+  test(`brakes.fixHasTest.seconds = ${JSON.stringify(bad)} cannot run and is named`, withRepo(withSeconds(bad), async (repo) => {
     repo.commit("fix: x returns 2", { files: { ...FIXED, ...NODE_TEST } });
     const r = await repo.run(brake);
     assert.equal(r.ok, false);
     assert.equal(r.cannotRun, true);
-  } finally { brake.setLimitMs(120000); }
-}));
+    assert.match(r.lines[0], /brakes\.fixHasTest\.seconds/);
+    assert.match(r.lines[0], new RegExp(JSON.stringify(bad).replace(/[.]/g, "\\.")));
+  }));
+}
 
 test("non-ASCII and spaced file names: a code path is seen, a test path is seen", withRepo({ config: { ...config, paths: { code: ["src/"] } } }, async (repo) => {
   repo.commit("fix: x", { files: { "src/cönfig.mjs": "export {};\n" } });
@@ -122,16 +151,15 @@ test("non-ASCII and spaced file names: a code path is seen, a test path is seen"
 
 test("a timed-out run leaves no process behind", withRepo({}, async (repo) => {
   const pidf = join(tmpdir(), `xwf-pid-${process.pid}`);
-  const cfg = { ...config, tests: { ...config.tests, run: `node -e "require('fs').writeFileSync('${pidf}',String(process.pid));setInterval(()=>{},1000)" ; true` } };
+  const cfg = { ...config, brakes: { fixHasTest: { seconds: 1 } }, tests: { ...config.tests, run: `node -e "require('fs').writeFileSync('${pidf}',String(process.pid));setInterval(()=>{},1000)" ; true` } };
   const r2 = makeRepo({ config: cfg, files: BUG });
-  brake.setLimitMs(1500);
   try {
     r2.commit("fix: x returns 2", { files: { ...FIXED, ...NODE_TEST } });
     assert.equal((await r2.run(brake)).cannotRun, true);
     const pid = Number(readFileSync(pidf, "utf8"));
     await new Promise((r) => setTimeout(r, 300));
     assert.throws(() => process.kill(pid, 0), /ESRCH/);
-  } finally { brake.setLimitMs(120000); r2.cleanup(); rmSync(pidf, { force: true }); }
+  } finally { r2.cleanup(); rmSync(pidf, { force: true }); }
 }));
 
 test("SIGINT to the process group kills the test command, removes the worktree, ends non-zero", async () => {

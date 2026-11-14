@@ -6,14 +6,13 @@ import { inPaths } from "../hooks/core/config.mjs";
 
 export const needs = ["paths.code", "tests.files", "tests.run", "tests.notRunnable"];
 
-// a fix that loops forever on the parent must not hang the push; the test shortens it
-let limitMs = 120000;
-export const setLimitMs = (ms) => { limitMs = ms; };
-
 const quote = (s) => `'${s.replace(/'/g, `'\\''`)}'`;
 
 export async function run(range, ctx) {
-  const { paths: { code }, tests } = ctx.config;
+  const { paths: { code }, tests, brakes: { fixHasTest: { seconds } } } = ctx.config;
+  // a fix that loops forever on the parent must not hang the push
+  if (!Number.isInteger(seconds) || seconds <= 0) return { ok: false, cannotRun: true, lines: [`brakes.fixHasTest.seconds must be a whole number above zero, it is ${JSON.stringify(seconds)}`] };
+  const limitMs = seconds * 1000;
   const isTest = (f) => inPaths(f, tests.files) || inPaths(f, tests.notRunnable);
   const bad = [], notes = [];
   let wt = null, cannot = null, signal = null, child = null;
@@ -76,11 +75,11 @@ export async function run(range, ctx) {
       }
       wtGit("checkout", "-q", c, "--", ...runnable);
       const atParent = await runTests(runnable);
-      if (atParent === null) { cannot = `${label}: its tests did not end within ${limitMs / 1000}s or could not start at the parent`; return; }
+      if (atParent === null) { cannot = `${label}: its tests did not end within ${seconds}s or could not start at the parent; raise brakes.fixHasTest.seconds`; return; }
       if (atParent === 0) { bad.push(`${label}: its tests also pass at the parent, so they prove nothing; make them fail without the fix`); return; }
       wtGit("checkout", "-q", "--detach", "-f", c);
       const atFix = await runTests(runnable);
-      if (atFix === null) { cannot = `${label}: its tests did not end within ${limitMs / 1000}s or could not start at the fix`; return; }
+      if (atFix === null) { cannot = `${label}: its tests did not end within ${seconds}s or could not start at the fix; raise brakes.fixHasTest.seconds`; return; }
       if (atFix !== 0) bad.push(`${label}: its tests still fail at the fix commit`);
     })();
   } finally {
