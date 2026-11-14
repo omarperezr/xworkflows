@@ -677,8 +677,10 @@ async function install(flags) {
     for (const w of pl.writes) if (!w.keep && differs(ROOT, w)) console.log(`${w.rename ? `would rename ${w.path} to ${w.rename}\n` : ""}would write ${w.path}`);
     for (const p of pl.retired) console.log(`would remove ${p}`);
     for (const m of pl.merges) {
-      if (m.back) console.log(`would rename ${m.back} to ${m.path}`);
-      if (m.text !== null || m.dir) console.log(`would ${m.verb ?? "merge"} ${m.path}`);
+      const line = m.text !== null && m.fail ? `would add the line to ${m.path}` : null;
+      if (m.back) console.log(`would migrate ${basename(m.to)}: ${m.to} gets its name back${line ? `; ${line}` : ""}`);
+      else if (line) console.log(line);
+      else if (m.text !== null || m.dir) console.log(`would ${m.verb ?? "merge"} ${m.path}`);
     }
   } else {
     const done = apply(pl, ROOT, m, record);

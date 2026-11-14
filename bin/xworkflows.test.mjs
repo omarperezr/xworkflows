@@ -1192,6 +1192,19 @@ test("an interrupted install that left the user's hook renamed gives it its name
   cli(r, ["uninstall"]);
   assert.equal(readFileSync(join(r, ".git/hooks/pre-push"), "utf8"), OLD);
 });
+test("--dry-run says what it would migrate and where it would add the line, never that it migrated, and writes nothing", () => {
+  const { r } = chained(), hook = join(r, ".git/hooks/pre-push");
+  oldInstall(r);
+  const out = cli(r, ["install", "--dry-run"]);
+  assert.equal(out.status, 0, out.stderr);
+  assert.doesNotMatch(out.stdout, /^migrated /m);
+  assert.match(out.stdout, /^would migrate pre-push: \.git\/hooks\/pre-push gets its name back; would add the line to \.git\/hooks\/pre-push$/m);
+  assert.equal(readFileSync(hook, "utf8"), OLD_TEXT("chained", "pre-push"));
+  assert.equal(readFileSync(`${hook}.before-xworkflows`, "utf8"), OLD);
+  const fresh = chained().r;
+  assert.match(cli(fresh, ["install", "--dry-run", "--yes"]).stdout, /^would add the line to \.git\/hooks\/pre-push$/m);
+  assert.equal(readFileSync(join(fresh, ".git/hooks/pre-push"), "utf8"), OLD);
+});
 test("an install chained the old way is migrated with no question: the user's hook has its name back and holds the line, the check runs first, and uninstall gives the hook back byte for byte", () => {
   const { r } = chained();
   assert.equal(cliAt(oldPackage(), r, ["install", "--yes"]).status, 0);
