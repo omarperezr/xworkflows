@@ -33,7 +33,8 @@ const hold = "Dispatch no fix in that place before the answer.";
 const block = [
   "   - The place of a finding is its file and the function or section it names; its file alone when it names none. " + repeat,
   "   - When step 3 finds a repeat, write in the plan, in the section of that batch, alone on its line: `Possible design error in <place>`. Under it write the root cause and the alternative design, or the reason none exists. A repeat holds nothing back by itself.",
-  "   - An alternative design exists: ask the owner in the question dialog, with that design: redesign or patch once more. Redesign replaces the fix by a redesign task in the plan. " + hold + " After the second round this question is not asked alone, it joins the one of step 6.",
+  "   These two hold through the second round; step 6 says what follows it.",
+  "   - An alternative design exists: ask the owner in the question dialog, with that design: redesign or patch once more. Redesign replaces the fix by a redesign task in the plan. " + hold,
   "   - None exists: the fix goes on, with no question.",
 ].join("\n");
 
@@ -41,6 +42,16 @@ test("orchestrate holds the whole repeat block of step 3 word for word, before s
   const t = orch(), at = t.indexOf(block);
   assert.ok(at > 0);
   assert.ok(at < t.indexOf("\n4. Fix:"));
+});
+
+const after = "After the second round, a repeat changes this only when it has a design: if a blocking finding still stands, `redesign` and that design join the owner's question (fix, accept, revert); if none stands, the owner is asked alone, with that design: redesign, or leave it as its card. A repeat with no design adds nothing: the two-round limit stands, so no third fix goes out without the owner's answer. In every case the line stays written in the plan.";
+
+test("orchestrate says what follows a repeat after the second round once, in step 6, and the hold once in the file", () => {
+  const t = orch(), at = t.indexOf(after);
+  assert.ok(at > t.indexOf("\n6. Two rounds of steps 3 to 5 at most."));
+  assert.ok(at < t.indexOf("\n## Seal"));
+  assert.equal(t.split(hold).length, 2);
+  assert.ok(!t.slice(t.indexOf("\n4. Fix:"), t.indexOf("\n5. Confirm:")).includes("owner"));
 });
 
 test("orchestrate holds the fix before the owner's answer, and that hold stands before step 4", () => {
@@ -52,10 +63,9 @@ test("orchestrate holds the fix before the owner's answer, and that hold stands 
   assert.ok(t.indexOf(repeat) < t.indexOf(hold));
 });
 
-test("orchestrate's confirmation prompt asks the reviewer, and step 6 adds redesign", () => {
+test("orchestrate's confirmation prompt asks the reviewer", () => {
   const t = orch();
   assert.ok(t.includes("The prompt asks the reviewer to give, for a new finding in one of those places, the root cause and the best design that removes that class of error at the root if one exists, with its cost."));
-  assert.ok(t.includes("After the second round, a repeat that has a design adds `redesign` to the options the owner is given (fix, accept, revert)."));
 });
 
 test("docs/design.md states the rule with the place as a file with its function", () => {
