@@ -30,9 +30,17 @@ const orch = () => read("skills/orchestrate/SKILL.md");
 const repeat = "A finding is a repeat when an earlier round of this batch, the last confirmation included, had a finding, blocking or pending, in the same place. Two findings of one round are not a repeat.";
 const hold = "Dispatch no fix in that place before the answer.";
 
-test("orchestrate defines the place and the repeat word for word", () => {
-  assert.ok(orch().includes("The place of a finding is its file and the function or section it names; its file alone when it names none."));
-  assert.ok(orch().includes(repeat));
+const block = [
+  "   - The place of a finding is its file and the function or section it names; its file alone when it names none. " + repeat,
+  "   - When step 3 finds a repeat, write in the plan, in the section of that batch, alone on its line: `Possible design error in <place>`. Under it write the root cause and the alternative design, or the reason none exists. A repeat holds nothing back by itself.",
+  "   - An alternative design exists: ask the owner in the question dialog, with that design: redesign or patch once more. Redesign replaces the fix by a redesign task in the plan. " + hold + " After the second round this question is not asked alone, it joins the one of step 6.",
+  "   - None exists: the fix goes on, with no question.",
+].join("\n");
+
+test("orchestrate holds the whole repeat block of step 3 word for word, before step 4", () => {
+  const t = orch(), at = t.indexOf(block);
+  assert.ok(at > 0);
+  assert.ok(at < t.indexOf("\n4. Fix:"));
 });
 
 test("orchestrate holds the fix before the owner's answer, and that hold stands before step 4", () => {
