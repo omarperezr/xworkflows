@@ -13,7 +13,6 @@ Check in this order: `AGENTS.md`, rule by rule; then each `.claude/rules/` file 
 
 Rules for a finding:
 - Re-open the file and quote the exact line. A finding with no line does not exist.
-- Name the function or section each finding is in, right after its `path:line`.
 - Give the concrete scenario: state and input, then the wrong result or crash. It is a sequence the change's real callers perform, never a path nobody takes. Say how to reproduce it: a finding enters a plan only after the verifier reproduces it with a failing test.
 - List in the same finding every sibling site of the same defect in the changed code (another direction, call path, state transition, or consumer of the same input or record), each as `path:line`. Find them with the code index first (`graphify query` by default), then confirm each in the file: the index can be stale. A class with all its sites is one finding.
 - Only an error of the app, money, permissions or data is `blocking`. Every other finding is `pending`: an item for the pending list. Style and naming are not findings.

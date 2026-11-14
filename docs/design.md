@@ -88,7 +88,7 @@ batch merges. A fix is confirmed by a fresh reviewer of the same role, never
 the one that asked for it; it reads only the diff of the fix (owner,
 2026-11-11). Two rounds at most; if findings that
 block still remain, the owner decides: fix, accept, or revert.
-A finding in a function or section where an earlier round of the batch already had one is a repeat. The main session then writes `Possible design error in <place>` in the plan with the root cause and the best design that removes it at the root, and when one exists asks the owner: redesign or patch once more.
+A finding in the same place as a finding of an earlier round of the batch is a repeat; the place is its file and the function or section it names, its file alone when it names none. The main session then writes `Possible design error in <place>` in the plan with the root cause and the best design that removes it at the root, and when one exists asks the owner: redesign or patch once more.
 
 ## 4. Source layout (the `xworkflows` repository)
 
