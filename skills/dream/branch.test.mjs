@@ -157,6 +157,15 @@ test("a file changed outside the memory folder is named and not committed", () =
   assert.equal(git(root, "show", `${o.branch}:other.txt`), "x");
 });
 
+test("a note whose name has a letter outside ASCII is counted", () => {
+  const root = repo();
+  const o = opened(root);
+  writeFileSync(join(o.memory, "a\u00f1o.md"), "---\nname: year\ndescription: a year\n---\nbody\n");
+  rmSync(join(o.memory, "b.md"));
+  const c = json(run(["close", "--worktree", o.worktree, "--out", extracted()], root));
+  assert.deepEqual([c.added, c.changed, c.removed], [1, 0, 1]);
+});
+
 test("close with only dream.json new commits that file and counts nothing", () => {
   const root = repo();
   const o = opened(root);

@@ -133,8 +133,8 @@ export function run(argv, root) {
       }
       const outside = git(real, "status", "--porcelain", "-z", "--untracked-files=all").split("\0").filter(Boolean).map((l) => l.slice(3));
 
-      const notes = git(root, "diff", "--no-renames", "--name-status", `${main}...${branch}`, "--", dir).split("\n").filter(Boolean)
-        .map((l) => l.split("\t")).filter(([, f]) => f.endsWith(".md") && f.slice(dir.length + 1) !== "MEMORY.md" && !f.slice(dir.length + 1).includes("/"));
+      const st = git(root, "diff", "--no-renames", "--name-status", "-z", `${main}...${branch}`, "--", dir).split("\0").filter(Boolean); // -z: a name outside ASCII comes unquoted
+      const notes = st.filter((_, i) => i % 2 === 0).map((x, i) => [x, st[2 * i + 1]]).filter(([, f]) => f.endsWith(".md") && f.slice(dir.length + 1) !== "MEMORY.md" && !f.slice(dir.length + 1).includes("/"));
       const count = (s) => notes.filter(([x]) => x === s).length;
 
       let lines;
