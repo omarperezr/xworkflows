@@ -7,10 +7,7 @@ import { fileURLToPath } from "node:url";
 import { shared } from "./shared.mjs";
 
 const { DEFAULTS, load, memoryDir } = await shared("hooks/core/config.mjs");
-
-// NOISE and REPORT are copied from hooks/core/memory.mjs (typed), which does not export them
-const NOISE = /<(system-reminder|local-command-[\w-]+|command-[\w-]+|bash-stdout|bash-stderr)>[\s\S]*?<\/\1>/g;
-const REPORT = /^(<task-notification>|Another Claude session sent a message)/;
+const { NOISE, REPORT } = await shared("hooks/core/memory.mjs");
 
 const M = "[masked]";
 // a placeholder, a type or an empty value is no secret

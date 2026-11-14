@@ -3,8 +3,8 @@ import { DEFAULTS, memoryDir } from "./config.mjs";
 import { buildIndex, header } from "./memory-index.mjs";
 
 const OWNER_ONLY = new Set(["user", "feedback"]);
-const NOISE = /<(system-reminder|local-command-[\w-]+|command-[\w-]+|bash-stdout|bash-stderr)>[\s\S]*?<\/\1>/g;
-const REPORT = /^(<task-notification>|Another Claude session sent a message)/;
+export const NOISE = /<(system-reminder|local-command-[\w-]+|command-[\w-]+|bash-stdout|bash-stderr)>[\s\S]*?<\/\1>/g;
+export const REPORT = /^(<task-notification>|Another Claude session sent a message)/;
 
 const dirOf = (config) => (typeof config.memory.dir === "string" ? config.memory.dir : DEFAULTS.memory.dir); // a value that is not a text reads as the default
 
