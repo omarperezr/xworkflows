@@ -116,7 +116,7 @@ test("memory.outside is an empty list by default", () => {
 });
 
 test("dream.maxExtractBytes defaults to 4000000 and a project value replaces it", () => {
-  assert.deepEqual(DEFAULTS.dream, { maxExtractBytes: 4000000 });
+  assert.deepEqual(DEFAULTS.dream, { maxExtractBytes: 4000000, suggest: true, suggestAfterDays: 7, suggestAfterSessions: 10 });
   assert.equal(merge(DEFAULTS, { dream: { maxExtractBytes: 10 } }).dream.maxExtractBytes, 10);
 });
 

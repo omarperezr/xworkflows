@@ -10,6 +10,8 @@ Spec: docs/superpowers/specs/2026-11-14-dream-suggest.md
 - "Una línea al empezar la sesión"
 - "En cada sesión nueva, hasta que corras /dream"
 - "Sí, cuando haya 10 sesiones"
+- "Solo si hay sesión nueva" (2026-11-14, after the review): by days the line is due only when at least one session is newer than the last run.
+- "No mostrar la línea ahí" (2026-11-14, after the review): no line where the memory folder is a link, because `dream` refuses to run there.
 - Nothing starts a run: the line only tells the agent to suggest `/dream` to the owner.
 - Hook logic is a pure `decide(ev, ctx)`: every file name, list and time comes through `ctx`, and broken input lets the session start with the lines it had.
 - The hook reads no session and starts no process: one list of the sessions folder and the times of its files.
@@ -44,6 +46,29 @@ About 70 code lines.
 - The table of keys gets the three settings; section 7.9 says the rule in the spec's words: when, where, how often, and when not. No other sentence of the file changes.
 - Done: `node --test skills/dream/workflow.test.mjs skills/day-one.test.mjs` passes, and `git grep -c suggestAfterSessions docs/design.md` prints 1 or more.
 
+### Batch 1, fix round after the risk review of `7661504`
+
+No blocking finding. Two choices were the owner's and four findings do not block. What the review found sound: about 150 made-up starts gave the line exactly where the plan says; where the line is not due the hook's text is the main branch's byte for byte; the hook wrote nothing, read no session and added 75 ms with 20000 files in the sessions folder.
+
+The owner, 2026-11-14:
+- By days alone the line was due with no new session, and the run it asks for finds nothing to read and cannot end it: "Solo si hay sesión nueva".
+- The line was given where the memory folder is a link, and `dream` refuses to run there: "No mostrar la línea ahí".
+
+What did not block:
+- A session file path that is not text makes the hook throw, and the lines it gave before are lost. This plan's constraint says broken input keeps them, so task F1 fixes it.
+- Three cards: P-150 (a setting of the wrong kind), P-151 (the cap counts only the memory hook's own lines, and doctor's probe does not measure the new line), P-152 (a run in which no note changed leaves a branch that holds only the time).
+
+**F1: by days the line needs a new session, a linked memory folder gets none, and a broken session path loses no line**
+- Files: `hooks/core/memory.mjs`, `hooks/core/memory.test.mjs`, `hooks/core/ctx.mjs`, `hooks/core/ctx.test.mjs`, `docs/design.md`
+- Role: implement
+- Done: `node --test hooks/core/memory.test.mjs hooks/core/ctx.test.mjs hooks/run.test.mjs skills/dream/workflow.test.mjs` passes.
+
+### Batch 1, confirmation at `17f5ba5`
+
+No blocking finding stands, and the three points of F1 are done as the plan says. By days the line needs one session newer than the run (43 starts run for real). In 31 layouts of the memory folder the hook and `branch.mjs unseen` agree: no line exactly where `dream` refuses to run, and a real folder gets the line also when the repository is reached through a link. A session path that is not text keeps the old lines byte for byte. Where the line is not due, the hook's text is that of the main branch in 91 events.
+
+What did not block, one card each: P-154 (the session in which `dream` ran counts as the new session of the next round), P-155 (a newer session with no text makes the line due by days once more), P-156 (no test holds that a repository reached through a link still gets the line).
+
 ## Review Focus
 
 - The hook runs at the start of every session of every project: it must not throw, must not read a session's text, and must stay fast with thousands of files in the sessions folder.
@@ -54,3 +79,5 @@ About 70 code lines.
 ## Declined findings
 
 ## Seals
+
+risk-review ok at 17f5ba5

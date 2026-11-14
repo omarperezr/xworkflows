@@ -77,9 +77,13 @@ test("close commits the changed, added and masked notes with the index and dream
   writeFileSync(join(o.memory, "c.md"), "---\nname: c\ndescription: third\n---\nbody c\n");
   writeFileSync(join(o.memory, "b.md"), `---\nname: b\ndescription: second\n---\n${ghp}\ntoken: abcdef123456\n`);
   const out = extracted([{ file: "s1.txt", name: "sess-1", bytes: 10, masked: 0, lines: 40 }]);
+  const began = Date.now();
   const r = run(["close", "--worktree", o.worktree, "--out", out], root);
   assert.equal(r.code, 0, r.stdout);
   const c = json(r);
+  const state = JSON.parse(git(root, "show", `${o.branch}:docs/memory/dream.json`));
+  assert.match(state.ran, /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$/);
+  assert.ok(Date.parse(state.ran) >= began && Date.parse(state.ran) <= Date.now());
   assert.deepEqual([c.branch, c.added, c.changed, c.removed, c.masked], [o.branch, 1, 2, 0, [{ file: "docs/memory/b.md", count: 1 }]]);
   assert.deepEqual(c.outside, []);
   assert.ok(Array.isArray(c.stale));
@@ -90,7 +94,7 @@ test("close commits the changed, added and masked notes with the index and dream
   assert.equal(git(root, "show", `${o.branch}:docs/memory/b.md`).includes(ghp), false);
   assert.equal(git(root, "show", `${o.branch}:docs/memory/b.md`).includes("token: abcdef123456"), true);
   assert.match(git(root, "show", `${o.branch}:docs/memory/MEMORY.md`), /\bc\b/);
-  assert.deepEqual(JSON.parse(git(root, "show", `${o.branch}:docs/memory/dream.json`)), { sessions: { "sess-1": 40 } });
+  assert.deepEqual(state.sessions, { "sess-1": 40 });
   assert.equal(git(root, "log", "-1", "--format=%s", o.branch), `dream: ${today}`);
   assert.equal(git(root, "rev-list", "--count", `main..${o.branch}`), "1");
   assert.equal(existsSync(o.worktree), false);
@@ -187,7 +191,7 @@ test("close with only dream.json new commits that file and counts nothing", () =
   assert.equal(git(root, "diff", "--name-only", `main...${o.branch}`), "docs/memory/dream.json");
 });
 
-test("close with nothing at all to commit makes no commit", () => {
+test("close with no note changed commits only the new time of the run in dream.json", () => {
   const root = repo();
   const o = opened(root);
   run(["close", "--worktree", o.worktree, "--out", extracted()], root); // first run adds dream.json
@@ -195,7 +199,8 @@ test("close with nothing at all to commit makes no commit", () => {
   writeFileSync(join(again.memory, "dream.json"), JSON.stringify({ sessions: { "s": 1 } }, null, 2) + "\n");
   git(again.worktree, "add", "-A"); git(again.worktree, "commit", "-q", "-m", "x");
   const c = json(run(["close", "--worktree", again.worktree, "--out", extracted()], root));
-  assert.equal(git(root, "rev-list", "--count", `main..${again.branch}`), "1"); // only the setup commit
+  assert.equal(git(root, "rev-list", "--count", `main..${again.branch}`), "2"); // the setup commit and the one that renews ran
+  assert.equal(git(root, "diff", "--name-only", `${again.branch}~1`, again.branch), "docs/memory/dream.json");
   assert.deepEqual([c.added, c.changed, c.removed], [0, 0, 0]);
 });
 

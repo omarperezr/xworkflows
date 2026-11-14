@@ -1,5 +1,5 @@
 import path from "node:path";
-import { memoryFolder } from "./config.mjs";
+import { DEFAULTS, memoryFolder } from "./config.mjs";
 import { buildIndex, header } from "./memory-index.mjs";
 
 const OWNER_ONLY = new Set(["user", "feedback"]);
@@ -36,6 +36,27 @@ function typed(transcript) {
   return out;
 }
 
+// the line that suggests /dream when work has piled up unread, or null; it reads no session and starts nothing
+function dreamLine(ev, ctx) {
+  const o = { ...DEFAULTS.dream, ...ctx.config.dream };
+  if (o.suggest === false || (ev.source !== "startup" && ev.source !== "clear") || typeof ev.transcript !== "string" || !ev.transcript || ev.isSubagent) return null;
+  const { dir } = memoryFolder(ctx.config, ev.root);
+  if (!dir || !ctx.listDir(dir).some((f) => f.endsWith(".md") && f !== "MEMORY.md")) return null;
+  if (ctx.realPath(dir) !== path.join(ctx.realPath(""), dir)) return null; // a link, or under one: dream refuses to run there
+  let ran = NaN;
+  try { const r = JSON.parse(ctx.readFile(path.resolve(ev.root, dir, "dream.json")))?.ran; if (typeof r === "string") ran = Date.parse(r); } catch { /* no state: never ran */ }
+  const never = Number.isNaN(ran);
+  const folder = path.dirname(ev.transcript), self = path.basename(ev.transcript);
+  const count = ctx.listDir(folder).filter((f) => {
+    if (!f.endsWith(".jsonl") || f === self) return false;
+    const t = ctx.mtime(path.join(folder, f));
+    return t !== null && (never || t > ran);
+  }).length;
+  const days = never ? 0 : Math.max(0, Math.floor((ctx.now() - ran) / 86400000));
+  if (!(count >= o.suggestAfterSessions || (!never && count >= 1 && days >= o.suggestAfterDays))) return null;
+  return `Dream is due: ${count} sessions since ${never ? "it never ran here" : `the last run ${days} days ago`}. Suggest /dream to the owner; nothing runs by itself.`;
+}
+
 function start(ev, ctx) {
   const { config } = ctx;
   const lines = [];
@@ -70,6 +91,9 @@ function start(ev, ctx) {
       if (r.code === 0 && r.out.trim()) lines.push(`Memory notes on the current topic:\n${r.out.slice(0, 3000)}`);
     }
   }
+  const dream = dreamLine(ev, ctx);
+  const cap = config.tokens?.sessionStartBytes ?? DEFAULTS.tokens.sessionStartBytes;
+  if (dream && Buffer.byteLength([...lines, dream].join("\n")) <= cap) lines.push(dream); // after the old lines, and only when it fits with them
   return lines;
 }
 

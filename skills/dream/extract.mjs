@@ -136,9 +136,9 @@ export function run(argv, env, root, home) {
   const shown = git("cat-file", "-p", `${main}:./${dir}/dream.json`);
   let state = {}; // session name (its file without .jsonl) -> lines read; no file on main: a first run
   if (shown.status === 0) {
-    try { state = JSON.parse(shown.stdout).sessions; } catch { state = null; }
-    if (!state || typeof state !== "object" || Array.isArray(state) || !Object.values(state).every((n) => Number.isInteger(n) && n >= 0))
-      return refuse(`${dir}/dream.json on ${main} is not {"sessions": {"<session>": <lines read>}}: fix it on ${main}`);
+    let ran; try { ({ sessions: state, ran } = JSON.parse(shown.stdout)); } catch { state = null; }
+    if (!state || (ran !== undefined && typeof ran !== "string") || typeof state !== "object" || Array.isArray(state) || !Object.values(state).every((n) => Number.isInteger(n) && n >= 0))
+      return refuse(`${dir}/dream.json on ${main} is not {"sessions": {"<session>": <lines read>}, "ran": "<time>" (optional)}: fix it on ${main}`);
   }
   const waiting = git("for-each-ref", "--format=%(refname:short)", `--no-merged=${main}`, "refs/heads/dream/").stdout.split("\n").filter(Boolean);
 
