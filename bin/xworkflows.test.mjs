@@ -766,7 +766,7 @@ test("install's own git hook is the #! line and one marked line that runs its fi
   assert.equal(git(bare, "rev-list --count main"), "2");
 });
 
-const OLD ='#!/bin/sh\nd="$(dirname "$0")/.."\necho "$@" > "$d/old-args"\ncat > "$d/old-in"\n[ -e "$d/old-fail" ] && { echo OLD-FAILED >&2; exit 7; }\nexit 0\n';
+const OLD = '#!/bin/sh\nd="$(dirname "$0")/.."\nbasename "$0" > "$d/old-name"\necho "$@" > "$d/old-args"\ncat > "$d/old-in"\n[ -e "$d/old-fail" ] && { echo OLD-FAILED >&2; exit 7; }\nexit 0\n';
 function chained() {
   const { r, bare } = withRemote();
   mkdirSync(join(r, ".git/hooks"), { recursive: true });
@@ -774,34 +774,45 @@ function chained() {
   chmodSync(join(r, ".git/hooks/pre-push"), 0o755);
   return { r, bare };
 }
-test("an existing pre-push hook is chained: first, same input, its failure stops the push", () => {
+test("an existing pre-push hook gets the line: the check runs first, then the hook, whose failure still stops the push", () => {
   const { r, bare } = chained();
   config(r, BAD);
   assert.equal(cli(r, ["install", "--yes"]).status, 0);
-  assert.equal(readFileSync(join(r, ".git/hooks/pre-push.before-xworkflows"), "utf8"), OLD);
+  assert.ok(!existsSync(join(r, ".git/hooks/pre-push.before-xworkflows")));
   commit(r, "a.txt", "fine\n");
   assert.equal(pushed(r).status, 0);
   assert.match(readFileSync(join(r, ".git/old-in"), "utf8"), /^refs\/heads\/main [0-9a-f]{40} refs\/heads\/main 0{40}$/m);
-  assert.match(readFileSync(join(r, ".git/old-args"), "utf8"), /^origin /);
   commit(r, "b.txt", "BADWORD\n");
+  rmSync(join(r, ".git/old-in"));
+  assert.match(pushed(r).stderr, /patterns: /);
+  assert.ok(!existsSync(join(r, ".git/old-in")), "the hook ran after a failed check");
+  config(r, []);
   writeFileSync(join(r, ".git/old-fail"), "");
   const no = pushed(r);
   assert.notEqual(no.status, 0);
   assert.match(no.stderr, /OLD-FAILED/);
-  assert.doesNotMatch(no.stderr, /patterns: /); // the check never ran
-  rmSync(join(r, ".git/old-fail"));
-  assert.match(pushed(r).stderr, /patterns: /); // old passes, then the check refuses
   assert.equal(git(bare, "rev-list --count main"), "1");
-  assert.ok(readFileSync(join(r, ".git/old-in"), "utf8").includes("refs/heads/main"));
+  rmSync(join(r, ".git/old-fail"));
+  assert.equal(pushed(r).status, 0);
+  assert.equal(git(bare, "rev-list --count main"), "2");
 });
-test("uninstall puts a chained hook back byte for byte", () => {
-  const { r } = chained();
-  cli(r, ["install", "--yes"]);
-  assert.match(cli(r, ["uninstall"]).stdout, /uninstalled/);
-  assert.equal(readFileSync(join(r, ".git/hooks/pre-push"), "utf8"), OLD);
-  assert.ok(statSync(join(r, ".git/hooks/pre-push")).mode & 0o100);
-  assert.ok(!existsSync(join(r, ".git/hooks/pre-push.before-xworkflows")));
-  assert.ok(!existsSync(join(r, ".git/hooks/post-commit")));
+// the bodies a hook of the project may have: the line goes after the #! line, else first
+const BODIES = [OLD, "#!/bin/sh", "echo no-hashbang\n", "#!/bin/bash\r\necho crlf\r\n", ""];
+test("install twice adds one line to a user's hook, after its #! line, and uninstall gives the hook back byte for byte", () => {
+  for (const body of BODIES) {
+    const r = repo({ ".git/hooks/pre-push": body });
+    const hook = join(r, ".git/hooks/pre-push");
+    chmodSync(hook, 0o755);
+    cli(r, ["install", "--yes"]);
+    assert.match(cli(r, ["install", "--yes"]).stdout, /^nothing to do$/m, JSON.stringify(body));
+    const t = readFileSync(hook, "utf8"), line = marked(t)[0];
+    assert.equal(marked(t).length, 1, JSON.stringify(body));
+    assert.equal(t.split("\n").indexOf(line), body.startsWith("#!") ? 1 : 0, JSON.stringify(body));
+    assert.match(cli(r, ["uninstall"]).stdout, /uninstalled/);
+    assert.equal(readFileSync(hook, "utf8"), body, JSON.stringify(body));
+    assert.ok(statSync(hook).mode & 0o100);
+    assert.ok(!existsSync(join(r, ".git/hooks/post-commit")));
+  }
 });
 test("a declined chain installs nothing for that hook and is not asked again", () => {
   const { r } = chained();
@@ -814,14 +825,12 @@ test("a declined chain installs nothing for that hook and is not asked again", (
   assert.match(again.stdout, /^nothing to do$/m);
   assert.deepEqual(readJson(r, ".xworkflows/installed.json").declined.filter((d) => d.what === "chain").length, 1);
 });
-test("a hook the user changed after install stays on uninstall", () => {
+test("a hook the user changed after install keeps the change on uninstall, which takes out the line alone", () => {
   const { r } = chained();
   cli(r, ["install", "--yes"]);
   appendFileSync(join(r, ".git/hooks/pre-push"), "# mine\n");
-  const out = cli(r, ["uninstall"]);
-  assert.match(out.stdout, /kept \(changed locally\): \.git\/hooks\/pre-push/);
-  assert.match(readFileSync(join(r, ".git/hooks/pre-push"), "utf8"), /# mine/);
-  assert.ok(existsSync(join(r, ".git/hooks/pre-push.before-xworkflows")));
+  assert.match(cli(r, ["uninstall"]).stdout, /uninstalled/);
+  assert.equal(readFileSync(join(r, ".git/hooks/pre-push"), "utf8"), OLD + "# mine\n");
 });
 test("core.hooksPath is honored", () => {
   const { r, bare } = withRemote();
@@ -830,7 +839,7 @@ test("core.hooksPath is honored", () => {
   writeFileSync(join(r, ".githooks/pre-push"), OLD);
   chmodSync(join(r, ".githooks/pre-push"), 0o755);
   cli(r, ["install", "--yes"]);
-  assert.ok(existsSync(join(r, ".githooks/pre-push.before-xworkflows")));
+  assert.equal(marked(readFileSync(join(r, ".githooks/pre-push"), "utf8")).length, 1);
   assert.ok(existsSync(join(r, ".githooks/post-merge")));
   assert.ok(!existsSync(join(r, ".git/hooks/post-merge")));
   config(r, BAD);
@@ -1064,6 +1073,15 @@ const outside = (hooksPath) => {
   return cfg;
 };
 const hasHook = (d) => { const p = join(d, "pre-push"); writeFileSync(p, OLD); chmodSync(p, 0o755); };
+// the package as it was before the hook line (P-46): its install renames a hook of the project and runs it from its own
+const BEFORE_LINE = "2131110";
+let oldPkg;
+const oldPackage = () => (oldPkg ??= (() => {
+  const d = tmp("xwf-old-");
+  const x = spawnSync("sh", ["-c", 'git archive "$1" package.json manifest.json tiers.json templates bin skills agents hooks checks | tar -x -C "$2"', "sh", BEFORE_LINE, d], { cwd: PKG_ROOT, encoding: "utf8" });
+  assert.equal(x.status, 0, x.stderr);
+  return d;
+})());
 
 test("the developer's global git config never reaches a test", () => {
   const g = tmp("xwf-ghooks-"); hasHook(g);
@@ -1100,7 +1118,7 @@ test("a linked worktree installs into the shared hooks folder and uninstall remo
 
 test("a chained hook found again after installed.json was lost is chained and restored", () => {
   const { r } = chained();
-  cli(r, ["install", "--yes"]);
+  assert.equal(cliAt(oldPackage(), r, ["install", "--yes"]).status, 0);
   rmSync(join(r, ".xworkflows/installed.json"));
   assert.equal(cli(r, ["install", "--yes"]).status, 0);
   assert.deepEqual(readJson(r, ".xworkflows/installed.json").chained, [{ file: ".git/hooks/pre-push", to: ".git/hooks/pre-push.before-xworkflows" }]);
@@ -1119,14 +1137,73 @@ test("an interrupted install that left the user's hook renamed still chains it",
   assert.equal(readFileSync(join(r, ".git/hooks/pre-push"), "utf8"), OLD);
 });
 
-test("another clone's own pre-push is chained even when the record lists the path", () => {
+test("another clone's own pre-push gets the line even when the record lists the path", () => {
   const a = repo(); cli(a, ["install"]);
   const b = repo({ ".git/hooks/pre-push": OLD }); chmodSync(join(b, ".git/hooks/pre-push"), 0o755);
   mkdirSync(join(b, ".xworkflows"));
   writeFileSync(join(b, ".xworkflows/installed.json"), readFileSync(join(a, ".xworkflows/installed.json")));
   cli(b, ["install", "--yes"]);
-  assert.equal(readFileSync(join(b, ".git/hooks/pre-push.before-xworkflows"), "utf8"), OLD);
-  assert.match(readFileSync(join(b, ".git/hooks/pre-push"), "utf8"), /before-xworkflows/);
+  const t = readFileSync(join(b, ".git/hooks/pre-push"), "utf8");
+  assert.equal(marked(t).length, 1);
+  assert.equal(t.replace(`${marked(t)[0]}\n`, ""), OLD);
+});
+// what the check got on its standard input, and its exit code
+const spyCheck = (r, code = 0) => writeFileSync(join(r, ".xworkflows/checks/run.mjs"), `import { readFileSync, writeFileSync } from "node:fs";\nwriteFileSync(".git/check-in", readFileSync(0));\nprocess.exit(${code});\n`);
+const pushIn = (r, t) => spawnSync("git", ["push", "-q", "origin", "main"], { cwd: r, encoding: "utf8", env: { ...isoEnv(), TMPDIR: t } });
+test("a user's pre-push keeps its name and gets the pushed refs on standard input, the same the check got, and nothing is left in the temp folder", () => {
+  const { r } = chained();
+  cli(r, ["install", "--yes"]);
+  spyCheck(r);
+  commit(r, "a.txt", "fine\n");
+  const t = tmp("xwf-hooktmp-");
+  assert.equal(pushIn(r, t).status, 0);
+  const got = readFileSync(join(r, ".git/old-in"), "utf8");
+  assert.match(got, /^refs\/heads\/main [0-9a-f]{40} refs\/heads\/main 0{40}$/m);
+  assert.equal(readFileSync(join(r, ".git/check-in"), "utf8"), got);
+  assert.equal(readFileSync(join(r, ".git/old-name"), "utf8"), "pre-push\n");
+  assert.match(readFileSync(join(r, ".git/old-args"), "utf8"), /^origin /);
+  assert.deepEqual(readdirSync(t), []);
+});
+test("a failed check ends the push with its code before the user's hook runs", () => {
+  const { r } = chained();
+  cli(r, ["install", "--yes"]);
+  spyCheck(r, 3);
+  const t = tmp("xwf-hooktmp-");
+  const run = spawnSync(join(r, ".git/hooks/pre-push"), ["origin", "x"], { cwd: r, input: "refs/heads/main 1 refs/heads/main 0\n", env: { ...isoEnv(), TMPDIR: t } });
+  assert.equal(run.status, 3);
+  commit(r, "a.txt", "fine\n");
+  assert.notEqual(pushIn(r, t).status, 0);
+  assert.ok(!existsSync(join(r, ".git/old-in")), "the user's hook ran");
+  assert.deepEqual(readdirSync(t), []);
+});
+test("a user's hook that ends with exit 0 still runs the check", () => {
+  const body = "#!/bin/sh\nexit 0\n";
+  const { r, bare } = withRemote();
+  const hook = join(r, ".git/hooks/pre-push");
+  mkdirSync(dirname(hook), { recursive: true });
+  writeFileSync(hook, body); chmodSync(hook, 0o755);
+  cli(r, ["install", "--yes"]);
+  const t = readFileSync(hook, "utf8");
+  assert.equal(t, `#!/bin/sh\n${marked(t)[0]}\nexit 0\n`);
+  config(r, BAD);
+  commit(r, "a.txt", "fine\n");
+  assert.equal(pushed(r).status, 0);
+  commit(r, "b.txt", "BADWORD\n");
+  assert.match(pushed(r).stderr, /patterns: /);
+  assert.equal(git(bare, "rev-list --count main"), "1");
+});
+test("a hook that is not a shell script is left byte for byte: install prints the line and records it as declined", () => {
+  const body = "#!/usr/bin/env node\nprocess.exit(0);\n";
+  const r = repo({ ".git/hooks/pre-push": body });
+  chmodSync(join(r, ".git/hooks/pre-push"), 0o755);
+  const out = cli(r, ["install", "--yes"]);
+  assert.equal(out.status, 0, out.stderr);
+  assert.equal(readFileSync(join(r, ".git/hooks/pre-push"), "utf8"), body);
+  assert.ok(!existsSync(join(r, ".git/hooks/pre-push.before-xworkflows")));
+  assert.equal(marked(out.stdout).length, 1, out.stdout);
+  assert.deepEqual(readJson(r, ".xworkflows/installed.json").declined, [{ file: ".git/hooks/pre-push", what: "chain" }]);
+  assert.match(cli(r, ["install", "--yes"]).stdout, /^nothing to do$/m);
+  assert.equal(readFileSync(join(r, ".git/hooks/pre-push"), "utf8"), body);
 });
 test("doctor does not call a recorded hook ours when it no longer holds our text", () => {
   const r = repo(); cli(r, ["install"]);
@@ -1961,14 +2038,15 @@ test("a linked worktree records the git hooks under .git/hooks, as a normal chec
   assert.match(cli(wt, ["install", "--yes"]).stdout, /nothing to do/);
   assert.equal(readFileSync(join(wt, ".xworkflows/installed.json"), "utf8"), text);
 });
-test("a linked worktree records a chained hook of the user under .git/hooks", () => {
+test("a linked worktree records the line in a hook of the user under .git/hooks", () => {
   const main = repo(); git(main, "commit -q --allow-empty -m init");
   mkdirSync(join(main, ".git/hooks"), { recursive: true });
   writeFileSync(join(main, ".git/hooks/pre-push"), OLD); chmodSync(join(main, ".git/hooks/pre-push"), 0o755);
   const wt = join(tmp("xwf-wt-"), "wt");
   git(main, `worktree add -q ${wt}`);
   cli(wt, ["install", "--yes"]);
-  assert.deepEqual(readJson(wt, ".xworkflows/installed.json").chained, [{ file: ".git/hooks/pre-push", to: ".git/hooks/pre-push.before-xworkflows" }]);
+  const line = marked(readFileSync(join(main, ".git/hooks/pre-push"), "utf8"))[0];
+  assert.deepEqual(readJson(wt, ".xworkflows/installed.json").imports.filter((i) => i.line === line), [{ file: ".git/hooks/pre-push", line }]);
   cli(wt, ["uninstall"]);
   assert.equal(readFileSync(join(main, ".git/hooks/pre-push"), "utf8"), OLD);
 });
@@ -2452,13 +2530,13 @@ test("install: a changed retired file is named once, at the upgrade, and leaves 
   assert.equal(readFileSync(join(r, f), "utf8"), text);
 });
 
-// P-46: until the chaining is designed apart, install says what a chained hook cannot do
-test("install: chaining a hook of the project prints one line that a hook which depends on its own file name will not work chained", () => {
+// P-46: a hook of the project keeps its name and its place, so install has nothing to say about a hook that depends on them
+test("install: a hook of the project is neither renamed nor moved, and no line says a hook will not work", () => {
   const { r } = chained();
   const out = cli(r, ["install", "--yes"]);
   assert.equal(out.status, 0, out.stderr);
-  assert.equal(out.stdout.split("\n").filter((l) => /depends on its own file name will not work chained/.test(l)).length, 1);
-  assert.doesNotMatch(cli(repo(), ["install", "--yes"]).stdout, /will not work chained/);
+  assert.doesNotMatch(out.stdout, /will not work/);
+  assert.deepEqual(readdirSync(join(r, ".git/hooks")).filter((f) => f.includes("xworkflows")), []);
 });
 
 // P-50: a link made between plan() and apply() is never written through

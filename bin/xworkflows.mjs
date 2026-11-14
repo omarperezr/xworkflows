@@ -315,6 +315,13 @@ const hookLine = (name) => {
   const f = `"$(git rev-parse --show-toplevel)/.xworkflows/git/${name}"`;
   return `if [ -f ${f} ]; then ${name === "pre-push" ? `. ${f}` : `sh ${f} "$@" || :`}; fi # xworkflows`;
 };
+// a shell runs the hook: its #! line names one, or it has none
+const SHELL = /^(?!#!)|^#!\s*(\S*\/)?(env\s+(-\S+\s+)*)?(sh|bash|dash|zsh|ksh)(\s|$)/;
+// the line goes after the #! line, else first; uninstall takes that line out alone, which gives every one of these bytes back
+const withLine = (t, line) => {
+  const i = t.startsWith("#!") ? t.indexOf("\n") : -1;
+  return !t.startsWith("#!") ? `${line}\n${t}` : i < 0 ? `${t}\n${line}` : `${t.slice(0, i + 1)}${line}\n${t.slice(i + 1)}`;
+};
 // With `chain` the project's own hook, renamed <name>.before-xworkflows, runs first.
 function hookText(name, chain) {
   if (!chain) return `#!/bin/sh\n${hookLine(name)}\n`;
@@ -439,7 +446,7 @@ export function plan(manifest, root, record, ans = {}) {
     const lst = lstatSync(join(root, path), { throwIfNoEntry: false });
     const cur = lst?.isFile() ? read(root, path) : null;
     const mine = cur !== null && ([false, true].some((c) => cur === hookText(name, c)) || earlierHook(manifest, name, cur) || (!!record.files[key] && hash(cur) === record.files[key].sha256));
-    let chain = record.chained.some((c) => c.file === key) || (cur !== null && cur === hookText(name, true)), rename;
+    let chain = record.chained.some((c) => c.file === key) || (cur !== null && cur === hookText(name, true));
     const before = `${path}.before-xworkflows`;
     // the user's hook renamed by an install that never recorded it: ours is the only code that makes this name
     if ((!lst || mine) && lstatSync(join(root, before), { throwIfNoEntry: false }) && !record.chained.some((c) => c.file === key)) {
@@ -447,18 +454,21 @@ export function plan(manifest, root, record, ans = {}) {
       hookMerges.push({ path, text: null, rec: { chained: [{ file: key, to: `${key}.before-xworkflows` }] } });
     }
     if (lst && !mine) {
+      // the user's hook keeps its name and its place: it gets the line, or nothing, and the line is printed
       if (record.declined.some((d) => d.file === key && d.what === "chain")) continue;
-      if (ask(`chain:${name}`, `A ${name} hook exists. Chain it (it runs first, then ours)?`, ["no", "yes"]) === "no") {
-        hookMerges.push({ path, text: null, rec: { declined: [{ file: key, what: "chain" }] } });
-        continue;
-      }
-      rename = `${path}.before-xworkflows`;
-      if (lstatSync(join(root, rename), { throwIfNoEntry: false })) die(1, `exists and is not ours: ${rename}`);
-      chain = true;
-      notes.push(`chained ${name}: a hook which depends on its own file name will not work chained`);
-      hookMerges.push({ path, text: null, rec: { chained: [{ file: key, to: `${key}.before-xworkflows` }] } });
+      const line = hookLine(name), declined = { path, text: null, rec: { declined: [{ file: key, what: "chain" }] } };
+      if (cur === null || !SHELL.test(cur)) {
+        notes.push(`${path} is not a shell script: nothing written; to run the check, call this line from it as its first command: ${line}`);
+        hookMerges.push(declined);
+      } else if (cur.split("\n").includes(line)) {
+        if (!record.imports.some((i) => i.file === key && i.line === line)) hookMerges.push({ path, text: null, rec: { imports: [{ file: key, line }] } });
+      } else if (ask(`chain:${name}`, `A ${name} hook exists. Add the xworkflows line to it? The line runs first, then the rest of the hook.`, ["no", "yes"]) === "no") {
+        notes.push(`${path} left as it is; to run the check, add this line to it as its first command: ${line}`);
+        hookMerges.push(declined);
+      } else hookMerges.push({ path, text: withLine(cur, line), hook: true, rec: { imports: [{ file: key, line }] } });
+      continue;
     }
-    writes.push({ path, key, text: hookText(name, chain), piece: "checks", src: name, mode: 0o755, rename });
+    writes.push({ path, key, text: hookText(name, chain), piece: "checks", src: name, mode: 0o755 });
   }
   // install and uninstall share one test: a path with a symlink component is never written or merged
   const hookPaths = new Set(writes.filter((w) => w.src && HOOKS.includes(w.src)).map((w) => w.path));
@@ -470,7 +480,7 @@ export function plan(manifest, root, record, ans = {}) {
   writes = writes.filter((w) => !off(w.path));
   for (const w of writes) {
     const cur = read(root, w.path);
-    if (cur === null || cur === w.text || w.rename || (w.key && earlierHook(manifest, w.src, cur))) continue;
+    if (cur === null || cur === w.text || (w.key && earlierHook(manifest, w.src, cur))) continue;
     const rec = record.files[w.key ?? w.path];
     if (!rec) {
       // --yes answers with label 0 here: a file that is not ours is never written over without a typed answer
@@ -546,7 +556,6 @@ export function apply(pl, root, manifest, record) {
   for (const w of pl.writes) if (!w.keep && differs(root, w)) {
     const hook = HOOKS.includes(w.src);
     linked(w.path, hook);
-    if (w.rename) renameSync(join(root, w.path), join(root, w.rename));
     put(root, w.path, w.text, w.mode, hook);
     out.push(w.path);
   }
@@ -554,7 +563,7 @@ export function apply(pl, root, manifest, record) {
   for (const m of pl.merges) {
     try {
       if (m.dir) { linked(m.path); mk(m.path); mkdirSync(join(root, m.path), { recursive: true }); out.push(m.path); }
-      if (m.text !== null) { put(root, m.path, m.text); out.push(m.path); }
+      if (m.text !== null) { put(root, m.path, m.text, undefined, m.hook); out.push(m.path); }
     } catch (e) {
       // the new writes of the memory folder and the yml: say so, record nothing, go on
       if (!m.verb) throw e;
@@ -625,7 +634,7 @@ async function install(flags) {
   if (pl.questions.length) pl = plan(m, ROOT, record, ans);
   for (const n of pl.notes) console.log(n);
   if (flags["dry-run"]) {
-    for (const w of pl.writes) if (!w.keep && differs(ROOT, w)) console.log(`${w.rename ? `would rename ${w.path} to ${w.rename}\n` : ""}would write ${w.path}`);
+    for (const w of pl.writes) if (!w.keep && differs(ROOT, w)) console.log(`would write ${w.path}`);
     for (const p of pl.retired) console.log(`would remove ${p}`);
     for (const m of pl.merges) if (m.text !== null || m.dir) console.log(`would ${m.verb ?? "merge"} ${m.path}`);
   } else {
@@ -916,13 +925,13 @@ function uninstall() {
     merged: (m) => m.file === SETTINGS && wants.some((w) => isDeepStrictEqual(w.key, m.key)),
     scalars: (x) => (x.file === SETTINGS && isDeepStrictEqual(x.key, ["attribution"])) || (x.file === LOCAL && isDeepStrictEqual(x.key, [LOCAL_KEY])),
     blocks: (b) => b.file === "AGENTS.md",
-    imports: (i) => !!LINES.get(i.file)?.includes(i.line) || (i.file === GI && giLines.has(i.line)),
+    imports: (i) => !!LINES.get(i.file)?.includes(i.line) || (i.file === GI && giLines.has(i.line)) || i.line === hookLine(basename(i.file)),
     created: (p) => FIVE.includes(p) || p === md || (p === YML && marked),
     chained: (c) => hookSet.has(c.file) && c.to === c.file + ".before-xworkflows",
   };
   const said = new Set();
   const keep = (kind, e, p) => {
-    if ((hookSet.has(p) ? kind === "files" || kind === "chained" : plain(p) && clean(ROOT, p)) && named[kind](e, p)) return true;
+    if ((hookSet.has(p) ? ["files", "chained", "imports"].includes(kind) : plain(p) && clean(ROOT, p)) && named[kind](e, p)) return true;
     if (!said.has(p)) { said.add(p); out.push(`kept (not ours): ${p}`); }
     return false;
   };
@@ -1000,7 +1009,10 @@ function uninstall() {
     if (b.addedNewline && head.endsWith("\n")) head = head.slice(0, -1);
     write(b.file, head + t.slice(e + END.length + (t[e + END.length] === "\n" ? 1 : 0)));
   }
-  for (const { file, line, addedNewline } of rec.imports) {
+  for (const { file: key, line, addedNewline } of rec.imports) {
+    // the line of a hook is in the hooks folder git uses, which a linked worktree has under the common git dir; a link there is not followed
+    const file = hookSet.has(key) ? relative(ROOT, join(hooksDir, basename(key))) : key;
+    if (hookSet.has(key) && !lstatSync(join(ROOT, file), { throwIfNoEntry: false })?.isFile()) continue;
     const t = read(ROOT, file), ls = t?.split("\n") ?? [], i = ls.lastIndexOf(line);
     if (i < 0) continue;
     ls.splice(i, 1);
