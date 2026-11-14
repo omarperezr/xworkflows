@@ -1,6 +1,6 @@
 // Opens the branch of a dream run in a worktree, and closes the run. No model.
 // Usage: node branch.mjs unseen | open
-//        node branch.mjs close --worktree <folder> --out <the extract's folder>
+//        node branch.mjs close --worktree <folder> --out <the extract's folder> [--not-read <name,name>]
 //        node branch.mjs drop [--worktree <folder>] [--out <the extract's folder>]
 import { readFileSync, readdirSync, writeFileSync, mkdtempSync, existsSync, realpathSync, rmdirSync, unlinkSync, lstatSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -85,11 +85,13 @@ export function run(argv, root) {
       return out({ branch, worktree, memory: join(worktree, dir), main });
     }
     if (argv[0] === "close") {
-      const given = arg(argv, "--worktree"), dirOut = arg(argv, "--out");
+      const given = arg(argv, "--worktree"), dirOut = arg(argv, "--out"), notRead = (arg(argv, "--not-read") ?? "").split(",");
       if (!given || !dirOut) return { code: 2, stdout: "close needs --worktree and --out\n" };
       let extract = null;
       try { extract = JSON.parse(readFileSync(join(dirOut, "extract.json"), "utf8")); } catch { /* refused below */ }
-      if (!Array.isArray(extract?.sessions) || !extract.sessions.every((s) => typeof s?.name === "string" && Number.isInteger(s.lines)))
+      // the sessions read: those with text, and those with none (empty); a session named in --not-read keeps its position, to be read again
+      const read = Array.isArray(extract?.sessions) && Array.isArray(extract.empty ?? []) ? [...extract.sessions, ...(extract.empty ?? [])] : null;
+      if (!read?.every((s) => typeof s?.name === "string" && Number.isInteger(s.lines)))
         return { code: 2, stdout: `--out holds no readable extract.json: ${dirOut}\n` };
       const entry = marked(given);
       if (!entry) return { code: 2, stdout: `--worktree is not a worktree that open made in this repository: ${given}\n` };
@@ -98,7 +100,7 @@ export function run(argv, root) {
       const memory = join(real, dir), state = join(memory, "dream.json");
       const { sessions = {} } = existsSync(state) && mine(real, state) ? JSON.parse(readFileSync(state, "utf8")) : {};
 
-      if (mine(real, state)) writeFileSync(state, JSON.stringify({ sessions: { ...sessions, ...Object.fromEntries(extract.sessions.map((s) => [s.name, s.lines])) } }, null, 2) + "\n");
+      if (mine(real, state)) writeFileSync(state, JSON.stringify({ sessions: { ...sessions, ...Object.fromEntries(read.filter((s) => !notRead.includes(s.name)).map((s) => [s.name, s.lines])) } }, null, 2) + "\n");
 
       const date = /^dream\/(\d{4}-\d\d-\d\d)/.exec(branch)?.[1] ?? branch;
       git(real, "reset", "-q"); // the index holds only what this close stages
@@ -160,7 +162,7 @@ export function run(argv, root) {
         return out({ left, deleted });
       }
     }
-    return { code: 2, stdout: "usage: branch.mjs unseen | open | close --worktree <folder> --out <folder> | drop [--worktree <folder>] [--out <folder>]\n" };
+    return { code: 2, stdout: "usage: branch.mjs unseen | open | close --worktree <folder> --out <folder> [--not-read <name,name>] | drop [--worktree <folder>] [--out <folder>]\n" };
   } catch (e) {
     return { code: 1, stdout: `${e.message}\n` };
   }

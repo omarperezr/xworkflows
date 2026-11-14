@@ -201,6 +201,21 @@ test("close keeps the earlier entries of dream.json and sets the lines read of e
   assert.deepEqual(JSON.parse(git(root, "show", `${o.branch}:docs/memory/dream.json`)).sessions, { "old": 5, "s1": 10, "s2": 7 });
 });
 
+test("close moves the sessions with no kept text on too, and a session named in --not-read keeps the position it had", () => {
+  const root = repo();
+  writeFileSync(join(root, "docs/memory/dream.json"), JSON.stringify({ sessions: { "s2": 3, "s3": 1 } }));
+  git(root, "add", "-A"); git(root, "commit", "-q", "-m", "state");
+  const o = opened(root), out = extracted([
+    { file: "1.txt", name: "s1", bytes: 1, masked: 0, lines: 10 },
+    { file: "2.txt", name: "s2", bytes: 1, masked: 0, lines: 7 },
+    { file: "3.txt", name: "s3", bytes: 1, masked: 0, lines: 5 }]);
+  const x = JSON.parse(readFileSync(join(out, "extract.json"), "utf8"));
+  writeFileSync(join(out, "extract.json"), JSON.stringify({ ...x, empty: [{ name: "e1", lines: 4 }] }));
+  const r = run(["close", "--worktree", o.worktree, "--out", out, "--not-read", "s2,s3"], root);
+  assert.equal(r.code, 0, r.stdout);
+  assert.deepEqual(JSON.parse(git(root, "show", `${o.branch}:docs/memory/dream.json`)).sessions, { "s1": 10, "s2": 3, "s3": 1, "e1": 4 });
+});
+
 test("a missing or broken extract.json is refused with one line before anything changes", () => {
   const root = repo();
   const o = opened(root);

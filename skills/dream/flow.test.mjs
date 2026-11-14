@@ -33,7 +33,7 @@ function world(config) {
   };
   const extract = () => { const x = script("extract.mjs", "--sessions", sessions, "--current", "running"); if (x.out) made.push(x.out); return x; };
   const open = () => { const o = script("branch.mjs", "open"); made.push(o.worktree); return o; };
-  const close = (o, x) => script("branch.mjs", "close", "--worktree", o.worktree, "--out", x.out);
+  const close = (o, x, ...more) => script("branch.mjs", "close", "--worktree", o.worktree, "--out", x.out, ...more);
   const drop = (o, x) => script("branch.mjs", "drop", "--worktree", o.worktree, "--out", x.out);
   const round = (x, edit = () => {}) => { const o = open(); edit(o.memory); return close(o, x); };
   const merge = (c) => git(root, "merge", "-q", "--no-ff", "-m", `adopt ${c.branch}`, c.branch);
@@ -107,4 +107,25 @@ test("a run stopped after open, through drop, leaves no folder, worktree or bran
   assert.equal(git(w.root, "branch", "--list", "dream/*"), "");
   assert.equal(git(w.root, "worktree", "list").split("\n").length, 1);
   assert.deepEqual(w.read(w.extract()), [["s1", 1, "user: one"]]);
+});
+
+test("a run whose branch waits unmerged is named in waiting, and the next extract reads the same lines again", () => {
+  const w = world();
+  w.put("s1", user("one", 1));
+  const x = w.extract(), taken = w.read(x);
+  assert.deepEqual(x.waiting, []);
+  const c = w.round(x, (memory) => writeFileSync(join(memory, "a.md"), note("a", "waits")));
+  const again = w.extract();
+  assert.deepEqual(again.waiting, [c.branch]);
+  assert.deepEqual(w.read(again), taken);
+});
+
+test("a session named in --not-read, whose analyzer returned nothing, is read again by the next run", () => {
+  const w = world();
+  w.put("s1", user("one", 1));
+  w.put("s2", user("two", 2));
+  const x = w.extract();
+  w.merge(w.close(w.open(), x, "--not-read", "s2"));
+  assert.deepEqual(w.state(), { s1: 1 });
+  assert.deepEqual(w.read(w.extract()), [["s2", 1, "user: two"]]);
 });
