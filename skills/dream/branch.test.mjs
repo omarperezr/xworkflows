@@ -320,12 +320,12 @@ test("a commit refused by the project's hook still names what close found: maske
 
 test("unseen names the notes of the working folder that main does not hold as they are", () => {
   const root = repo();
-  assert.deepEqual(json(run(["unseen"], root)), []);
+  assert.deepEqual(json(run(["unseen"], root)).notes, []);
   writeFileSync(join(root, "docs/memory/a.md"), "---\nname: a\ndescription: first, not committed\n---\nbody a\n");
   writeFileSync(join(root, "docs/memory/new.md"), "---\nname: new\ndescription: not added\n---\nbody\n");
   const r = run(["unseen"], root);
   assert.equal(r.code, 0, r.stdout);
-  assert.deepEqual(json(r).sort(), ["docs/memory/a.md", "docs/memory/new.md"]);
+  assert.deepEqual(json(r).notes.sort(), ["docs/memory/a.md", "docs/memory/new.md"]);
 });
 
 test("unseen names a note committed on another branch than main", () => {
@@ -333,7 +333,29 @@ test("unseen names a note committed on another branch than main", () => {
   git(root, "checkout", "-q", "-b", "work");
   writeFileSync(join(root, "docs/memory/w.md"), "---\nname: w\ndescription: on work\n---\nbody\n");
   git(root, "add", "-A"); git(root, "commit", "-q", "-m", "w");
-  assert.deepEqual(json(run(["unseen"], root)), ["docs/memory/w.md"]);
+  assert.deepEqual(json(run(["unseen"], root)).notes, ["docs/memory/w.md"]);
+});
+
+test("unseen does not name a note that main holds newer than a branch left behind", () => {
+  const root = repo();
+  git(root, "branch", "work");
+  writeFileSync(join(root, "docs/memory/a.md"), "---\nname: a\ndescription: first, newer on main\n---\nbody a\n");
+  git(root, "add", "-A"); git(root, "commit", "-q", "-m", "a on main");
+  git(root, "checkout", "-q", "work");
+  assert.deepEqual(json(run(["unseen"], root)).notes, []);
+});
+
+test("unseen names the worktrees that open made and close did not finish, with their branches", () => {
+  const root = repo();
+  assert.deepEqual(json(run(["unseen"], root)).unfinished, []);
+  const hooks = join(root, ".git/hooks");
+  mkdirSync(hooks, { recursive: true });
+  writeFileSync(join(hooks, "pre-commit"), "#!/bin/sh\nexit 1\n", { mode: 0o755 });
+  git(root, "config", "core.hooksPath", hooks);
+  const o = opened(root);
+  writeFileSync(join(o.memory, "a.md"), "---\nname: a\ndescription: edited\n---\nbody a\n");
+  assert.equal(run(["close", "--worktree", o.worktree, "--out", extracted()], root).code, 1);
+  assert.deepEqual(json(run(["unseen"], root)).unfinished, [{ branch: o.branch, worktree: o.worktree }]);
 });
 
 test("close never reads or writes through a link under the memory folder, and names each link in outside", () => {

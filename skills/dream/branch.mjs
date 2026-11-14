@@ -53,24 +53,29 @@ export function run(argv, root) {
   const main = config.mainBranch;
   const dir = memoryDir(config.memory.dir) ?? DEFAULTS.memory.dir;
   const out = (o) => ({ code: 0, stdout: JSON.stringify(o) + "\n" });
-  // a worktree that open made in this repository: listed by git on a dream/ branch, with open's mark; null for any other
+  // the worktrees that open made in this repository and that still stand: listed by git on a dream/ branch, with open's mark
+  const runs = () => git(root, "worktree", "list", "--porcelain").split("\n\n")
+    .map((b) => ({ path: /^worktree (.*)$/m.exec(b)?.[1], branch: /^branch refs\/heads\/(dream\/.*)$/m.exec(b)?.[1] }))
+    .filter((w) => { const g = w.branch && tryGit(w.path, "rev-parse", "--absolute-git-dir"); return g?.code === 0 && existsSync(join(g.out, MARK)); });
+  // the one of them at given; null for any other
   const marked = (given) => {
     let real = null;
     try { real = realpathSync(given); } catch { return null; }
-    const e = git(root, "worktree", "list", "--porcelain").split("\n\n")
-      .map((b) => ({ path: /^worktree (.*)$/m.exec(b)?.[1], branch: /^branch refs\/heads\/(dream\/.*)$/m.exec(b)?.[1] }))
-      .find((w) => w.branch && w.path === real);
-    return e && existsSync(join(git(real, "rev-parse", "--absolute-git-dir"), MARK)) ? e : null;
+    return runs().find((w) => w.path === real) ?? null;
   };
   // a memory folder that is a link, or lies under one, could lead a run's writes outside its branch: refused before anything is written
   const linked = (base) => (mine(base, join(base, dir)) ? null : { code: 2, stdout: `the memory folder ${dir} is a link: /dream cannot run here, its writes could leave the branch\n` });
 
   try {
-    if (argv[0] === "unseen") { // the notes the run will not see: the worktree starts from main
+    if (argv[0] === "unseen") { // the notes main lacks, which the run will not see (the worktree starts from main), and the runs close did not finish
       const no = linked(realpathSync(root));
       if (no) return no;
       const list = (...a) => git(root, ...a, "-z", "--", dir).split("\0").filter(Boolean);
-      return out([...list("diff", "--name-only", "--no-renames", "--diff-filter=d", main), ...list("ls-files", "--others", "--exclude-standard")]);
+      const diff = (...a) => list("diff", "--name-only", "--no-renames", "--diff-filter=d", ...a);
+      // differs from main, and changed on this side since it left main (committed or not): a note main holds newer is not one main lacks
+      const ours = new Set(diff("--merge-base", main));
+      return out({ notes: [...diff(main).filter((f) => ours.has(f)), ...list("ls-files", "--others", "--exclude-standard")],
+        unfinished: runs().map((w) => ({ branch: w.branch, worktree: w.path })) });
     }
     if (argv[0] === "open") {
       const d = new Date(), p = (n) => String(n).padStart(2, "0");
