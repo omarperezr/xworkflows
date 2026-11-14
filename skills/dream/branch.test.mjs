@@ -297,6 +297,27 @@ test("a commit refused by the project's hook leaves the worktree, the staged not
   assert.equal(git(root, "rev-parse", o.branch), git(root, "rev-parse", "main"));
 });
 
+test("a commit refused by the project's hook still names what close found: masked, look and outside, beside the hook's text", () => {
+  const root = repo();
+  const hooks = join(root, ".git/hooks");
+  mkdirSync(hooks, { recursive: true });
+  writeFileSync(join(hooks, "pre-commit"), "#!/bin/sh\necho 'lint says no' >&2\nexit 1\n", { mode: 0o755 });
+  git(root, "config", "core.hooksPath", hooks);
+  const o = opened(root), out = extracted();
+  writeFileSync(join(o.memory, "a.md"), `---\nname: a\ndescription: first\n---\nbody a\n${ghp}\n${pw}\n`);
+  writeFileSync(join(o.memory, "f.md"), "---\nname: f\ndescription: short answers\ntype: feedback\n---\nbody\n");
+  const r = run(["close", "--worktree", o.worktree, "--out", out], root);
+  assert.equal(r.code, 1, r.stdout);
+  const c = json(r);
+  assert.match(c.refused, /lint says no/);
+  assert.equal(c.worktree, o.worktree);
+  assert.deepEqual(c.masked, [{ file: "docs/memory/a.md", count: 1 }]);
+  assert.deepEqual(c.look, [{ file: "docs/memory/a.md", line: 7 }]);
+  assert.deepEqual(c.outside, ["docs/memory/f.md"]);
+  assert.ok(c.finish.includes(`git worktree remove --force ${o.worktree}`) && c.finish.includes(out), c.finish);
+  assert.ok(existsSync(join(o.memory, "f.md")) && existsSync(out));
+});
+
 test("unseen names the notes of the working folder that main does not hold as they are", () => {
   const root = repo();
   assert.deepEqual(json(run(["unseen"], root)), []);

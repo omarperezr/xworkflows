@@ -131,11 +131,15 @@ export function run(argv, root) {
         try { old = readFileSync(join(real, index), "utf8"); } catch { /* no index yet */ }
         if (old !== text && (text || old !== null)) { writeFileSync(join(real, index), text); git(real, "add", "--", index); }
       }
+      let refused = null;
       if (tryGit(real, "diff", "--cached", "--quiet").code === 1) {
         const c = tryGit(real, "commit", "-q", "-m", `dream: ${date}`); // the project's commit hooks run: never --no-verify
-        if (c.code !== 0) return { code: 1, stdout: `${c.err || c.out || "git commit failed"}\nthe commit was refused; the notes stay staged in ${real}: commit there, then run git worktree remove ${real}; the extract's folder ${dirOut} stays: drop --out removes it\n` };
+        if (c.code !== 0) refused = c.err || c.out || "git commit failed";
       }
-      const outside = git(real, "status", "--porcelain", "-z", "--untracked-files=all").split("\0").filter(Boolean).map((l) => l.slice(3));
+      // what the commit leaves out: a change not staged or a file not tracked; after a refused commit, the staged notes are not in it
+      const outside = git(real, "status", "--porcelain", "-z", "--untracked-files=all", "--no-renames").split("\0").filter((l) => l && l[1] !== " ").map((l) => l.slice(3));
+      if (refused !== null) return { code: 1, stdout: JSON.stringify({ refused, worktree: real, masked, look, outside,
+        finish: `the commit was refused; the notes stay staged in ${real}: commit there, then run git worktree remove --force ${real}, which removes the files of outside with it; the extract's folder ${dirOut} stays: drop --out removes it` }) + "\n" };
 
       const st = git(root, "diff", "--no-renames", "--name-status", "-z", `${main}...${branch}`, "--", dir).split("\0").filter(Boolean); // -z: a name outside ASCII comes unquoted
       const notes = st.filter((_, i) => i % 2 === 0).map((x, i) => [x, st[2 * i + 1]]).filter(([, f]) => f.endsWith(".md") && f.slice(dir.length + 1) !== "MEMORY.md" && !f.slice(dir.length + 1).includes("/"));
