@@ -19,7 +19,12 @@ export function runLimited(cmd, ctx) {
     let out = "", err = "", timedOut = false, signal = null;
     // Ctrl-C reaches only the foreground group, not ours: kill the command, then re-raise
     const sigs = ["SIGINT", "SIGTERM", "SIGHUP"];
-    const onSig = (s) => { signal ??= s; try { process.kill(-child.pid, "SIGKILL"); } catch {} };
+    const onSig = (s) => {
+      signal ??= s;
+      try { process.kill(-child.pid, "SIGKILL"); } catch {}
+      child.stdout.destroy(); child.stderr.destroy(); // a daemon outside the group may hold the pipes open
+      done({ code: null, out, err, timedOut });
+    };
     for (const s of sigs) process.on(s, onSig);
     const done = (r) => {
       clearTimeout(timer);

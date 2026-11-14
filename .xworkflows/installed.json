@@ -6,7 +6,7 @@
   "pieces": {
     "hook-runtime": {
       "version": "0.1.0",
-      "sha256": "105ae1de94ac5d576f4ff188792ec5739dc92700fda71fa42bc11ed458c0339b"
+      "sha256": "1dd1a56566bedbc4de8815d97c2969f157c19ad3ed70a63af928f6438bf11228"
     },
     "design-first": {
       "version": "0.1.0",
@@ -14,7 +14,7 @@
     },
     "adapt-gates": {
       "version": "0.1.0",
-      "sha256": "68fdc3edc53620094b56693870488d1b84529a8610f7bf7f72a373686eec9764"
+      "sha256": "9356983522573c20db5b0eda29674211d858077cf84b2bbe4c1f51fb105aa67f"
     },
     "adapt-record": {
       "version": "0.1.0",
@@ -70,7 +70,7 @@
     },
     "memory": {
       "version": "0.1.0",
-      "sha256": "dbcecdd9b411e2b091268a8ec57b15ff14b6c13cc2d3b5c4ef79aa94aaee71b3"
+      "sha256": "27b5b4fa75974cb47794af48a1cca730e9315ceed834aa74e4f319fb0db2545c"
     },
     "modes": {
       "version": "0.1.0",
@@ -118,7 +118,7 @@
     },
     "checks": {
       "version": "0.1.0",
-      "sha256": "b0f5e923632920e6fa5961cb389146d0bdbe7b4c9281bdce20032aee38f83421"
+      "sha256": "eecb422e157fd2cf380228af0092991616bfd8be5f0711124a9a1eccea85fdc3"
     },
     "lint": {
       "version": "0.1.0",
@@ -140,7 +140,7 @@
     },
     ".xworkflows/hooks/run.mjs": {
       "piece": "hook-runtime",
-      "sha256": "846cb6d9db33645e8884465b256207119b9b36a9aa82eb8b6386073e549c6050"
+      "sha256": "e507832f0975fba80bdf8389374d84b23850709d71c77fee1880cf4220b8dcdd"
     },
     ".xworkflows/mark.mjs": {
       "piece": "hook-runtime",
@@ -168,7 +168,7 @@
     },
     ".xworkflows/hooks/core/adapt-gates.mjs": {
       "piece": "adapt-gates",
-      "sha256": "ee89ec4a824d17b5fdca376f4f98480f901905325b208a8ebff9b85b6364c585"
+      "sha256": "967f42bf582c1d08702b74348d96f9fe7e9deccc30463b50ed956bf86d2e01e5"
     },
     ".xworkflows/hooks/core/adapt-record.mjs": {
       "piece": "adapt-record",
@@ -184,7 +184,7 @@
     },
     ".xworkflows/hooks/core/memory.mjs": {
       "piece": "memory",
-      "sha256": "3962e6edd9d9b57391ad9a643ebadf89aa751ea29adfbd93feb2e8cb0c8268d8"
+      "sha256": "0abf97d0abba3f11ca06fd8eff3991f2407aae072276d8a829a3e87e02af93df"
     },
     ".xworkflows/hooks/core/memory-index.mjs": {
       "piece": "memory",
@@ -260,7 +260,7 @@
     },
     ".xworkflows/checks/project.mjs": {
       "piece": "checks",
-      "sha256": "cfb82a48215a8e0c4d72ea45fc08a8d0ca2991f6f6978d452858a8094f516913"
+      "sha256": "3756970ca6af156dc599cdae8afcb7f2adc0982d5be72cb0c79b04d2777ce901"
     },
     ".xworkflows/checks/packs/lint.mjs": {
       "piece": "lint",

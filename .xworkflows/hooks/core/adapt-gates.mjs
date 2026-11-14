@@ -8,9 +8,39 @@ const folded = (a, b) => a.toLowerCase() === b.toLowerCase() && existsSync(path.
 const same = (a, b) => a === b || folded(a, b);
 const json = (s) => { try { return JSON.parse(s); } catch { return null; } };
 
-// A > after any character but - or \ (an arrow, an escaped >); tee at a word start, its gap stops at the next tee word and skips a < with its source word, so the scan stays linear and a read is not a write; a path starts at a word start.
-const FILE = String.raw`(?<![^\s"'>|])["']?[^\s;&|<>"']*\.xworkflows\/+["']?summary\.md(?![\w.])`;
-const SUMMARY_WRITE = new RegExp(String.raw`(?:^|[^-\\])>>?\|?\s*${FILE}|(?:^|[\s;&|])tee(?=\s)(?:(?!(?<!\S)tee\s)(?:<\s*[^\s;&|<>]|[^;&|<]))*?${FILE}`);
+const isSummary = (w) => w.replace(/["']/g, "").replace(/\/+/g, "/").endsWith(".xworkflows/summary.md");
+// One pass over the command, linear: words split at spaces and at ; & | newline, a ( or a standalone { opens a piece; a > not after - or a backslash makes the next word a redirect target; after < or << or <<< the next word is a source, a delimiter or a here-string. A write is the summary as a redirect target or as an argument of a piece whose command word is tee. Quotes are not parsed (a quoted mention is denied too).
+function writesSummary(cmd) {
+  let first = null, target = false, skip = false, w = "";
+  const reset = () => { first = null; target = false; skip = false; };
+  const flush = () => {
+    const t = w; w = "";
+    if (t === "") return false;
+    if (skip) skip = false;
+    else if (target) { target = false; if (isSummary(t)) return true; }
+    else if (first === null) first = t;
+    else if (first === "tee" && isSummary(t)) return true;
+    return false;
+  };
+  for (let i = 0; i < cmd.length; i++) {
+    const c = cmd[i];
+    if (c === "\\") { w += c + (cmd[++i] ?? ""); continue; }
+    if (c === ";" || c === "&" || c === "|" || c === "\n") { if (flush()) return true; reset(); }
+    else if (c === " " || c === "\t" || c === "\r") { if (flush()) return true; }
+    else if (w === "" && (c === "(" || (c === "{" && /\s/.test(cmd[i + 1] ?? " ")))) reset();
+    else if (c === ">" && !w.endsWith("-")) {
+      if (flush()) return true;
+      if (cmd[i + 1] === ">") i++;
+      if (cmd[i + 1] === "|") i++;
+      target = true;
+    } else if (c === "<") {
+      if (flush()) return true;
+      i += cmd.startsWith("<<<", i) ? 2 : cmd.startsWith("<<", i) ? 1 : 0;
+      skip = true;
+    } else w += c;
+  }
+  return flush();
+}
 
 export function decide(ev, ctx) {
   const x = (f) => path.join(ev.root, ".xworkflows", f);
@@ -41,8 +71,8 @@ export function decide(ev, ctx) {
     return { decision: "allow" };
   }
 
-  // shortcut: only a > not after - or a backslash, or a tee before a word naming .xworkflows/summary.md, is seen, quoted or not (a quoted mention is denied too); cp, mv, sed -i or a cd first are not, upgrade by parsing ev.command.
-  if (ev.kind === "shell" && SUMMARY_WRITE.test(ev.command ?? ""))
+  // shortcut: only a redirect or tee into .xworkflows/summary.md is seen; cp, mv, sed -i or a cd first are not, upgrade by parsing ev.command.
+  if (ev.kind === "shell" && writesSummary(ev.command ?? ""))
     return deny("summary.md is written with Write, not by a shell redirect or tee.");
 
   for (const w of ev.writes ?? []) {
