@@ -110,7 +110,7 @@ export function run(argv, env, root, home) {
   }
   const waiting = git("for-each-ref", "--format=%(refname:short)", `--no-merged=${main}`, "refs/heads/dream/").stdout.split("\n").filter(Boolean);
 
-  const result = { out: null, sessions: [], bytes: 0, tokens: 0, left: 0, cut: false, notes, skipped: 0, waiting };
+  const result = { out: null, sessions: [], bytes: 0, tokens: 0, left: 0, cut: false, notes, skipped: 0, waiting, empty: [] };
   const done = (reason) => {
     const text = JSON.stringify(reason ? { ...result, reason } : result);
     if (result.out) writeFileSync(join(result.out, "extract.json"), text + "\n");
@@ -149,7 +149,8 @@ export function run(argv, env, root, home) {
       size += add; masked += count; n++;
       if (l.bad) result.skipped++;
     }
-    if (n) {
+    if (n && !kept.length) result.empty.push({ name: s.name, lines: s.from + n }); // no text: no file and no analyzer, its lines still count as read
+    else if (n) {
       const file = join(result.out, `${s.name}.txt`), buf = Buffer.from(kept.join("\n")).subarray(0, cap);
       writeFileSync(file, buf);
       result.sessions.push({ file, name: s.name, bytes: buf.length, masked, lines: s.from + n });

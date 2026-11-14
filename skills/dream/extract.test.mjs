@@ -1,6 +1,6 @@
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, appendFileSync, utimesSync, cpSync, rmSync, symlinkSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync, appendFileSync, utimesSync, cpSync, rmSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -225,6 +225,20 @@ test("the mask's time grows with the length of the text, not its square", () => 
     const ms = performance.now() - t0;
     assert.ok(ms < 1500, `${t.slice(0, 12)}... took ${Math.round(ms)} ms`);
   }
+});
+
+test("a session whose unread lines hold no kept text makes no file and is not listed; its position moves on in empty", () => {
+  const w = world();
+  const summary = JSON.stringify({ type: "summary", summary: "SUMMARY" }), side = JSON.stringify({ type: "user", isSidechain: true, message: { content: "SIDE" } });
+  w.put("quiet", summary, side);
+  w.put("later", user("t1", day(1)), summary);
+  w.put("talk", user("hello", day(2)));
+  w.state({ sessions: { later: 1 } });
+  const { json } = w.go();
+  assert.deepEqual(json.sessions.map((s) => s.name), ["talk"]);
+  assert.deepEqual(json.empty.sort((a, b) => a.name.localeCompare(b.name)), [{ name: "later", lines: 2 }, { name: "quiet", lines: 2 }]);
+  assert.deepEqual(readdirSync(json.out).sort(), ["extract.json", "talk.txt"]);
+  assert.equal(json.left, 0);
 });
 
 test("a session's masked count is reported and the text on disk is masked", () => {
