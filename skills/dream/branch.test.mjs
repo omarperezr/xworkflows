@@ -237,3 +237,21 @@ test("a commit refused by the project's hook leaves the worktree, the staged not
   assert.ok(existsSync(out));
   assert.equal(git(root, "rev-parse", o.branch), git(root, "rev-parse", "main"));
 });
+
+test("unseen names the notes of the working folder that main does not hold as they are", () => {
+  const root = repo();
+  assert.deepEqual(json(run(["unseen"], root)), []);
+  writeFileSync(join(root, "docs/memory/a.md"), "---\nname: a\ndescription: first, not committed\n---\nbody a\n");
+  writeFileSync(join(root, "docs/memory/new.md"), "---\nname: new\ndescription: not added\n---\nbody\n");
+  const r = run(["unseen"], root);
+  assert.equal(r.code, 0, r.stdout);
+  assert.deepEqual(json(r).sort(), ["docs/memory/a.md", "docs/memory/new.md"]);
+});
+
+test("unseen names a note committed on another branch than main", () => {
+  const root = repo();
+  git(root, "checkout", "-q", "-b", "work");
+  writeFileSync(join(root, "docs/memory/w.md"), "---\nname: w\ndescription: on work\n---\nbody\n");
+  git(root, "add", "-A"); git(root, "commit", "-q", "-m", "w");
+  assert.deepEqual(json(run(["unseen"], root)), ["docs/memory/w.md"]);
+});

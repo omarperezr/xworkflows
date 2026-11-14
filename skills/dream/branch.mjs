@@ -1,5 +1,5 @@
 // Opens the branch of a dream run in a worktree, and closes the run. No model.
-// Usage: node branch.mjs open
+// Usage: node branch.mjs unseen | open
 //        node branch.mjs close --worktree <folder> --out <the extract's folder>
 import { readFileSync, readdirSync, writeFileSync, mkdtempSync, existsSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -35,6 +35,10 @@ export function run(argv, root) {
   const out = (o) => ({ code: 0, stdout: JSON.stringify(o) + "\n" });
 
   try {
+    if (argv[0] === "unseen") { // the notes the run will not see: the worktree starts from main
+      const list = (...a) => git(root, ...a, "-z", "--", dir).split("\0").filter(Boolean);
+      return out([...list("diff", "--name-only", "--no-renames", "--diff-filter=d", main), ...list("ls-files", "--others", "--exclude-standard")]);
+    }
     if (argv[0] === "open") {
       const d = new Date(), p = (n) => String(n).padStart(2, "0");
       const base = `dream/${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
@@ -104,7 +108,7 @@ export function run(argv, root) {
       return out({ branch, added: count("A"), changed: count("M"), removed: count("D"), masked, stale: lines, outside,
         see: `git diff ${main}...${branch} -- ${dir}`, adopt: `git merge --no-ff ${branch}`, discard: `git branch -D ${branch}` });
     }
-    return { code: 2, stdout: "usage: branch.mjs open | close --worktree <folder> --out <folder>\n" };
+    return { code: 2, stdout: "usage: branch.mjs unseen | open | close --worktree <folder> --out <folder>\n" };
   } catch (e) {
     return { code: 1, stdout: `${e.message}\n` };
   }
