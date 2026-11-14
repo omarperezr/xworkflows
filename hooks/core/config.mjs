@@ -67,6 +67,9 @@ export function memoryFolder(config, root) {
 
 const isObj = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
 
+// the sections read as objects: one edited by hand into anything else is refused by its name
+const SECTIONS = new Set([...Object.keys(DEFAULTS).filter((k) => isObj(DEFAULTS[k])), ...PROJECT_KEYS.map((k) => k.split(".")[0])]);
+
 export function merge(base, over) {
   if (!isObj(base) || !isObj(over)) return structuredClone(over);
   const out = structuredClone(base);
@@ -88,6 +91,8 @@ export function load(root, read = readOrNull) {
   } catch (e) {
     throw new Error(`.xworkflows/config.json does not parse: ${e.message}`);
   }
+  const bad = Object.keys(user).find((k) => SECTIONS.has(k) && !isObj(user[k]));
+  if (bad) throw new Error(`.xworkflows/config.json: ${bad} must be an object`);
   return merge(DEFAULTS, user);
 }
 

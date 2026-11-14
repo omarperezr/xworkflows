@@ -55,6 +55,14 @@ test("load: broken JSON and a JSON array throw", () => {
   assert.throws(() => load("/r", () => "[]"), /does not parse/);
 });
 
+test("load: a section that is not an object is refused by its name; the whole file that is not an object does not parse", () => {
+  for (const [text, name] of [['{"memory":null}', "memory"], ['{"paths":5}', "paths"], ['{"packs":[]}', "packs"], ['{"lookup":"x"}', "lookup"], ['{"tests":"node --test"}', "tests"], ['{"owner":"Ana","checks":false}', "checks"]]) {
+    assert.throws(() => load("/r", () => text), { message: `.xworkflows/config.json: ${name} must be an object` }, text);
+  }
+  assert.throws(() => load("/r", () => "null"), { message: ".xworkflows/config.json does not parse: not a JSON object" });
+  assert.equal(load("/r", () => '{"owner":"Ana","zones":[],"memory":{"dir":"n"},"tests":{"run":"x"}}').memory.dir, "n");
+});
+
 test("get: dotted lookup, undefined when a step is absent", () => {
   assert.equal(get(DEFAULTS, "paths.specs"), "docs/superpowers/specs");
   assert.equal(get(DEFAULTS, "paths.code"), undefined);

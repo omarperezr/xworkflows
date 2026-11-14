@@ -341,3 +341,17 @@ test("a refused memory.dir is not the memory folder at a note's write: a feedbac
     assert.equal(decide(write("/r/src/guide.md", note("feedback")), c).decision, "allow", JSON.stringify(dir));
   }
 });
+
+test("through the real runner: a config whose memory section is not an object lets the call through, and the warning names the section", () => {
+  const root = mkdtempSync(join(tmpdir(), "xwf-mem-"));
+  const state = mkdtempSync(join(tmpdir(), "xwf-state-"));
+  mkdirSync(join(root, ".xworkflows"));
+  writeFileSync(join(root, ".xworkflows", "config.json"), '{"memory":null}');
+  const env = { ...process.env, XWORKFLOWS_STATE_DIR: state, PATH: "/nonexistent" };
+  delete env.XWORKFLOWS_FREE; delete env.CLAUDE_PROJECT_DIR;
+  const input = { session_id: "s", cwd: root, hook_event_name: "PreToolUse", tool_name: "Write", tool_input: { file_path: join(root, "docs", "memory", "n.md"), content: note("feedback") } };
+  const r = spawnSync(process.execPath, [run, "claude", "memory"], { input: JSON.stringify(input), env, encoding: "utf8" });
+  assert.equal(r.status, 0);
+  assert.doesNotMatch(r.stdout, /deny/);
+  assert.equal(r.stderr, "xworkflows: memory let the call through: .xworkflows/config.json: memory must be an object\n");
+});

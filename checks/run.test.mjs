@@ -107,6 +107,15 @@ test("config that does not parse: exit 2", withRepo({}, async (repo) => {
   assert.match(r.out[0], /^xworkflows check: .*does not parse/);
 }));
 
+test("a config section that is not an object: could not run, the section named; the whole file null does not parse", withRepo({}, async (repo) => {
+  for (const [text, name] of [['{"memory":null}', "memory"], ['{"paths":5}', "paths"]]) {
+    repo.write(".xworkflows/config.json", text);
+    for (const argv of [[], ["index"]]) assert.deepEqual(await check(repo, argv), { code: 2, out: [`xworkflows check: .xworkflows/config.json: ${name} must be an object`] }, `${text} ${argv}`);
+  }
+  repo.write(".xworkflows/config.json", "null");
+  assert.deepEqual(await check(repo, []), { code: 2, out: ["xworkflows check: .xworkflows/config.json does not parse: not a JSON object"] });
+}));
+
 test("a base that does not resolve: exit 2", withRepo({}, async (repo) => {
   const r = await check(repo, ["nope"]);
   assert.equal(r.code, 2);
@@ -339,7 +348,7 @@ test("packs that is not an object: setup error, exit 2", async () => {
     await withRepo({ config: { packs: bad } }, async (repo) => {
       const r = await check(repo, []);
       assert.equal(r.code, 2);
-      assert.deepEqual(r.out, ["xworkflows check: packs in the config is not an object"]);
+      assert.deepEqual(r.out, ["xworkflows check: .xworkflows/config.json: packs must be an object"]);
     })();
   }
 });

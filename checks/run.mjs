@@ -92,8 +92,6 @@ export async function main(argv, io = {}) {
     const top = makeCtx(cwd, null).tryGit("rev-parse", "--show-toplevel");
     if (top.code !== 0) throw new Error("not a git repository");
     ctx = makeCtx(top.out, loadConfig(top.out));
-    const p = ctx.config.packs;
-    if (p === null || typeof p !== "object" || Array.isArray(p)) throw new Error("packs in the config is not an object");
     const bad = only?.findIndex((n) => !TABLE.includes(n) && !PACKS.includes(n)) ?? -1; // an empty name is unknown too: "--only ," must not run nothing and pass
     if (bad >= 0) throw new Error(`unknown brake ${only[bad] || "(empty)"}`);
     const rev = (r) => {
