@@ -1,10 +1,10 @@
 // Opens the branch of a dream run in a worktree, and closes the run. No model.
 // Usage: node branch.mjs open
-//        node branch.mjs close --worktree <folder> --name <last session name> --time <last session time>
-import { readFileSync, readdirSync, writeFileSync, mkdtempSync, existsSync, realpathSync } from "node:fs";
+//        node branch.mjs close --worktree <folder> --out <the extract's folder>
+import { readFileSync, readdirSync, writeFileSync, mkdtempSync, existsSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 import { shared } from "./shared.mjs";
 import { mask } from "./extract.mjs";
@@ -14,6 +14,7 @@ const { buildIndex } = await shared("hooks/core/memory-index.mjs");
 const { makeCtx, rangeFor } = await shared("checks/run.mjs");
 const stale = await shared("checks/stale-memory.mjs");
 
+const MARK = "dream-open"; // in the worktree's own git folder: close takes only a worktree that open made
 const arg = (argv, k) => (argv.includes(k) ? argv[argv.indexOf(k) + 1] : undefined);
 
 export function run(argv, root) {
@@ -41,18 +42,25 @@ export function run(argv, root) {
       for (let n = 2; tryGit(root, "rev-parse", "--verify", "--quiet", `refs/heads/${branch}`).code === 0; n++) branch = `${base}-${n}`;
       const worktree = realpathSync(mkdtempSync(join(tmpdir(), "dream-")));
       git(root, "worktree", "add", "-b", branch, worktree, main);
+      writeFileSync(join(git(worktree, "rev-parse", "--absolute-git-dir"), MARK), `${branch}\n`);
       return out({ branch, worktree, memory: join(worktree, dir), main });
     }
     if (argv[0] === "close") {
-      const given = arg(argv, "--worktree"), name = arg(argv, "--name"), time = arg(argv, "--time");
-      if (!given || name === undefined || time === undefined) return { code: 2, stdout: "close needs --worktree, --name and --time\n" };
+      const given = arg(argv, "--worktree"), dirOut = arg(argv, "--out");
+      if (!given || !dirOut) return { code: 2, stdout: "close needs --worktree and --out\n" };
+      let extract = null;
+      try { extract = JSON.parse(readFileSync(join(dirOut, "extract.json"), "utf8")); } catch { /* refused below */ }
+      if (!Array.isArray(extract?.sessions) || !extract.sessions.every((s) => typeof s?.name === "string" && Number.isInteger(s.lines)))
+        return { code: 2, stdout: `--out holds no readable extract.json: ${dirOut}\n` };
       let real = null;
       try { real = realpathSync(given); } catch { /* not a folder: refused below */ }
       const entry = git(root, "worktree", "list", "--porcelain").split("\n\n")
         .map((b) => ({ path: /^worktree (.*)$/m.exec(b)?.[1], branch: /^branch refs\/heads\/(dream\/.*)$/m.exec(b)?.[1] }))
         .find((e) => e.branch && e.path === real);
-      if (!entry) return { code: 2, stdout: `--worktree is not a worktree of this repository on a dream/ branch: ${given}\n` };
-      const { branch } = entry, memory = join(real, dir);
+      if (!entry || !existsSync(join(git(real, "rev-parse", "--absolute-git-dir"), MARK)))
+        return { code: 2, stdout: `--worktree is not a worktree that open made in this repository: ${given}\n` };
+      const { branch } = entry, memory = join(real, dir), state = join(memory, "dream.json");
+      const { sessions = {} } = existsSync(state) ? JSON.parse(readFileSync(state, "utf8")) : {};
 
       if (existsSync(memory)) {
         const files = readdirSync(memory).filter((f) => f.endsWith(".md") && f !== "MEMORY.md").map((file) => ({ file, text: readFileSync(join(memory, file), "utf8") }));
@@ -61,7 +69,7 @@ export function run(argv, root) {
         try { old = readFileSync(index, "utf8"); } catch { /* no index yet */ }
         if (old !== text && (text || old !== null)) writeFileSync(index, text);
       }
-      writeFileSync(join(memory, "dream.json"), JSON.stringify({ name, time }, null, 2) + "\n");
+      writeFileSync(state, JSON.stringify({ sessions: { ...sessions, ...Object.fromEntries(extract.sessions.map((s) => [s.name, s.lines])) } }, null, 2) + "\n");
 
       const date = /^dream\/(\d{4}-\d\d-\d\d)/.exec(branch)?.[1] ?? branch;
       git(real, "reset", "-q"); // the index holds only what this close stages
@@ -89,16 +97,18 @@ export function run(argv, root) {
       } catch (e) { lines = [`could not run: ${e.message}`]; }
 
       git(root, "worktree", "remove", "--force", real); // the changes outside the memory folder are named above and go with it
+      rmSync(dirOut, { recursive: true, force: true });
       return out({ branch, added: count("A"), changed: count("M"), removed: count("D"), masked, stale: lines, outside,
         see: `git diff ${main}...${branch} -- ${dir}`, adopt: `git merge --no-ff ${branch}`, discard: `git branch -D ${branch}` });
     }
-    return { code: 2, stdout: "usage: branch.mjs open | close --worktree <folder> --name <name> --time <time>\n" };
+    return { code: 2, stdout: "usage: branch.mjs open | close --worktree <folder> --out <folder>\n" };
   } catch (e) {
     return { code: 1, stdout: `${e.message}\n` };
   }
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+const direct = (() => { try { return realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url)); } catch { return false; } })();
+if (direct) {
   const r = run(process.argv.slice(2), process.cwd());
   process.stdout.write(r.stdout);
   process.exitCode = r.code;
