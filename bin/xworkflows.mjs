@@ -305,9 +305,10 @@ const FOLDER = CFG(`${CONF}.lookup.index.folder`, "graphify-out");
 // a git hook on disk that is an earlier text the package published: the manifest holds their hashes per hook
 const earlierHook = (manifest, name, cur) => (manifest.pieces.find((p) => p.id === "checks")?.earlierHooks?.[name] ?? []).includes(hash(cur));
 // The file of install's own that a hook's marked line runs. pre-push's is read into the hook's shell: a failed check ends the hook
-// with its code; after a passed one the rest of the hook reads the same refs, from the saved file, whose name goes at once.
+// with its code; after a passed one the rest of the hook reads the same refs, from the saved file, whose name goes at once. A hook with
+// nothing after the line needs no saved file; the file is made in the environment's temp folder and goes when a signal cuts the check.
 function gitText(name) {
-  if (name === "pre-push") return `xwf_in=$(mktemp) || exit 1\ncat > "$xwf_in"\n${CHECK} < "$xwf_in" || { xwf_c=$?; rm -f "$xwf_in"; exit $xwf_c; }\nexec < "$xwf_in"\nrm -f "$xwf_in"\nunset xwf_in xwf_c\n`;
+  if (name === "pre-push") return `if awk 'f{r=1} / # xworkflows/{f=1} END{exit !(f && !r)}' "$0" 2>/dev/null; then\n${CHECK} || exit $?\nelse\nxwf_in=$(mktemp "\${TMPDIR:-/tmp}/xworkflows.XXXXXX") || exit 1\ntrap 'rm -f "$xwf_in"; exit 1' HUP INT TERM\ncat > "$xwf_in"\n${CHECK} < "$xwf_in" || { xwf_c=$?; rm -f "$xwf_in"; exit $xwf_c; }\nexec < "$xwf_in"\nrm -f "$xwf_in"\ntrap - HUP INT TERM\nunset xwf_in xwf_c\nfi\n`;
   return `#!/bin/sh\nc=0\ncd "$(git rev-parse --show-toplevel)" || exit $c\nmain=$(${MAIN}) || main=main\n[ "$(git symbolic-ref --short -q HEAD)" = "$main" ] || exit $c\ntool=$(${TOOL}) || tool=graphify\nfolder=$(${FOLDER}) || folder=graphify-out\ncommand -v "$tool" >/dev/null 2>&1 || exit $c\nmkdir -p "$folder"\n{ "$tool" update . && touch -c -h -- "$folder/graph.json"; } > "$folder/.update.log" 2>&1 < /dev/null &\nexit $c\n`;
 }
 // The one line install puts in a hook: the two post hooks run its file as a child that never fails them. It is silent only where the

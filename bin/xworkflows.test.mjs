@@ -1232,7 +1232,15 @@ test("another clone's own pre-push gets the line even when the record lists the 
 });
 // what the check got on its standard input, and its exit code
 const spyCheck = (r, code = 0) => writeFileSync(join(r, ".xworkflows/checks/run.mjs"), `import { readFileSync, writeFileSync } from "node:fs";\nwriteFileSync(".git/check-in", readFileSync(0));\nprocess.exit(${code});\n`);
-const pushIn = (r, t) => spawnSync("git", ["push", "-q", "origin", "main"], { cwd: r, encoding: "utf8", env: { ...isoEnv(), TMPDIR: t } });
+// A mktemp first on PATH that makes its file only under $TMPDIR: from a template there, or with no template when `bare`, as GNU's does;
+// any other call fails. So no test hook writes in a shared temp folder, and a file left behind is seen.
+const MKTEMP = spawnSync("sh", ["-c", "command -v mktemp"], { encoding: "utf8" }).stdout.trim();
+const mktempIn = (bare = false) => {
+  const d = tmp("xwf-mk-");
+  writeFileSync(join(d, "mktemp"), `#!/bin/sh\ncase "$#:$1" in 1:"$TMPDIR"/*) exec ${MKTEMP} "$1";;${bare ? ` 0:) exec ${MKTEMP} "$TMPDIR/tmp.XXXXXXXXXX";;` : ""} esac\necho "mktemp: not under TMPDIR: $*" >&2\nexit 1\n`, { mode: 0o755 });
+  return `${d}:${process.env.PATH}`;
+};
+const pushIn = (r, t) => spawnSync("git", ["push", "-q", "origin", "main"], { cwd: r, encoding: "utf8", env: { ...isoEnv(), TMPDIR: t, PATH: mktempIn() } });
 test("a user's pre-push keeps its name and gets the pushed refs on standard input, the same the check got, and nothing is left in the temp folder", () => {
   const { r } = chained();
   cli(r, ["install", "--yes"]);
@@ -1252,12 +1260,33 @@ test("a failed check ends the push with its code before the user's hook runs", (
   cli(r, ["install", "--yes"]);
   spyCheck(r, 3);
   const t = tmp("xwf-hooktmp-");
-  const run = spawnSync(join(r, ".git/hooks/pre-push"), ["origin", "x"], { cwd: r, input: "refs/heads/main 1 refs/heads/main 0\n", env: { ...isoEnv(), TMPDIR: t } });
+  const run = spawnSync(join(r, ".git/hooks/pre-push"), ["origin", "x"], { cwd: r, input: "refs/heads/main 1 refs/heads/main 0\n", env: { ...isoEnv(), TMPDIR: t, PATH: mktempIn() } });
   assert.equal(run.status, 3);
   commit(r, "a.txt", "fine\n");
   assert.notEqual(pushIn(r, t).status, 0);
   assert.ok(!existsSync(join(r, ".git/old-in")), "the user's hook ran");
   assert.deepEqual(readdirSync(t), []);
+});
+const REFS = "refs/heads/main 1 refs/heads/main 0\n";
+const runHook = (r, t, env = {}) => spawnSync(join(r, ".git/hooks/pre-push"), ["origin", "x"], { cwd: r, input: REFS, env: { ...isoEnv(), TMPDIR: t, PATH: mktempIn(true), ...env } });
+test("a push cut by a signal while the check runs leaves no temp file", () => {
+  const { r } = chained();
+  cli(r, ["install", "--yes"]);
+  // Ctrl-C reaches the whole process group: the hook's shell and the check
+  writeFileSync(join(r, ".xworkflows/checks/run.mjs"), 'process.kill(process.ppid, "SIGINT");\nprocess.kill(process.pid, "SIGINT");\n');
+  const t = tmp("xwf-hooktmp-");
+  assert.notEqual(runHook(r, t).status, 0);
+  assert.ok(!existsSync(join(r, ".git/old-in")), "the user's hook ran");
+  assert.deepEqual(readdirSync(t), []);
+});
+test("install's own pre-push hook, with nothing after the line, makes no temp file: the check reads the refs itself", () => {
+  const r = repo();
+  cli(r, ["install"]);
+  writeFileSync(join(r, ".xworkflows/checks/run.mjs"), 'import { readdirSync, readFileSync, writeFileSync } from "node:fs";\nwriteFileSync(".git/check-tmp", readdirSync(process.env.TMPDIR).join("\\n"));\nwriteFileSync(".git/check-in", readFileSync(0));\n');
+  const t = tmp("xwf-hooktmp-");
+  assert.equal(runHook(r, t).status, 0);
+  assert.equal(readFileSync(join(r, ".git/check-tmp"), "utf8"), "");
+  assert.equal(readFileSync(join(r, ".git/check-in"), "utf8"), REFS);
 });
 // husky's two files, written here from its documented behaviour: the shim git runs reads h beside it, and h runs the file of the
 // hook's own name one folder up with sh -e, which gets the arguments and the standard input
