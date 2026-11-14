@@ -1544,12 +1544,21 @@ test("install --dry-run writes nothing and names the folder, the yml and the .gi
   assert.match(out.stdout, /^would merge \.gitignore$/m);
   assert.equal(tree(r), before);
 });
-test("install: a docs link that leaves the repo gets no folder", () => {
+// P-128: install reads the memory folder by the one rule the hooks read it by
+test("install: a docs link that leaves the repo gets no folder, no yml and no autoMemoryDirectory, and the line says why; listed under memory.outside it gets them", () => {
   const o = tmp("xwf-out-"), r = repo();
   symlinkSync(o, join(r, "docs"));
   const out = inst(r);
+  assert.equal(out.status, 0, out.stderr);
   assert.deepEqual(readdirSync(o), []);
-  assert.match(out.stdout, /^not written \(symlink\): docs\/memory$/m);
+  assert.ok(!existsSync(join(r, ".qmd")));
+  assert.ok(!existsSync(join(r, ".claude/settings.local.json")));
+  assert.ok(out.stdout.split("\n").some((l) => l.startsWith(`not written: docs/memory/MEMORY.md is written outside the repository (${realpathSync(o)})`)), out.stdout);
+  mkdirSync(join(o, "memory"));
+  writeJson(r, ".xworkflows/config.json", { memory: { outside: [realpathSync(o)] } });
+  assert.equal(inst(r).status, 0);
+  assert.equal(readFileSync(join(r, ".qmd/index.yml"), "utf8"), yml(r));
+  assert.equal(readJson(r, ".claude/settings.local.json").autoMemoryDirectory, join(top(r), "docs/memory"));
 });
 test("install: a .qmd link that leaves the repo gets no yml and no .gitignore line", () => {
   const o = tmp("xwf-out-"), r = repo();
@@ -1566,16 +1575,19 @@ for (const [what, dir] of [["absolute", (o) => join(o, "mem")], ["climbing out w
     assert.equal(out.status, 0, out.stderr);
     assert.deepEqual(readdirSync(o), []);
     assert.ok(!existsSync(join(r, ".qmd")));
-    assert.ok(out.stdout.split("\n").includes(`not written: memory.dir must be a folder inside the repository: ${dir(o)}`));
+    assert.ok(out.stdout.split("\n").includes(`not written: memory.dir ${JSON.stringify(dir(o))} must be a folder inside the repository`), out.stdout);
   });
 }
 // P-125: settings.local.json gets the folder the memory.dir rule names, and nothing for a value that names none
-test("install: a memory.dir that is not text writes no autoMemoryDirectory and says why; a padded one is written and taken back as the folder it names", () => {
+// P-128: a value that is not a text is the default folder, for install as for the hooks
+test("install: a memory.dir that is not text is read as the default folder; a padded one is written and taken back as the folder it names", () => {
   const r = repo({ ".xworkflows/config.json": JSON.stringify({ memory: { dir: 5 } }) });
   const out = inst(r);
   assert.equal(out.status, 0, out.stderr);
-  assert.ok(out.stdout.split("\n").includes("not written: memory.dir must be a folder inside the repository: 5"), out.stdout);
-  assert.ok(!existsSync(join(r, ".claude/settings.local.json")));
+  assert.ok(statSync(join(r, "docs/memory")).isDirectory());
+  assert.equal(readJson(r, ".claude/settings.local.json").autoMemoryDirectory, join(top(r), "docs/memory"));
+  assert.equal(cli(r, ["uninstall"]).status, 0);
+  assert.ok(!existsSync(join(r, ".claude/settings.local.json")) && !existsSync(join(r, "docs")));
   const q = repo({ ".xworkflows/config.json": JSON.stringify({ memory: { dir: " docs/memory " } }) });
   assert.equal(inst(q).status, 0);
   assert.equal(readJson(q, ".claude/settings.local.json").autoMemoryDirectory, join(top(q), "docs/memory"));
@@ -1605,13 +1617,16 @@ test("doctor: the two qmd failures name the cause, a linked folder outside warns
   withConfig(r, {});
   const o = tmp("xwf-out-"); rmSync(join(r, "docs"), { recursive: true }); symlinkSync(o, join(r, "docs"));
   mkdirSync(join(o, "memory"));
-  assert.match(doctor(r, { PATH: q }).stdout, /^warn the memory folder is outside the repository: qmd indexes it only after "qmd trust" is run here$/m);
-  // a write there is refused unless memory.outside lists the real path: doctor says so with both ways out
+  // a write there is refused unless memory.outside lists the real path: doctor fails with the line the hooks refuse with, and says nothing more of that folder
   const real = realpathSync(join(o, "memory"));
-  const refused = lineOf(doctor(r, { PATH: q }), /^warn docs\/memory\/MEMORY\.md is written outside the repository/);
-  assert.ok(refused?.includes(`(${real})`) && refused.includes("put the notes inside the project") && refused.includes(`list ${real} under memory.outside in .xworkflows/config.json`), refused);
+  const unlisted = doctor(r, { PATH: q });
+  const refused = lineOf(unlisted, /^fail docs\/memory\/MEMORY\.md is written outside the repository/);
+  assert.ok(refused?.includes(`(${real})`) && refused.includes("put the notes inside the project") && refused.includes(`list ${real} under memory.outside in .xworkflows/config.json`), unlisted.stdout);
+  assert.match(refused, /: set memory\.dir in \.xworkflows\/config\.json to a folder inside the repository, then run xworkflows install$/);
+  assert.doesNotMatch(unlisted.stdout, /qmd trust|qmd collection covers|autoMemoryDirectory/);
   withConfig(r, { memory: { outside: [real] } });
   assert.doesNotMatch(doctor(r, { PATH: q }).stdout, /is written outside the repository/);
+  assert.match(doctor(r, { PATH: q }).stdout, /^warn the memory folder is outside the repository: qmd indexes it only after "qmd trust" is run here$/m);
   withConfig(r, {});
   rmSync(join(r, "docs")); writeFileSync(join(r, "docs"), "a file\n");
   const out = doctor(r, { PATH: q });
@@ -2480,19 +2495,20 @@ test("doctor: with core.hooksPath outside the repository the pre-push line names
   assert.deepEqual(FAILS(doctor(r, env)), []);
   assert.deepEqual(readdirSync(g), []);
 });
-test("doctor: a memory.dir outside the repository, existing or not, says to name a folder inside it, and doing so makes the lines go", () => {
+// P-128: a folder outside is refused by the hooks even when memory.outside lists it: doctor names only the way out they accept
+test("doctor: a memory.dir outside the repository, existing or not, listed or not, gives one fail line that says to name a folder inside it, and doing so makes it go", () => {
   const o = tmp("xwf-out-"), r = repo(); cli(r, ["install", "--yes"]);
   const ours = (extra = {}) => doctor(r, { PATH: GOOD, ...extra });
-  for (const dir of [o, join(o, "not-there"), relative(r, o)]) {
-    withConfig(r, { memory: { dir } });
+  for (const dir of [o, join(o, "not-there"), relative(r, o)]) for (const outside of [[], [o, realpathSync(o)]]) {
+    withConfig(r, { memory: { dir, outside } });
     const out = ours();
-    const bad = out.stdout.split("\n").filter((l) => /^(fail|warn) (no qmd collection covers|no memory folder yet)/.test(l));
-    assert.equal(bad.length, 1, out.stdout);
-    assert.match(bad[0], /set memory\.dir in \.xworkflows\/config\.json to a folder inside the repository, then run xworkflows install$/);
+    const bad = out.stdout.split("\n").filter((l) => /memory\.dir|memory folder|autoMemoryDirectory|qmd collection|qmd trust/.test(l));
+    assert.deepEqual(bad, [`fail memory.dir ${JSON.stringify(dir)} must be a folder inside the repository: set memory.dir in .xworkflows/config.json to a folder inside the repository, then run xworkflows install`], out.stdout);
+    assert.doesNotMatch(out.stdout, /memory\.outside/);
   }
   withConfig(r, { memory: { dir: "docs/memory" } });
   assert.equal(cli(r, ["install", "--yes"], { env: { PATH: GOOD, HOME: EMPTY_HOME } }).status, 0);
-  assert.doesNotMatch(ours().stdout, /no qmd collection covers|no memory folder yet/);
+  assert.doesNotMatch(ours().stdout, /memory\.dir|no qmd collection covers|no memory folder yet|autoMemoryDirectory/);
 });
 
 // P-116 (b): the first word of lookup.index.command reaches a shell only quoted

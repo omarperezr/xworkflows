@@ -7,8 +7,7 @@ import { homedir, tmpdir } from "node:os";
 import { basename, dirname, isAbsolute, join, normalize, posix, relative, resolve, sep } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { outsideLine } from "../hooks/core/ctx.mjs";
-import { DEFAULTS, PROJECT_KEYS, load as loadConfig, memoryDir as memName, missing } from "../hooks/core/config.mjs";
+import { DEFAULTS, PROJECT_KEYS, load as loadConfig, memoryFolder, missing } from "../hooks/core/config.mjs";
 
 export const PKG = dirname(dirname(fileURLToPath(import.meta.url)));
 export let ROOT;
@@ -231,11 +230,11 @@ function mergeLocal(root) {
   const path = ".claude/settings.local.json";
   const { old, s } = readObject(root, path);
   const key = "autoMemoryDirectory";
-  let dir;
-  try { dir = loadConfig(root).memory.dir; } catch (e) { die(1, e.message); }
-  const none = { path, text: null, rec: { scalars: [], created: [] } };
-  // a memory.dir that names no folder inside the repository gets no key, as it gets no folder: plan() says why
-  const md = memName(dir);
+  let config;
+  try { config = loadConfig(root); } catch (e) { die(1, e.message); }
+  const dir = config.memory.dir, none = { path, text: null, rec: { scalars: [], created: [] } };
+  // a refused memory folder gets no key, as it gets no folder: plan() says why
+  const md = memoryFolder(config, root).dir;
   if (!md || key in s) return none;
   if (spawnSync("git", ["ls-files", "--error-unmatch", path], { cwd: root, stdio: "ignore" }).status === 0) return { ...none, note: `${path} is tracked: ${key} not written, set it yourself` };
   const value = JSON.stringify(resolve(root, md));
@@ -484,11 +483,11 @@ export function plan(manifest, root, record, ans = {}) {
     else notes.push(`kept (no longer shipped, changed locally): ${p}`);
   }
   const merges = [];
-  let mem;
-  try { mem = loadConfig(root).memory; } catch (e) { die(1, e.message); }
+  let config;
+  try { config = loadConfig(root); } catch (e) { die(1, e.message); }
   let qmd = false;
-  const md = memName(mem.dir);
-  if (!md) notes.push(`not written: memory.dir must be a folder inside the repository: ${mem.dir}`);
+  const mem = config.memory, { dir: md, line: refused } = memoryFolder(config, root);
+  if (!md) notes.push(`not written: ${refused}`);
   else {
     if (!existsSync(join(root, md)) && !off(md)) merges.push({ path: md, text: null, dir: true, verb: "create", rec: { created: [md] } });
     qmd = !mem.index && !localYml(root) && !off(YML);
@@ -709,7 +708,10 @@ async function doctor(flags) {
   // a memory.dir that is not a text reads as the default, as the hooks read it
   const memSet = cfg.memory?.dir === undefined ? DEFAULTS.memory.dir : cfg.memory.dir;
   if (typeof memSet !== "string") say("fail", `memory.dir must be text: set it in .xworkflows/config.json to a folder inside the repository (the default is "${DEFAULTS.memory.dir}")`);
-  const memDir = typeof memSet === "string" ? memSet : DEFAULTS.memory.dir;
+  // the folder the hooks use, or their line refusing it: then no line below names that folder
+  const MEMFIX = `set memory.dir in .xworkflows/config.json to a folder inside the repository, then ${INSTALL}`;
+  const { dir: mem, line: memRefused } = memoryFolder(cfg, ROOT);
+  if (memRefused) say("fail", `${memRefused}: ${MEMFIX}`);
   const budget = cfg.tokens?.alwaysLoadedBytes ?? 24000;
   // 5
   let command;
@@ -739,8 +741,8 @@ async function doctor(flags) {
     }
   };
   load(join(ROOT, "CLAUDE.md"));
-  const mem = join(ROOT, memDir, "MEMORY.md");
-  if (existsSync(mem) && !seen.has(mem)) { seen.add(mem); bytes += statSync(mem).size; }
+  const memFile = mem && join(ROOT, mem, "MEMORY.md");
+  if (memFile && existsSync(memFile) && !seen.has(memFile)) { seen.add(memFile); bytes += statSync(memFile).size; }
   say(bytes > budget ? "fail" : "ok", `always-loaded: ${bytes} bytes of ${budget}${bytes > budget ? ": shorten CLAUDE.md, AGENTS.md and what they import, or raise tokens.alwaysLoadedBytes in .xworkflows/config.json" : ""}`);
   // 7
   const has = (cmd) => spawnSync("sh", ["-c", `command -v ${cmd}`]).status === 0;
@@ -775,12 +777,9 @@ async function doctor(flags) {
     // a memory.index that is not text would reach qmd as an argument: say so, and use qmd's default index
     let idx = conf.memory.index;
     if (idx && typeof idx !== "string") { say("fail", "memory.index must be text: set it in .xworkflows/config.json, or take it out for qmd's default index"); idx = undefined; }
-    const named = memName(memDir), mem = named ?? memDir;
-    // install writes no folder and no yml for a memory.dir outside the repository
-    const MEMFIX = `set memory.dir in .xworkflows/config.json to a folder inside the repository, then ${INSTALL}`;
     if (!has("qmd")) say("fail", "qmd command is missing: npm install -g @tobilu/qmd");
-    else if (!existsSync(join(ROOT, mem))) say("warn", `no memory folder yet: ${mem}: ${named ? INSTALL : MEMFIX}`);
-    else {
+    else if (mem && !existsSync(join(ROOT, mem))) say("warn", `no memory folder yet: ${mem}: ${INSTALL}`);
+    else if (mem) {
       const abs = resolve(ROOT, mem);
       const q = (...a) => spawnSync("qmd", [...(idx ? ["--index", idx] : []), "collection", ...a], { cwd: ROOT, encoding: "utf8", timeout: TIMEOUT });
       const qcmd = `qmd${idx ? ` --index ${sh(idx)}` : ""}`;
@@ -798,7 +797,7 @@ async function doctor(flags) {
           return t && (abs === t || abs.startsWith(t + "/"));
         });
         const yml = localYml(ROOT);
-        const why = idx ? `${qcmd} collection add ${sh(mem)}` : !named ? MEMFIX : !yml ? INSTALL : (read(ROOT, yml) ?? "").includes(abs) ? `this qmd does not read ${yml}, which names it: npm install -g @tobilu/qmd@latest` : `${yml} names no collection with the path ${abs}; add one, or delete .qmd and run install again`;
+        const why = idx ? `${qcmd} collection add ${sh(mem)}` : !yml ? INSTALL : (read(ROOT, yml) ?? "").includes(abs) ? `this qmd does not read ${yml}, which names it: npm install -g @tobilu/qmd@latest` : `${yml} names no collection with the path ${abs}; add one, or delete .qmd and run install again`;
         say(covers ? "ok" : "fail", covers ? `qmd collection covers ${mem}` : `no qmd collection covers ${mem}: ${why}`);
       }
     }
@@ -832,16 +831,16 @@ async function doctor(flags) {
     say(bytes > sb ? "fail" : "ok", `session-start text: ${bytes} bytes of ${sb}${bytes > sb ? ": raise tokens.sessionStartBytes in .xworkflows/config.json or cut what the hook prints" : ""}`);
     const ai = st.attribution && typeof st.attribution === "object" ? [st.attribution.commit, st.attribution.pr].some((x) => x) : !!st.attribution;
     if (ai) say("warn", 'attribution in .claude/settings.json shows an AI line: set "attribution" to {"commit": "", "pr": ""} there');
-    const amd = local.autoMemoryDirectory, abs = resolve(ROOT, mem);
-    try {
-      const where = real(abs), base = real(ROOT);
-      if (where !== base && !where.startsWith(base + sep)) say("warn", 'the memory folder is outside the repository: qmd indexes it only after "qmd trust" is run here');
-      // a write there is refused unless memory.outside lists the real path: the same line the hooks refuse with
-      const refused = outsideLine(ROOT, join(mem, "MEMORY.md"), conf.memory?.outside);
-      if (where !== base && !where.startsWith(base + sep) && refused) say("warn", refused);
-    } catch {}
-    if (amd === undefined) say("warn", `autoMemoryDirectory is not set in .claude/settings.local.json: add "autoMemoryDirectory": "${abs}" to it`);
-    else if (typeof amd !== "string" || !(resolve(ROOT, amd) + sep).startsWith(abs + sep)) say("warn", `autoMemoryDirectory is not the memory folder ${mem}: set it to "${abs}" in .claude/settings.local.json`);
+    const amd = local.autoMemoryDirectory, abs = mem && resolve(ROOT, mem);
+    if (mem) {
+      // a link out that memory.outside lists
+      try {
+        const where = real(abs), base = real(ROOT);
+        if (where !== base && !where.startsWith(base + sep)) say("warn", 'the memory folder is outside the repository: qmd indexes it only after "qmd trust" is run here');
+      } catch {}
+      if (amd === undefined) say("warn", `autoMemoryDirectory is not set in .claude/settings.local.json: add "autoMemoryDirectory": "${abs}" to it`);
+      else if (typeof amd !== "string" || !(resolve(ROOT, amd) + sep).startsWith(abs + sep)) say("warn", `autoMemoryDirectory is not the memory folder ${mem}: set it to "${abs}" in .claude/settings.local.json`);
+    }
     for (const n of Object.keys(conf.packs).filter((n) => run.PACKS.includes(n))) {
       let tool;
       try { tool = (await mod(`checks/packs/${n}.mjs`)).TOOL; } catch { continue; }
@@ -901,7 +900,7 @@ function uninstall() {
   const wants = settingsWants(manifest);
   const giLines = new Set([".xworkflows/", ...[...wanted.keys()].map(giLine).filter(Boolean)]);
   let md = null;
-  try { md = memName(loadConfig(ROOT).memory.dir); } catch {}
+  try { md = memoryFolder(loadConfig(ROOT), ROOT).dir; } catch {}
 
   // the marker, not the record, says this checkout's install wrote the yml: only install's exact text is the marker
   let marked = false;
