@@ -51,13 +51,10 @@ function start(ev, ctx) {
       lines.push(`Goals written ${months} months ago: run /adapt to refresh them.`);
     }
   }
-  const dir = dirOf(config), flat = path.posix.normalize(dir.trim());
-  // a folder the config's own rule refuses has no link and no parent to list: the link line below would name "/" or the parent of the repository
-  if (memoryDir(dir) === null && (flat.startsWith("/") || flat === ".." || flat.startsWith("../"))) lines.push(`memory.dir ${dir} is outside the repository: ask the owner, and set it to a folder inside the repository.`);
-  else {
-    const refused = ctx.outsideLine?.(path.join(dir, "MEMORY.md")); // the index write of session end is refused for this: say it
-    if (refused) lines.push(refused);
-  }
+  const dir = dirOf(config);
+  // the rule of the index write at session end decides whether to speak; a text outside has no link and no parent to list, so it gets its own words
+  const refused = ctx.outsideLine?.(path.join(dir, "MEMORY.md"));
+  if (refused) lines.push(memoryDir(dir) === null ? `memory.dir ${dir} is outside the repository: ask the owner, and set it to a folder inside the repository.` : refused);
   const idx = config.lookup?.index;
   if (Array.isArray(config.paths.code) && config.paths.code.length && idx?.command) {
     const graph = ctx.mtime(path.join(idx.folder, "graph.json"));

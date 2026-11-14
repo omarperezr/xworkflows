@@ -288,6 +288,18 @@ test("sessionStart: a memory.dir outside the repository names the value, asks th
   }
 });
 
+test("sessionStart: a memory.dir outside the repository and listed under memory.outside says nothing, the rule of the write", () => {
+  for (const sub of ["abs", "../notes"]) {
+    const top = realpathSync(mkdtempSync(join(tmpdir(), "xwf-mem-"))), root = join(top, "repo");
+    mkdirSync(root);
+    mkdirSync(join(top, "notes"));
+    const dir = sub === "abs" ? join(top, "notes") : sub;
+    const at = (outside) => decide(ev("sessionStart", { source: "startup", root }), makeCtx({ root, session: "s" }, { env: {}, config: { ...DEFAULTS, memory: { dir, outside } }, stateDir: root }));
+    assert.equal(at([join(top, "notes")]).context, undefined, sub);
+    assert.match(at([]).context, /ask the owner/, sub);
+  }
+});
+
 test("a memory.dir that is a number or a list is read as the default at session end and at a note's write, and does not throw", () => {
   for (const dir of [5, ["docs/memory"]]) {
     const root = mkdtempSync(join(tmpdir(), "xwf-mem-"));
