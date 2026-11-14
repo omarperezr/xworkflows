@@ -1,29 +1,30 @@
-import { test } from "node:test";
+import { test, after } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, utimesSync, cpSync, rmSync, realpathSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, appendFileSync, utimesSync, cpSync, rmSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { mask, run } from "./extract.mjs";
 import { shared } from "./shared.mjs";
 
-const tmp = () => mkdtempSync(join(tmpdir(), "dream-x-"));
+const made = [];
+const tmp = () => { const d = mkdtempSync(join(tmpdir(), "dream-x-")); made.push(d); return d; };
+after(() => { for (const d of made) rmSync(d, { recursive: true, force: true }); });
 const user = (text, timestamp) => JSON.stringify({ type: "user", timestamp, message: { content: text } });
 const asst = (text, timestamp) => JSON.stringify({ type: "assistant", timestamp, message: { content: [{ type: "text", text }, { type: "tool_use", name: "Bash", input: { command: "ls" } }] } });
 const day = (n) => `2030-01-0${n}T10:00:00.000Z`;
+const parse = (r) => { const json = r.stdout.startsWith("{") ? JSON.parse(r.stdout) : null; if (json?.out) made.push(json.out); return { ...r, json }; };
 
-// a fake repository root with one memory note, a sessions folder and an out folder
+// a fake repository root with one memory note and a sessions folder
 function world({ notes = true, config } = {}) {
-  const root = tmp(), sessions = tmp(), out = tmp();
+  const root = tmp(), sessions = tmp();
   if (notes) { mkdirSync(join(root, "docs/memory"), { recursive: true }); writeFileSync(join(root, "docs/memory/a.md"), "note"); writeFileSync(join(root, "docs/memory/MEMORY.md"), "index"); }
   if (config) { mkdirSync(join(root, ".xworkflows")); writeFileSync(join(root, ".xworkflows/config.json"), JSON.stringify(config)); }
   const put = (name, ...lines) => writeFileSync(join(sessions, name + ".jsonl"), lines.join("\n") + "\n");
-  const go = (...extra) => {
-    const r = run([...extra, "--sessions", sessions, "--out", out, "--current", "none"], {}, root, tmp());
-    return { ...r, json: r.stdout.startsWith("{") ? JSON.parse(r.stdout) : null };
-  };
-  return { root, sessions, out, put, go };
+  const state = (s) => writeFileSync(join(root, "docs/memory/dream.json"), typeof s === "string" ? s : JSON.stringify(s));
+  const go = (...extra) => parse(run([...extra, "--sessions", sessions, "--current", "none"], {}, root, tmp()));
+  return { root, sessions, put, state, go };
 }
 
 test("sessions come oldest first by their first timestamp, not by name", () => {
@@ -32,9 +33,19 @@ test("sessions come oldest first by their first timestamp, not by name", () => {
   w.put("z-early", user("first", day(1)));
   const { json } = w.go();
   assert.deepEqual(json.sessions.map((s) => s.name), ["z-early", "a-late"]);
-  assert.deepEqual(json.last, { name: "a-late", time: day(2) });
+  assert.deepEqual(json.sessions.map((s) => s.lines), [1, 1]);
+  assert.equal(json.last, undefined);
   assert.equal(readFileSync(json.sessions[0].file, "utf8"), "user: first");
   assert.equal(json.notes, 1);
+});
+
+test("the printed object is also written into the out folder as extract.json", () => {
+  const w = world();
+  w.put("s", user("t", day(1)));
+  const { stdout, json } = w.go();
+  assert.ok(!json.out.startsWith(w.root));
+  assert.deepEqual(JSON.parse(readFileSync(join(json.out, "extract.json"), "utf8")), json);
+  assert.equal(JSON.parse(stdout).out, json.out);
 });
 
 test("a session with no timestamp falls back to the modification time", () => {
@@ -50,8 +61,40 @@ test("the running session is skipped, by --current and by the environment", () =
   w.put("run", user("now", day(2)));
   w.put("past", user("then", day(1)));
   assert.deepEqual(w.go("--current", "run").json.sessions.map((s) => s.name), ["past"]);
-  const r = run(["--sessions", w.sessions, "--out", w.out], { CLAUDE_CODE_SESSION_ID: "past" }, w.root, tmp());
-  assert.deepEqual(JSON.parse(r.stdout).sessions.map((s) => s.name), ["run"]);
+  const r = parse(run(["--sessions", w.sessions], { CLAUDE_CODE_SESSION_ID: "past" }, w.root, tmp()));
+  assert.deepEqual(r.json.sessions.map((s) => s.name), ["run"]);
+});
+
+test("without the id of the running session it refuses with one line on standard error and exit 2", () => {
+  const w = world();
+  w.put("s", user("t", day(1)));
+  for (const [argv, env] of [[[], {}], [[], { CLAUDE_CODE_SESSION_ID: "" }], [["--current"], {}]]) {
+    const r = run(["--sessions", w.sessions, ...argv], env, w.root, tmp());
+    assert.equal(r.code, 2, JSON.stringify([argv, env]));
+    assert.equal(r.stdout, "");
+    assert.equal(r.stderr.trim().split("\n").length, 1);
+  }
+});
+
+test("a cap that is not a whole number above zero is refused with one line on standard error and exit 2", () => {
+  for (const cap of ["100", -5, 0, 1.5, null]) {
+    const w = world({ config: { dream: { maxExtractBytes: cap } } });
+    w.put("s", user("t", day(1)));
+    const r = w.go();
+    assert.equal(r.code, 2, String(cap));
+    assert.equal(r.stdout, "");
+    assert.match(r.stderr, /^[^\n]*maxExtractBytes[^\n]*\n$/);
+  }
+});
+
+test("a line of a side chain is dropped", () => {
+  const w = world();
+  w.put("s", user("main text", day(1)), JSON.stringify({ type: "user", isSidechain: true, timestamp: day(1), message: { content: "SIDE" } }));
+  w.put("agent-a", JSON.stringify({ type: "assistant", isSidechain: true, timestamp: day(2), message: { content: [{ type: "text", text: "SIDE" }] } }));
+  const { json } = w.go();
+  assert.equal(readFileSync(json.sessions[0].file, "utf8"), "user: main text");
+  assert.equal(json.sessions[0].lines, 2);
+  for (const s of json.sessions) assert.ok(!readFileSync(s.file, "utf8").includes("SIDE"));
 });
 
 test("a file in a sub-folder is not read", () => {
@@ -147,28 +190,63 @@ test("the cap: two sessions fit, the third waits for the next run", () => {
   assert.equal(json.tokens, 50);
   assert.equal(json.left, 1);
   assert.equal(json.cut, false);
-  assert.equal(json.last.name, "s2");
 });
 
-test("one session bigger than the cap is taken alone, cut, and says so", () => {
+test("the cap cuts at a line: the session says how far it was read and the rest is read at the next run", () => {
+  const w = world({ config: { dream: { maxExtractBytes: 250 } } });
+  w.put("s1", user(body, day(1)), user(body, day(1)), user(body, day(1)));
+  w.put("s2", user(body, day(2)));
+  const first = w.go().json;
+  assert.deepEqual(first.sessions.map((s) => [s.name, s.lines, s.bytes]), [["s1", 2, 201]]);
+  assert.equal(readFileSync(first.sessions[0].file, "utf8"), `user: ${body}\nuser: ${body}`);
+  assert.deepEqual([first.cut, first.left, first.bytes], [true, 2, 201]);
+  w.state({ sessions: { "s1.jsonl": 2 } });
+  const next = w.go().json;
+  assert.deepEqual(next.sessions.map((s) => [s.name, s.lines, s.bytes]), [["s1", 3, 100], ["s2", 1, 100]]);
+  assert.deepEqual([next.cut, next.left], [false, 0]);
+});
+
+test("one line bigger than the cap, first in the run, is taken cut at the cap", () => {
   const w = world({ config: { dream: { maxExtractBytes: 50 } } });
   w.put("s1", user(body, day(1)));
   w.put("s2", user(body, day(2)));
   const { json } = w.go();
-  assert.deepEqual(json.sessions.map((s) => s.name), ["s1"]);
+  assert.deepEqual(json.sessions.map((s) => [s.name, s.lines]), [["s1", 1]]);
   assert.equal(json.bytes, 50);
   assert.equal(json.cut, true);
   assert.equal(json.left, 1);
   assert.equal(readFileSync(json.sessions[0].file, "utf8").length, 50);
 });
 
-test("the last point of dream.json skips the sessions at or before it", () => {
+test("dream.json: each session is read from the line after the count it holds", () => {
   const w = world();
-  writeFileSync(join(w.root, "docs/memory/dream.json"), JSON.stringify({ name: "s2", time: day(2) }));
-  for (const n of [1, 2, 3]) w.put("s" + n, user("t" + n, day(n)));
+  w.put("s1", user("t1", day(1)), user("t1 more", day(5)));
+  w.put("s2", user("t2", day(2)));
+  w.put("s3", user("t3", day(3)));
+  w.state({ sessions: { "s1.jsonl": 1, "s2.jsonl": 1 } });
   const { json } = w.go();
-  assert.deepEqual(json.sessions.map((s) => s.name), ["s3"]);
+  assert.deepEqual(json.sessions.map((s) => [s.name, s.lines]), [["s3", 1], ["s1", 2]]); // s1 by the time of its first unread line
+  assert.equal(readFileSync(json.sessions[1].file, "utf8"), "user: t1 more");
   assert.equal(json.notes, 1);
+});
+
+test("an old-form or broken dream.json counts as no state", () => {
+  for (const s of [{ name: "s2", time: day(2) }, "{broken", { sessions: [1] }]) {
+    const w = world();
+    w.state(s);
+    for (const n of [1, 2]) w.put("s" + n, user("t" + n, day(n)));
+    assert.deepEqual(w.go().json.sessions.map((x) => x.name), ["s1", "s2"], JSON.stringify(s));
+  }
+});
+
+test("a last line still being written is not read yet", () => {
+  const w = world();
+  writeFileSync(join(w.sessions, "s.jsonl"), user("done", day(1)) + "\n" + user("half", day(1)).slice(0, 20));
+  const first = w.go().json;
+  assert.deepEqual([first.sessions[0].lines, first.skipped], [1, 0]);
+  w.state({ sessions: { "s.jsonl": 1 } });
+  appendFileSync(join(w.sessions, "s.jsonl"), user("half", day(1)).slice(20) + "\n");
+  assert.equal(readFileSync(w.go().json.sessions[0].file, "utf8"), "user: half");
 });
 
 test("no memory notes: an empty list with its reason, exit 0", () => {
@@ -181,11 +259,11 @@ test("no memory notes: an empty list with its reason, exit 0", () => {
 
 test("no new session: an empty list with its reason, exit 0", () => {
   const w = world();
-  writeFileSync(join(w.root, "docs/memory/dream.json"), JSON.stringify({ name: "s1", time: day(1) }));
+  w.state({ sessions: { "s1.jsonl": 1 } });
   w.put("s1", user("t", day(1)));
   const r = w.go();
   assert.equal(r.code, 0);
-  assert.deepEqual([r.json.sessions, r.json.reason, r.json.left], [[], "no new session", 0]);
+  assert.deepEqual([r.json.sessions, r.json.reason, r.json.left, r.json.out], [[], "no new session", 0, null]);
 });
 
 test("a broken line is skipped and counted, never thrown", () => {
@@ -196,46 +274,30 @@ test("a broken line is skipped and counted, never thrown", () => {
   assert.equal(readFileSync(json.sessions[0].file, "utf8"), "user: kept");
 });
 
-test("--out inside the repository is refused with one line and exit 2", () => {
-  const w = world();
-  w.put("s", user("t", day(1)));
-  const r = run(["--sessions", w.sessions, "--out", join(w.root, "inside"), "--current", "none"], {}, w.root, tmp());
-  assert.equal(r.code, 2);
-  assert.equal(r.stdout.trim().split("\n").length, 1);
-  assert.ok(!r.stdout.startsWith("{"));
-});
-
-test("without --out the files go to a new folder under the system temp folder", () => {
-  const w = world();
-  w.put("s", user("t", day(1)));
-  const r = run(["--sessions", w.sessions, "--current", "none"], {}, w.root, tmp());
-  const j = JSON.parse(r.stdout);
-  assert.ok(!j.out.startsWith(w.root));
-  assert.equal(readFileSync(j.sessions[0].file, "utf8"), "user: t");
-});
-
 test("without --sessions the folder is under home, named after the repository root", () => {
   const w = world(), home = tmp();
   const dir = join(home, ".claude", "projects", w.root.replace(/[^A-Za-z0-9]/g, "-"));
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, "s.jsonl"), user("from home", day(1)) + "\n");
-  const j = JSON.parse(run(["--out", w.out, "--current", "none"], {}, w.root, home).stdout);
+  const j = parse(run(["--current", "none"], {}, w.root, home)).json;
   assert.deepEqual(j.sessions.map((s) => s.name), ["s"]);
 });
 
-test("installed in a project, the script finds the method's shared code and prints its JSON", () => {
+test("installed in a project and started through a linked path, the script finds the method's shared code and prints its JSON", () => {
   const pkg = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
-  const proj = realpathSync(tmp()), sessions = tmp(), out = tmp(); // real path: the script's main guard compares URLs
-  try {
-    cpSync(join(pkg, "skills/dream"), join(proj, ".claude/skills/dream"), { recursive: true });
-    for (const d of ["hooks", "checks"]) cpSync(join(pkg, d), join(proj, ".xworkflows", d), { recursive: true });
-    execFileSync("git", ["init", "-q"], { cwd: proj });
-    mkdirSync(join(proj, "docs/memory"), { recursive: true });
-    writeFileSync(join(proj, "docs/memory/a.md"), "note");
-    writeFileSync(join(sessions, "s.jsonl"), user("hello", day(1)) + "\n");
-    const stdout = execFileSync("node", [join(proj, ".claude/skills/dream/extract.mjs"), "--sessions", sessions, "--current", "none", "--out", out], { cwd: proj, encoding: "utf8" });
-    assert.equal(JSON.parse(stdout).sessions.length, 1);
-  } finally { for (const d of [proj, sessions, out]) rmSync(d, { recursive: true, force: true }); }
+  const proj = tmp(), sessions = tmp(), link = join(tmp(), "link");
+  cpSync(join(pkg, "skills/dream"), join(proj, ".claude/skills/dream"), { recursive: true });
+  for (const d of ["hooks", "checks"]) cpSync(join(pkg, d), join(proj, ".xworkflows", d), { recursive: true });
+  execFileSync("git", ["init", "-q"], { cwd: proj });
+  mkdirSync(join(proj, "docs/memory"), { recursive: true });
+  writeFileSync(join(proj, "docs/memory/a.md"), "note");
+  writeFileSync(join(sessions, "s.jsonl"), user("hello", day(1)) + "\n");
+  symlinkSync(proj, link);
+  const r = parse(spawnSync("node", [join(link, ".claude/skills/dream/extract.mjs"), "--sessions", sessions, "--current", "none"], { cwd: link, encoding: "utf8" }));
+  assert.equal(r.status, 0);
+  assert.equal(r.json.sessions.length, 1);
+  const refused = spawnSync("node", [join(link, ".claude/skills/dream/extract.mjs"), "--sessions", sessions], { cwd: link, encoding: "utf8", env: { ...process.env, CLAUDE_CODE_SESSION_ID: "" } });
+  assert.deepEqual([refused.status, refused.stdout, refused.stderr.trim().split("\n").length], [2, "", 1]);
 });
 
 test("shared: in the package layout the module under the package root resolves", async () => {
