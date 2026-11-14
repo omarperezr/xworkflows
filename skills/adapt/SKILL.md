@@ -40,7 +40,7 @@ No questions in this step.
 6. The Workflow runs in the background: wait for its result, which arrives in a later turn. Run `rm -f .xworkflows/research.json` (the Write tool refuses to overwrite a file it has not read), then write the result unchanged (no field added, dropped or reordered) to `.xworkflows/research.json` with the Write tool.
 7. Run `node <base>/research.mjs render`. It verifies each citation and writes `.xworkflows/research.md`, `screens.json` and `details.md`. Never write those, `rules.json` or `scan.json` yourself; only their scripts do. On exit 1, read its message:
    - `research.json was altered`: run `rm -f .xworkflows/research.json`, write the Workflow result already in context to it again, unchanged, with the Write tool, and run `render` again. Rerun the Workflow (5 and 6) only if its result is no longer in context. At a second mismatch it prints `stop and tell the owner`: run `node <base>/research.mjs done`, stop and tell the owner.
-   - From `done`, `the summary on disk is not the one written with the Write tool`: write the whole summary again with the Write tool, then run `node <base>/research.mjs done` again.
+   - From `done`, `the summary on disk is not the one written with the Write tool`: write the whole summary again with the Write tool, then run `node <base>/research.mjs done` again. At a second refusal, stop and tell the owner what it printed.
    - Anything else (an agent returned nothing, a citation that did not hold): rerun the Workflow once. If `render` fails again, run `node <base>/research.mjs done`, stop and tell the owner what it printed.
 8. With the argument `research-only`, run `node <base>/research.mjs done` and stop here: tell the owner the path of `research.md`. No `queue`.
 9. Run `node <base>/research.mjs queue`. It writes `.xworkflows/interview.json`, the questions of step 3, built from the three screens of `screens.json`.
@@ -160,12 +160,12 @@ What each answer writes (the playback shows it, step 4 writes it):
 
 Then commit, without asking (the owner already approved the content):
 
-1. Append `graphify-out/`, `.xworkflows/research.md`, `.xworkflows/research.json`, `.xworkflows/research.prev.json`, `.xworkflows/scan.json`, `.xworkflows/interview.json`, `.xworkflows/interview.log.jsonl`, `.xworkflows/adapt-run.json`, `.xworkflows/rules.json`, `.xworkflows/screens.json` and `.xworkflows/details.md` and `.xworkflows/research.answered.json` to `.gitignore` (create it if missing), only the lines not already there.
-2. `git add` each repository file written above by explicit path, plus `.graphifyignore` and `.gitignore`. Never `git add .` or `-A`. Never `~/.xworkflows/owner.md` or a path just appended to `.gitignore`.
-3. `git commit -m "chore: adapt xworkflows to this project" -- <the same paths>`, so files the owner staged before stay out. No AI author or co-author line. No push.
-4. Show the owner the commit's short sha and its file list.
-5. If an installer file (the `files` keys and `created` list in `.xworkflows/installed.json`) is still uncommitted, tell the owner which ones. Do not commit them.
-6. Run `node <base>/research.mjs done`. It ends the adapt run.
+1. Run `node <base>/research.mjs done`. It ends the adapt run, and it runs first because it judges the summary as the Write tool wrote it, before a commit hook can reformat it.
+2. Append `graphify-out/`, `.xworkflows/research.md`, `.xworkflows/research.json`, `.xworkflows/research.prev.json`, `.xworkflows/scan.json`, `.xworkflows/interview.json`, `.xworkflows/interview.log.jsonl`, `.xworkflows/adapt-run.json`, `.xworkflows/rules.json`, `.xworkflows/screens.json` and `.xworkflows/details.md` and `.xworkflows/research.answered.json` to `.gitignore` (create it if missing), only the lines not already there.
+3. `git add` each repository file written above by explicit path, plus `.graphifyignore` and `.gitignore`. Never `git add .` or `-A`. Never `~/.xworkflows/owner.md` or a path just appended to `.gitignore`.
+4. `git commit -m "chore: adapt xworkflows to this project" -- <the same paths>`, so files the owner staged before stay out. No AI author or co-author line. No push.
+5. Show the owner the commit's short sha and its file list.
+6. If an installer file (the `files` keys and `created` list in `.xworkflows/installed.json`) is still uncommitted, tell the owner which ones. Do not commit them.
 
 ## Step 5: Next
 
