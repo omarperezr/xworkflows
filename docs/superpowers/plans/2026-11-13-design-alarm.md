@@ -97,6 +97,19 @@ Possible design error in `skills/design-alarm.test.mjs`
 - Cause: a test that looks for a text proves the text is there, never that a conflicting text is absent. A stop sentence added outside the pinned texts still passes.
 - Design: pin the whole section Review, from its heading to the next one, as one exact text. About 19 lines copied; every rewording then edits the test too.
 
+### Batch 2: `design-alarm-2`
+
+Card P-127: the four findings of the confirmation at `741d957` that do not block. The owner, 2026-11-14: "Aplicarlos en un mini-lote". With it the owner settles the two older tests that the block test made redundant: they go. If the review of this batch brings only more points of wording, they become cards and the text is left alone.
+
+**H1: the scope of the two bullets is named, the design document follows, and the test pins the whole section** (card P-127)
+- Files: `skills/orchestrate/SKILL.md`, `skills/design-alarm.test.mjs`, `docs/design.md`
+- Role: implement
+- Done: `node --test skills/design-alarm.test.mjs` passes, and it fails for a sentence added anywhere in the section Review.
+
+### Batch 2, review at `66f871b`
+
+No blocking finding. The four points of card P-127 are closed. Three points do not block: two of wording and one about two tests the whole-section test made redundant. By the owner's word for this batch they are a card, P-132, and the text is left alone.
+
 ## Review Focus
 
 - Every main session follows the `orchestrate` text to the letter: a sentence that reads two ways is followed the wrong way. A repeat must never read as a stop by itself; only the owner's answer holds a fix back.
@@ -106,3 +119,4 @@ Possible design error in `skills/design-alarm.test.mjs`
 
 ## Seals
 review ok at 741d957
+review ok at 66f871b
