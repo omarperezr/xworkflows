@@ -1,9 +1,9 @@
 // Opens the branch of a dream run in a worktree, and closes the run. No model.
 // Usage: node branch.mjs unseen | open
 //        node branch.mjs close --worktree <folder> --out <the extract's folder>
-import { readFileSync, readdirSync, writeFileSync, mkdtempSync, existsSync, realpathSync, rmSync, lstatSync } from "node:fs";
+import { readFileSync, readdirSync, writeFileSync, mkdtempSync, existsSync, realpathSync, rmSync, rmdirSync, lstatSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, dirname, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 import { shared } from "./shared.mjs";
@@ -16,8 +16,10 @@ const stale = await shared("checks/stale-memory.mjs");
 
 const MARK = "dream-open"; // in the worktree's own git folder: close takes only a worktree that open made
 const arg = (argv, k) => (argv.includes(k) ? argv[argv.indexOf(k) + 1] : undefined);
-// a link under the memory folder is never read or written through: it stays out of the commit and is named in outside
 const link = (p) => lstatSync(p, { throwIfNoEntry: false })?.isSymbolicLink() === true;
+// the one gate of every read and write of open and close: the real path of p's folder is that folder itself, under the real path base (no link on
+// the way, so never outside it), and p is no link. A file refused here stays out of the commit and is named in outside
+const mine = (base, p) => { try { const d = dirname(p); return realpathSync(d) === d && (d + sep).startsWith(base + sep) && !link(p); } catch { return false; } };
 
 export function run(argv, root) {
   const env = { ...process.env };
@@ -35,9 +37,13 @@ export function run(argv, root) {
   const main = config.mainBranch;
   const dir = memoryDir(config.memory.dir) ?? DEFAULTS.memory.dir;
   const out = (o) => ({ code: 0, stdout: JSON.stringify(o) + "\n" });
+  // a memory folder that is a link, or lies under one, could lead a run's writes outside its branch: refused before anything is written
+  const linked = (base) => (mine(base, join(base, dir)) ? null : { code: 2, stdout: `the memory folder ${dir} is a link: /dream cannot run here, its writes could leave the branch\n` });
 
   try {
     if (argv[0] === "unseen") { // the notes the run will not see: the worktree starts from main
+      const no = linked(realpathSync(root));
+      if (no) return no;
       const list = (...a) => git(root, ...a, "-z", "--", dir).split("\0").filter(Boolean);
       return out([...list("diff", "--name-only", "--no-renames", "--diff-filter=d", main), ...list("ls-files", "--others", "--exclude-standard")]);
     }
@@ -46,8 +52,10 @@ export function run(argv, root) {
       const base = `dream/${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
       let branch = base;
       for (let n = 2; tryGit(root, "rev-parse", "--verify", "--quiet", `refs/heads/${branch}`).code === 0; n++) branch = `${base}-${n}`;
+      const no = linked(realpathSync(root));
+      if (no) return no;
       const worktree = realpathSync(mkdtempSync(join(tmpdir(), "dream-")));
-      git(root, "worktree", "add", "-b", branch, worktree, main);
+      try { git(root, "worktree", "add", "-b", branch, worktree, main); } catch (e) { rmdirSync(worktree); throw e; } // only the empty folder it made
       writeFileSync(join(git(worktree, "rev-parse", "--absolute-git-dir"), MARK), `${branch}\n`);
       return out({ branch, worktree, memory: join(worktree, dir), main });
     }
@@ -65,11 +73,13 @@ export function run(argv, root) {
         .find((e) => e.branch && e.path === real);
       if (!entry || !existsSync(join(git(real, "rev-parse", "--absolute-git-dir"), MARK)))
         return { code: 2, stdout: `--worktree is not a worktree that open made in this repository: ${given}\n` };
+      const no = linked(real);
+      if (no) return no;
       const { branch } = entry, memory = join(real, dir), state = join(memory, "dream.json");
-      const { sessions = {} } = existsSync(state) && !link(state) ? JSON.parse(readFileSync(state, "utf8")) : {};
+      const { sessions = {} } = existsSync(state) && mine(real, state) ? JSON.parse(readFileSync(state, "utf8")) : {};
 
       const index = join(memory, "MEMORY.md");
-      if (existsSync(memory) && !link(index)) {
+      if (existsSync(memory) && mine(real, index)) {
         const files = readdirSync(memory, { withFileTypes: true }).filter((e) => e.isFile() && e.name.endsWith(".md") && e.name !== "MEMORY.md")
           .map(({ name: file }) => ({ file, text: readFileSync(join(memory, file), "utf8") }));
         const text = buildIndex(files);
@@ -77,7 +87,7 @@ export function run(argv, root) {
         try { old = readFileSync(index, "utf8"); } catch { /* no index yet */ }
         if (old !== text && (text || old !== null)) writeFileSync(index, text);
       }
-      if (!link(state)) writeFileSync(state, JSON.stringify({ sessions: { ...sessions, ...Object.fromEntries(extract.sessions.map((s) => [s.name, s.lines])) } }, null, 2) + "\n");
+      if (mine(real, state)) writeFileSync(state, JSON.stringify({ sessions: { ...sessions, ...Object.fromEntries(extract.sessions.map((s) => [s.name, s.lines])) } }, null, 2) + "\n");
 
       const date = /^dream\/(\d{4}-\d\d-\d\d)/.exec(branch)?.[1] ?? branch;
       git(real, "reset", "-q"); // the index holds only what this close stages
@@ -86,7 +96,7 @@ export function run(argv, root) {
       const masked = [];
       for (const l of git(real, "diff", "--cached", "--merge-base", main, "--no-renames", "--diff-filter=AMT", "--numstat", "-z", "--", dir).split("\0").filter(Boolean)) {
         const [a, , file] = l.split("\t");
-        if (a === "-" || link(join(real, file))) { git(real, "reset", "-q", "--", file); continue; }
+        if (a === "-" || !mine(real, join(real, file))) { git(real, "reset", "-q", "--", file); continue; }
         const [text, count] = mask(readFileSync(join(real, file), "utf8"));
         if (count) { writeFileSync(join(real, file), text); git(real, "add", "--", file); masked.push({ file, count }); }
       }

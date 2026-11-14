@@ -1,6 +1,6 @@
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync, realpathSync, symlinkSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync, existsSync, rmSync, realpathSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, relative, isAbsolute, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -273,4 +273,56 @@ test("close never reads or writes through a link under the memory folder, and na
   assert.deepEqual(links.map((name) => readFileSync(join(away, name))), before);
   assert.deepEqual(json(r).outside.sort(), links.map((name) => `docs/memory/${name}`).sort());
   assert.equal(git(root, "ls-tree", "--name-only", o.branch, "docs/memory/leak.md"), "");
+});
+
+// runs f with a temp folder of its own, so the folders open makes can be counted
+const ownTmp = (f) => {
+  const t = realpathSync(mkdtempSync(join(tmpdir(), "dream-b-tmp-"))), was = process.env.TMPDIR;
+  made.push(t);
+  process.env.TMPDIR = t;
+  try { return [f(), readdirSync(t)]; } finally { process.env.TMPDIR = was; }
+};
+const snapshot = (dir) => readdirSync(dir).sort().map((f) => [f, readFileSync(join(dir, f), "utf8")]);
+
+test("a memory folder that is a link to a folder outside cannot run: unseen, open and close refuse with one line and write nothing there", () => {
+  const root = repo();
+  const o = opened(root); // a run opened before the link came
+  const away = realpathSync(mkdtempSync(join(tmpdir(), "dream-b-away-")));
+  made.push(away);
+  writeFileSync(join(away, "a.md"), "---\nname: a\ndescription: away\n---\nbody\n");
+  rmSync(join(root, "docs/memory"), { recursive: true });
+  symlinkSync(away, join(root, "docs/memory"));
+  mkdirSync(join(root, ".xworkflows"));
+  writeFileSync(join(root, ".xworkflows/config.json"), JSON.stringify({ memory: { dir: "docs/memory", outside: [away] } }));
+  git(root, "add", "-A"); git(root, "commit", "-q", "-m", "notes outside");
+  const before = snapshot(away), branches = git(root, "branch", "--list", "dream/*");
+  for (const cmd of ["unseen", "open"]) {
+    const [r, folders] = ownTmp(() => run([cmd], root));
+    assert.equal(r.code, 2, r.stdout);
+    assert.match(r.stdout, /^the memory folder docs\/memory is a link: \/dream cannot run here/);
+    assert.equal(r.stdout.trim().split("\n").length, 1);
+    assert.deepEqual(folders, []);
+  }
+  assert.equal(git(root, "branch", "--list", "dream/*"), branches);
+  rmSync(join(o.worktree, "docs/memory"), { recursive: true });
+  symlinkSync(away, join(o.worktree, "docs/memory"));
+  writeFileSync(join(away, "b.md"), "---\nname: b\ndescription: new\n---\nbody\n");
+  const now = snapshot(away), out = extracted();
+  const r = run(["close", "--worktree", o.worktree, "--out", out], root);
+  assert.equal(r.code, 2, r.stdout);
+  assert.match(r.stdout, /^the memory folder docs\/memory is a link: \/dream cannot run here/);
+  assert.equal(r.stdout.trim().split("\n").length, 1);
+  assert.deepEqual(snapshot(away), now);
+  assert.notDeepEqual(now, before);
+  assert.equal(git(root, "rev-parse", o.branch), git(root, "rev-parse", "main~1"));
+  assert.ok(existsSync(out));
+});
+
+test("an open that fails leaves no folder behind", () => {
+  const root = repo();
+  mkdirSync(join(root, ".xworkflows"));
+  writeFileSync(join(root, ".xworkflows/config.json"), JSON.stringify({ mainBranch: "nope" }));
+  const [r, folders] = ownTmp(() => run(["open"], root));
+  assert.equal(r.code, 1, r.stdout);
+  assert.deepEqual(folders, []);
 });
