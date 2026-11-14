@@ -118,7 +118,7 @@ test("the two dream agents write only in the memory folder of a worktree that op
     symlinkSync(join(other, "missing.md"), join(x, mem, "gone.md")); // a link to a file not there yet
     writeFileSync(join(other, "real.md"), "x");
     symlinkSync(join(other, "real.md"), join(x, mem, "r.md"));
-    const w = (type, p, o = { content: "x" }) => decide(ev("write", { isSubagent: true, agent: type, writes: [{ path: p, ...o }] }), mk({ config }));
+    const w = (type, p, o = { content: "x" }) => decide(ev("write", { isSubagent: true, agent: type, writes: [{ path: p, ...o }] }), { ...mk({ config }), ...(type?.startsWith("xwf-") && { agentName: (r) => `xwf-${r}` }) }); // xwf-: ours was renamed
     const yes = [join(x, mem, "note.md"), join(x, mem, "new", "deeper", "n.md")];
     const no = ["/r/src/a.mjs", `/r/${mem}/n.md`, ".git/hooks/pre-push", ".claude/settings.json", join(other, "x.md"), join(x, "src", "a.mjs"), join(y, mem, "n.md"), join(z, mem, "n.md"), join(x, mem, "out", "x.md"), join(x, mem, "l.md"), `${x}/${mem}/out/../x.md`, `${x}/${mem}/../../src/a.mjs`, join(x, mem, "gone.md"), join(x, mem, "r.md"), join(x, mem)];
     for (const type of ["dream-analyzer", "dream-organizer", "xwf-dream-analyzer", "xwf-dream-organizer"]) {
@@ -131,6 +131,17 @@ test("the two dream agents write only in the memory folder of a worktree that op
   }
   for (const e of [{}, { writes: [{}] }, { writes: [{ path: 3 }] }])
     assert.ok(allowed(decide({ event: "preTool", kind: "write", root: "/r", isSubagent: true, agent: "dream-organizer", ...e }, mk())), JSON.stringify(e));
+});
+
+test("the dream rule knows the two agents by their installed names only", () => {
+  const w = (type, names) => decide(ev("write", { isSubagent: true, agent: type, writes: [{ path: "/r/reports/a.md", content: "x" }] }), { ...mk(), ...names });
+  const renamed = { agentName: (r) => `xwf-${r}` };
+  for (const id of ["dream-analyzer", "dream-organizer"]) {
+    assert.ok(allowed(w(id, renamed)), `the project's own ${id} is any other agent`);
+    assert.ok(denied(w(`xwf-${id}`, renamed), /only in the memory folder/), `ours, renamed xwf-${id}, is held`);
+    assert.ok(denied(w(id, {}), /only in the memory folder/), `ours, installed as ${id}, is held`);
+    assert.ok(allowed(w(`xwf-${id}`, {})), `xwf-${id} is not ours when ours is ${id}`);
+  }
 });
 
 test("risk reviewer needs a plan or spec in the prompt", () => {

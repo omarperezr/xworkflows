@@ -8,7 +8,6 @@ const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const list = (v) => (Array.isArray(v) && v.length ? v : null);
 const allow = { decision: "allow" };
 const lines = (s) => new Set(String(s ?? "").split("\n").map((l) => l.trim()));
-const DREAM = /^(xwf-)?dream-(analyzer|organizer)$/;
 // the real path; one that does not exist yet is its nearest existing parent's (lstat: a dangling link exists, and its realpath throws)
 const realOf = (p) => { const rest = []; while (p !== path.dirname(p)) { try { lstatSync(p); break; } catch { rest.unshift(path.basename(p)); p = path.dirname(p); } } return path.join(realpathSync(p), ...rest); };
 // under the memory folder of dream-<x> directly in the temp folder, whose .git file names a git folder that holds open's mark; files read only, no git
@@ -31,7 +30,9 @@ export function decide(ev, ctx) {
   const under = (p, prefixes) => { const r = rel(p); return !r.startsWith("..") && inPaths(r, prefixes); };
 
   if (ev.isSubagent) {
-    const away = DREAM.test(ev.agent ?? "") && (ev.writes ?? []).find((w) => typeof w?.path === "string" && !inRun(config, ev.root, w.path));
+    // the installed name is the id or xwf-<id>: an agent whose name ends otherwise costs no read
+    const dream = ["dream-analyzer", "dream-organizer"].some((id) => String(ev.agent ?? "").endsWith(id) && ev.agent === (ctx.agentName?.(id) ?? id));
+    const away = dream && (ev.writes ?? []).find((w) => typeof w?.path === "string" && !inRun(config, ev.root, w.path));
     if (away) return deny(`${away.path}: ${ev.agent} writes only in the memory folder of the run's branch.`);
     const bad = (ev.writes ?? []).find((w) => under(w.path, config.paths.curated));
     return bad ? deny(`${bad.path} is curated by ${config.owner}: report the change you wanted instead.`) : allow;
