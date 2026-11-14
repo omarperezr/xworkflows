@@ -274,6 +274,20 @@ test("sessionStart: a memory.dir outside the repository, absolute or ../, says t
   }
 });
 
+test("sessionStart: a memory.dir outside the repository names the value, asks the owner, and speaks of no list or link", () => {
+  for (const sub of ["../notes", "/nowhere-xwf/notes", "abs-made"]) {
+    const top = realpathSync(mkdtempSync(join(tmpdir(), "xwf-mem-"))), root = join(top, "repo");
+    mkdirSync(root);
+    const dir = sub === "abs-made" ? join(top, "notes") : sub;
+    if (sub === "abs-made") mkdirSync(dir);
+    const r = decide(ev("sessionStart", { source: "startup", root }), makeCtx({ root, session: "s" }, { env: {}, config: { ...DEFAULTS, memory: { dir, outside: [] } }, stateDir: root }));
+    assert.ok(r.context.includes(dir), sub);
+    assert.match(r.context, /ask the owner/, sub);
+    assert.doesNotMatch(r.context, /memory\.outside|link/, sub);
+    assert.ok(!r.context.includes(top + "\n") && !/ \/ /.test(r.context), sub);
+  }
+});
+
 test("a memory.dir that is a number or a list is read as the default at session end and at a note's write, and does not throw", () => {
   for (const dir of [5, ["docs/memory"]]) {
     const root = mkdtempSync(join(tmpdir(), "xwf-mem-"));

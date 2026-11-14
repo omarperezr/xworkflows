@@ -1,5 +1,5 @@
 import path from "node:path";
-import { DEFAULTS } from "./config.mjs";
+import { DEFAULTS, memoryDir } from "./config.mjs";
 import { buildIndex, header } from "./memory-index.mjs";
 
 const OWNER_ONLY = new Set(["user", "feedback"]);
@@ -51,8 +51,13 @@ function start(ev, ctx) {
       lines.push(`Goals written ${months} months ago: run /adapt to refresh them.`);
     }
   }
-  const refused = ctx.outsideLine?.(path.join(dirOf(config), "MEMORY.md")); // the index write of session end is refused for this: say it
-  if (refused) lines.push(refused);
+  const dir = dirOf(config), flat = path.posix.normalize(dir.trim());
+  // a folder the config's own rule refuses has no link and no parent to list: the link line below would name "/" or the parent of the repository
+  if (memoryDir(dir) === null && (flat.startsWith("/") || flat === ".." || flat.startsWith("../"))) lines.push(`memory.dir ${dir} is outside the repository: ask the owner, and set it to a folder inside the repository.`);
+  else {
+    const refused = ctx.outsideLine?.(path.join(dir, "MEMORY.md")); // the index write of session end is refused for this: say it
+    if (refused) lines.push(refused);
+  }
   const idx = config.lookup?.index;
   if (Array.isArray(config.paths.code) && config.paths.code.length && idx?.command) {
     const graph = ctx.mtime(path.join(idx.folder, "graph.json"));
