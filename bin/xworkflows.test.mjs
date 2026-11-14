@@ -2575,17 +2575,28 @@ test("doctor: a pre-push hook it cannot read gives a fail line and doctor ends w
   chmodSync(hook, 0o755);
   assert.equal(out.stderr, "");
   assert.equal(out.status, 1);
-  assert.match(out.stdout, /^fail doctor stopped: EACCES/m);
+  // P-131: the last catch ends with a command, the one that shows where doctor stopped
+  assert.match(out.stdout, /^fail doctor stopped: EACCES.*: run xworkflows doctor --trace to see the stack$/m);
   assert.match(out.stdout, ENDS);
+  chmodSync(hook, 0o000);
+  const traced = cli(r, ["doctor", "--trace"], { env: { PATH: GOOD, HOME: EMPTY_HOME } });
+  chmodSync(hook, 0o755);
+  assert.match(traced.stderr, /EACCES[^]*\n +at /, traced.stderr);
+  assert.match(traced.stdout, ENDS);
+  assert.equal(cli(r, ["install", "--trace"]).status, 2);
 });
-test("doctor: a config section set to null, or a config file holding null, gives fail lines and doctor ends with its count, no stack trace", () => {
+// P-131: the loader names the section; doctor's line for the config gives the fix, and the last catch is not reached
+test("doctor: a config section that is not an object, or a config file holding null, gives a line naming the file, the section and the fix, and doctor ends with its count", () => {
   const r = repo(); cli(r, ["install"]);
-  for (const text of ['{"memory":null}', '{"paths":null}', '{"tokens":null}', '{"packs":null}', "null"]) {
+  const section = (k) => `fail config: .xworkflows/config.json: ${k} must be an object: make it an object, or take it out of .xworkflows/config.json`;
+  for (const [text, line] of [['{"memory":null}', section("memory")], ['{"paths":null}', section("paths")], ['{"tokens":5}', section("tokens")], ['{"packs":[]}', section("packs")], ['{"tests":"x"}', section("tests")],
+    ["null", "fail config: .xworkflows/config.json does not parse: not a JSON object: fix the JSON of .xworkflows/config.json"]]) {
     writeFileSync(join(r, ".xworkflows/config.json"), text);
     const out = doctor(r);
     assert.equal(out.stderr, "", text);
     assert.equal(out.status, 1, text);
-    assert.match(out.stdout, /^fail doctor stopped: /m, text);
+    assert.ok(out.stdout.split("\n").includes(line), out.stdout);
+    assert.doesNotMatch(out.stdout, /doctor stopped/, text);
     assert.match(out.stdout, ENDS, text);
   }
 });
