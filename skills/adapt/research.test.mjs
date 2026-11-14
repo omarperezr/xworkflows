@@ -25,7 +25,7 @@ function repo() {
   mkdirSync(join(d, ".xworkflows"));
   return d;
 }
-const cli = (d, cmd) => spawnSync("node", [MJS, cmd], { cwd: d, encoding: "utf8" });
+const cli = (d, cmd, env = {}) => spawnSync("node", [MJS, cmd], { cwd: d, encoding: "utf8", env: { ...process.env, XWORKFLOWS_FREE: "", ...env } });
 const rj = (d, f) => JSON.parse(readFileSync(join(d, ".xworkflows", f), "utf8"));
 const rt = (d, f) => readFileSync(join(d, ".xworkflows", f), "utf8");
 const X = (d, f) => join(d, ".xworkflows", f);
@@ -135,6 +135,17 @@ test("done refuses an approved summary when no Write of it was kept", () => {
   assert.equal(r.status, 1);
   assert.match(r.stderr, NOT_WRITTEN);
   assert.ok(!existsSync(X(d, "research.prev.json")));
+});
+
+test("with XWORKFLOWS_FREE, done skips the summary check as the gate does and says so", () => {
+  const d = repo();
+  writeFileSync(X(d, "research.json"), '{"x":1}');
+  cli(d, "start");
+  writeFileSync(X(d, "summary.md"), "---\nstatus: approved\n---\n");
+  const r = cli(d, "done", { XWORKFLOWS_FREE: "1" });
+  assert.deepEqual([r.status, r.stderr], [0, "xworkflows: research.mjs done: the summary check skipped by XWORKFLOWS_FREE\n"]);
+  assert.equal(readFileSync(X(d, "research.prev.json"), "utf8"), '{"x":1}');
+  assert.ok(!existsSync(X(d, "adapt-run.json")));
 });
 
 test("an interrupted first adapt keeps its run; a lost run file is found in the log", () => {

@@ -193,7 +193,8 @@ function cli(cmd, root) {
     try { r = readJson(runFile); } catch {}
     if (r && statusOf(summary) === "approved" && statSync(summary).mtimeMs + 2000 >= r.startedAt && existsSync(join(dir, "research.json"))) {
       // the adapt-gates hook kept the hash of the last summary Write it allowed; any other text on disk came another way
-      if (r.summarySha !== createHash("sha256").update(readFileSync(summary)).digest("hex")) {
+      if (process.env.XWORKFLOWS_FREE) process.stderr.write("xworkflows: research.mjs done: the summary check skipped by XWORKFLOWS_FREE\n");
+      else if (r.summarySha !== createHash("sha256").update(readFileSync(summary)).digest("hex")) {
         console.error("adapt: the summary on disk is not the one written with the Write tool; write it again with Write, then run research.mjs done again");
         process.exit(1);
       }
