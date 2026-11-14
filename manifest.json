@@ -74,9 +74,9 @@
         }
       ],
       "files": {
-        "hooks/core/adapt-gates.mjs": "e90a3d1500ce3e59ce8b329a715bfd0cb58aed48313b9c8bc78f06e6f0469b95"
+        "hooks/core/adapt-gates.mjs": "d1ac987c691d8322c7391e8a4045af9adeac4ce6a94a691cb3cdd68a879be407"
       },
-      "sha256": "dc8ddb2117d0e1441552d01b4e183b310683836857770c80739be929bbd3bcfd"
+      "sha256": "913b3479ada56045b99d00d2d353510abf6801310957ba47db8d991480604b98"
     },
     {
       "id": "adapt-record",
@@ -261,14 +261,14 @@
         ]
       },
       "files": {
-        "skills/adapt/SKILL.md": "d520ba22f1e25ffcec0b9bd66e12a629f34e017516e94868ed4e449e5d3410da",
+        "skills/adapt/SKILL.md": "2dcc7b45518703641ae77d5c5a6932c6e826737ca905530dc045d437122509e9",
         "skills/adapt/scan.mjs": "c7d9a47a268cdf6135057da9eb267826b3d5df6df574b7fc206daccacfe401e9",
         "skills/adapt/rules.mjs": "736bb9ee53874d8c9447ab4107780d9b8f5733cee26597dae96862d43d37bde2",
         "skills/adapt/research.workflow.js": "c7d72c728a5eef056d9a23f56d3334b6f2400fa9730cb96dfcad23dadd579daa",
-        "skills/adapt/research.mjs": "6a2e14b49e16dd31037ebb6cadfe575b41544584d538d0462d9542e342273ae0",
+        "skills/adapt/research.mjs": "fc2540ae234ca560fa4d14f1adf01664ffb4fae157e226dbf29af1a430d82927",
         "skills/adapt/screens.mjs": "0a0f3698ea1e41ebae375416e52eac0df90e8d644f8b452c44e9fe702bc34cdc"
       },
-      "sha256": "1c113fb6171636ef22ec78ec41a6eaf42f4591487ad1658e6debba2369210f16"
+      "sha256": "be317615c41dd95703ea8a31c5b6108f4e1c3dc67be4698612278d60dbf2cdff"
     },
     {
       "id": "full-review",
@@ -377,10 +377,10 @@
         }
       ],
       "files": {
-        "hooks/core/memory.mjs": "c139f32942f7d853c69c8cee94f1eef8c238e440642ebad416256a934409b0c0",
+        "hooks/core/memory.mjs": "906f423d73f6ace5b772347c5f2fb926311e00cf4663930049b6417612ffb32a",
         "hooks/core/memory-index.mjs": "ed9d990262ae86bfb68b63b7c34e6594e3239460136907fbb376011990898006"
       },
-      "sha256": "793b32d99a8bd7459034cf1f46fc39d8f55580b5ce1058910ced599d3a61ea16"
+      "sha256": "bf8411385bf6914e0f8e46c5889a4442b9723d808754a4d15cfe992033d8f2d4"
     },
     {
       "id": "modes",
