@@ -131,6 +131,22 @@ test("a note the run did not change is not read again nor rewritten", () => {
   assert.deepEqual(c.look, []);
 });
 
+test("a note of type user or feedback that the run added or changed is not committed, nor in the index, and is named in outside", () => {
+  const root = repo();
+  const main = git(root, "show", "main:docs/memory/MEMORY.md");
+  const o = opened(root);
+  writeFileSync(join(o.memory, "f.md"), "---\nname: f\ndescription: the owner wants short answers\ntype: feedback\n---\nbody\n");
+  writeFileSync(join(o.memory, "a.md"), "---\nname: a\ndescription: first, now about the owner\nmetadata:\n  type: user\n---\nbody a\n");
+  const r = run(["close", "--worktree", o.worktree, "--out", extracted()], root);
+  assert.equal(r.code, 0, r.stdout);
+  const c = json(r);
+  assert.deepEqual(c.outside.sort(), ["docs/memory/a.md", "docs/memory/f.md"]);
+  assert.deepEqual([c.added, c.changed], [0, 0]);
+  assert.equal(git(root, "ls-tree", "--name-only", o.branch, "docs/memory/f.md"), "");
+  assert.equal(git(root, "show", `${o.branch}:docs/memory/a.md`), git(root, "show", "main:docs/memory/a.md"));
+  assert.equal(git(root, "show", `${o.branch}:docs/memory/MEMORY.md`), main);
+});
+
 test("a file changed outside the memory folder is named and not committed", () => {
   const root = repo();
   const o = opened(root);

@@ -1,7 +1,7 @@
 // Opens the branch of a dream run in a worktree, and closes the run. No model.
 // Usage: node branch.mjs unseen | open
 //        node branch.mjs close --worktree <folder> --out <the extract's folder>
-import { readFileSync, readdirSync, writeFileSync, mkdtempSync, existsSync, realpathSync, rmSync, rmdirSync, lstatSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdtempSync, existsSync, realpathSync, rmSync, rmdirSync, lstatSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname, sep } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -10,7 +10,7 @@ import { shared } from "./shared.mjs";
 import { shapes, suspect } from "./extract.mjs";
 
 const { load, memoryDir, DEFAULTS } = await shared("hooks/core/config.mjs");
-const { buildIndex } = await shared("hooks/core/memory-index.mjs");
+const { buildIndex, header } = await shared("hooks/core/memory-index.mjs");
 const { makeCtx, rangeFor } = await shared("checks/run.mjs");
 const stale = await shared("checks/stale-memory.mjs");
 
@@ -78,29 +78,32 @@ export function run(argv, root) {
       const { branch } = entry, memory = join(real, dir), state = join(memory, "dream.json");
       const { sessions = {} } = existsSync(state) && mine(real, state) ? JSON.parse(readFileSync(state, "utf8")) : {};
 
-      const index = join(memory, "MEMORY.md");
-      if (existsSync(memory) && mine(real, index)) {
-        const files = readdirSync(memory, { withFileTypes: true }).filter((e) => e.isFile() && e.name.endsWith(".md") && e.name !== "MEMORY.md")
-          .map(({ name: file }) => ({ file, text: readFileSync(join(memory, file), "utf8") }));
-        const text = buildIndex(files);
-        let old = null;
-        try { old = readFileSync(index, "utf8"); } catch { /* no index yet */ }
-        if (old !== text && (text || old !== null)) writeFileSync(index, text);
-      }
       if (mine(real, state)) writeFileSync(state, JSON.stringify({ sessions: { ...sessions, ...Object.fromEntries(extract.sessions.map((s) => [s.name, s.lines])) } }, null, 2) + "\n");
 
       const date = /^dream\/(\d{4}-\d\d-\d\d)/.exec(branch)?.[1] ?? branch;
       git(real, "reset", "-q"); // the index holds only what this close stages
       git(real, "add", "-A", "--", dir);
       // what the commit takes against main: sure shapes are masked, the lines the wide rule would touch are named in look; a binary file cannot be
-      // masked and a link is not followed, so they stay out and are named in outside
-      const masked = [], look = [], own = [`${dir}/MEMORY.md`, `${dir}/dream.json`]; // close's own files: their lines come from the notes and the sessions' names
+      // masked, a link is not followed and a note of type user or feedback is the owner's alone, so they stay out and are named in outside
+      const masked = [], look = [], index = `${dir}/MEMORY.md`;
       for (const l of git(real, "diff", "--cached", "--merge-base", main, "--no-renames", "--diff-filter=AMT", "--numstat", "-z", "--", dir).split("\0").filter(Boolean)) {
         const [a, , file] = l.split("\t");
         if (a === "-" || !mine(real, join(real, file))) { git(real, "reset", "-q", "--", file); continue; }
-        const [text, count] = shapes(readFileSync(join(real, file), "utf8"));
+        if (file === index) continue; // rebuilt below from the notes the commit takes
+        const raw = readFileSync(join(real, file), "utf8");
+        if (file.endsWith(".md") && ["user", "feedback"].includes(header(raw).type)) { git(real, "reset", "-q", "--", file); continue; }
+        const [text, count] = shapes(raw);
         if (count) { writeFileSync(join(real, file), text); git(real, "add", "--", file); masked.push({ file, count }); }
-        if (!own.includes(file)) look.push(...suspect(text).map((line) => ({ file, line })));
+        if (file !== `${dir}/dream.json`) look.push(...suspect(text).map((line) => ({ file, line }))); // close's own: the sessions' names
+      }
+      if (mine(real, join(real, index))) { // the index of the notes as the commit takes them
+        const files = git(real, "ls-files", "-s", "-z", "--", dir).split("\0").filter(Boolean).map((l) => l.split("\t"))
+          .filter(([m, f]) => m.startsWith("100") && f !== index && /^[^/]+\.md$/.test(f.slice(dir.length + 1)))
+          .map(([, f]) => ({ file: f.slice(dir.length + 1), text: git(real, "show", `:${f}`) }));
+        const text = buildIndex(files);
+        let old = null;
+        try { old = readFileSync(join(real, index), "utf8"); } catch { /* no index yet */ }
+        if (old !== text && (text || old !== null)) { writeFileSync(join(real, index), text); git(real, "add", "--", index); }
       }
       if (tryGit(real, "diff", "--cached", "--quiet").code === 1) {
         const c = tryGit(real, "commit", "-q", "-m", `dream: ${date}`); // the project's commit hooks run: never --no-verify
