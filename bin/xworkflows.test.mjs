@@ -2204,15 +2204,18 @@ function retiringCopy(retired) {
   writeFileSync(join(copy, "manifest.json"), JSON.stringify(m, null, 2) + "\n");
   return copy;
 }
-test("install removes only a file the manifest lists as retired with a listed hash; the record never decides", () => {
-  const copy = retiringCopy({ "skills/adapt/old.md": [sha("v1\n"), sha("v2\n")], "skills/adapt/edited.md": [sha("v1\n")] });
+test("install removes only a file the record holds that the manifest lists as retired with a listed hash; the record's hash never decides", () => {
+  const copy = retiringCopy({ "skills/adapt/old.md": [sha("v1\n"), sha("v2\n")], "skills/adapt/edited.md": [sha("v1\n")], "skills/adapt/stray.md": [sha("v1\n")] });
   const r = repo(); assert.equal(cliAt(copy, r, ["install", "--yes"]).status, 0);
-  const mine = ".claude/skills/mine/SKILL.md", conf = ".xworkflows/config.json", gone = ".claude/skills/adapt/old.md", edited = ".claude/skills/adapt/edited.md";
+  const mine = ".claude/skills/mine/SKILL.md", conf = ".xworkflows/config.json", gone = ".claude/skills/adapt/old.md", edited = ".claude/skills/adapt/edited.md", stray = ".claude/skills/adapt/stray.md";
   mkdirSync(join(r, ".claude/skills/mine"), { recursive: true });
   writeFileSync(join(r, mine), "mine\n"); writeFileSync(join(r, conf), "{}\n");
-  writeFileSync(join(r, gone), "v2\n"); writeFileSync(join(r, edited), "v1\nmine\n");
-  // a hand-edited record names the user's files with their own hashes; the retired file is not in it at all
-  withRecord(r, (rec) => { rec.files[mine] = { piece: "adapt", sha256: sha("mine\n") }; rec.files[conf] = { piece: "adapt", sha256: sha("{}\n") }; });
+  writeFileSync(join(r, gone), "v2\n"); writeFileSync(join(r, edited), "v1\nmine\n"); writeFileSync(join(r, stray), "v1\n");
+  // the record holds the retired file install wrote; a hand edit names the user's files with their own hashes; the stray file is not in it at all
+  withRecord(r, (rec) => {
+    rec.files[gone] = { piece: "adapt", sha256: sha("v2\n") };
+    for (const [p, t] of [[mine, "mine\n"], [conf, "{}\n"], [edited, "v1\nmine\n"]]) rec.files[p] = { piece: "adapt", sha256: sha(t) };
+  });
   const dry = cliAt(copy, r, ["install", "--yes", "--dry-run"]);
   assert.match(dry.stdout, new RegExp(`^would remove ${gone.replaceAll(".", "\\.")}$`, "m"));
   assert.ok(existsSync(join(r, gone)), "dry-run removes nothing");
@@ -2222,9 +2225,12 @@ test("install removes only a file the manifest lists as retired with a listed ha
   assert.equal(readFileSync(join(r, mine), "utf8"), "mine\n");
   assert.equal(readFileSync(join(r, conf), "utf8"), "{}\n");
   assert.equal(readFileSync(join(r, edited), "utf8"), "v1\nmine\n");
-  assert.match(out.stdout, new RegExp(`^kept \\(no longer shipped, changed locally\\): ${edited.replaceAll(".", "\\.")}$`, "m"));
+  assert.equal(readFileSync(join(r, stray), "utf8"), "v1\n");
+  assert.ok(!dry.stdout.includes(stray) && !out.stdout.includes(stray), out.stdout);
+  assert.equal(out.stdout.split("\n").filter((l) => l === `kept (no longer shipped, changed locally): ${edited}`).length, 1, out.stdout);
   const files = readJson(r, ".xworkflows/installed.json").files;
-  assert.ok(!(gone in files) && !(edited in files) && !(mine in files) && !(conf in files));
+  assert.ok(!(gone in files) && !(mine in files) && !(conf in files) && !(stray in files));
+  assert.ok(edited in files, "the kept file stays in the record, so the next install judges it again");
   assert.match(cliAt(copy, r, ["install", "--yes"]).stdout, /nothing to do/);
 });
 test("install does not throw on a null entry of the record's files: it counts as not recorded", () => {
@@ -2250,7 +2256,7 @@ test("install: a retired file alone in a folder of the package takes the folder;
   mkdirSync(join(r, unit), { recursive: true }); writeFileSync(join(r, unit, "SKILL.md"), "g\n");
   mkdirSync(join(r, sub), { recursive: true }); writeFileSync(join(r, sub, "x.mjs"), "x\n");
   appendFileSync(join(r, ".graphifyignore"), `${unit}/\n`);
-  withRecord(r, (rec) => { rec.imports.push({ file: ".graphifyignore", line: `${unit}/` }); rec.files[`${unit}/SKILL.md`] = { piece: "adapt", sha256: sha("g\n") }; });
+  withRecord(r, (rec) => { rec.imports.push({ file: ".graphifyignore", line: `${unit}/` }); rec.files[`${unit}/SKILL.md`] = { piece: "adapt", sha256: sha("g\n") }; rec.files[`${sub}/x.mjs`] = { piece: "hooks", sha256: sha("x\n") }; });
   const out = cliAt(copy, r, ["install", "--yes"]);
   assert.equal(out.status, 0, out.stderr);
   assert.ok(!existsSync(join(r, unit)) && !existsSync(join(r, sub)), "both folders are gone");
@@ -2281,6 +2287,62 @@ test("install: an upgrade whose record holds the file of a retired unit still re
   withRecord(r, (rec) => { rec.files[f] = { piece: "adapt", sha256: sha("g\n") }; });
   assert.equal(cliAt(copy, r, ["install", "--yes"]).status, 0);
   assert.ok(!existsSync(join(r, f)));
+});
+
+// a retired agent is a unit of one file; a retired file outside a unit is judged the same way
+const AGENT = ".claude/agents/gone.md", LOOSE = ".xworkflows/hooks/core/old.mjs";
+const retiringBoth = () => retiringCopy({ "agents/gone.md": [sha("a\n")], "hooks/core/old.mjs": [sha("a\n")] });
+// an earlier install wrote the retired agent: its file, its record entry and its line of .graphifyignore
+function upgradeWithAgent(text) {
+  const copy = retiringBoth();
+  const r = repo(); assert.equal(cliAt(copy, r, ["install", "--yes"]).status, 0);
+  writeFileSync(join(r, AGENT), text);
+  appendFileSync(join(r, ".graphifyignore"), `${AGENT}\n`);
+  withRecord(r, (rec) => { rec.files[AGENT] = { piece: "agents", sha256: sha("a\n") }; rec.imports.push({ file: ".graphifyignore", line: AGENT }); });
+  return { copy, r };
+}
+test("install: a retired agent the record holds, unchanged, is removed on an upgrade, and uninstall then leaves nothing of it", () => {
+  const { copy, r } = upgradeWithAgent("a\n");
+  const out = cliAt(copy, r, ["install", "--yes"]);
+  assert.equal(out.status, 0, out.stderr);
+  assert.ok(!existsSync(join(r, AGENT)));
+  assert.match(out.stdout, /^removed \.claude\/agents\/gone\.md$/m);
+  const rec = readJson(r, ".xworkflows/installed.json");
+  assert.ok(!(AGENT in rec.files) && !rec.imports.some((i) => i.line === AGENT));
+  assert.ok(!lines(r).includes(AGENT));
+  const un = cliAt(copy, r, ["uninstall"]);
+  assert.equal(un.status, 0, un.stderr);
+  assert.doesNotMatch(un.stdout, /gone\.md|kept \(not ours\)/);
+  assert.ok(!existsSync(join(r, AGENT)) && !(existsSync(join(r, ".graphifyignore")) && lines(r).includes(AGENT)));
+});
+test("install: a retired agent the record holds, changed locally, is kept, named once and stays in the record", () => {
+  const { copy, r } = upgradeWithAgent("a\nmine\n");
+  const out = cliAt(copy, r, ["install", "--yes"]);
+  assert.equal(out.status, 0, out.stderr);
+  assert.equal(readFileSync(join(r, AGENT), "utf8"), "a\nmine\n");
+  assert.equal(out.stdout.split("\n").filter((l) => l === `kept (no longer shipped, changed locally): ${AGENT}`).length, 1, out.stdout);
+  assert.ok(AGENT in readJson(r, ".xworkflows/installed.json").files);
+});
+test("install: a first install into a project with its own files at retired paths, with the published text, leaves them and names nothing", () => {
+  const r = repo({ [AGENT]: "a\n", [LOOSE]: "a\n" });
+  const out = cliAt(retiringBoth(), r, ["install", "--yes"]);
+  assert.equal(out.status, 0, out.stderr);
+  for (const f of [AGENT, LOOSE]) assert.equal(readFileSync(join(r, f), "utf8"), "a\n", f);
+  assert.doesNotMatch(out.stdout, /gone\.md|old\.mjs/);
+});
+test("install: a record edited by hand to name the user's files at retired paths with other content removes nothing", () => {
+  const copy = retiringBoth();
+  const r = repo(); assert.equal(cliAt(copy, r, ["install", "--yes"]).status, 0);
+  for (const f of [AGENT, LOOSE]) writeFileSync(join(r, f), "mine\n");
+  withRecord(r, (rec) => { for (const f of [AGENT, LOOSE]) rec.files[f] = { piece: "adapt", sha256: sha("mine\n") }; });
+  const out = cliAt(copy, r, ["install", "--yes"]);
+  assert.equal(out.status, 0, out.stderr);
+  const files = readJson(r, ".xworkflows/installed.json").files;
+  for (const f of [AGENT, LOOSE]) {
+    assert.equal(readFileSync(join(r, f), "utf8"), "mine\n", f);
+    assert.match(out.stdout, new RegExp(`^kept \\(no longer shipped, changed locally\\): ${f.replaceAll(".", "\\.")}$`, "m"));
+    assert.ok(f in files, f);
+  }
 });
 
 // P-46: until the chaining is designed apart, install says what a chained hook cannot do
@@ -2419,15 +2481,20 @@ test("doctor: a memory.dir that is not text gives one fail line naming the key a
   }
 });
 
-test("install --yes: a retired file is looked for only under the xwf- name of a unit that install renames", () => {
+test("install --yes: a retired file is removed under the xwf- name the record holds, and with no record nothing is removed", () => {
   const published = spawnSync("git", ["show", "f467f65~1:skills/adapt/topics.md"], { cwd: PKG_ROOT, encoding: "utf8" }).stdout;
   const mine = ".claude/skills/adapt/topics.md", ours = ".claude/skills/xwf-adapt/topics.md";
   const r = repo({ ".claude/skills/adapt/SKILL.md": "mine\n", [mine]: published, [ours]: published });
+  const first = cli(r, ["install", "--yes"]);
+  assert.equal(first.status, 0, first.stderr);
+  assert.ok(existsSync(join(r, mine)) && existsSync(join(r, ours)), "no record: nothing is removed");
+  assert.ok(!first.stdout.includes("adapt/topics.md"), first.stdout);
+  withRecord(r, (rec) => { rec.files[ours] = { piece: "adapt", sha256: sha(published) }; });
   const out = cli(r, ["install", "--yes"]);
   assert.equal(out.status, 0, out.stderr);
   assert.ok(existsSync(join(r, mine)), "the user's file is still there");
   assert.ok(!existsSync(join(r, ours)), "the retired file of the package's skill is removed");
-  assert.ok(!out.stdout.includes(".claude/skills/adapt/topics.md"), out.stdout);
+  assert.ok(!out.stdout.includes(mine), out.stdout);
 });
 test("install: the user's own skill with a topics.md of other content is untouched and not named", () => {
   const mine = ".claude/skills/adapt/topics.md";
