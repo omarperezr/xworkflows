@@ -192,10 +192,21 @@ test("with XWORKFLOWS_FREE, done skips the summary check as the gate does and sa
   writeFileSync(X(d, "research.json"), '{"x":1}');
   cli(d, "start");
   writeFileSync(X(d, "summary.md"), "---\nstatus: approved\n---\n");
-  const r = cli(d, "done", { XWORKFLOWS_FREE: "1" });
+  const state = mkdtempSync(join(tmpdir(), "xwf-state-"));
+  const r = cli(d, "done", { XWORKFLOWS_FREE: "1", XWORKFLOWS_STATE_DIR: state });
   assert.deepEqual([r.status, r.stderr], [0, "xworkflows: research.mjs done: the summary check skipped by XWORKFLOWS_FREE\n"]);
   assert.equal(readFileSync(X(d, "research.prev.json"), "utf8"), '{"x":1}');
   assert.ok(!existsSync(X(d, "adapt-run.json")));
+  // the skip is in the hooks' log, as a hook's skip is
+  assert.match(readFileSync(join(state, "xwf-hooks.log"), "utf8"), /^\d{4}-\d\d-\d\dT\S+ - research\.mjs free done: the summary check\n$/);
+});
+test("done with XWORKFLOWS_FREE writes nothing to the hooks' log when there was no check to skip", () => {
+  const d = repo();
+  writeFileSync(X(d, "research.json"), '{"x":1}');
+  cli(d, "start");
+  writeSummary(d, "---\nstatus: approved\n---\n");
+  const state = mkdtempSync(join(tmpdir(), "xwf-state-"));
+  assert.deepEqual([cli(d, "done", { XWORKFLOWS_FREE: "1", XWORKFLOWS_STATE_DIR: state }).status, existsSync(join(state, "xwf-hooks.log"))], [0, false]);
 });
 
 test("an interrupted first adapt keeps its run; a lost run file is found in the log", () => {

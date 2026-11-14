@@ -3,7 +3,8 @@
 // Standalone: node: built-ins only (it is copied into projects).
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, readFileSync, writeFileSync, mkdirSync, rmSync, copyFileSync, statSync, lstatSync, realpathSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync, appendFileSync, mkdirSync, rmSync, copyFileSync, statSync, lstatSync, realpathSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 import { screens, render, details, mechanism, seen, MAX_RULES, MAX_MORE } from "./screens.mjs";
@@ -198,8 +199,11 @@ function cli(cmd, root) {
     const h = shaOf(summary);
     if (r && statusOf(summary) === "approved" && (h !== r.startSha || h === r.summarySha)) {
       // the adapt-gates hook kept the hash of the last summary Write it allowed; any other text on disk came another way
-      if (h !== r.summarySha && process.env.XWORKFLOWS_FREE) process.stderr.write("xworkflows: research.mjs done: the summary check skipped by XWORKFLOWS_FREE\n");
-      else if (h !== r.summarySha) {
+      if (h !== r.summarySha && process.env.XWORKFLOWS_FREE) {
+        process.stderr.write("xworkflows: research.mjs done: the summary check skipped by XWORKFLOWS_FREE\n");
+        // the hooks' log, where hooks/run.mjs writes a hook's skip; a log failure never changes the answer
+        try { appendFileSync(join(process.env.XWORKFLOWS_STATE_DIR ?? tmpdir(), "xwf-hooks.log"), `${new Date().toISOString()} - research.mjs free done: the summary check\n`); } catch {}
+      } else if (h !== r.summarySha) {
         console.error("adapt: the summary on disk is not the one written with the Write tool; write it again with Write, then run research.mjs done again");
         process.exit(1);
       }
