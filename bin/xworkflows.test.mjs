@@ -1544,12 +1544,21 @@ test("install --dry-run writes nothing and names the folder, the yml and the .gi
   assert.match(out.stdout, /^would merge \.gitignore$/m);
   assert.equal(tree(r), before);
 });
-test("install: a docs link that leaves the repo gets no folder", () => {
+// P-128: install reads the memory folder by the one rule the hooks read it by
+test("install: a docs link that leaves the repo gets no folder, no yml and no autoMemoryDirectory, and the line says why; listed under memory.outside it gets them", () => {
   const o = tmp("xwf-out-"), r = repo();
   symlinkSync(o, join(r, "docs"));
   const out = inst(r);
+  assert.equal(out.status, 0, out.stderr);
   assert.deepEqual(readdirSync(o), []);
-  assert.match(out.stdout, /^not written \(symlink\): docs\/memory$/m);
+  assert.ok(!existsSync(join(r, ".qmd")));
+  assert.ok(!existsSync(join(r, ".claude/settings.local.json")));
+  assert.ok(out.stdout.split("\n").some((l) => l.startsWith(`not written: docs/memory/MEMORY.md is written outside the repository (${realpathSync(o)})`)), out.stdout);
+  mkdirSync(join(o, "memory"));
+  writeJson(r, ".xworkflows/config.json", { memory: { outside: [realpathSync(o)] } });
+  assert.equal(inst(r).status, 0);
+  assert.equal(readFileSync(join(r, ".qmd/index.yml"), "utf8"), yml(r));
+  assert.equal(readJson(r, ".claude/settings.local.json").autoMemoryDirectory, join(top(r), "docs/memory"));
 });
 test("install: a .qmd link that leaves the repo gets no yml and no .gitignore line", () => {
   const o = tmp("xwf-out-"), r = repo();
@@ -1566,16 +1575,19 @@ for (const [what, dir] of [["absolute", (o) => join(o, "mem")], ["climbing out w
     assert.equal(out.status, 0, out.stderr);
     assert.deepEqual(readdirSync(o), []);
     assert.ok(!existsSync(join(r, ".qmd")));
-    assert.ok(out.stdout.split("\n").includes(`not written: memory.dir must be a folder inside the repository: ${dir(o)}`));
+    assert.ok(out.stdout.split("\n").includes(`not written: memory.dir ${JSON.stringify(dir(o))} must be a folder inside the repository`), out.stdout);
   });
 }
 // P-125: settings.local.json gets the folder the memory.dir rule names, and nothing for a value that names none
-test("install: a memory.dir that is not text writes no autoMemoryDirectory and says why; a padded one is written and taken back as the folder it names", () => {
+// P-128: a value that is not a text is the default folder, for install as for the hooks
+test("install: a memory.dir that is not text is read as the default folder; a padded one is written and taken back as the folder it names", () => {
   const r = repo({ ".xworkflows/config.json": JSON.stringify({ memory: { dir: 5 } }) });
   const out = inst(r);
   assert.equal(out.status, 0, out.stderr);
-  assert.ok(out.stdout.split("\n").includes("not written: memory.dir must be a folder inside the repository: 5"), out.stdout);
-  assert.ok(!existsSync(join(r, ".claude/settings.local.json")));
+  assert.ok(statSync(join(r, "docs/memory")).isDirectory());
+  assert.equal(readJson(r, ".claude/settings.local.json").autoMemoryDirectory, join(top(r), "docs/memory"));
+  assert.equal(cli(r, ["uninstall"]).status, 0);
+  assert.ok(!existsSync(join(r, ".claude/settings.local.json")) && !existsSync(join(r, "docs")));
   const q = repo({ ".xworkflows/config.json": JSON.stringify({ memory: { dir: " docs/memory " } }) });
   assert.equal(inst(q).status, 0);
   assert.equal(readJson(q, ".claude/settings.local.json").autoMemoryDirectory, join(top(q), "docs/memory"));
@@ -1605,13 +1617,16 @@ test("doctor: the two qmd failures name the cause, a linked folder outside warns
   withConfig(r, {});
   const o = tmp("xwf-out-"); rmSync(join(r, "docs"), { recursive: true }); symlinkSync(o, join(r, "docs"));
   mkdirSync(join(o, "memory"));
-  assert.match(doctor(r, { PATH: q }).stdout, /^warn the memory folder is outside the repository: qmd indexes it only after "qmd trust" is run here$/m);
-  // a write there is refused unless memory.outside lists the real path: doctor says so with both ways out
+  // a write there is refused unless memory.outside lists the real path: doctor fails with the line the hooks refuse with, and says nothing more of that folder
   const real = realpathSync(join(o, "memory"));
-  const refused = lineOf(doctor(r, { PATH: q }), /^warn docs\/memory\/MEMORY\.md is written outside the repository/);
-  assert.ok(refused?.includes(`(${real})`) && refused.includes("put the notes inside the project") && refused.includes(`list ${real} under memory.outside in .xworkflows/config.json`), refused);
+  const unlisted = doctor(r, { PATH: q });
+  const refused = lineOf(unlisted, /^fail docs\/memory\/MEMORY\.md is written outside the repository/);
+  assert.ok(refused?.includes(`(${real})`) && refused.includes("put the notes inside the project") && refused.includes(`list ${real} under memory.outside in .xworkflows/config.json`), unlisted.stdout);
+  assert.match(refused, /: set memory\.dir in \.xworkflows\/config\.json to a folder inside the repository, then run xworkflows install$/);
+  assert.doesNotMatch(unlisted.stdout, /qmd trust|qmd collection covers|autoMemoryDirectory/);
   withConfig(r, { memory: { outside: [real] } });
   assert.doesNotMatch(doctor(r, { PATH: q }).stdout, /is written outside the repository/);
+  assert.match(doctor(r, { PATH: q }).stdout, /^warn the memory folder is outside the repository: qmd indexes it only after "qmd trust" is run here$/m);
   withConfig(r, {});
   rmSync(join(r, "docs")); writeFileSync(join(r, "docs"), "a file\n");
   const out = doctor(r, { PATH: q });
@@ -2385,6 +2400,24 @@ test("install: a retired agent whose tier line install wrote as a model line is 
   assert.equal(cliAt(copy, r, ["uninstall"]).status, 0);
   assert.equal(git(r, "status --porcelain"), "");
 });
+// P-130: the file on disk was written with the map of the version that installed it, which may not be today's
+test("install: a retired agent written with an older map of tiers is removed on the upgrade, and uninstall leaves git status empty", () => {
+  const r = committed(), a = ".claude/agents/explore.md";
+  assert.equal(cli(r, ["install", "--yes"]).status, 0);
+  const tier = readFileSync(join(PKG_ROOT, "agents/explore.md"), "utf8").match(/^tier: (\w+)$/m)[1];
+  const was = readJson(PKG_ROOT, "tiers.json").claude[tier], now = was === "opus" ? "sonnet" : "opus";
+  assert.match(readFileSync(join(r, a), "utf8"), new RegExp(`^model: ${was}$`, "m"));
+  const copy = retireReal(["agents/explore.md"]);
+  const tiers = readJson(copy, "tiers.json");
+  tiers.claude[tier] = now;
+  writeJson(copy, "tiers.json", tiers);
+  const up = cliAt(copy, r, ["install", "--yes"]);
+  assert.equal(up.status, 0, up.stderr);
+  assert.match(up.stdout, /^removed \.claude\/agents\/explore\.md$/m);
+  assert.ok(!existsSync(join(r, a)), up.stdout);
+  assert.equal(cliAt(copy, r, ["uninstall"]).status, 0);
+  assert.equal(git(r, "status --porcelain"), "");
+});
 test("install: the SKILL.md of a renamed unit and a renamed agent, retired, are removed on the upgrade; the user's own stay and uninstall leaves git status empty", () => {
   const own = { ".claude/skills/next-step/SKILL.md": "mine\n", ".claude/agents/explore.md": "mine\n" };
   const r = committed(own), skill = ".claude/skills/xwf-next-step/SKILL.md", agent = ".claude/agents/xwf-explore.md";
@@ -2400,6 +2433,24 @@ test("install: the SKILL.md of a renamed unit and a renamed agent, retired, are 
   assert.equal(cliAt(copy, r, ["uninstall"]).status, 0);
   assert.equal(git(r, "status --porcelain"), "");
 });
+// P-130: a retired unit's line of .graphifyignore is install's line, also when the unit's folder stays for a changed file
+for (const [what, own] of [["install made", null], ["the project had", "mine/\n"]]) {
+  test(`uninstall: after an upgrade that retires changed units, a .graphifyignore ${what} holds no line of install's`, () => {
+    const r = repo(own === null ? {} : { ".graphifyignore": own }), skill = ".claude/skills/next-step/SKILL.md", agent = ".claude/agents/explore.md";
+    assert.equal(cli(r, ["install", "--yes"]).status, 0);
+    assert.ok(lines(r).includes(".claude/skills/next-step/") && lines(r).includes(agent));
+    appendFileSync(join(r, skill), "mine\n"); appendFileSync(join(r, agent), "mine\n");
+    const copy = retireReal(["skills/next-step/SKILL.md", "agents/explore.md"]);
+    const up = cliAt(copy, r, ["install", "--yes"]);
+    assert.equal(up.status, 0, up.stderr);
+    assert.ok(existsSync(join(r, skill)) && existsSync(join(r, agent)), up.stdout);
+    const un = cliAt(copy, r, ["uninstall"]);
+    assert.equal(un.status, 0, un.stderr);
+    assert.doesNotMatch(un.stdout, /kept \(not ours\): \.graphifyignore/);
+    if (own === null) assert.ok(!existsSync(join(r, ".graphifyignore")), "the .graphifyignore install made is left");
+    else assert.equal(readFileSync(join(r, ".graphifyignore"), "utf8"), own);
+  });
+}
 test("install: a skill the user put under kept is not judged: an upgrade that retires its file removes nothing in that folder", () => {
   const r = repo(), f = ".claude/skills/next-step/SKILL.md";
   assert.equal(cli(r, ["install", "--yes"]).status, 0);
@@ -2480,19 +2531,20 @@ test("doctor: with core.hooksPath outside the repository the pre-push line names
   assert.deepEqual(FAILS(doctor(r, env)), []);
   assert.deepEqual(readdirSync(g), []);
 });
-test("doctor: a memory.dir outside the repository, existing or not, says to name a folder inside it, and doing so makes the lines go", () => {
+// P-128: a folder outside is refused by the hooks even when memory.outside lists it: doctor names only the way out they accept
+test("doctor: a memory.dir outside the repository, existing or not, listed or not, gives one fail line that says to name a folder inside it, and doing so makes it go", () => {
   const o = tmp("xwf-out-"), r = repo(); cli(r, ["install", "--yes"]);
   const ours = (extra = {}) => doctor(r, { PATH: GOOD, ...extra });
-  for (const dir of [o, join(o, "not-there"), relative(r, o)]) {
-    withConfig(r, { memory: { dir } });
+  for (const dir of [o, join(o, "not-there"), relative(r, o)]) for (const outside of [[], [o, realpathSync(o)]]) {
+    withConfig(r, { memory: { dir, outside } });
     const out = ours();
-    const bad = out.stdout.split("\n").filter((l) => /^(fail|warn) (no qmd collection covers|no memory folder yet)/.test(l));
-    assert.equal(bad.length, 1, out.stdout);
-    assert.match(bad[0], /set memory\.dir in \.xworkflows\/config\.json to a folder inside the repository, then run xworkflows install$/);
+    const bad = out.stdout.split("\n").filter((l) => /memory\.dir|memory folder|autoMemoryDirectory|qmd collection|qmd trust/.test(l));
+    assert.deepEqual(bad, [`fail memory.dir ${JSON.stringify(dir)} must be a folder inside the repository: set memory.dir in .xworkflows/config.json to a folder inside the repository, then run xworkflows install`], out.stdout);
+    assert.doesNotMatch(out.stdout, /memory\.outside/);
   }
   withConfig(r, { memory: { dir: "docs/memory" } });
   assert.equal(cli(r, ["install", "--yes"], { env: { PATH: GOOD, HOME: EMPTY_HOME } }).status, 0);
-  assert.doesNotMatch(ours().stdout, /no qmd collection covers|no memory folder yet/);
+  assert.doesNotMatch(ours().stdout, /memory\.dir|no qmd collection covers|no memory folder yet|autoMemoryDirectory/);
 });
 
 // P-116 (b): the first word of lookup.index.command reaches a shell only quoted
@@ -2575,17 +2627,28 @@ test("doctor: a pre-push hook it cannot read gives a fail line and doctor ends w
   chmodSync(hook, 0o755);
   assert.equal(out.stderr, "");
   assert.equal(out.status, 1);
-  assert.match(out.stdout, /^fail doctor stopped: EACCES/m);
+  // P-131: the last catch ends with a command, the one that shows where doctor stopped
+  assert.match(out.stdout, /^fail doctor stopped: EACCES.*: run xworkflows doctor --trace to see the stack$/m);
   assert.match(out.stdout, ENDS);
+  chmodSync(hook, 0o000);
+  const traced = cli(r, ["doctor", "--trace"], { env: { PATH: GOOD, HOME: EMPTY_HOME } });
+  chmodSync(hook, 0o755);
+  assert.match(traced.stderr, /EACCES[^]*\n +at /, traced.stderr);
+  assert.match(traced.stdout, ENDS);
+  assert.equal(cli(r, ["install", "--trace"]).status, 2);
 });
-test("doctor: a config section set to null, or a config file holding null, gives fail lines and doctor ends with its count, no stack trace", () => {
+// P-131: the loader names the section; doctor's line for the config gives the fix, and the last catch is not reached
+test("doctor: a config section that is not an object, or a config file holding null, gives a line naming the file, the section and the fix, and doctor ends with its count", () => {
   const r = repo(); cli(r, ["install"]);
-  for (const text of ['{"memory":null}', '{"paths":null}', '{"tokens":null}', '{"packs":null}', "null"]) {
+  const section = (k) => `fail config: .xworkflows/config.json: ${k} must be an object: make it an object, or take it out of .xworkflows/config.json`;
+  for (const [text, line] of [['{"memory":null}', section("memory")], ['{"paths":null}', section("paths")], ['{"tokens":5}', section("tokens")], ['{"packs":[]}', section("packs")], ['{"tests":"x"}', section("tests")],
+    ["null", "fail config: .xworkflows/config.json does not parse: not a JSON object: fix the JSON of .xworkflows/config.json"]]) {
     writeFileSync(join(r, ".xworkflows/config.json"), text);
     const out = doctor(r);
     assert.equal(out.stderr, "", text);
     assert.equal(out.status, 1, text);
-    assert.match(out.stdout, /^fail doctor stopped: /m, text);
+    assert.ok(out.stdout.split("\n").includes(line), out.stdout);
+    assert.doesNotMatch(out.stdout, /doctor stopped/, text);
     assert.match(out.stdout, ENDS, text);
   }
 });
