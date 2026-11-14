@@ -1,0 +1,89 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+
+const read = (p) => readFileSync(new URL(p, import.meta.url), "utf8");
+const text = read("./dream.workflow.js");
+const body = text.replace(/export const meta = \{[\s\S]*?\n\};\n/, "");
+const AsyncFunction = (async () => {}).constructor;
+
+const FILES = ["/t/one.txt", "/t/two.txt", "/t/three.txt"];
+const MEMORY = "/w/docs/memory";
+const ARGS = { sessions: FILES, memory: MEMORY, focus: "deploy habits", agents: { analyzer: "xwf-dream-analyzer", organizer: "xwf-dream-organizer" }, model: "haiku" };
+
+async function run(args = ARGS, over = {}) {
+  const calls = [];
+  const agent = async (prompt, opts) => {
+    calls.push({ prompt, opts, done: calls.filter((c) => c.finished).length });
+    const c = calls[calls.length - 1];
+    await new Promise((r) => setTimeout(r, 5));
+    c.finished = true;
+    if (over[opts.agentType]) return over[opts.agentType](prompt, opts, c);
+    if (opts.label.startsWith("analyze")) return { added: 2, changed: 1, proposals: [{ rule: "Never skip tests", session: opts.label }] };
+    return { added: 0, changed: 0, merged: 3, conflicts: 1, proposals: [{ rule: "Never skip tests", sessions: ["one", "two"] }] };
+  };
+  const parallel = (thunks) => Promise.all(thunks.map((t) => t()));
+  const fn = new AsyncFunction("args", "agent", "parallel", "log", "phase", body);
+  return { calls, result: await fn(args, agent, parallel, () => {}, () => {}) };
+}
+
+test("the script is fixed: a literal meta, no filesystem", () => {
+  assert.match(text, /export const meta = \{[\s\S]*?name: "dream"/);
+  assert.doesNotMatch(body, /export const meta|require\(|import |Date\.now|Math\.random|\bfs\b|readFile/);
+});
+
+test("one analyzer per file in parallel, then one organizer after all three", async () => {
+  const { calls } = await run();
+  assert.equal(calls.length, 4);
+  assert.deepEqual(calls.slice(0, 3).map((c) => c.opts.agentType), Array(3).fill("xwf-dream-analyzer"));
+  assert.equal(calls[3].opts.agentType, "xwf-dream-organizer");
+  assert.equal(calls[3].done, 3);
+  assert.ok(calls.slice(0, 3).every((c) => c.done === 0));
+  assert.ok(calls.every((c) => c.opts.model === "haiku" && c.opts.schema));
+});
+
+test("every prompt names its file and the memory folder; the focus reaches all", async () => {
+  const { calls } = await run();
+  calls.slice(0, 3).forEach((c, i) => assert.ok(c.prompt.includes(FILES[i])));
+  for (const c of calls) {
+    assert.ok(c.prompt.includes(MEMORY));
+    assert.ok(c.prompt.includes("deploy habits"));
+  }
+});
+
+test("no focus: no focus line in the prompts", async () => {
+  const { calls } = await run({ ...ARGS, focus: "" });
+  assert.ok(calls.every((c) => !/focus/i.test(c.prompt)));
+});
+
+test("an analyzer that returns nothing is counted in missing and the organizer still runs", async () => {
+  const { calls, result } = await run(ARGS, { "xwf-dream-analyzer": (p, o) => (o.label === "analyze 2" ? null : { added: 2, changed: 1, proposals: [] }) });
+  assert.equal(calls.length, 4);
+  assert.equal(result.missing, 1);
+});
+
+test("the result has the six keys", async () => {
+  const { result } = await run();
+  assert.deepEqual(Object.keys(result), ["added", "changed", "merged", "conflicts", "proposals", "missing"]);
+  assert.equal(result.added, 6);
+  assert.equal(result.changed, 3);
+  assert.equal(result.merged, 3);
+  assert.equal(result.conflicts, 1);
+  assert.deepEqual(result.proposals, [{ rule: "Never skip tests", sessions: ["one", "two"] }]);
+  assert.equal(result.missing, 0);
+});
+
+for (const n of ["dream-analyzer", "dream-organizer"]) {
+  test(`${n}: cheap tier, file tools only`, () => {
+    const t = read(`../../agents/${n}.md`);
+    assert.match(t, new RegExp(`^---\\nname: ${n}\\ndescription: [^\\n]+\\ntier: cheap\\n`));
+    const tools = t.match(/^tools: (.*)$/m)[1];
+    assert.equal(tools, "Read, Write, Edit, Glob, Grep");
+    assert.doesNotMatch(tools, /Bash/);
+  });
+}
+
+test("SKILL.md starts its body with the mark line", () => {
+  const t = read("./SKILL.md");
+  assert.match(t, /^---\nname: dream\ndescription: [^\n]+\n---\n\nBefore anything else, run `node \.xworkflows\/mark\.mjs dream` in the shell\.\n/);
+});
