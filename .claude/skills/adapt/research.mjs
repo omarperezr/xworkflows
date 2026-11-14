@@ -2,6 +2,7 @@
 // Adapt run file, citation check, the render of the three screens and the detail file, and the interview queue.
 // Standalone: node: built-ins only (it is copied into projects).
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync, mkdirSync, rmSync, copyFileSync, statSync, lstatSync, realpathSync } from "node:fs";
 import { join, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -191,6 +192,12 @@ function cli(cmd, root) {
     let r = null;
     try { r = readJson(runFile); } catch {}
     if (r && statusOf(summary) === "approved" && statSync(summary).mtimeMs + 2000 >= r.startedAt && existsSync(join(dir, "research.json"))) {
+      // the adapt-gates hook kept the hash of the last summary Write it allowed; any other text on disk came another way
+      if (process.env.XWORKFLOWS_FREE) process.stderr.write("xworkflows: research.mjs done: the summary check skipped by XWORKFLOWS_FREE\n");
+      else if (r.summarySha !== createHash("sha256").update(readFileSync(summary)).digest("hex")) {
+        console.error("adapt: the summary on disk is not the one written with the Write tool; write it again with Write, then run research.mjs done again");
+        process.exit(1);
+      }
       putCopy(join(dir, "research.json"), prev);
       keepAnswered(dir, r.run);
     }

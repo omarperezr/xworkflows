@@ -1,5 +1,6 @@
 import path from "node:path";
 import { realpathSync, existsSync } from "node:fs";
+import { createHash } from "node:crypto";
 
 const HEADINGS = ["What it is", "Who pays", "Aspirations at about", "Risks, the costliest", "What must not change", "Zones and which", "How the owner works", "About you"];
 const real = (p) => { try { return realpathSync(p); } catch { return path.resolve(p); } };
@@ -8,47 +9,15 @@ const folded = (a, b) => a.toLowerCase() === b.toLowerCase() && existsSync(path.
 const same = (a, b) => a === b || folded(a, b);
 const json = (s) => { try { return JSON.parse(s); } catch { return null; } };
 
-const isSummary = (w) => w.replace(/["']/g, "").replace(/\/+/g, "/").endsWith(".xworkflows/summary.md");
-// One pass over the command, linear: words split at spaces, ) and a backtick, and at ; & | newline; a ( (not right after > or <), a $( , an opening backtick or a standalone { opens a piece; a > not after - or a backslash makes the next word a redirect target; after < or << or <<< the next word is a source, a delimiter or a here-string. A write is the summary as a redirect target or as an argument of a piece that has the word tee before it (any word: sudo tee, X=1 tee; a harmless grep tee is denied too). Quotes are not parsed (a quoted mention is denied too).
-function writesSummary(cmd) {
-  let tee = false, target = false, skip = false, tick = false, w = "";
-  const reset = () => { tee = false; target = false; skip = false; };
-  const flush = () => {
-    const t = w; w = "";
-    if (t === "") return false;
-    if (skip) skip = false;
-    else if (target) { target = false; if (isSummary(t)) return true; }
-    else if (t === "tee") tee = true;
-    else if (tee && isSummary(t)) return true;
-    return false;
-  };
-  for (let i = 0; i < cmd.length; i++) {
-    const c = cmd[i];
-    if (c === "\\") { w += c + (cmd[++i] ?? ""); continue; }
-    if (c === ";" || c === "&" || c === "|" || c === "\n") { if (flush()) return true; reset(); }
-    else if (c === " " || c === "\t" || c === "\r") { if (flush()) return true; }
-    else if (c === ")") { if (flush()) return true; }
-    else if (c === "`") { if (flush()) return true; if ((tick = !tick)) reset(); }
-    else if (c === "(" && w.endsWith("$")) { w = ""; reset(); }
-    else if (w === "" && ((c === "(" && !/[<>]/.test(cmd[i - 1] ?? "")) || (c === "{" && /\s/.test(cmd[i + 1] ?? " ")))) reset();
-    else if (c === ">" && !w.endsWith("-")) {
-      if (flush()) return true;
-      if (cmd[i + 1] === ">") i++;
-      if (cmd[i + 1] === "|") i++;
-      target = true;
-    } else if (c === "<") {
-      if (flush()) return true;
-      i += cmd.startsWith("<<<", i) ? 2 : cmd.startsWith("<<", i) ? 1 : 0;
-      skip = true;
-    } else w += c;
-  }
-  return flush();
-}
-
 export function decide(ev, ctx) {
   const x = (f) => path.join(ev.root, ".xworkflows", f);
   const run = json(ctx.readFile(x("adapt-run.json")));
-  if (!run || !(Date.now() - run.startedAt < 12 * 3600 * 1000)) return { decision: "allow" };
+  if (!run) return { decision: "allow" };
+  if (!(Date.now() - run.startedAt < 12 * 3600 * 1000)) { // past the 12 hours nothing is denied; the hash is book-keeping, kept for research.mjs done
+    const w = (ev.writes ?? []).filter((w) => w.content !== undefined && same(realFile(path.resolve(ev.root, w.path.replaceAll("\\", "/"))), realFile(x("summary.md")))).pop();
+    if (w) ctx.writeFile(x("adapt-run.json"), JSON.stringify({ ...run, summarySha: createHash("sha256").update(w.content).digest("hex") }, null, 2) + "\n");
+    return { decision: "allow" };
+  }
   const name = ctx.skillName?.("adapt") ?? "adapt";
   const script = `.claude/skills/${name}/research.workflow.js`;
   const deny = (why) => ({ decision: "deny", reason: `${why} If no /adapt is in progress (a stale run file), run node .claude/skills/${name}/research.mjs done. To bypass in an emergency: XWORKFLOWS_FREE=1.` });
@@ -74,10 +43,7 @@ export function decide(ev, ctx) {
     return { decision: "allow" };
   }
 
-  // shortcut: only a redirect or tee into .xworkflows/summary.md is seen; cp, mv, sed -i or a cd first are not, upgrade by parsing ev.command.
-  if (ev.kind === "shell" && writesSummary(ev.command ?? ""))
-    return deny("summary.md is written with Write, not by a shell redirect or tee.");
-
+  let kept = null;
   for (const w of ev.writes ?? []) {
     const abs = realFile(path.resolve(ev.root, w.path.replaceAll("\\", "/")));
     // Files the adapt scripts write; the agent never writes them directly.
@@ -98,6 +64,9 @@ export function decide(ev, ctx) {
       const lack = HEADINGS.filter((_, i) => at[i] < 0);
       if (lack.length) return deny(`The summary lacks these headings: ${lack.join("; ")}.`);
     }
+    kept = createHash("sha256").update(w.content).digest("hex");
   }
+  // research.mjs done refuses a summary on disk with another hash: a shell write is caught there, not here
+  if (kept) ctx.writeFile(x("adapt-run.json"), JSON.stringify({ ...run, summarySha: kept }, null, 2) + "\n");
   return { decision: "allow" };
 }
