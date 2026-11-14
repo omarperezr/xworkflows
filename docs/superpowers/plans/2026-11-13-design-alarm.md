@@ -85,6 +85,18 @@ Not decided here, told to the owner: the confirmation calls two older tests of `
 - Role: implement
 - Done: `node --test skills/design-alarm.test.mjs` passes.
 
+### Batch 1, confirmation at `741d957`
+
+No blocking finding. The earlier blocking finding is closed: step 6 covers every repeat after the second round. Four findings do not block; they are card P-127, and two of them are repeats.
+
+Possible design error in `skills/orchestrate/SKILL.md`, section Review, steps 3 and 6
+- Cause: the limit of rounds stands in step 6, after the steps it limits, so every statement of scope in step 3 points across steps. "These two hold through the second round" stands between two pairs of bullets and can point at either.
+- Design: the narrow one, since step 6 must read as it does: name the two bullets it means, or put them under one parent bullet "Through the second round:". One line.
+
+Possible design error in `skills/design-alarm.test.mjs`
+- Cause: a test that looks for a text proves the text is there, never that a conflicting text is absent. A stop sentence added outside the pinned texts still passes.
+- Design: pin the whole section Review, from its heading to the next one, as one exact text. About 19 lines copied; every rewording then edits the test too.
+
 ## Review Focus
 
 - Every main session follows the `orchestrate` text to the letter: a sentence that reads two ways is followed the wrong way. A repeat must never read as a stop by itself; only the owner's answer holds a fix back.
