@@ -1,11 +1,22 @@
 import path from "node:path";
-import { get, inPaths } from "./config.mjs";
+import { get, inPaths, memoryDir, DEFAULTS } from "./config.mjs";
 
-const MARKS = ["orchestrate", "adapt", "full-review", "next-step"];
+const MARKS = ["orchestrate", "adapt", "full-review", "next-step", "dream"];
 const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const list = (v) => (Array.isArray(v) && v.length ? v : null);
 const allow = { decision: "allow" };
 const lines = (s) => new Set(String(s ?? "").split("\n").map((l) => l.trim()));
+// the real memory folders of the worktrees open marked, listed from the project's common git folder (a linked root names it in its .git file and commondir); read through ctx only
+function runs(ctx, root, config) {
+  const own = /^gitdir:\s*(.+?)\s*$/m.exec(ctx.readFile(path.join(root, ".git")) ?? "")?.[1];
+  const common = own ? path.resolve(root, own, (ctx.readFile(path.resolve(root, own, "commondir")) ?? ".").trim()) : path.join(root, ".git");
+  const mem = memoryDir(config.memory?.dir) ?? DEFAULTS.memory.dir, wts = path.join(common, "worktrees");
+  return ctx.listDir(wts).flatMap((n) => {
+    const at = path.join(wts, n), gitdir = ctx.readFile(path.join(at, "gitdir"))?.trim();
+    const wt = gitdir && ctx.readFile(path.join(at, "dream-open")) !== null && ctx.realPath(path.dirname(path.resolve(at, gitdir)));
+    return wt ? [path.join(wt, mem)] : [];
+  });
+}
 
 export function decide(ev, ctx) {
   const { config } = ctx;
@@ -14,6 +25,19 @@ export function decide(ev, ctx) {
   const under = (p, prefixes) => { const r = rel(p); return !r.startsWith("..") && inPaths(r, prefixes); };
 
   if (ev.isSubagent) {
+    // the installed name is the id or xwf-<id>: an agent whose name ends otherwise costs no read
+    const dream = ["dream-analyzer", "dream-organizer"].some((id) => String(ev.agent ?? "").endsWith(id) && ev.agent === (ctx.agentName?.(id) ?? id));
+    const writes = dream ? (ev.writes ?? []).filter((w) => typeof w?.path === "string") : [];
+    if (writes.length) {
+      const mems = runs(ctx, ev.root, config);
+      if (!mems.length) return deny(`${ev.agent} writes only in the memory folder of the run's branch, and no run is open: the main session must run \`branch.mjs open\` first.`);
+      const away = writes.find((w) => {
+        if (/(^|[\\/])\.\.([\\/]|$)/.test(w.path)) return true; // `..` after a link is not where path.resolve says
+        const real = ctx.realPath(path.resolve(ev.root, w.path.replaceAll("\\", "/")));
+        return !(real && mems.some((m) => real.startsWith(m + path.sep)));
+      });
+      if (away) return deny(`${away.path} is outside the memory folder of the run's branch: ${ev.agent} writes only under ${mems.join(" or ")}.`);
+    }
     const bad = (ev.writes ?? []).find((w) => under(w.path, config.paths.curated));
     return bad ? deny(`${bad.path} is curated by ${config.owner}: report the change you wanted instead.`) : allow;
   }

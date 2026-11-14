@@ -114,6 +114,11 @@ test("memory.outside is an empty list by default", () => {
   assert.deepEqual(merge(DEFAULTS, { memory: { dir: "n" } }).memory, { dir: "n", outside: [] });
 });
 
+test("dream.maxExtractBytes defaults to 4000000 and a project value replaces it", () => {
+  assert.deepEqual(DEFAULTS.dream, { maxExtractBytes: 4000000 });
+  assert.equal(merge(DEFAULTS, { dream: { maxExtractBytes: 10 } }).dream.maxExtractBytes, 10);
+});
+
 test("memoryFolder: the folder every reader uses, or the line that refuses it", () => {
   const top = realpathSync(mkdtempSync(join(tmpdir(), "xwf-cfg-")));
   try {

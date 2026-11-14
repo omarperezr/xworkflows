@@ -168,3 +168,25 @@ test("writeFile: a memory.outside that is not a list of texts counts as empty, t
     assert.match(outsideLine(root, "docs/memory/a.md", bad), /memory\.outside/);
   }
 });
+
+test("realPath: the real path, against the root; one not there yet is its nearest existing parent's; null for a dangling link or a loop", () => {
+  const { c, root } = mk();
+  const real = realpathSync(root), out = realpathSync(tmp());
+  mkdirSync(join(root, "a"));
+  symlinkSync(out, join(root, "a", "out"));
+  symlinkSync(join(out, "missing.md"), join(root, "a", "gone.md"));
+  symlinkSync(join(root, "a", "loop2"), join(root, "a", "loop1"));
+  symlinkSync(join(root, "a", "loop1"), join(root, "a", "loop2"));
+  assert.equal(c.realPath(join(root, "a")), join(real, "a"));
+  assert.equal(c.realPath("a/new/deeper/n.md"), join(real, "a", "new", "deeper", "n.md"));
+  assert.equal(c.realPath(join(root, "a", "out", "x", "n.md")), join(out, "x", "n.md"));
+  assert.equal(c.realPath(join(root, "a", "gone.md")), null);
+  assert.equal(c.realPath(join(root, "a", "loop1", "n.md")), null);
+  assert.equal(c.realPath(""), real);
+  assert.equal(c.realPath("."), real);
+  assert.equal(c.realPath("/"), "/");
+  for (const p of [undefined, null, 3]) assert.equal(c.realPath(p), null, String(p));
+  const t = Date.now();
+  for (const n of [10000, 100000]) assert.equal(c.realPath(join(root, ...Array(n).fill("x"))), null, `a path of ${n} parts names no file`);
+  assert.ok(Date.now() - t < 100, "and is answered at once");
+});

@@ -19,3 +19,6 @@
 .claude/skills/tdd/
 .claude/skills/ponytail/
 .claude/skills/ponytail-review/
+.claude/agents/dream-analyzer.md
+.claude/agents/dream-organizer.md
+.claude/skills/dream/

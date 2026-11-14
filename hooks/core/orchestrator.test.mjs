@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { mkdtempSync as makeTmp, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, posix } from "node:path";
 import { decide } from "./orchestrator.mjs";
 import { load } from "./config.mjs";
 const madeTmp = [];
@@ -27,6 +27,8 @@ function mk({ marks = ["orchestrate"], files = { [SUMMARY]: "status: approved\n"
     readFile: (p) => files[p] ?? null,
     exists: (p) => exist.includes(p) || (p.startsWith(".claude/agents/") && exist.includes(".claude/agents/")),
     git: () => head,
+    listDir: () => [],
+    realPath: (p) => p,
     state: (k) => st.get(k) ?? null,
     save: (k, v) => st.set(k, v),
     now: () => T0,
@@ -36,10 +38,10 @@ const denied = (d, re) => d.decision === "deny" && (!re || re.test(d.reason));
 const allowed = (d) => d.decision === "allow";
 const explore = agent("explore");
 
-test("agent and workflow need the orchestrate skill mark (any of the four)", () => {
+test("agent and workflow need the orchestrate skill mark (any of the five)", () => {
   assert.ok(denied(decide(explore, mk({ marks: [] })), /orchestrate/));
   assert.ok(denied(decide(ev("workflow"), mk({ marks: ["front"] }))));
-  for (const m of ["orchestrate", "adapt", "full-review", "next-step"]) assert.ok(allowed(decide(explore, mk({ marks: [m] }))), m);
+  for (const m of ["orchestrate", "adapt", "full-review", "next-step", "dream"]) assert.ok(allowed(decide(explore, mk({ marks: [m] }))), m);
   assert.ok(allowed(decide(ev("workflow"), mk())));
 });
 
@@ -96,6 +98,81 @@ test("subagent passes everything except a write under curated", () => {
   assert.ok(denied(decide(sub("write", { writes: [{ path: "/r/CLAUDE.md", content: "x" }] }), mk()), /report the change you wanted instead/));
   assert.ok(denied(decide(sub("write", { writes: [{ path: ".claude/rules/a.md", old: "a", new: "b" }] }), mk())));
   assert.ok(allowed(decide(ev("write", { writes: [{ path: "/r/CLAUDE.md", content: "x" }] }), mk())));
+});
+
+// a stand-in file system for the dream rule: files by absolute path; links by absolute path, null for one that leads nowhere (dangling, a loop)
+function fsCtx({ files = {}, links = {}, config = cfg, names = {} } = {}) {
+  const real = (p) => { for (const [k, v] of Object.entries(links)) if (p === k || p.startsWith(k + "/")) return v === null ? null : real(v + p.slice(k.length)); return p; };
+  return {
+    ...mk({ config }), ...names,
+    readFile: (p) => files[p] ?? null,
+    listDir: (p) => [...new Set(Object.keys(files).filter((f) => f.startsWith(p + "/")).map((f) => f.slice(p.length + 1).split("/")[0]))],
+    realPath: (p) => (typeof p !== "string" || p.length > 4096 ? null : real(posix.resolve("/r", p))),
+  };
+}
+// the shape open leaves: <common>/worktrees/<name>/gitdir names the worktree's .git file; dream-open beside it is the mark
+const worktree = (common, name, gitdir, made = true) => ({ [`${common}/worktrees/${name}/gitdir`]: `${gitdir}\n`, ...(made && { [`${common}/worktrees/${name}/dream-open`]: "dream/x\n" }) });
+const dreamWrite = (type, p, o = { content: "x" }, root = "/r") => ev("write", { root, isSubagent: true, agent: type, writes: [{ path: p, ...o }] });
+
+test("the two dream agents write only in the memory folder of a worktree that open marked, found from the project's git folder", () => {
+  for (const mem of ["docs/memory", "notes/kept"]) {
+    const config = mem === "docs/memory" ? cfg : { ...cfg, memory: { ...cfg.memory, dir: mem } };
+    const files = {
+      ...worktree("/r/.git", "a", "/t/run-a/.git"),
+      ...worktree("/r/.git", "b", "/t/run-b/.git", false), // not marked: not a run
+      ...worktree("/r/.git", "c", "../../../../t/run-c/.git"), // a gitdir relative to its folder
+      ...worktree("/r/.git", "d", "/t/run-d/.git"),
+      "/r/.git/worktrees/e/dream-open": "", // marked, with no gitdir: names no worktree
+    };
+    const links = { "/t": "/pt", [`/pt/run-a/${mem}/out`]: "/o", [`/pt/run-a/${mem}/l.md`]: "/o/x.md", [`/pt/run-a/${mem}/gone.md`]: null, [`/pt/run-a/${mem}/loop`]: null, [`/pt/run-d/${mem}`]: "/notes" };
+    const yes = [`/t/run-a/${mem}/note.md`, `/t/run-a/${mem}/new/deeper/n.md`, `/pt/run-a/${mem}/n.md`, `/t/run-c/${mem}/n.md`];
+    const long = "/t/run-a/" + Array(10000).fill("x").join("/");
+    const no = ["/r/src/a.mjs", `/r/${mem}/n.md`, ".git/hooks/pre-push", ".claude/settings.json", "/o/x.md", "/t/run-a/src/a.mjs", `/t/run-b/${mem}/n.md`, `/t/run-d/${mem}/n.md`,
+      `/t/run-a/${mem}/out/x.md`, `/t/run-a/${mem}/l.md`, `/t/run-a/${mem}/gone.md`, `/t/run-a/${mem}/loop/n.md`, `/t/run-a/${mem}/out/../x.md`, `/t/run-a/${mem}/../../src/a.mjs`,
+      `/t/run-a/${mem}`, `/t/run-a/${mem}x/n.md`, "/r/.git/worktrees/docs/memory/n.md", "", ".", "/", long];
+    for (const [type, names] of [["dream-analyzer", {}], ["dream-organizer", {}], ["xwf-dream-analyzer", { agentName: (r) => `xwf-${r}` }]]) {
+      const c = fsCtx({ files, links, config, names });
+      for (const p of yes) assert.ok(allowed(decide(dreamWrite(type, p), c)), `${type} ${p}`);
+      assert.ok(allowed(decide(dreamWrite(type, `/t/run-a/${mem}/note.md`, { old: "a", new: "b" }), c)));
+      for (const p of no) assert.ok(denied(decide(dreamWrite(type, p), c), /is outside the memory folder of the run's branch/), `${type} ${p.slice(0, 80)}`);
+    }
+    const c = fsCtx({ files, links, config });
+    for (const type of ["explore", "dream-other", undefined]) for (const p of [...yes, ...no]) assert.ok(allowed(decide(dreamWrite(type, p), c)), `${type} ${p.slice(0, 80)}`);
+    assert.ok(allowed(decide(ev("write", { writes: [{ path: "/o/x.md", content: "x" }] }), c)));
+  }
+  for (const e of [{}, { writes: [{}] }, { writes: [{ path: 3 }] }])
+    assert.ok(allowed(decide({ event: "preTool", kind: "write", root: "/r", isSubagent: true, agent: "dream-organizer", ...e }, fsCtx())), JSON.stringify(e));
+});
+
+test("a project whose root is a linked worktree finds the runs in its common git folder", () => {
+  const files = { "/p/.git": "gitdir: ../m/.git/worktrees/p\n", "/m/.git/worktrees/p/commondir": "../..\n", ...worktree("/m/.git", "p", "/p/.git", false), ...worktree("/m/.git", "a", "/t/run-a/.git") };
+  const c = fsCtx({ files });
+  assert.ok(allowed(decide(dreamWrite("dream-analyzer", "/t/run-a/docs/memory/n.md", undefined, "/p"), c)));
+  assert.ok(denied(decide(dreamWrite("dream-analyzer", "/p/docs/memory/n.md", undefined, "/p"), c), /is outside the memory folder/));
+});
+
+test("with no marked worktree the deny says no run is open and the main session must run open first", () => {
+  for (const files of [{}, worktree("/r/.git", "b", "/t/run-b/.git", false), { "/r/.git": "gitdir: /m/.git/worktrees/r\n" }])
+    for (const p of ["/t/run-b/docs/memory/n.md", "/r/src/a.mjs", ""])
+      assert.ok(denied(decide(dreamWrite("dream-organizer", p), fsCtx({ files })), /no run is open: the main session must run `branch\.mjs open` first/), `${JSON.stringify(files)} ${p}`);
+});
+
+test("for any other agent and for the main session the dream rule reads nothing", () => {
+  const boom = () => { throw new Error("read"); };
+  const c = { ...fsCtx(), readFile: boom, listDir: boom, realPath: boom, agentName: boom };
+  for (const type of ["explore", "dream-other", "analyzer", undefined]) assert.ok(allowed(decide(dreamWrite(type, "/t/run-a/docs/memory/n.md"), c)), String(type));
+  assert.ok(denied(decide(dreamWrite("explore", "/r/CLAUDE.md"), c), /curated/));
+});
+
+test("the dream rule knows the two agents by their installed names only", () => {
+  const w = (type, names) => decide(ev("write", { isSubagent: true, agent: type, writes: [{ path: "/r/reports/a.md", content: "x" }] }), { ...mk(), ...names });
+  const renamed = { agentName: (r) => `xwf-${r}` };
+  for (const id of ["dream-analyzer", "dream-organizer"]) {
+    assert.ok(allowed(w(id, renamed)), `the project's own ${id} is any other agent`);
+    assert.ok(denied(w(`xwf-${id}`, renamed), /only in the memory folder/), `ours, renamed xwf-${id}, is held`);
+    assert.ok(denied(w(id, {}), /only in the memory folder/), `ours, installed as ${id}, is held`);
+    assert.ok(allowed(w(`xwf-${id}`, {})), `xwf-${id} is not ours when ours is ${id}`);
+  }
 });
 
 test("risk reviewer needs a plan or spec in the prompt", () => {

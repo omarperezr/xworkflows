@@ -3,8 +3,8 @@ import { memoryFolder } from "./config.mjs";
 import { buildIndex, header } from "./memory-index.mjs";
 
 const OWNER_ONLY = new Set(["user", "feedback"]);
-const NOISE = /<(system-reminder|local-command-[\w-]+|command-[\w-]+|bash-stdout|bash-stderr)>[\s\S]*?<\/\1>/g;
-const REPORT = /^(<task-notification>|Another Claude session sent a message)/;
+export const NOISE = /<(system-reminder|local-command-[\w-]+|command-[\w-]+|bash-stdout|bash-stderr)>[\s\S]*?<\/\1>/g;
+export const REPORT = /^(<task-notification>|Another Claude session sent a message)/;
 
 const qmd = (ctx, ...args) => [...(ctx.config.memory.index ? ["--index", ctx.config.memory.index] : []), ...args];
 
