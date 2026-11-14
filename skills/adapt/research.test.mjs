@@ -137,6 +137,28 @@ test("done refuses an approved summary when no Write of it was kept", () => {
   assert.ok(!existsSync(X(d, "research.prev.json")));
 });
 
+test("start takes a summary the gate judged in the run before as the summary of before the new run", () => {
+  const d = repo();
+  writeFileSync(X(d, "research.json"), '{"x":1}');
+  cli(d, "start");
+  writeSummary(d, "---\nstatus: approved\n---\n");
+  cli(d, "start");
+  const r = cli(d, "done");
+  assert.deepEqual([r.status, r.stderr], [0, ""]);
+});
+test("an open run with a draft keeps its start mark: a shell's approved summary is refused before and after start", () => {
+  const d = repo();
+  writeFileSync(X(d, "research.json"), '{"x":1}');
+  writeFileSync(X(d, "summary.md"), "---\nstatus: draft\n---\n");
+  cli(d, "start");
+  writeFileSync(X(d, "summary.md"), "---\nstatus: approved\n---\n");
+  assert.equal(cli(d, "done").status, 1);
+  cli(d, "start");
+  const r = cli(d, "done");
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, NOT_WRITTEN);
+});
+
 // A re-adapt started and left: the approved summary of before is tracked, research.json is there.
 function leftRun() {
   const d = repo();

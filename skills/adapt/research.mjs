@@ -189,8 +189,9 @@ function cli(cmd, root) {
       try { for (const l of readFileSync(join(dir, "interview.log.jsonl"), "utf8").split("\n")) try { last = JSON.parse(l).run || last; } catch {} } catch {}
       if (last && (status === "draft" || last.startsWith(commit.slice(0, 8) + "-"))) old = { run: last, mismatches: 0 };
     }
-    // done tells the summary of before this run from one written in it; an open run keeps its mark, only done clears it
-    const startSha = marked(old) ? old.startSha : shaOf(summary);
+    // done tells the summary of before this run from one written in it; an open run keeps its mark, only done clears it,
+    // unless the summary on disk is the one the gate judged in that run: then it is the summary of before this one
+    const startSha = marked(old) && old.summarySha !== shaOf(summary) ? old.startSha : shaOf(summary);
     const run = resume && old ? { ...old, commit, startedAt: Date.now(), startSha }
       : { run: `${commit.slice(0, 8)}-${Date.now().toString(36)}`, commit, startedAt: Date.now(), mismatches: 0, startSha };
     if (!status) { rmSync(prev, { force: true }); rmSync(join(dir, "research.answered.json"), { force: true }); }
