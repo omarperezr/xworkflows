@@ -363,7 +363,8 @@ function hookState(manifest, root, record, name) {
   const g = `.xworkflows/git/${name}`;
   let gt = null;
   try { gt = readFileSync(join(root, g), "utf8"); } catch {}
-  const ran = (state) => !["own", "line"].includes(state) ? state : !existsSync(join(root, g)) ? "missing" : gt === gitText(name) || (gt !== null && hash(gt) === record.files[g]?.sha256) ? state : "changed";
+  // hash() drops the CR of a CRLF, and the shell cannot run a text that holds one: such a text is never the recorded one
+  const ran = (state) => !["own", "line"].includes(state) ? state : !existsSync(join(root, g)) ? "missing" : gt === gitText(name) || (gt !== null && !gt.includes("\r") && hash(gt) === record.files[g]?.sha256) ? state : "changed";
   if (ownHooks(root) === null) {
     let t = null;
     try { t = readFileSync(join(root, path), "utf8"); } catch {}
@@ -719,6 +720,8 @@ async function install(flags) {
   if (linked) die(1, linked);
   const ans = {}, auto = [];
   const rl = pl.questions.length && !flags.yes && !flags["dry-run"] && process.stdin.isTTY ? createInterface({ input: process.stdin, output: process.stdout }) : null;
+  // Ctrl-C at a question stops install: every write comes after the questions; 130 is a shell's code for a stop by Ctrl-C
+  rl?.on("SIGINT", () => die(130, "\ninstall stopped: nothing written"));
   for (const q of pl.questions) {
     if (flags.yes) ans[q.id] = q.labels[q.yes];
     else if (rl) {
@@ -1141,7 +1144,9 @@ function uninstall() {
     if (i < 0) continue;
     ls.splice(i, 1);
     const out2 = ls.join("\n");
-    write(file, addedNewline && out2.endsWith("\n") ? out2.slice(0, -1) : out2);
+    // a hook uninstall cannot write keeps its line, said in one line without a stack, as apply does for install
+    try { write(file, addedNewline && out2.endsWith("\n") ? out2.slice(0, -1) : out2); }
+    catch (e) { if (line !== hookLine(basename(key))) throw e; out.push(`not written (${e.code}): ${key}: the xworkflows line stays in it; take it out yourself`); }
   }
   for (const p of rec.created) {
     if (p === md) {

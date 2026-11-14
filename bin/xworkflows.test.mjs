@@ -1828,14 +1828,15 @@ test("uninstall writes settings.json back with the indent the file had", () => {
     assert.equal(back, mine, JSON.stringify(indent));
   }
 });
-// the answers are typed at a terminal: a pty from python3, each line sent once the previous question is out; EOF sends end of input
+// the answers are typed at a terminal: a pty from python3, each line sent once the previous question is out; EOF sends end of input,
+// INT sends Ctrl-C. It exits with the code of the command, 255 when a signal ended it
 const PTY = `import os, pty, sys, time
 pid, fd = pty.fork()
 if pid == 0:
     os.execvp("node", ["node"] + sys.argv[2:])
 for line in sys.argv[1].split(","):
     time.sleep(1)
-    os.write(fd, b"\\x04" if line == "EOF" else (line + "\\n").encode())
+    os.write(fd, b"\\x04" if line == "EOF" else b"\\x03" if line == "INT" else (line + "\\n").encode())
 out = b""
 try:
     while True:
@@ -1844,6 +1845,8 @@ try:
         out += d
 except OSError: pass
 sys.stdout.write(out.decode())
+c = os.waitstatus_to_exitcode(os.waitpid(pid, 0)[1])
+sys.exit(c if c >= 0 else 255)
 `;
 test("answers typed at a terminal decide each question: a prefix, an empty line and a file that is not ours", { skip: spawnSync("python3", ["-c", "import pty"]).status !== 0 && "needs python3 pty" }, () => {
   const r = repo({ ".claude/skills/grill/SKILL.md": "mine\n", "CLAUDE.md": "# x\n" });
@@ -1872,6 +1875,22 @@ test("end of input at a question of install is an empty answer, the first label,
   assert.equal(readFileSync(join(r, "CLAUDE.md"), "utf8"), "# x\n");
   assert.deepEqual(readJson(r, ".xworkflows/installed.json").declined.map((d) => d.what).sort(), ["chain", "import"]);
 });
+// every path of the project with its bytes, the hooks folder included
+const files = (r) => readdirSync(r, { recursive: true }).filter((p) => !/^\.git(\/|$)/.test(p) || p.startsWith(".git/hooks")).sort()
+  .map((p) => (statSync(join(r, p)).isDirectory() ? `${p}/` : `${p} ${readFileSync(join(r, p), "base64")}`)).join("\n");
+for (const [at, keys] of [["the first question", "INT"], ["the second question, after Enter at the first", ",INT"]]) {
+  test(`Ctrl-C at ${at} of install stops it with nothing written, no record, an exit code that is not zero and no stack`, { skip: spawnSync("python3", ["-c", "import pty"]).status !== 0 && "needs python3 pty" }, () => {
+    const { r } = chained();
+    writeFileSync(join(r, "CLAUDE.md"), "# x\n");
+    const before = files(r);
+    const out = spawnSync("python3", ["-c", PTY, keys, BIN, "install"], { cwd: r, env: { ...process.env, ...ISO }, encoding: "utf8" });
+    assert.match(out.stdout, keys === "INT" ? /Add the xworkflows line to/ : /CLAUDE\.md/);
+    assert.notEqual(out.status, 0, out.stdout);
+    assert.doesNotMatch(out.stdout, /AbortError|Error:|\n\s+at /);
+    assert.ok(!existsSync(join(r, ".xworkflows/installed.json")), out.stdout);
+    assert.equal(files(r), before);
+  });
+}
 test("a tracked settings.local.json: the ignore line is added once, not on every install", () => {
   const r = repo({ ".claude/settings.local.json": '{"x":1}' });
   git(r, "add -A"); git(r, "commit -qm t");
@@ -2489,6 +2508,9 @@ const HOOK_STATES = [
   ["install's own, not executable", at((r) => { cli(r, ["install"]); chmodSync(join(r, ".git/hooks/pre-push"), 0o644); })],
   ["install's own, its file under .xworkflows/git missing", at((r) => { cli(r, ["install"]); rmSync(join(r, ".xworkflows/git/pre-push")); })],
   ["install's own, its file under .xworkflows/git emptied", at((r) => { cli(r, ["install"]); writeFileSync(join(r, ".xworkflows/git/pre-push"), ""); })],
+  // the shell cannot run the file then, while the hash of its text, which drops the CR of a CRLF, is the package's
+  ["a user's hook holding the line, every line end of its file under .xworkflows/git made CRLF", at((r) => { hookAt(r, OLD); yes(r); const f = join(r, ".xworkflows/git/pre-push"); writeFileSync(f, readFileSync(f, "utf8").replaceAll("\n", "\r\n")); })],
+  ["a user's hook holding the line, one carriage return added to its file under .xworkflows/git", at((r) => { hookAt(r, OLD); yes(r); const f = join(r, ".xworkflows/git/pre-push"); writeFileSync(f, readFileSync(f, "utf8").replace("\n", "\r\n")); })],
   ["an earlier text of install's own", at((r) => oldInstall(r))],
   ["an old pair whose hook can take the line", at((r) => { hookAt(r, OLD); oldInstall(r); })],
   ["an old pair whose hook cannot take the line", at((r) => { hookAt(r, NODE_HOOK); oldInstall(r); })],
@@ -2536,6 +2558,31 @@ for (const [name, make, how, after] of HOOK_STATES) test(`doctor, pre-push ${nam
   assert.match(no.stderr, /patterns: /, `${line}\n${no.stderr}`);
   assert.equal(git(bare, "rev-list --count main"), "1");
   after?.(x);
+});
+// a hook uninstall cannot write keeps its line, which is named in one line; the rest of uninstall is done
+const readOnly = [
+  ["added by hand, as doctor's line says, to a hook install could not write", (r, hook) => {
+    hookAt(r, "#!/bin/sh\nexit 0\n"); chmodSync(hook, 0o555); yes(r);
+    doLine(r, lineOf(doctor(r), /^fail +pre-push hook/), true);
+    // the config the test's doctor() wrote is the user's, which uninstall keeps
+    rmSync(join(r, ".xworkflows/config.json"));
+    chmodSync(hook, 0o555);
+    assert.equal(cli(r, ["install"]).status, 0);
+  }],
+  ["install wrote, in a hook made read-only after", (r, hook) => { hookAt(r, OLD); yes(r); chmodSync(hook, 0o555); }],
+];
+for (const [how, make] of readOnly) test(`uninstall, the line of pre-push ${how}: one line names the hook and says the line stays, and uninstall ends as it does otherwise`, { skip: ROOT_WRITES }, () => {
+  const { r } = withRemote(), hook = join(r, ".git/hooks/pre-push");
+  make(r, hook);
+  assert.ok(readJson(r, ".xworkflows/installed.json").imports.some((i) => i.file === ".git/hooks/pre-push"));
+  const bytes = readFileSync(hook);
+  const out = cli(r, ["uninstall"]);
+  assert.equal(out.status, 0, out.stderr);
+  assert.doesNotMatch(out.stdout + out.stderr, /Error|\n\s+at /);
+  assert.match(out.stdout, /^not written \(EACCES\): \.git\/hooks\/pre-push: the xworkflows line stays in it; take it out yourself$/m);
+  assert.match(out.stdout, /\nuninstalled\n$/);
+  assert.deepEqual(readdirSync(r), [".git"]);
+  assert.deepEqual(readFileSync(hook), bytes);
 });
 
 const QMD_V = "qmd 2.8.3 (facd35e)";
