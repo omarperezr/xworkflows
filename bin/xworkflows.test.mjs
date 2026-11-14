@@ -79,11 +79,11 @@ const packed = spawnSync("node", [join(SHARED, "bin/xworkflows.mjs"), "pack"], {
 assert.equal(packed.status, 0, `pack of the shared copy failed, every install test depends on it:\n${packed.stdout}${packed.stderr}`);
 const BIN = join(SHARED, "bin/xworkflows.mjs");
 
-function cliAt(pkg, cwd, args) {
+function cliAt(pkg, cwd, args, extra = {}) {
   const env = { ...process.env };
   delete env.XWORKFLOWS_FREE;
   delete env.XWORKFLOWS_RECORD;
-  const r = spawnSync("node", [join(pkg, "bin/xworkflows.mjs"), ...args], { cwd, env: { ...env, ...ISO }, input: "", encoding: "utf8" });
+  const r = spawnSync("node", [join(pkg, "bin/xworkflows.mjs"), ...args], { cwd, env: { ...env, ...ISO, ...extra }, input: "", encoding: "utf8" });
   return { status: r.status, stdout: r.stdout, stderr: r.stderr };
 }
 
@@ -2230,7 +2230,7 @@ test("install removes only a file the record holds that the manifest lists as re
   assert.equal(out.stdout.split("\n").filter((l) => l === `kept (no longer shipped, changed locally): ${edited}`).length, 1, out.stdout);
   const files = readJson(r, ".xworkflows/installed.json").files;
   assert.ok(!(gone in files) && !(mine in files) && !(conf in files) && !(stray in files));
-  assert.ok(edited in files, "the kept file stays in the record, so the next install judges it again");
+  assert.ok(!(edited in files), "the kept file is named once and leaves the record");
   assert.match(cliAt(copy, r, ["install", "--yes"]).stdout, /nothing to do/);
 });
 test("install does not throw on a null entry of the record's files: it counts as not recorded", () => {
@@ -2315,13 +2315,13 @@ test("install: a retired agent the record holds, unchanged, is removed on an upg
   assert.doesNotMatch(un.stdout, /gone\.md|kept \(not ours\)/);
   assert.ok(!existsSync(join(r, AGENT)) && !(existsSync(join(r, ".graphifyignore")) && lines(r).includes(AGENT)));
 });
-test("install: a retired agent the record holds, changed locally, is kept, named once and stays in the record", () => {
+test("install: a retired agent the record holds, changed locally, is kept, named once and leaves the record", () => {
   const { copy, r } = upgradeWithAgent("a\nmine\n");
   const out = cliAt(copy, r, ["install", "--yes"]);
   assert.equal(out.status, 0, out.stderr);
   assert.equal(readFileSync(join(r, AGENT), "utf8"), "a\nmine\n");
   assert.equal(out.stdout.split("\n").filter((l) => l === `kept (no longer shipped, changed locally): ${AGENT}`).length, 1, out.stdout);
-  assert.ok(AGENT in readJson(r, ".xworkflows/installed.json").files);
+  assert.ok(!(AGENT in readJson(r, ".xworkflows/installed.json").files));
 });
 test("install: a first install into a project with its own files at retired paths, with the published text, leaves them and names nothing", () => {
   const r = repo({ [AGENT]: "a\n", [LOOSE]: "a\n" });
@@ -2341,7 +2341,7 @@ test("install: a record edited by hand to name the user's files at retired paths
   for (const f of [AGENT, LOOSE]) {
     assert.equal(readFileSync(join(r, f), "utf8"), "mine\n", f);
     assert.match(out.stdout, new RegExp(`^kept \\(no longer shipped, changed locally\\): ${f.replaceAll(".", "\\.")}$`, "m"));
-    assert.ok(f in files, f);
+    assert.ok(!(f in files), f);
   }
 });
 
@@ -2397,6 +2397,23 @@ test("install: a skill the user put under kept is not judged: an upgrade that re
   assert.ok(existsSync(join(r, f)), out.stdout);
   assert.equal(readFileSync(join(r, f), "utf8"), text);
   assert.doesNotMatch(out.stdout, /next-step/);
+});
+test("install: a changed retired file is named once, at the upgrade, and leaves the record: doctor and a second install say nothing of it", () => {
+  const r = repo(), f = ".claude/skills/next-step/SKILL.md";
+  assert.equal(cli(r, ["install", "--yes"]).status, 0);
+  appendFileSync(join(r, f), "mine\n");
+  const text = readFileSync(join(r, f), "utf8"), copy = retireReal(["skills/next-step/SKILL.md"]);
+  const up = cliAt(copy, r, ["install", "--yes"]);
+  assert.equal(up.status, 0, up.stderr);
+  assert.equal(up.stdout.split("\n").filter((l) => l === `kept (no longer shipped, changed locally): ${f}`).length, 1, up.stdout);
+  assert.ok(!(f in readJson(r, ".xworkflows/installed.json").files));
+  const again = cliAt(copy, r, ["install", "--yes"]);
+  assert.equal(again.status, 0, again.stderr);
+  assert.doesNotMatch(again.stdout, /next-step/);
+  assert.match(again.stdout, /nothing to do/);
+  const doc = cliAt(copy, r, ["doctor"], { PATH: GOOD, HOME: EMPTY_HOME });
+  assert.doesNotMatch(doc.stdout, /next-step/);
+  assert.equal(readFileSync(join(r, f), "utf8"), text);
 });
 
 // P-46: until the chaining is designed apart, install says what a chained hook cannot do

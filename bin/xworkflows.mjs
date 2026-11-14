@@ -465,20 +465,20 @@ export function plan(manifest, root, record, ans = {}) {
     } else if (hash(cur) !== rec.sha256) { w.keep = true; notes.push(`kept (changed locally): ${w.path}  new: ${w.src}`); }
   }
   // a file install wrote that this version no longer ships: found from the record, removed only when the manifest lists it as retired
-  // with the hash of the text on disk as the package published it, kept and named (and still recorded) when edited; the record's hash never decides
+  // with the hash of the text on disk as the package published it, kept and named once when edited, and then out of the record; the record's hash never decides
   const listed = new Map();
   for (const [f, hashes] of manifest.pieces.flatMap((p) => Object.entries(p.retired ?? {}))) {
     const t = target(f), u = t?.match(UNIT)?.[0];
     if (t) for (const p of u ? [t, renameWrite({ path: t, text: "" }, u).path] : [t]) listed.set(p, hashes);
   }
   const shipped = new Set(writes.map((w) => w.key ?? w.path));
-  const retired = [], held = [], tiers = JSON.parse(readFileSync(join(PKG, "tiers.json"), "utf8"));
+  const retired = [], tiers = JSON.parse(readFileSync(join(PKG, "tiers.json"), "utf8"));
   for (const p of Object.keys(record.files)) {
     const hashes = listed.get(p), u = p.match(UNIT)?.[0];
     // a unit under kept, this plan's or the record's, is the user's: not judged, as uninstall does
     if (!hashes || kept.includes(u) || record.kept.includes(u) || shipped.has(p) || !plain(p) || !clean(root, p) || !lstatSync(join(root, p), { throwIfNoEntry: false })?.isFile()) continue;
     if (published(p, read(root, p), tiers).some((t) => hashes.includes(hash(t)))) retired.push(p);
-    else { held.push(p); notes.push(`kept (no longer shipped, changed locally): ${p}`); }
+    else notes.push(`kept (no longer shipped, changed locally): ${p}`);
   }
   const merges = [];
   let mem;
@@ -508,7 +508,7 @@ export function plan(manifest, root, record, ans = {}) {
       merges.push({ path: "CLAUDE.md", text: claude + (claude.endsWith("\n") ? "" : "\n") + "@AGENTS.md\n", rec: { imports: [claude.endsWith("\n") ? { file: "CLAUDE.md", line: "@AGENTS.md" } : { file: "CLAUDE.md", line: "@AGENTS.md", addedNewline: true }] } });
     } else merges.push({ path: "CLAUDE.md", text: null, rec: { declined: [{ file: "CLAUDE.md", what: "import" }] } });
   }
-  return { writes, merges, questions, kept, renamed, notes, retired, held };
+  return { writes, merges, questions, kept, renamed, notes, retired };
 }
 
 const differs = (root, w) => !existsSync(join(root, w.path)) || readFileSync(join(root, w.path), "utf8") !== w.text;
@@ -565,7 +565,6 @@ export function apply(pl, root, manifest, record) {
   }
   for (const p of manifest.pieces) next.pieces[p.id] = { version: p.version, sha256: p.sha256 };
   for (const w of pl.writes) next.files[w.key ?? w.path] = w.keep ? record.files[w.key ?? w.path] : { piece: w.piece, sha256: hash(w.text) };
-  for (const p of pl.held) next.files[p] = record.files[p];
   const rp = ".xworkflows/installed.json";
   mk(dirname(rp));
   if (record.dirs) next.dirs = [...new Set([...next.dirs, ...made])]; else delete next.dirs;
