@@ -63,6 +63,12 @@ What did not block:
 - Role: implement
 - Done: `node --test hooks/core/memory.test.mjs hooks/core/ctx.test.mjs hooks/run.test.mjs skills/dream/workflow.test.mjs` passes.
 
+### Batch 1, confirmation at `17f5ba5`
+
+No blocking finding stands, and the three points of F1 are done as the plan says. By days the line needs one session newer than the run (43 starts run for real). In 31 layouts of the memory folder the hook and `branch.mjs unseen` agree: no line exactly where `dream` refuses to run, and a real folder gets the line also when the repository is reached through a link. A session path that is not text keeps the old lines byte for byte. Where the line is not due, the hook's text is that of the main branch in 91 events.
+
+What did not block, one card each: P-154 (the session in which `dream` ran counts as the new session of the next round), P-155 (a newer session with no text makes the line due by days once more), P-156 (no test holds that a repository reached through a link still gets the line).
+
 ## Review Focus
 
 - The hook runs at the start of every session of every project: it must not throw, must not read a session's text, and must stay fast with thousands of files in the sessions folder.
