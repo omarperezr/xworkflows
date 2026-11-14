@@ -185,7 +185,7 @@ test("shapes: each key of a known form goes, the text around stays, the count is
   for (const form of FORMS) assert.deepEqual(shapes(form), [form, 0], form);
 });
 
-test("shapes: a BEGIN line with no END line is masked to the next blank line, never to the end of the text", () => {
+test("shapes: a BEGIN line in a sentence masks only that line, and a cut block takes only its key lines before a blank line", () => {
   const lines = Array.from({ length: 20 }, (_, i) => `Fact ${i + 1} of the note.`);
   lines[0] = "The key file must start with the line -----BEGIN OPENSSH PRIVATE " + "KEY----- or ssh refuses it.";
   const [out, n] = shapes(lines.join("\n\n"));
@@ -212,12 +212,32 @@ test("shapes: a BEGIN line with no END line takes only the lines of key material
   assert.ok(!crlf[0].includes("MIIEv"));
 });
 
-test("shapes: many BEGIN lines with no END line take time proportional to the text", () => {
+test("shapes: 2000 BEGIN lines with no END line are masked within 1500 ms", () => {
   const t = "-----BEGIN RSA PRIVATE KEY-----\n".repeat(2000);
   const t0 = performance.now();
   shapes(t);
   const ms = performance.now() - t0;
   assert.ok(ms < 1500, `took ${Math.round(ms)} ms`);
+});
+
+test("shapes: a cut block is masked whole when its key lines are indented, quoted or end in white space", () => {
+  const b = "-----BEGIN RSA PRIVATE " + "KEY-----", key = Array.from({ length: 4 }, (_, i) => "MIIEvQIBADANBgkq+/" + i + "=");
+  const cases = [["indent", b, (k) => "    " + k], ["tab", b, (k) => "\t" + k], ["quote", "> " + b, (k) => "> " + k],
+    ["quote nested", ">> " + b, (k) => ">  > " + k], ["trailing", b, (k) => k + " "], ["trailing tab", b, (k) => k + "\t"]];
+  for (const eol of ["\n", "\r\n"]) for (const [name, head, f] of cases) {
+    const [out, n] = shapes([head, ...key.map(f), "Then some prose."].join(eol));
+    assert.equal(n, 1, name);
+    assert.ok(!out.includes("MIIEv"), `${name}: ${JSON.stringify(out)}`);
+    assert.equal(out.split("\n").length, 6, name); // the line breaks hold
+    assert.ok(out.endsWith("Then some prose."), name);
+  }
+  const head = "The key file must start with the line " + b + " or ssh refuses it.";
+  for (const f of [(l) => l, (l) => "    " + l, (l) => "> " + l]) {
+    const prose = Array.from({ length: 20 }, (_, i) => f(`Fact ${i + 1} of the note.`));
+    assert.deepEqual(shapes([head, ...prose].join("\n")), ["The key file must start with the line [masked]\n" + prose.join("\n"), 1]);
+  }
+  const ordinary = Array.from({ length: 30 }, (_, i) => `line${i}`).join("\n");
+  assert.deepEqual(shapes(ordinary), [ordinary, 0]);
 });
 
 test("mask: every form a review found is masked, and every key of a known form", () => {
