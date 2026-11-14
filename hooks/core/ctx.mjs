@@ -1,6 +1,6 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, statSync, lstatSync, realpathSync } from "node:fs";
 import { homedir } from "node:os";
-import { join, dirname, resolve, sep } from "node:path";
+import { join, dirname, basename, resolve, sep } from "node:path";
 import { spawn, spawnSync } from "node:child_process";
 import { markFile } from "./marks.mjs";
 
@@ -47,6 +47,9 @@ export function makeCtx(ev, { env, config, stateDir }) {
     home: homedir(),
     exists: (p) => existsSync(at(p)),
     mtime: (p) => { try { return statSync(at(p)).mtimeMs; } catch { return null; } },
+    realPath: (p) => { // the real path; one not there yet is its nearest existing parent's (lstat: a dangling link exists, and its realpath throws); null when there is none, and for a name too long to be a file, at once
+      try { let a = at(p); const rest = []; while (a !== dirname(a)) { try { lstatSync(a); break; } catch (e) { if (e.code === "ENAMETOOLONG") return null; rest.unshift(basename(a)); a = dirname(a); } } return join(realpathSync(a), ...rest); } catch { return null; }
+    },
     listDir: (p) => { try { return readdirSync(at(p)); } catch { return []; } },
     outsideLine: (p) => outsideLine(ev.root, p, config?.memory?.outside),
     writeFile: (p, text) => { // never through a symlink: it could lead outside the tree

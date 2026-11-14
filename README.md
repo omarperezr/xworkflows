@@ -143,12 +143,14 @@ flowchart LR
 
 | | Count | Where |
 |---|---|---|
-| Skills | 13 | `.claude/skills/` |
-| Agents | 7 | `.claude/agents/` |
+| Skills | 14 | `.claude/skills/` |
+| Agents | 9 | `.claude/agents/` |
 | Hooks | 7 | `.xworkflows/hooks/`, registered in `.claude/settings.json` |
 | Push checks | 14, plus 3 optional tool packs | `.xworkflows/checks/`, run by `.git/hooks/pre-push` |
 
 It also writes a short block in `AGENTS.md`, a memory folder (`docs/memory`) where the agent keeps its notes, and a `.graphifyignore` that keeps the method's own files out of your code graph. Your settings live in `.xworkflows/config.json`, which `/adapt` writes.
+
+Between sessions, `/dream` improves the agent's notes from past sessions, on a branch you review; you start it by hand, and it works in Claude Code only.
 
 <details>
 <summary><strong>The 14 checks that can refuse a push</strong></summary>

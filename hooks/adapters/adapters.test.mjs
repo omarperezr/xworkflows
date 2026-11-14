@@ -153,6 +153,18 @@ test("claude: new preTool kinds normalize", async () => {
   assert.equal(normalize(pre("SubagentHandback", {}), {}).message, "");
 });
 
+test("claude: a sub-agent's tool event names its agent", async () => {
+  const { normalize } = await import("./claude.mjs");
+  const write = { file_path: "/p/docs/a.md", content: "x" };
+  const named = normalize(pre("Write", write, { agent_id: "a1", agent_type: "dream-analyzer" }), {});
+  assert.deepEqual([named.kind, named.isSubagent, named.agent], ["write", true, "dream-analyzer"]);
+  const unnamed = normalize(pre("Write", write, { agent_id: "a1" }), {});
+  assert.deepEqual([unnamed.isSubagent, "agent" in unnamed], [true, false]);
+  const main = normalize(pre("Write", write), {});
+  assert.deepEqual([main.isSubagent, "agent" in main], [false, false]);
+  assert.equal(normalize(pre("Bash", { command: "ls" }, { agent_id: "a1", agent_type: "explore" }), {}).agent, "explore");
+});
+
 test("claude: answer carries context, and a deny only on preTool", async () => {
   const { answer } = await import("./claude.mjs");
   const ss = { event: "sessionStart", hookEvent: "SessionStart" };
