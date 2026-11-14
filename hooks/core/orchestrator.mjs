@@ -1,7 +1,7 @@
 import path from "node:path";
 import { get, inPaths } from "./config.mjs";
 
-const MARKS = ["orchestrate", "adapt", "full-review", "next-step"];
+const MARKS = ["orchestrate", "adapt", "full-review", "next-step", "dream"];
 const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const list = (v) => (Array.isArray(v) && v.length ? v : null);
 const allow = { decision: "allow" };

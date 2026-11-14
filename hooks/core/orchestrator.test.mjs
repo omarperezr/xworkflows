@@ -36,10 +36,10 @@ const denied = (d, re) => d.decision === "deny" && (!re || re.test(d.reason));
 const allowed = (d) => d.decision === "allow";
 const explore = agent("explore");
 
-test("agent and workflow need the orchestrate skill mark (any of the four)", () => {
+test("agent and workflow need the orchestrate skill mark (any of the five)", () => {
   assert.ok(denied(decide(explore, mk({ marks: [] })), /orchestrate/));
   assert.ok(denied(decide(ev("workflow"), mk({ marks: ["front"] }))));
-  for (const m of ["orchestrate", "adapt", "full-review", "next-step"]) assert.ok(allowed(decide(explore, mk({ marks: [m] }))), m);
+  for (const m of ["orchestrate", "adapt", "full-review", "next-step", "dream"]) assert.ok(allowed(decide(explore, mk({ marks: [m] }))), m);
   assert.ok(allowed(decide(ev("workflow"), mk())));
 });
 
