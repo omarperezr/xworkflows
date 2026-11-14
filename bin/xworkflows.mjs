@@ -353,7 +353,7 @@ const clean = (root, p) => {
 
 // Reads and parses every target file before any write (ruling P2) and refuses before any write.
 // `ans` maps question id -> chosen label; an unanswered question is listed in `questions` and planned with its safe answer.
-// The two changes install makes to a package text it writes; published() reads a file back through these same functions.
+// The two changes install makes to a package text it writes; published() undoes them.
 const tierToModel = (text, tiers) => text.replace(/^tier: (\w+)$/m, (_, k) => `model: ${tiers.claude[k]}`);
 const nameAs = (text, name) => text.replace(/^name: .*$/m, `name: ${name}`);
 // the file of a unit that carries its name line: the agent file, or a skill's SKILL.md
@@ -379,14 +379,14 @@ function renameWrite(w, u) {
   const nu = `${dirname(u)}/xwf-${basename(u)}`;
   return { ...w, path: nu + w.path.slice(u.length), text: named(w.path, u) ? nameAs(w.text, `xwf-${id}`) : w.text };
 }
-// The texts the package may have published for a file install wrote at p: the text on disk with install's changes undone, each
-// candidate kept only when install's own change gives the disk text back. The name line of an xwf- unit goes back to `name: <id>`,
-// as every named file of the package has it. Limit: two tiers that map to one model cannot be told apart, so each is a candidate.
+// The texts the package may have published for a file install wrote at p: the text on disk with install's changes undone. The name
+// line of an xwf- unit goes back to `name: <id>`, as every named file of the package has it. An agent's model line is install's,
+// written with the map of the version that installed it, so every tier of the map is a candidate.
 function published(p, text, tiers) {
   const u = p.match(UNIT)?.[0], id = u && basename(u, ".md");
   const t = id?.startsWith("xwf-") && named(p, u) && nameAs(text, id) === text ? nameAs(text, id.slice(4)) : text;
   const ks = p.startsWith(".claude/agents/") ? Object.keys(tiers.claude) : [];
-  return [t, ...ks.map((k) => t.replace(/^model: .*$/m, `tier: ${k}`)).filter((c) => tierToModel(c, tiers) === t)];
+  return [t, ...ks.map((k) => t.replace(/^model: .*$/m, `tier: ${k}`))];
 }
 
 export function plan(manifest, root, record, ans = {}) {

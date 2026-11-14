@@ -2400,6 +2400,24 @@ test("install: a retired agent whose tier line install wrote as a model line is 
   assert.equal(cliAt(copy, r, ["uninstall"]).status, 0);
   assert.equal(git(r, "status --porcelain"), "");
 });
+// P-130: the file on disk was written with the map of the version that installed it, which may not be today's
+test("install: a retired agent written with an older map of tiers is removed on the upgrade, and uninstall leaves git status empty", () => {
+  const r = committed(), a = ".claude/agents/explore.md";
+  assert.equal(cli(r, ["install", "--yes"]).status, 0);
+  const tier = readFileSync(join(PKG_ROOT, "agents/explore.md"), "utf8").match(/^tier: (\w+)$/m)[1];
+  const was = readJson(PKG_ROOT, "tiers.json").claude[tier], now = was === "opus" ? "sonnet" : "opus";
+  assert.match(readFileSync(join(r, a), "utf8"), new RegExp(`^model: ${was}$`, "m"));
+  const copy = retireReal(["agents/explore.md"]);
+  const tiers = readJson(copy, "tiers.json");
+  tiers.claude[tier] = now;
+  writeJson(copy, "tiers.json", tiers);
+  const up = cliAt(copy, r, ["install", "--yes"]);
+  assert.equal(up.status, 0, up.stderr);
+  assert.match(up.stdout, /^removed \.claude\/agents\/explore\.md$/m);
+  assert.ok(!existsSync(join(r, a)), up.stdout);
+  assert.equal(cliAt(copy, r, ["uninstall"]).status, 0);
+  assert.equal(git(r, "status --porcelain"), "");
+});
 test("install: the SKILL.md of a renamed unit and a renamed agent, retired, are removed on the upgrade; the user's own stay and uninstall leaves git status empty", () => {
   const own = { ".claude/skills/next-step/SKILL.md": "mine\n", ".claude/agents/explore.md": "mine\n" };
   const r = committed(own), skill = ".claude/skills/xwf-next-step/SKILL.md", agent = ".claude/agents/xwf-explore.md";
