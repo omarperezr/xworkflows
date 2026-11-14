@@ -16,17 +16,17 @@
         "gemini"
       ],
       "files": {
-        "hooks/run.mjs": "e507832f0975fba80bdf8389374d84b23850709d71c77fee1880cf4220b8dcdd",
+        "hooks/run.mjs": "cf9ecf76c88fc39449b299ea6bb379af132a3d7d3b0163b8281eb0599831008a",
         "hooks/mark.mjs": "f2ecad21dedeb1515287063237e6852b9374781f71ce876f13b57324bfcb88a5",
         "hooks/core/marks.mjs": "9f52d052c8fb1275e92335d1dd5664be0f1bff7d43a4a9432268bac01d61a2b7",
         "hooks/adapters/claude.mjs": "dcba638334e4447a339907005f6723580b64517b5278af047c0cce64c5e6ad80",
         "hooks/adapters/codex.mjs": "0589bf97b5cec7e06fee8a70bd92d8a0f51e8bb082cc241f743a80308e44d059",
         "hooks/adapters/cursor.mjs": "394c1a81f4040089b67f0fbf1131012bbb5883bdf705ce3af12dff66d9b3cbd5",
         "hooks/adapters/gemini.mjs": "eff8f29bce46d7c4a7c62845f3762a16c6fd38e831e6c4a5d6b54361ec599175",
-        "hooks/core/config.mjs": "87f7a41cb696f04ee809936ee3373d5bb090754905d186c1542285e26fbe1d0c",
+        "hooks/core/config.mjs": "d145dac7dbf7d8d9c2efc08e9c55cc97d0d6ffec582426f14b9f8a34b6eac559",
         "hooks/core/ctx.mjs": "07fd3d9b2172fee59ef333d4c3f7d0a0bbe681d099afcecd78827d2bbf95f99d"
       },
-      "sha256": "c6eb49c7566e28f2709968373e6727b129a7f3b7f01293fb9084cba7a4187cd9"
+      "sha256": "6426ad27ef806ba64f829b12d84897ab655b79ccb25be8c25af0500905d0f0b5"
     },
     {
       "id": "design-first",
@@ -265,10 +265,10 @@
         "skills/adapt/scan.mjs": "c7d9a47a268cdf6135057da9eb267826b3d5df6df574b7fc206daccacfe401e9",
         "skills/adapt/rules.mjs": "736bb9ee53874d8c9447ab4107780d9b8f5733cee26597dae96862d43d37bde2",
         "skills/adapt/research.workflow.js": "c7d72c728a5eef056d9a23f56d3334b6f2400fa9730cb96dfcad23dadd579daa",
-        "skills/adapt/research.mjs": "c80f99f086d3679d1305bdf2ab22f55177cc0edcbb75db39c98bfecd968818c8",
+        "skills/adapt/research.mjs": "b2bdb932ebd801d51760c168c6750132baa82fff51b8a1fce50cdad91b6be60a",
         "skills/adapt/screens.mjs": "0a0f3698ea1e41ebae375416e52eac0df90e8d644f8b452c44e9fe702bc34cdc"
       },
-      "sha256": "9ad45559c8cceec31f77381838ac11850b8a0fb6f439f614901d8d6fd70c1558"
+      "sha256": "a98213c681bce828eda07d51eeaecf7991759d7a3eebda155cda65d0a42d54e3"
     },
     {
       "id": "full-review",
