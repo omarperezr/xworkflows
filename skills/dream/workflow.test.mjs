@@ -94,3 +94,18 @@ test("SKILL.md starts its body with the mark line", () => {
   const t = read("./SKILL.md");
   assert.match(t, /^---\nname: dream\ndescription: [^\n]+\n---\n\nBefore anything else, run `node \.xworkflows\/mark\.mjs dream` in the shell\.\n/);
 });
+
+test("SKILL.md follows the new commands of the scripts", () => {
+  const t = read("./SKILL.md");
+  assert.match(t, /branch\.mjs unseen/);
+  assert.match(t, /branch\.mjs close --worktree <worktree> --out <out>/);
+  assert.doesNotMatch(t, /--name|--time|\.\.\.last|maxExtractBytes/);
+  const extract = t.split("\n").find((l) => l.includes("extract.mjs"));
+  assert.doesNotMatch(extract, /--out/);
+});
+
+for (const n of ["dream-analyzer", "dream-organizer"]) {
+  test(`${n}: says a write outside the memory folder is denied by a hook`, () => {
+    assert.match(read(`../../agents/${n}.md`), /denied by a hook/);
+  });
+}
