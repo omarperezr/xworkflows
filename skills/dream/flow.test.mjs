@@ -1,7 +1,7 @@
 // A whole dream run, end to end: the real scripts, started as the skill starts them, in a temp repository.
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, appendFileSync, rmSync, realpathSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, appendFileSync, rmSync, realpathSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -34,13 +34,14 @@ function world(config) {
   const extract = () => { const x = script("extract.mjs", "--sessions", sessions, "--current", "running"); if (x.out) made.push(x.out); return x; };
   const open = () => { const o = script("branch.mjs", "open"); made.push(o.worktree); return o; };
   const close = (o, x) => script("branch.mjs", "close", "--worktree", o.worktree, "--out", x.out);
+  const drop = (o, x) => script("branch.mjs", "drop", "--worktree", o.worktree, "--out", x.out);
   const round = (x, edit = () => {}) => { const o = open(); edit(o.memory); return close(o, x); };
   const merge = (c) => git(root, "merge", "-q", "--no-ff", "-m", `adopt ${c.branch}`, c.branch);
   const put = (name, ...lines) => appendFileSync(join(sessions, `${name}.jsonl`), lines.map((l) => l + "\n").join(""));
   const state = () => JSON.parse(git(root, "show", "main:docs/memory/dream.json")).sessions;
   const read = (x) => x.sessions.map((s) => [s.name, s.lines, readFileSync(s.file, "utf8")]);
   put("running", user("the session that runs the dream", 9));
-  return { root, extract, open, close, round, merge, put, state, read };
+  return { root, extract, open, close, drop, round, merge, put, state, read };
 }
 
 test("two whole runs: each session is read once, and on from where the last merged run stopped", () => {
@@ -95,4 +96,15 @@ test("a session cut by the cap is read on from the cut at the next run", () => {
   assert.equal(x1.cut, true);
   w.merge(w.round(x1));
   assert.deepEqual(w.read(w.extract()), [["s1", 3, `user: ${c}`]]);
+});
+
+test("a run stopped after open, through drop, leaves no folder, worktree or branch of the run", () => {
+  const w = world();
+  w.put("s1", user("one", 1));
+  const x = w.extract(), o = w.open();
+  assert.deepEqual(w.drop(o, x), { left: [], deleted: o.branch });
+  assert.equal(existsSync(x.out) || existsSync(o.worktree), false);
+  assert.equal(git(w.root, "branch", "--list", "dream/*"), "");
+  assert.equal(git(w.root, "worktree", "list").split("\n").length, 1);
+  assert.deepEqual(w.read(w.extract()), [["s1", 1, "user: one"]]);
 });

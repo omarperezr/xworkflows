@@ -1,9 +1,10 @@
 // Opens the branch of a dream run in a worktree, and closes the run. No model.
 // Usage: node branch.mjs unseen | open
 //        node branch.mjs close --worktree <folder> --out <the extract's folder>
-import { readFileSync, writeFileSync, mkdtempSync, existsSync, realpathSync, rmSync, rmdirSync, lstatSync } from "node:fs";
+//        node branch.mjs drop [--worktree <folder>] [--out <the extract's folder>]
+import { readFileSync, readdirSync, writeFileSync, mkdtempSync, existsSync, realpathSync, rmdirSync, unlinkSync, lstatSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, dirname, sep } from "node:path";
+import { join, dirname, basename, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 import { shared } from "./shared.mjs";
@@ -20,6 +21,21 @@ const link = (p) => lstatSync(p, { throwIfNoEntry: false })?.isSymbolicLink() ==
 // the one gate of every read and write of open and close: the real path of p's folder is that folder itself, under the real path base (no link on
 // the way, so never outside it), and p is no link. A file refused here stays out of the commit and is named in outside
 const mine = (base, p) => { try { const d = dirname(p); return realpathSync(d) === d && (d + sep).startsWith(base + sep) && !link(p); } catch { return false; } };
+// the extract's folder goes only when it holds nothing but extract.json and the text files that file lists, and lies under none of bases;
+// any other is left and named. Returns the folders left
+function dropOut(folder, bases) {
+  if (!lstatSync(folder, { throwIfNoEntry: false })) return [];
+  try {
+    const real = realpathSync(folder), x = JSON.parse(readFileSync(join(real, "extract.json"), "utf8"));
+    const names = new Set(["extract.json", ...x.sessions.map((s) => basename(s.file))]), entries = readdirSync(real, { withFileTypes: true });
+    if (!link(resolve(folder)) && !bases.some((b) => (real + sep).startsWith(b + sep)) && entries.every((e) => e.isFile() && names.has(e.name))) {
+      for (const e of entries) unlinkSync(join(real, e.name));
+      rmdirSync(real);
+      return [];
+    }
+  } catch { /* not the folder the extract made: left */ }
+  return [folder];
+}
 
 export function run(argv, root) {
   const env = { ...process.env };
@@ -37,6 +53,15 @@ export function run(argv, root) {
   const main = config.mainBranch;
   const dir = memoryDir(config.memory.dir) ?? DEFAULTS.memory.dir;
   const out = (o) => ({ code: 0, stdout: JSON.stringify(o) + "\n" });
+  // a worktree that open made in this repository: listed by git on a dream/ branch, with open's mark; null for any other
+  const marked = (given) => {
+    let real = null;
+    try { real = realpathSync(given); } catch { return null; }
+    const e = git(root, "worktree", "list", "--porcelain").split("\n\n")
+      .map((b) => ({ path: /^worktree (.*)$/m.exec(b)?.[1], branch: /^branch refs\/heads\/(dream\/.*)$/m.exec(b)?.[1] }))
+      .find((w) => w.branch && w.path === real);
+    return e && existsSync(join(git(real, "rev-parse", "--absolute-git-dir"), MARK)) ? e : null;
+  };
   // a memory folder that is a link, or lies under one, could lead a run's writes outside its branch: refused before anything is written
   const linked = (base) => (mine(base, join(base, dir)) ? null : { code: 2, stdout: `the memory folder ${dir} is a link: /dream cannot run here, its writes could leave the branch\n` });
 
@@ -66,16 +91,11 @@ export function run(argv, root) {
       try { extract = JSON.parse(readFileSync(join(dirOut, "extract.json"), "utf8")); } catch { /* refused below */ }
       if (!Array.isArray(extract?.sessions) || !extract.sessions.every((s) => typeof s?.name === "string" && Number.isInteger(s.lines)))
         return { code: 2, stdout: `--out holds no readable extract.json: ${dirOut}\n` };
-      let real = null;
-      try { real = realpathSync(given); } catch { /* not a folder: refused below */ }
-      const entry = git(root, "worktree", "list", "--porcelain").split("\n\n")
-        .map((b) => ({ path: /^worktree (.*)$/m.exec(b)?.[1], branch: /^branch refs\/heads\/(dream\/.*)$/m.exec(b)?.[1] }))
-        .find((e) => e.branch && e.path === real);
-      if (!entry || !existsSync(join(git(real, "rev-parse", "--absolute-git-dir"), MARK)))
-        return { code: 2, stdout: `--worktree is not a worktree that open made in this repository: ${given}\n` };
-      const no = linked(real);
+      const entry = marked(given);
+      if (!entry) return { code: 2, stdout: `--worktree is not a worktree that open made in this repository: ${given}\n` };
+      const { branch, path: real } = entry, no = linked(real);
       if (no) return no;
-      const { branch } = entry, memory = join(real, dir), state = join(memory, "dream.json");
+      const memory = join(real, dir), state = join(memory, "dream.json");
       const { sessions = {} } = existsSync(state) && mine(real, state) ? JSON.parse(readFileSync(state, "utf8")) : {};
 
       if (mine(real, state)) writeFileSync(state, JSON.stringify({ sessions: { ...sessions, ...Object.fromEntries(extract.sessions.map((s) => [s.name, s.lines])) } }, null, 2) + "\n");
@@ -107,7 +127,7 @@ export function run(argv, root) {
       }
       if (tryGit(real, "diff", "--cached", "--quiet").code === 1) {
         const c = tryGit(real, "commit", "-q", "-m", `dream: ${date}`); // the project's commit hooks run: never --no-verify
-        if (c.code !== 0) return { code: 1, stdout: `${c.err || c.out || "git commit failed"}\nthe commit was refused; the notes stay staged in ${real}: commit there, then run git worktree remove ${real}\n` };
+        if (c.code !== 0) return { code: 1, stdout: `${c.err || c.out || "git commit failed"}\nthe commit was refused; the notes stay staged in ${real}: commit there, then run git worktree remove ${real}; the extract's folder ${dirOut} stays: drop --out removes it\n` };
       }
       const outside = git(real, "status", "--porcelain", "-z", "--untracked-files=all").split("\0").filter(Boolean).map((l) => l.slice(3));
 
@@ -122,12 +142,25 @@ export function run(argv, root) {
         lines = stale.run(range, ctx).lines;
       } catch (e) { lines = [`could not run: ${e.message}`]; }
 
+      const left = dropOut(dirOut, [realpathSync(root), real]);
       git(root, "worktree", "remove", "--force", real); // the changes outside the memory folder are named above and go with it
-      rmSync(dirOut, { recursive: true, force: true });
-      return out({ branch, added: count("A"), changed: count("M"), removed: count("D"), masked, look, stale: lines, outside,
+      return out({ branch, added: count("A"), changed: count("M"), removed: count("D"), masked, look, stale: lines, outside, left,
         see: `git diff ${main}...${branch} -- ${dir}`, adopt: `git merge --no-ff ${branch}`, discard: `git branch -D ${branch}` });
     }
-    return { code: 2, stdout: "usage: branch.mjs unseen | open | close --worktree <folder> --out <folder>\n" };
+    if (argv[0] === "drop") { // every path that stops: the extract's folder by close's rule, and a worktree open made, with its branch when that holds no commit
+      const given = arg(argv, "--worktree"), dirOut = arg(argv, "--out");
+      if (given || dirOut) {
+        const w = given ? marked(given) : null, left = dirOut ? dropOut(dirOut, [realpathSync(root), ...(w ? [w.path] : [])]) : [];
+        let deleted = null;
+        if (given && !w) left.push(given);
+        if (w) {
+          git(root, "worktree", "remove", "--force", w.path);
+          if (git(root, "rev-list", "--count", `${main}..${w.branch}`) === "0") { git(root, "branch", "-q", "-D", w.branch); deleted = w.branch; }
+        }
+        return out({ left, deleted });
+      }
+    }
+    return { code: 2, stdout: "usage: branch.mjs unseen | open | close --worktree <folder> --out <folder> | drop [--worktree <folder>] [--out <folder>]\n" };
   } catch (e) {
     return { code: 1, stdout: `${e.message}\n` };
   }

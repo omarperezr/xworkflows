@@ -95,6 +95,7 @@ test("close commits the changed, added and masked notes with the index and dream
   assert.equal(git(root, "rev-list", "--count", `main..${o.branch}`), "1");
   assert.equal(existsSync(o.worktree), false);
   assert.equal(existsSync(out), false);
+  assert.deepEqual(c.left, []);
   assert.equal(git(root, "rev-parse", "main"), main);
   assert.equal(git(root, "status", "--porcelain"), "");
 });
@@ -254,6 +255,7 @@ test("a commit refused by the project's hook leaves the worktree, the staged not
   assert.match(r.stdout, /lint says no/);
   assert.ok(r.stdout.includes(o.worktree));
   assert.match(r.stdout, /git worktree remove/);
+  assert.ok(r.stdout.includes(out));
   assert.equal(git(o.worktree, "diff", "--cached", "--name-only"), "docs/memory/MEMORY.md\ndocs/memory/a.md\ndocs/memory/dream.json");
   assert.ok(existsSync(out));
   assert.equal(git(root, "rev-parse", o.branch), git(root, "rev-parse", "main"));
@@ -337,6 +339,65 @@ test("a memory folder that is a link to a folder outside cannot run: unseen, ope
   assert.notDeepEqual(now, before);
   assert.equal(git(root, "rev-parse", o.branch), git(root, "rev-parse", "main~1"));
   assert.ok(existsSync(out));
+});
+
+// an extract's folder with one listed text file, made where the test says
+const extractAt = (out) => {
+  mkdirSync(out, { recursive: true });
+  writeFileSync(join(out, "s.txt"), "user: one\n");
+  writeFileSync(join(out, "extract.json"), JSON.stringify({ out, sessions: [{ file: join(out, "s.txt"), name: "s", bytes: 10, masked: 0, lines: 1 }] }));
+  return out;
+};
+
+test("close removes the extract's folder only when it holds nothing but extract.json and the text files it lists, and names any other in left", () => {
+  const root = repo();
+  const mixed = extracted();
+  writeFileSync(join(mixed, "mine.txt"), "keep\n");
+  const inRepo = extractAt(join(root, "data"));
+  for (const out of [mixed, inRepo]) {
+    const r = run(["close", "--worktree", opened(root).worktree, "--out", out], root);
+    assert.equal(r.code, 0, r.stdout);
+    assert.deepEqual(json(r).left, [out]);
+    assert.ok(existsSync(join(out, "extract.json")));
+  }
+  assert.equal(readFileSync(join(mixed, "mine.txt"), "utf8"), "keep\n");
+  const clean = extractAt(join(realpathSync(mkdtempSync(join(tmpdir(), "dream-b-out-"))), "x"));
+  made.push(dirname(clean));
+  const r = json(run(["close", "--worktree", opened(root).worktree, "--out", clean], root));
+  assert.deepEqual(r.left, []);
+  assert.equal(existsSync(clean), false);
+});
+
+test("drop removes the extract's folder by the same rule and nothing else", () => {
+  const root = repo();
+  const head = git(root, "rev-parse", "HEAD");
+  const clean = extracted(), mixed = extracted(), inRepo = extractAt(join(root, "data"));
+  writeFileSync(join(mixed, "mine.txt"), "keep\n");
+  assert.deepEqual(json(run(["drop", "--out", clean], root)), { left: [], deleted: null });
+  assert.equal(existsSync(clean), false);
+  for (const out of [mixed, inRepo]) {
+    assert.deepEqual(json(run(["drop", "--out", out], root)), { left: [out], deleted: null });
+    assert.ok(existsSync(join(out, "extract.json")));
+  }
+  assert.equal(git(root, "rev-parse", "HEAD"), head);
+  assert.equal(run(["drop"], root).code, 2);
+});
+
+test("drop --worktree removes a worktree that open made, and its branch only when the branch has no commit of its own", () => {
+  const root = repo();
+  const bare = opened(root), kept = opened(root);
+  writeFileSync(join(kept.memory, "a.md"), "---\nname: a\ndescription: committed by hand\n---\nbody a\n");
+  git(kept.worktree, "commit", "-q", "-am", "by hand");
+  const foreign = realpathSync(mkdtempSync(join(tmpdir(), "dream-")));
+  made.push(foreign);
+  git(root, "worktree", "add", "-q", "-b", "dream/2030-01-01", foreign, "main");
+  assert.deepEqual(json(run(["drop", "--worktree", bare.worktree], root)), { left: [], deleted: bare.branch });
+  assert.deepEqual(json(run(["drop", "--worktree", kept.worktree], root)), { left: [], deleted: null });
+  assert.deepEqual(json(run(["drop", "--worktree", foreign], root)), { left: [foreign], deleted: null });
+  assert.equal(existsSync(bare.worktree) || existsSync(kept.worktree), false);
+  assert.ok(existsSync(foreign));
+  assert.equal(git(root, "branch", "--list", bare.branch), "");
+  assert.notEqual(git(root, "branch", "--list", kept.branch), "");
 });
 
 test("an open that fails leaves no folder behind", () => {
