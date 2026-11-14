@@ -105,7 +105,7 @@ export function run(argv, root) {
       const memory = join(real, dir), state = join(memory, "dream.json");
       const { sessions = {} } = existsSync(state) && mine(real, state) ? JSON.parse(readFileSync(state, "utf8")) : {};
 
-      if (mine(real, state)) writeFileSync(state, JSON.stringify({ sessions: { ...sessions, ...Object.fromEntries(read.filter((s) => !notRead.includes(s.name)).map((s) => [s.name, s.lines])) } }, null, 2) + "\n");
+      if (mine(real, state)) writeFileSync(state, JSON.stringify({ sessions: { ...sessions, ...Object.fromEntries(read.filter((s) => !notRead.includes(s.name)).map((s) => [s.name, s.lines])) }, ran: new Date().toISOString() }, null, 2) + "\n");
 
       const date = /^dream\/(\d{4}-\d\d-\d\d)/.exec(branch)?.[1] ?? branch;
       git(real, "reset", "-q"); // the index holds only what this close stages

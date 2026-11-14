@@ -6,7 +6,7 @@
   "pieces": {
     "hook-runtime": {
       "version": "0.1.0",
-      "sha256": "a4aa7488de052080c112b1e19a72fabc56b187f47b6970eff4b4a551308a41d6"
+      "sha256": "30fa70a5772c70ff7961391cd8ef7740bf5e21898c2244ebc66bd5425c15298a"
     },
     "design-first": {
       "version": "0.1.0",
@@ -70,7 +70,7 @@
     },
     "memory": {
       "version": "0.1.0",
-      "sha256": "2c40fb708181a40e13b9534f49791107287c475d2f42a7d5de535cdce3e8f9ff"
+      "sha256": "4ec2455f28716a2bfae3bcb5e70746f5e0e7969a2b2a4e442ca3d003721fed6e"
     },
     "modes": {
       "version": "0.1.0",
@@ -126,7 +126,7 @@
     },
     "dream": {
       "version": "0.1.0",
-      "sha256": "520b5e070a7d831af5e04f1a05a88a0eb27e966f63497a8912c122188683e67b"
+      "sha256": "3e118aa0a1cb796f3080ec3e688724be293adff9b4fb696b811c99498c4ef710"
     },
     "checks": {
       "version": "0.1.0",
@@ -168,7 +168,7 @@
     },
     ".xworkflows/hooks/core/config.mjs": {
       "piece": "hook-runtime",
-      "sha256": "4be92661c437aa5c6f638de1dbfc6b8e841862786dfc7037344504fa9e823e20"
+      "sha256": "59254d6463e68a6d225b2d4068a68856d772fdd82609d4a189c69c437a40a3b9"
     },
     ".xworkflows/hooks/core/ctx.mjs": {
       "piece": "hook-runtime",
@@ -196,7 +196,7 @@
     },
     ".xworkflows/hooks/core/memory.mjs": {
       "piece": "memory",
-      "sha256": "6ad9d4b75477afa18423245118def7f7d93ebb50837feb5f129b53af4ac5b829"
+      "sha256": "c1bab32a4e6e87231dc050010314d93ba8c2836da94775d0f93719f0f8c3ecc4"
     },
     ".xworkflows/hooks/core/memory-index.mjs": {
       "piece": "memory",
@@ -452,11 +452,11 @@
     },
     ".claude/skills/dream/extract.mjs": {
       "piece": "dream",
-      "sha256": "5f260e58025ec15e6179265c3977958c171b16230f05bce60e1db850c4fe2af5"
+      "sha256": "59b65be4f9bf85f1d92aa9bade0458d40aecaa398c532746e4920c099c0d32cc"
     },
     ".claude/skills/dream/branch.mjs": {
       "piece": "dream",
-      "sha256": "cae0613cf4d7cd7a7995185adcc3644236d02eaf21d7c5262bd4f300103bcb45"
+      "sha256": "b9f88a1e86a936cf88105956557bed345fdf2d62398f6fcff9e16b642e985373"
     },
     ".claude/skills/dream/shared.mjs": {
       "piece": "dream",
