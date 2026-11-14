@@ -12,7 +12,12 @@ const json = (s) => { try { return JSON.parse(s); } catch { return null; } };
 export function decide(ev, ctx) {
   const x = (f) => path.join(ev.root, ".xworkflows", f);
   const run = json(ctx.readFile(x("adapt-run.json")));
-  if (!run || !(Date.now() - run.startedAt < 12 * 3600 * 1000)) return { decision: "allow" };
+  if (!run) return { decision: "allow" };
+  if (!(Date.now() - run.startedAt < 12 * 3600 * 1000)) { // past the 12 hours nothing is denied; the hash is book-keeping, kept for research.mjs done
+    const w = (ev.writes ?? []).filter((w) => w.content !== undefined && same(realFile(path.resolve(ev.root, w.path.replaceAll("\\", "/"))), realFile(x("summary.md")))).pop();
+    if (w) ctx.writeFile(x("adapt-run.json"), JSON.stringify({ ...run, summarySha: createHash("sha256").update(w.content).digest("hex") }, null, 2) + "\n");
+    return { decision: "allow" };
+  }
   const name = ctx.skillName?.("adapt") ?? "adapt";
   const script = `.claude/skills/${name}/research.workflow.js`;
   const deny = (why) => ({ decision: "deny", reason: `${why} If no /adapt is in progress (a stale run file), run node .claude/skills/${name}/research.mjs done. To bypass in an emergency: XWORKFLOWS_FREE=1.` });

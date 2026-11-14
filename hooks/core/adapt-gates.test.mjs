@@ -73,6 +73,15 @@ test("an allowed Write of the summary keeps its sha256 in the run file; a denied
   deny(decide(sw(text), ctx(g, missing("H1-a"))), /H1-a/);
   assert.deepEqual(JSON.parse(g["/r/.xworkflows/adapt-run.json"]), fresh);
 });
+test("past the 12 hours the gate denies nothing but still keeps the hash of a whole summary Write", () => {
+  const old = { ...fresh, startedAt: Date.now() - 13 * 3600e3 }, text = summary("approved");
+  const f = files(old);
+  ok(decide(sw(text), ctx(f, missing("H1-a"))));
+  assert.deepEqual(JSON.parse(f["/r/.xworkflows/adapt-run.json"]), { ...old, summarySha: sha(text) });
+  const g = files(old);
+  ok(decide(wr([{ path: "/r/.xworkflows/summary.md", old: "a", new: "b" }]), ctx(g)));
+  assert.deepEqual(JSON.parse(g["/r/.xworkflows/adapt-run.json"]), old);
+});
 test("summary Edit denied during a run", () => deny(decide(wr([{ path: "/r/.xworkflows/summary.md", old: "a", new: "b" }]), ctx()), /Write the whole summary with Write\./));
 test("deny reason names the installed skill", () => {
   const d = decide(wf({ inline: true }), ctx(files(), undefined, "xwf-adapt"));
