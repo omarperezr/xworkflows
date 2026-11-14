@@ -261,14 +261,14 @@
         ]
       },
       "files": {
-        "skills/adapt/SKILL.md": "d520ba22f1e25ffcec0b9bd66e12a629f34e017516e94868ed4e449e5d3410da",
+        "skills/adapt/SKILL.md": "fd138d33a9a2697e624ca8fe73f7997835b2fcb14ca3486ed70cc7d2280db428",
         "skills/adapt/scan.mjs": "c7d9a47a268cdf6135057da9eb267826b3d5df6df574b7fc206daccacfe401e9",
         "skills/adapt/rules.mjs": "736bb9ee53874d8c9447ab4107780d9b8f5733cee26597dae96862d43d37bde2",
         "skills/adapt/research.workflow.js": "c7d72c728a5eef056d9a23f56d3334b6f2400fa9730cb96dfcad23dadd579daa",
         "skills/adapt/research.mjs": "6a2e14b49e16dd31037ebb6cadfe575b41544584d538d0462d9542e342273ae0",
         "skills/adapt/screens.mjs": "0a0f3698ea1e41ebae375416e52eac0df90e8d644f8b452c44e9fe702bc34cdc"
       },
-      "sha256": "1c113fb6171636ef22ec78ec41a6eaf42f4591487ad1658e6debba2369210f16"
+      "sha256": "0c33fa17e44adb19a5da0d5200d307b78d1f829aa338272d53bff4511f2fc4d6"
     },
     {
       "id": "full-review",
@@ -443,9 +443,9 @@
         "claude"
       ],
       "files": {
-        "agents/review.md": "cc664745c387c9b0fd4f6041bfb17e2a2ac5832c559ffaa418c22cd177646ba8"
+        "agents/review.md": "752349c0408c1db4aa8b980e5243bec92e83b10d296797d07a0dc24bfe3ee323"
       },
-      "sha256": "244c129220da386ae3c84d1670d20d2226b0490ac18db984e6c88a59e74cff06"
+      "sha256": "271dec380ec968fe54f33a0b530c922be3252439de67a24c4f9964db2337c23f"
     },
     {
       "id": "deepen",
@@ -488,9 +488,9 @@
         "claude"
       ],
       "files": {
-        "skills/orchestrate/SKILL.md": "07f40bc19128e9635b43b23fdf5648821a6f5669e99f4f4a5042cb97ea44ed96"
+        "skills/orchestrate/SKILL.md": "ca6b17fc78d080931382a69ea5c9a282c64ce5ea42cbdfc6fe46751a44610d2d"
       },
-      "sha256": "c08df093fa9a9a47425ab51ed66194453ab281be9f68bc4a416659f6a41ffa90"
+      "sha256": "b352993fe9d3697b7d0eb1feb66b517bb8c42adeeddb6908da95835f619b0232"
     },
     {
       "id": "pending",
