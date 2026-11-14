@@ -288,15 +288,23 @@ test("sessionStart: a memory.dir outside the repository names the value, asks th
   }
 });
 
-test("sessionStart: a memory.dir outside the repository and listed under memory.outside says nothing, the rule of the write", () => {
+test("a memory.dir outside the repository, absolute or ../, is refused by the hooks also when memory.outside lists it", () => {
   for (const sub of ["abs", "../notes"]) {
     const top = realpathSync(mkdtempSync(join(tmpdir(), "xwf-mem-"))), root = join(top, "repo");
     mkdirSync(root);
     mkdirSync(join(top, "notes"));
+    writeFileSync(join(top, "notes", "a.md"), "---\nname: A\ndescription: first\n---\n");
     const dir = sub === "abs" ? join(top, "notes") : sub;
-    const at = (outside) => decide(ev("sessionStart", { source: "startup", root }), makeCtx({ root, session: "s" }, { env: {}, config: { ...DEFAULTS, memory: { dir, outside } }, stateDir: root }));
-    assert.equal(at([join(top, "notes")]).context, undefined, sub);
-    assert.match(at([]).context, /ask the owner/, sub);
+    const ctx = (outside) => makeCtx({ root, session: "s" }, { env: { XWORKFLOWS_DRY: "1" }, config: { ...DEFAULTS, memory: { dir, outside } }, stateDir: root });
+    for (const outside of [[], [join(top, "notes")]]) {
+      const r = decide(ev("sessionStart", { source: "startup", root }), ctx(outside));
+      assert.ok(r.context.includes(dir) && /ask the owner.*inside the repository/.test(r.context), sub);
+      assert.doesNotMatch(r.context, /memory\.outside|link/, sub);
+      for (const event of ["sessionEnd", "preCompact"]) {
+        decide(ev(event, { root }), ctx(outside));
+        assert.throws(() => readFileSync(join(top, "notes", "MEMORY.md")), /ENOENT/, `${sub} ${event}`);
+      }
+    }
   }
 });
 
