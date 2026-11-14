@@ -9,17 +9,17 @@ const same = (a, b) => a === b || folded(a, b);
 const json = (s) => { try { return JSON.parse(s); } catch { return null; } };
 
 const isSummary = (w) => w.replace(/["']/g, "").replace(/\/+/g, "/").endsWith(".xworkflows/summary.md");
-// One pass over the command, linear: words split at spaces and at ; & | newline, a ( or a standalone { opens a piece; a > not after - or a backslash makes the next word a redirect target; after < or << or <<< the next word is a source, a delimiter or a here-string. A write is the summary as a redirect target or as an argument of a piece whose command word is tee. Quotes are not parsed (a quoted mention is denied too).
+// One pass over the command, linear: words split at spaces, ) and a backtick, and at ; & | newline; a ( (not right after > or <), a $( , an opening backtick or a standalone { opens a piece; a > not after - or a backslash makes the next word a redirect target; after < or << or <<< the next word is a source, a delimiter or a here-string. A write is the summary as a redirect target or as an argument of a piece that has the word tee before it (any word: sudo tee, X=1 tee; a harmless grep tee is denied too). Quotes are not parsed (a quoted mention is denied too).
 function writesSummary(cmd) {
-  let first = null, target = false, skip = false, w = "";
-  const reset = () => { first = null; target = false; skip = false; };
+  let tee = false, target = false, skip = false, tick = false, w = "";
+  const reset = () => { tee = false; target = false; skip = false; };
   const flush = () => {
     const t = w; w = "";
     if (t === "") return false;
     if (skip) skip = false;
     else if (target) { target = false; if (isSummary(t)) return true; }
-    else if (first === null) first = t;
-    else if (first === "tee" && isSummary(t)) return true;
+    else if (t === "tee") tee = true;
+    else if (tee && isSummary(t)) return true;
     return false;
   };
   for (let i = 0; i < cmd.length; i++) {
@@ -27,7 +27,10 @@ function writesSummary(cmd) {
     if (c === "\\") { w += c + (cmd[++i] ?? ""); continue; }
     if (c === ";" || c === "&" || c === "|" || c === "\n") { if (flush()) return true; reset(); }
     else if (c === " " || c === "\t" || c === "\r") { if (flush()) return true; }
-    else if (w === "" && (c === "(" || (c === "{" && /\s/.test(cmd[i + 1] ?? " ")))) reset();
+    else if (c === ")") { if (flush()) return true; }
+    else if (c === "`") { if (flush()) return true; if ((tick = !tick)) reset(); }
+    else if (c === "(" && w.endsWith("$")) { w = ""; reset(); }
+    else if (w === "" && ((c === "(" && !/[<>]/.test(cmd[i - 1] ?? "")) || (c === "{" && /\s/.test(cmd[i + 1] ?? " ")))) reset();
     else if (c === ">" && !w.endsWith("-")) {
       if (flush()) return true;
       if (cmd[i + 1] === ">") i++;
