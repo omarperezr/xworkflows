@@ -12,6 +12,8 @@ One living list. The `pending` brake checks these rules:
 
 ## Adapt: render, queue, run
 
+- **P-170** — `skills/adapt/SKILL.md:135` and `tiers.json`: the package has no level above `top`, so `/adapt` writes the risk reviewer of every project with the model of the plain reviewer. The owner, 2026-11-14: the strongest model by default, configurable, and chosen by the user when `/adapt` reaches that point; plan docs/superpowers/plans/2026-11-14-risk-reviewer-model.md. Origin: docs/superpowers/plans/2026-11-14-risk-reviewer-model.md. Status: in progress on risk-model-1.
+
 
 ## Adapt: hooks
 
