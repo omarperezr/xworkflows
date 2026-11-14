@@ -219,3 +219,21 @@ test("the script runs when started through a path that holds a symbolic link", (
   assert.equal(r.status, 2, r.stdout + r.stderr);
   assert.match(r.stdout, /^usage: /);
 });
+
+test("a commit refused by the project's hook leaves the worktree, the staged notes and the extract's folder, and says how to finish", () => {
+  const root = repo();
+  const hooks = join(root, ".git/hooks");
+  mkdirSync(hooks, { recursive: true });
+  writeFileSync(join(hooks, "pre-commit"), "#!/bin/sh\necho 'lint says no' >&2\nexit 1\n", { mode: 0o755 });
+  git(root, "config", "core.hooksPath", hooks);
+  const o = opened(root), out = extracted();
+  writeFileSync(join(o.memory, "a.md"), "---\nname: a\ndescription: edited\n---\nbody a\n");
+  const r = run(["close", "--worktree", o.worktree, "--out", out], root);
+  assert.equal(r.code, 1, r.stdout);
+  assert.match(r.stdout, /lint says no/);
+  assert.ok(r.stdout.includes(o.worktree));
+  assert.match(r.stdout, /git worktree remove/);
+  assert.equal(git(o.worktree, "diff", "--cached", "--name-only"), "docs/memory/MEMORY.md\ndocs/memory/a.md\ndocs/memory/dream.json");
+  assert.ok(existsSync(out));
+  assert.equal(git(root, "rev-parse", o.branch), git(root, "rev-parse", "main"));
+});

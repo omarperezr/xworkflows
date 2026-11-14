@@ -82,7 +82,10 @@ export function run(argv, root) {
         const [text, count] = mask(readFileSync(join(real, file), "utf8"));
         if (count) { writeFileSync(join(real, file), text); git(real, "add", "--", file); masked.push({ file, count }); }
       }
-      if (tryGit(real, "diff", "--cached", "--quiet").code === 1) git(real, "commit", "-q", "-m", `dream: ${date}`);
+      if (tryGit(real, "diff", "--cached", "--quiet").code === 1) {
+        const c = tryGit(real, "commit", "-q", "-m", `dream: ${date}`); // the project's commit hooks run: never --no-verify
+        if (c.code !== 0) return { code: 1, stdout: `${c.err || c.out || "git commit failed"}\nthe commit was refused; the notes stay staged in ${real}: commit there, then run git worktree remove ${real}\n` };
+      }
       const outside = git(real, "status", "--porcelain", "-z", "--untracked-files=all").split("\0").filter(Boolean).map((l) => l.slice(3));
 
       const notes = git(root, "diff", "--no-renames", "--name-status", `${main}...${branch}`, "--", dir).split("\n").filter(Boolean)
