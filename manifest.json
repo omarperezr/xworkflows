@@ -443,9 +443,9 @@
         "claude"
       ],
       "files": {
-        "agents/review.md": "752349c0408c1db4aa8b980e5243bec92e83b10d296797d07a0dc24bfe3ee323"
+        "agents/review.md": "1ca8ee55c9b2c555517d860b8ac41ad7d0494dec3e77ff25f38706f016306b99"
       },
-      "sha256": "271dec380ec968fe54f33a0b530c922be3252439de67a24c4f9964db2337c23f"
+      "sha256": "f01aa761e0696d3848e3d3578a72664924288c7fcc10cc6c4ad3b62636771ef5"
     },
     {
       "id": "deepen",
@@ -488,9 +488,9 @@
         "claude"
       ],
       "files": {
-        "skills/orchestrate/SKILL.md": "ca6b17fc78d080931382a69ea5c9a282c64ce5ea42cbdfc6fe46751a44610d2d"
+        "skills/orchestrate/SKILL.md": "d1dabbe54fb304a59b6abc7e5ac4d206eb01fde201022570e491ebc4ead4519c"
       },
-      "sha256": "b352993fe9d3697b7d0eb1feb66b517bb8c42adeeddb6908da95835f619b0232"
+      "sha256": "ed1e3ffa54a518998d2690dd50681efc22cc84417e22abae669d3e718cfcda52"
     },
     {
       "id": "pending",
