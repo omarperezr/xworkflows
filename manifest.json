@@ -607,13 +607,13 @@
         "claude"
       ],
       "files": {
-        "skills/dream/SKILL.md": "763aee0fe9043e793cfe8141e8d22001ac658d94d2010149f1a421fbcb6ed2ce",
-        "skills/dream/extract.mjs": "8e0a55af720a7b5e9999c292063a222e561d58a05fab3e3de0d0a45ad538cee7",
+        "skills/dream/SKILL.md": "48ed96a21fbf1730e12544c83367c922041b0d31a3e3aa354e9c10a0adf00beb",
+        "skills/dream/extract.mjs": "7e111946651c28f64b6f6d75b8b2cb85d0aa4bf4a1b92a92dcef905bc4230af7",
         "skills/dream/branch.mjs": "cae0613cf4d7cd7a7995185adcc3644236d02eaf21d7c5262bd4f300103bcb45",
         "skills/dream/shared.mjs": "6055f40386bf830bb0453b36e10dc55b87930825053ce3df4906aa99e356d02d",
         "skills/dream/dream.workflow.js": "1e54b3ce3104638a2ecd3a231560cfb17b4832659057a053c69757c4ce34e5ea"
       },
-      "sha256": "a148a8958ffdccc60ae083178133ef53f9742f399e83dfe949e3bb1a8f7c79c3"
+      "sha256": "74c9a9adf5918552cf1b0dfe668b4e2e2e3b114a769a983c0c9768e4e411c68a"
     },
     {
       "id": "checks",
