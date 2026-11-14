@@ -488,9 +488,9 @@
         "claude"
       ],
       "files": {
-        "skills/orchestrate/SKILL.md": "d1dabbe54fb304a59b6abc7e5ac4d206eb01fde201022570e491ebc4ead4519c"
+        "skills/orchestrate/SKILL.md": "324479eba277b2514906cf5d4c1666dbb0a6a6b12549a07816ee51e095d64d40"
       },
-      "sha256": "ed1e3ffa54a518998d2690dd50681efc22cc84417e22abae669d3e718cfcda52"
+      "sha256": "3c466f128053faf4c80cf8fcde4f83266a6d6a8f97da87707dc950704712f276"
     },
     {
       "id": "pending",
