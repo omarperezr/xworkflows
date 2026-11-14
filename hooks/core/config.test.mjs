@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { DEFAULTS, PROJECT_KEYS, merge, load, get, missing, inPaths, memoryDir, memoryFolder } from "./config.mjs";
+import { DEFAULTS, PROJECT_KEYS, merge, load, loadLenient, get, missing, inPaths, memoryDir, memoryFolder } from "./config.mjs";
 import { outsideLine } from "./ctx.mjs";
 
 test("DEFAULTS has the product defaults and none of the project keys", () => {
@@ -146,4 +146,19 @@ test("memoryFolder: the folder every reader uses, or the line that refuses it", 
       assert.deepEqual(memoryFolder({ memory: { dir, outside } }, r), want, `${JSON.stringify(dir)} ${JSON.stringify(outside)}`);
     }
   } finally { rmSync(top, { recursive: true, force: true }); }
+});
+
+test("loadLenient: a section that is not an object takes its default and is named; the strict load still throws", () => {
+  const text = '{"owner":"Ana","packs":["semgrep"],"tokens":5,"roles":null,"memory":{"dir":"n"}}';
+  const { config, replaced } = loadLenient("/r", () => text);
+  assert.deepEqual(replaced, ["packs", "tokens", "roles"]);
+  assert.deepEqual([config.packs, config.tokens, config.roles, config.owner, config.memory.dir], [DEFAULTS.packs, DEFAULTS.tokens, DEFAULTS.roles, "Ana", "n"]);
+  assert.throws(() => load("/r", () => text), { message: ".xworkflows/config.json: packs must be an object" });
+});
+
+test("loadLenient: a healthy or absent file replaces nothing; a file that does not parse still throws", () => {
+  assert.deepEqual(loadLenient("/r", () => '{"packs":{}}').replaced, []);
+  assert.deepEqual(loadLenient("/r", () => null), { config: DEFAULTS, replaced: [] });
+  assert.throws(() => loadLenient("/r", () => "{"), /does not parse/);
+  assert.throws(() => loadLenient("/r", () => "null"), /does not parse: not a JSON object/);
 });

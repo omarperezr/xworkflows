@@ -83,3 +83,27 @@ for (const [form, write, to] of spellings) {
     });
   }
 }
+
+const specWrite = (root) => ({ session_id: "s", cwd: root, hook_event_name: "PreToolUse", tool_name: "Write", tool_input: { file_path: join(root, "docs/superpowers/specs/x.md"), content: "# x" } });
+const goSpec = (root) => spawnSync("node", [run, "claude", "design-first"], { input: JSON.stringify(specWrite(root)), encoding: "utf8", env: { ...process.env, XWORKFLOWS_FREE: "", XWORKFLOWS_STATE_DIR: state } });
+
+for (const [section, value] of [["packs", '["semgrep","trivy"]'], ["tokens", "5"], ["roles", "null"]]) {
+  test(`a config whose ${section} is not an object: the hook still judges, with the default, and says so once`, () => {
+    const { root } = project(`{"${section}":${value}}`);
+    const r = goSpec(root);
+    assert.match(r.stdout, /deny/);
+    assert.equal(r.stderr, `xworkflows: .xworkflows/config.json: ${section} must be an object; using its default\n`);
+  });
+}
+test("a config that does not parse still lets the spec write through, with today's warning", () => {
+  const { root } = project("{");
+  const r = goSpec(root);
+  assert.doesNotMatch(r.stdout, /deny/);
+  assert.match(r.stderr, /design-first let the call through: .xworkflows\/config.json does not parse/);
+});
+test("a healthy config prints nothing to stderr", () => {
+  const { root } = project('{"packs":{}}');
+  const r = goSpec(root);
+  assert.match(r.stdout, /deny/);
+  assert.equal(r.stderr, "");
+});

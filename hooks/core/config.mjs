@@ -81,9 +81,9 @@ const readOrNull = (p) => {
   try { return readFileSync(p, "utf8"); } catch (e) { if (e.code === "ENOENT") return null; throw e; }
 };
 
-export function load(root, read = readOrNull) {
+function parse(root, read) {
   const text = read(join(root, ".xworkflows", "config.json"));
-  if (text === null) return structuredClone(DEFAULTS);
+  if (text === null) return {};
   let user;
   try {
     user = JSON.parse(text);
@@ -91,9 +91,24 @@ export function load(root, read = readOrNull) {
   } catch (e) {
     throw new Error(`.xworkflows/config.json does not parse: ${e.message}`);
   }
-  const bad = Object.keys(user).find((k) => SECTIONS.has(k) && !isObj(user[k]));
+  return user;
+}
+
+const badSections = (user) => Object.keys(user).filter((k) => SECTIONS.has(k) && !isObj(user[k]));
+
+export function load(root, read = readOrNull) {
+  const user = parse(root, read);
+  const bad = badSections(user)[0];
   if (bad) throw new Error(`.xworkflows/config.json: ${bad} must be an object`);
   return merge(DEFAULTS, user);
+}
+
+// for the hooks: a section that is not an object takes its default, and the names of those sections come back
+export function loadLenient(root, read = readOrNull) {
+  const user = parse(root, read);
+  const replaced = badSections(user);
+  for (const k of replaced) delete user[k];
+  return { config: merge(DEFAULTS, user), replaced };
 }
 
 export const get = (config, key) => key.split(".").reduce((o, k) => (isObj(o) ? o[k] : undefined), config);
