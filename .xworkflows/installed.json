@@ -50,7 +50,7 @@
     },
     "adapt": {
       "version": "0.1.0",
-      "sha256": "be317615c41dd95703ea8a31c5b6108f4e1c3dc67be4698612278d60dbf2cdff"
+      "sha256": "c9847038611e3e149d972b732d4e1c04b651d05935e492c5a5a30fd7669972ca"
     },
     "full-review": {
       "version": "0.1.0",
@@ -86,7 +86,7 @@
     },
     "review": {
       "version": "0.1.0",
-      "sha256": "244c129220da386ae3c84d1670d20d2226b0490ac18db984e6c88a59e74cff06"
+      "sha256": "f01aa761e0696d3848e3d3578a72664924288c7fcc10cc6c4ad3b62636771ef5"
     },
     "deepen": {
       "version": "0.1.0",
@@ -98,7 +98,7 @@
     },
     "orchestrate": {
       "version": "0.1.0",
-      "sha256": "c08df093fa9a9a47425ab51ed66194453ab281be9f68bc4a416659f6a41ffa90"
+      "sha256": "a8e765d8addf85568cbafb16f1b87bc8db9533a809b1fd10a199364d7b686a3c"
     },
     "pending": {
       "version": "0.1.0",
@@ -328,7 +328,7 @@
     },
     ".claude/skills/adapt/SKILL.md": {
       "piece": "adapt",
-      "sha256": "2dcc7b45518703641ae77d5c5a6932c6e826737ca905530dc045d437122509e9"
+      "sha256": "bdeed50b3819e84bb1cd5ec26c80127269083ea2ccb555ba33a5b85aa7e4941e"
     },
     ".claude/skills/adapt/scan.mjs": {
       "piece": "adapt",
@@ -368,7 +368,7 @@
     },
     ".claude/agents/review.md": {
       "piece": "review",
-      "sha256": "3e55a48f2406d8ef6175baf9149fdc8ea39baf072a49b8147f4e720cc38a0c3c"
+      "sha256": "56e15d044c1962e9ce435f0f0742f0be5ed33386c0815dfba88eada5ce7b9f81"
     },
     ".claude/skills/deepen/SKILL.md": {
       "piece": "deepen",
@@ -380,7 +380,7 @@
     },
     ".claude/skills/orchestrate/SKILL.md": {
       "piece": "orchestrate",
-      "sha256": "07f40bc19128e9635b43b23fdf5648821a6f5669e99f4f4a5042cb97ea44ed96"
+      "sha256": "3ebe45fd7c66e0a6d9efaa0fee7c241d071cf28c13f966821bf8217e3aaf564b"
     },
     ".claude/skills/pending/SKILL.md": {
       "piece": "pending",

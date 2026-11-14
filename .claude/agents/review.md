@@ -23,7 +23,7 @@ Fix rounds (the prompt gives findings and a reviewed sha): review only `git diff
 
 Last, a simplification pass. List every component the change introduced: a branch, fallback, alias, mode, flag, option, a second definition of a concept, a parallel copy of a rule. Judge each against the spec and the plan's "Global Constraints", or else the change's stated purpose. Each one the intent does not require is one `pending` finding with `ask-owner:` whose remedy is to remove it, never to harden or document it; when a narrower form satisfies the intent, name it. A defect inside such a component names removal as its remedy.
 
-Report 15 findings at most, the most severe first, one line each: `<blocking|pending> path:line - claim - scenario - also: path:line, ...`. Then these two lines, each key at the start of a line in plain text (a hook denies the hand-back without them):
+Report 15 findings at most, the most severe first, one line each: `<blocking|pending> path:line (function or section) - claim - scenario - also: path:line, ...`. Then these two lines, each key at the start of a line in plain text (a hook denies the hand-back without them):
 - `reviewed: <the changed files you read and judged>`. One you leave out is unreviewed, never clean.
 - `not checked: <what mattered and you did not review>` (or `not checked: nothing`).
 If you cannot review, hand back only `blocked: <question>`.
