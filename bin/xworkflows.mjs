@@ -351,6 +351,11 @@ const clean = (root, p) => {
 
 // Reads and parses every target file before any write (ruling P2) and refuses before any write.
 // `ans` maps question id -> chosen label; an unanswered question is listed in `questions` and planned with its safe answer.
+// The two changes install makes to a package text it writes; published() reads a file back through these same functions.
+const tierToModel = (text, tiers) => text.replace(/^tier: (\w+)$/m, (_, k) => `model: ${tiers.claude[k]}`);
+const nameAs = (text, name) => text.replace(/^name: .*$/m, `name: ${name}`);
+// the file of a unit that carries its name line: the agent file, or a skill's SKILL.md
+const named = (p, u) => p === u || p.endsWith("/SKILL.md");
 // Every file this package copies, with the text it copies (tier line included); plan() and uninstall share it.
 function pkgWrites(manifest) {
   const tiers = readFileSync(join(PKG, "tiers.json"), "utf8");
@@ -360,9 +365,7 @@ function pkgWrites(manifest) {
       const t = target(f);
       if (!t) continue;
       let text = readFileSync(join(PKG, f), "utf8");
-      if (f.startsWith("agents/")) {
-        text = text.replace(/^tier: (\w+)$/m, (_, k) => `model: ${JSON.parse(tiers).claude[k]}`);
-      }
+      if (f.startsWith("agents/")) text = tierToModel(text, JSON.parse(tiers));
       writes.push({ path: t, text, piece: p.id, src: f });
     }
   }
@@ -372,8 +375,16 @@ function pkgWrites(manifest) {
 function renameWrite(w, u) {
   const id = basename(u, ".md");
   const nu = `${dirname(u)}/xwf-${basename(u)}`;
-  const named = w.path === u || w.path.endsWith("/SKILL.md");
-  return { ...w, path: nu + w.path.slice(u.length), text: named ? w.text.replace(/^name: .*$/m, `name: xwf-${id}`) : w.text };
+  return { ...w, path: nu + w.path.slice(u.length), text: named(w.path, u) ? nameAs(w.text, `xwf-${id}`) : w.text };
+}
+// The texts the package may have published for a file install wrote at p: the text on disk with install's changes undone, each
+// candidate kept only when install's own change gives the disk text back. The name line of an xwf- unit goes back to `name: <id>`,
+// as every named file of the package has it. Limit: two tiers that map to one model cannot be told apart, so each is a candidate.
+function published(p, text, tiers) {
+  const u = p.match(UNIT)?.[0], id = u && basename(u, ".md");
+  const t = id?.startsWith("xwf-") && named(p, u) && nameAs(text, id) === text ? nameAs(text, id.slice(4)) : text;
+  const ks = p.startsWith(".claude/agents/") ? Object.keys(tiers.claude) : [];
+  return [t, ...ks.map((k) => t.replace(/^model: .*$/m, `tier: ${k}`)).filter((c) => tierToModel(c, tiers) === t)];
 }
 
 export function plan(manifest, root, record, ans = {}) {
@@ -454,18 +465,18 @@ export function plan(manifest, root, record, ans = {}) {
     } else if (hash(cur) !== rec.sha256) { w.keep = true; notes.push(`kept (changed locally): ${w.path}  new: ${w.src}`); }
   }
   // a file install wrote that this version no longer ships: found from the record, removed only when the manifest lists it as retired
-  // with the hash on disk, kept and named (and still recorded) when edited; the record's hash never decides
+  // with the hash of the text on disk as the package published it, kept and named (and still recorded) when edited; the record's hash never decides
   const listed = new Map();
   for (const [f, hashes] of manifest.pieces.flatMap((p) => Object.entries(p.retired ?? {}))) {
     const t = target(f), u = t?.match(UNIT)?.[0];
     if (t) for (const p of u ? [t, renameWrite({ path: t, text: "" }, u).path] : [t]) listed.set(p, hashes);
   }
   const shipped = new Set(writes.map((w) => w.key ?? w.path));
-  const retired = [], held = [];
+  const retired = [], held = [], tiers = JSON.parse(readFileSync(join(PKG, "tiers.json"), "utf8"));
   for (const p of Object.keys(record.files)) {
     const hashes = listed.get(p);
     if (!hashes || shipped.has(p) || !plain(p) || !clean(root, p) || !lstatSync(join(root, p), { throwIfNoEntry: false })?.isFile()) continue;
-    if (hashes.includes(hash(read(root, p)))) retired.push(p);
+    if (published(p, read(root, p), tiers).some((t) => hashes.includes(hash(t)))) retired.push(p);
     else { held.push(p); notes.push(`kept (no longer shipped, changed locally): ${p}`); }
   }
   const merges = [];

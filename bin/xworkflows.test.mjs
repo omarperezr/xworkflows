@@ -2345,6 +2345,49 @@ test("install: a record edited by hand to name the user's files at retired paths
   }
 });
 
+// P-123: the manifest holds the hash of the text the package published; install changed some on the way to the disk
+// the package's copy, the given files of its own retired with the hash of the text it ships
+function retireReal(files) {
+  const copy = packedCopy();
+  const m = JSON.parse(readFileSync(join(copy, "manifest.json"), "utf8"));
+  for (const f of files) {
+    const p = m.pieces.find((q) => f in q.files);
+    p.retired = { ...p.retired, [f]: [p.files[f]] };
+    delete p.files[f];
+  }
+  writeFileSync(join(copy, "manifest.json"), JSON.stringify(m, null, 2) + "\n");
+  return copy;
+}
+const committed = (setup) => { const r = repo(setup); git(r, "add -A"); git(r, "commit -q --allow-empty -m base"); return r; };
+test("install: a retired agent whose tier line install wrote as a model line is removed on the upgrade, and uninstall leaves git status empty", () => {
+  const r = committed(), a = ".claude/agents/explore.md";
+  assert.equal(cli(r, ["install", "--yes"]).status, 0);
+  assert.match(readFileSync(join(PKG_ROOT, "agents/explore.md"), "utf8"), /^tier: /m);
+  assert.match(readFileSync(join(r, a), "utf8"), /^model: /m);
+  const copy = retireReal(["agents/explore.md"]);
+  const up = cliAt(copy, r, ["install", "--yes"]);
+  assert.equal(up.status, 0, up.stderr);
+  assert.ok(!existsSync(join(r, a)), up.stdout);
+  assert.match(up.stdout, /^removed \.claude\/agents\/explore\.md$/m);
+  assert.equal(cliAt(copy, r, ["uninstall"]).status, 0);
+  assert.equal(git(r, "status --porcelain"), "");
+});
+test("install: the SKILL.md of a renamed unit and a renamed agent, retired, are removed on the upgrade; the user's own stay and uninstall leaves git status empty", () => {
+  const own = { ".claude/skills/next-step/SKILL.md": "mine\n", ".claude/agents/explore.md": "mine\n" };
+  const r = committed(own), skill = ".claude/skills/xwf-next-step/SKILL.md", agent = ".claude/agents/xwf-explore.md";
+  assert.equal(cli(r, ["install", "--yes"]).status, 0);
+  assert.match(readFileSync(join(r, skill), "utf8"), /^name: xwf-next-step$/m);
+  assert.match(readFileSync(join(r, agent), "utf8"), /^name: xwf-explore$/m);
+  const copy = retireReal(["skills/next-step/SKILL.md", "agents/explore.md"]);
+  const up = cliAt(copy, r, ["install", "--yes"]);
+  assert.equal(up.status, 0, up.stderr);
+  assert.ok(!existsSync(join(r, ".claude/skills/xwf-next-step")) && !existsSync(join(r, agent)), up.stdout);
+  assert.doesNotMatch(up.stdout, /kept/);
+  for (const [p, t] of Object.entries(own)) assert.equal(readFileSync(join(r, p), "utf8"), t, p);
+  assert.equal(cliAt(copy, r, ["uninstall"]).status, 0);
+  assert.equal(git(r, "status --porcelain"), "");
+});
+
 // P-46: until the chaining is designed apart, install says what a chained hook cannot do
 test("install: chaining a hook of the project prints one line that a hook which depends on its own file name will not work chained", () => {
   const { r } = chained();
