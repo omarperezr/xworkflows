@@ -355,3 +355,71 @@ test("through the real runner: a config whose memory section is not an object is
   assert.match(r.stdout, /deny/);
   assert.equal(r.stderr, "xworkflows: .xworkflows/config.json: memory must be an object; using its default\n");
 });
+
+// the dream suggestion at the start of a new session
+const ago = (days) => new Date(NOW - days * DAY).toISOString();
+function due({ ran, sessions = [], extra = {}, config = base, files = MEM, source = "startup", transcript = "/s/cur.jsonl", dream } = {}) {
+  const f = { ...files, ...(dream !== undefined ? { "docs/memory/dream.json": dream } : ran !== undefined ? { "docs/memory/dream.json": JSON.stringify({ ran }) } : {}) };
+  const mtimes = {};
+  const all = { "cur.jsonl": NOW, ...Object.fromEntries(sessions.map(([n, t], i) => [n ?? `s${i}.jsonl`, t])) };
+  for (const [n, t] of Object.entries(all)) f[`/s/${n}`] = "text", mtimes[`/s/${n}`] = t;
+  const { ctx } = fake({ files: f, config, mtimes });
+  const d = decide(ev("sessionStart", { source, transcript, ...extra }), ctx);
+  return d.context ?? null;
+}
+const newer = (n, t = NOW - 1000) => Array.from({ length: n }, () => [undefined, t]);
+
+test("dream suggestion: below both thresholds gives nothing", () => {
+  assert.equal(due({ ran: ago(6), sessions: newer(9) }), null);
+});
+test("dream suggestion: 7 days with one session gives the line", () => {
+  const l = due({ ran: ago(7), sessions: newer(1) });
+  assert.match(l, /1 sessions?/); assert.match(l, /7 days/); assert.match(l, /suggest \/dream to the owner/i);
+});
+test("dream suggestion: 10 sessions on day 1 gives the line; clear counts as a new session", () => {
+  assert.match(due({ ran: ago(1), sessions: newer(10), source: "clear" }), /10 sessions/);
+});
+test("dream suggestion: never ran needs 10 sessions and says so in place of days", () => {
+  assert.equal(due({ sessions: newer(9) }), null);
+  const l = due({ sessions: newer(10) });
+  assert.match(l, /never ran/); assert.doesNotMatch(l, /days/);
+});
+test("dream suggestion: the running session and files older than ran are not counted; unreadable times do not count", () => {
+  assert.equal(due({ ran: ago(1), sessions: [...newer(9), ["old.jsonl", NOW - 2 * DAY], ["x.jsonl", null], ["notes.txt", NOW]] }), null);
+  assert.match(due({ ran: ago(1), sessions: newer(10) }), /10 sessions/);
+});
+test("dream suggestion: resume, compact, no suggest, no session file, no memory note, sub-agent: nothing", () => {
+  const s = { ran: ago(30), sessions: newer(20) };
+  assert.equal(due({ ...s, source: "resume" }), null);
+  assert.equal(due({ ...s, source: "compact" }), null);
+  assert.equal(due({ ...s, config: { ...base, dream: { suggest: false } } }), null);
+  assert.equal(due({ ...s, transcript: null }), null);
+  assert.equal(due({ ...s, files: {} }), null);
+  assert.equal(due({ ...s, extra: { isSubagent: true } }), null);
+  assert.match(due(s), /suggest/i);
+});
+test("dream suggestion: a broken or odd dream.json counts as never ran and does not throw", () => {
+  for (const dream of ["{nope", "[]", "null", "{}", JSON.stringify({ ran: 5 }), JSON.stringify({ ran: "yesterday" })]) {
+    assert.equal(due({ dream, sessions: newer(9) }), null, dream);
+    assert.match(due({ dream, sessions: newer(10) }), /never ran/, dream);
+  }
+});
+test("dream suggestion: the settings in the config are obeyed", () => {
+  const config = { ...base, dream: { suggestAfterDays: 2, suggestAfterSessions: 3 } };
+  assert.match(due({ config, ran: ago(2), sessions: newer(0) }), /2 days/);
+  assert.match(due({ config, ran: ago(1), sessions: newer(3) }), /3 sessions/);
+  assert.equal(due({ config, ran: ago(1), sessions: newer(2) }), null);
+});
+test("dream suggestion: at most 160 bytes with the largest numbers", () => {
+  const l = due({ ran: ago(99999), sessions: newer(99999) });
+  assert.ok(Buffer.byteLength(l) <= 160, String(Buffer.byteLength(l)));
+  assert.ok(Buffer.byteLength(due({ sessions: newer(99999) })) <= 160);
+});
+test("dream suggestion: it goes after the old lines and never pushes one out", () => {
+  const s = { ran: ago(30), sessions: newer(20) };
+  const goals = { ".xworkflows/summary.md": "status: approved\ndate: 2026-01-01\n", ...MEM };
+  const l = due({ ...s, files: goals });
+  assert.match(l, /^Goals written .*\n.*\/dream/s);
+  const tight = { ...base, tokens: { sessionStartBytes: Buffer.byteLength("Goals written 10 months ago: run /adapt to refresh them.") } };
+  assert.match(due({ ...s, files: goals, config: tight }), /^Goals written 10 months ago: run \/adapt to refresh them\.$/);
+});
