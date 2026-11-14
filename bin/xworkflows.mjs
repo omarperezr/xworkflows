@@ -684,7 +684,10 @@ async function doctor() {
   let cfg = {};
   try { cfg = JSON.parse(readFileSync(join(ROOT, ".xworkflows/config.json"), "utf8")); } catch {}
   const specs = cfg.paths?.specs ?? "docs/superpowers/specs";
-  const memDir = cfg.memory?.dir ?? "docs/memory";
+  // a memory.dir that is not a text reads as the default, as the hooks read it
+  const memSet = cfg.memory?.dir === undefined ? DEFAULTS.memory.dir : cfg.memory.dir;
+  if (typeof memSet !== "string") say("fail", `memory.dir must be text: set it in .xworkflows/config.json to a folder inside the repository (the default is "${DEFAULTS.memory.dir}")`);
+  const memDir = typeof memSet === "string" ? memSet : DEFAULTS.memory.dir;
   const budget = cfg.tokens?.alwaysLoadedBytes ?? 24000;
   // 5
   let command;
@@ -747,7 +750,7 @@ async function doctor() {
     // a memory.index that is not text would reach qmd as an argument: say so, and use qmd's default index
     let idx = conf.memory.index;
     if (idx && typeof idx !== "string") { say("fail", "memory.index must be text: set it in .xworkflows/config.json, or take it out for qmd's default index"); idx = undefined; }
-    const named = memName(conf.memory.dir), mem = named ?? conf.memory.dir;
+    const named = memName(memDir), mem = named ?? memDir;
     // install writes no folder and no yml for a memory.dir outside the repository
     const MEMFIX = `set memory.dir in .xworkflows/config.json to a folder inside the repository, then ${INSTALL}`;
     if (!has("qmd")) say("fail", "qmd command is missing: npm install -g @tobilu/qmd");

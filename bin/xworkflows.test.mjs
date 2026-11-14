@@ -2407,6 +2407,18 @@ test("doctor: a lookup.index.command or memory.index that is not text gives a fa
   }
 });
 
+test("doctor: a memory.dir that is not text gives one fail line naming the key and its fix, and doctor goes on", () => {
+  const r = repo(); cli(r, ["install"]);
+  for (const dir of [5, null, ["docs/memory"]]) {
+    withConfig(r, { memory: { dir } });
+    const out = doctor(r, { PATH: tools({ qmd: COVERS }) });
+    assert.equal(out.stderr, "", JSON.stringify(dir));
+    assert.equal(out.stdout.split("\n").filter((l) => /^fail memory\.dir must be text: .*\.xworkflows\/config\.json/.test(l)).length, 1, out.stdout);
+    assert.match(out.stdout, /^ok +qmd collection covers docs\/memory$/m);
+    assert.match(out.stdout, /^doctor: \d+ fail/m);
+  }
+});
+
 test("install --yes: a retired file is looked for only under the xwf- name of a unit that install renames", () => {
   const published = spawnSync("git", ["show", "f467f65~1:skills/adapt/topics.md"], { cwd: PKG_ROOT, encoding: "utf8" }).stdout;
   const mine = ".claude/skills/adapt/topics.md", ours = ".claude/skills/xwf-adapt/topics.md";
