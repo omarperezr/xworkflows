@@ -68,6 +68,23 @@ The main session had decided the second point alone in the first round, though t
 - Role: implement
 - Done: `node --test skills/design-alarm.test.mjs` passes, and it fails when the rule is changed so that every repeat stops the work.
 
+### Batch 1, second confirmation at `93a51ff`
+
+The two rounds are spent. The confirmation left one blocking finding and two that do not block, all repeats, so the finding went to the owner.
+
+Possible design error in `skills/orchestrate/SKILL.md`, section Review, steps 3 and 6
+- Cause: each bullet of step 3 names an action (ask, hold, the fix goes on), while the limit of rounds stands in step 6. A rule about "after the second round" has to be copied into each bullet, and one copy was left behind: a repeat that does not block and has a design never reaches the owner after the second round, and "None exists: the fix goes on" reads as a third fix with no question.
+- Design: say what happens after the second round once, in step 6, for every repeat. Step 3 says once, on the line above its two bullets, that they hold through the second round.
+
+The owner, 2026-11-14, asked after the two rounds: "Rediseñar: decirlo una vez en el paso 6".
+
+Not decided here, told to the owner: the confirmation calls two older tests of `skills/design-alarm.test.mjs` redundant beside the test of the whole block. They stay as they are.
+
+**G3: what follows a repeat after the second round is said once, in step 6**
+- Files: `skills/orchestrate/SKILL.md`, `skills/design-alarm.test.mjs`, `docs/design.md`
+- Role: implement
+- Done: `node --test skills/design-alarm.test.mjs` passes.
+
 ## Review Focus
 
 - Every main session follows the `orchestrate` text to the letter: a sentence that reads two ways is followed the wrong way. A repeat must never read as a stop by itself; only the owner's answer holds a fix back.
