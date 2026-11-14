@@ -2488,3 +2488,19 @@ test("doctor: a pre-push hook of an outside folder with the line after an exit i
 test("doctor: a pre-push hook of an outside folder that is a link to a file holding the line is ok", () => {
   assert.match(outsideHook((l) => `#!/bin/sh\n${l}\n`, { link: true }).out, OK_LINE);
 });
+// a command before the line may use up the refs on standard input: only the first command is sure to get them
+for (const [what, before] of [["cat >/dev/null", "cat >/dev/null\n"], ["a while read loop", "while read a b c d; do :; done\n"]]) {
+  test(`doctor: a pre-push hook of an outside folder with ${what} before the line is a fail`, () => {
+    const { out } = outsideHook((l) => `#!/bin/sh\n${before}${l}\n`);
+    assert.doesNotMatch(out, OK_LINE);
+    assert.match(out, /^fail pre-push hook/m);
+  });
+}
+test("doctor: a pre-push hook of an outside folder with a function holding exit 1 before the line is a fail that says first", () => {
+  const { out } = outsideHook((l) => `#!/bin/sh\ndie() {\n  echo "$1" >&2\n  exit 1\n}\n${l}\n`);
+  assert.doesNotMatch(out, OK_LINE);
+  assert.match(lineOf({ stdout: out }, /^fail pre-push hook/), /first command/);
+});
+test("doctor: a pre-push hook of an outside folder with only comments and blank lines before the line is ok", () => {
+  assert.match(outsideHook((l) => `#!/bin/sh\n\n# the check of this repository\n  # indented\n\n${l}\necho after\n`).out, OK_LINE);
+});
