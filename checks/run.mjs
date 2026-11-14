@@ -2,8 +2,7 @@ import { lstatSync, readFileSync, readdirSync, realpathSync, writeFileSync } fro
 import { spawnSync } from "node:child_process";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { load as loadConfig, missing } from "../hooks/core/config.mjs";
-import { outsideLine } from "../hooks/core/ctx.mjs";
+import { load as loadConfig, memoryFolder, missing } from "../hooks/core/config.mjs";
 import { buildIndex } from "../hooks/core/memory-index.mjs";
 
 export const TABLE = ["signature", "review-seal", "goal-cited", "pending", "fix-has-test", "change-size",
@@ -65,10 +64,9 @@ export async function main(argv, io = {}) {
     try {
       const top = makeCtx(cwd, null).tryGit("rev-parse", "--show-toplevel");
       if (top.code !== 0) throw new Error("not a git repository");
-      const memory = loadConfig(top.out).memory;
+      const memory = memoryFolder(loadConfig(top.out), top.out);
+      if (memory.line) throw new Error(memory.line);
       const dir = join(top.out, memory.dir);
-      const refused = outsideLine(top.out, join(memory.dir, "MEMORY.md"), memory.outside);
-      if (refused) throw new Error(refused);
       const files = readdirSync(dir).filter((f) => f.endsWith(".md") && f !== "MEMORY.md")
         .map((file) => ({ file, text: readFileSync(join(dir, file), "utf8") }));
       const target = join(dir, "MEMORY.md");
@@ -94,8 +92,6 @@ export async function main(argv, io = {}) {
     const top = makeCtx(cwd, null).tryGit("rev-parse", "--show-toplevel");
     if (top.code !== 0) throw new Error("not a git repository");
     ctx = makeCtx(top.out, loadConfig(top.out));
-    const p = ctx.config.packs;
-    if (p === null || typeof p !== "object" || Array.isArray(p)) throw new Error("packs in the config is not an object");
     const bad = only?.findIndex((n) => !TABLE.includes(n) && !PACKS.includes(n)) ?? -1; // an empty name is unknown too: "--only ," must not run nothing and pass
     if (bad >= 0) throw new Error(`unknown brake ${only[bad] || "(empty)"}`);
     const rev = (r) => {

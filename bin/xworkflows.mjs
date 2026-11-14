@@ -7,8 +7,7 @@ import { homedir, tmpdir } from "node:os";
 import { basename, dirname, isAbsolute, join, normalize, posix, relative, resolve, sep } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { outsideLine } from "../hooks/core/ctx.mjs";
-import { DEFAULTS, PROJECT_KEYS, load as loadConfig, memoryDir as memName, missing } from "../hooks/core/config.mjs";
+import { DEFAULTS, PROJECT_KEYS, load as loadConfig, memoryFolder, missing } from "../hooks/core/config.mjs";
 
 export const PKG = dirname(dirname(fileURLToPath(import.meta.url)));
 export let ROOT;
@@ -16,7 +15,7 @@ export let ROOT;
 // a config value in a command doctor prints: plain stays as it is, anything else in single quotes
 const sh = (v) => (/^[\w\/.-]+$/.test(v) ? v : `'${v.replaceAll("'", "'\\''")}'`);
 const COMMANDS = ["install", "doctor", "uninstall", "pack", "check"];
-const BOOL = ["--yes", "--dry-run", "--check"];
+const BOOL = ["--yes", "--dry-run", "--check", "--trace"];
 
 export const hash = (text) => createHash("sha256").update(text.replaceAll("\r\n", "\n")).digest("hex");
 export const digest = (files) =>
@@ -84,6 +83,7 @@ export function main(argv) {
   const flags = cmd === "check" ? {} : parse(rest);
   if ((flags["dry-run"] || flags.yes) && cmd !== "install") die(2, "--dry-run and --yes are for install only");
   if (flags.check && cmd !== "pack") die(2, "--check is for pack only");
+  if (flags.trace && cmd !== "doctor") die(2, "--trace is for doctor only");
   if (flags.tool && flags.tool !== "claude") die(2, `not yet: ${flags.tool} comes in a later phase`);
   if (cmd === "pack") return pack(flags.check);
   try {
@@ -97,7 +97,7 @@ export function main(argv) {
     process.exit(spawnSync("node", [run, ...rest], { stdio: "inherit" }).status ?? 2);
   }
   if (cmd === "install") return install(flags);
-  if (cmd === "doctor") return doctor();
+  if (cmd === "doctor") return doctor(flags);
   return uninstall();
 }
 
@@ -230,13 +230,15 @@ function mergeLocal(root) {
   const path = ".claude/settings.local.json";
   const { old, s } = readObject(root, path);
   const key = "autoMemoryDirectory";
-  let dir;
-  try { dir = loadConfig(root).memory.dir; } catch (e) { die(1, e.message); }
-  const none = { path, text: null, rec: { scalars: [], created: [] } };
-  if (key in s) return none;
+  let config;
+  try { config = loadConfig(root); } catch (e) { die(1, e.message); }
+  const dir = config.memory.dir, none = { path, text: null, rec: { scalars: [], created: [] } };
+  // a refused memory folder gets no key, as it gets no folder: plan() says why
+  const md = memoryFolder(config, root).dir;
+  if (!md || key in s) return none;
   if (spawnSync("git", ["ls-files", "--error-unmatch", path], { cwd: root, stdio: "ignore" }).status === 0) return { ...none, note: `${path} is tracked: ${key} not written, set it yourself` };
-  const value = JSON.stringify(resolve(root, dir));
-  if (old === null) return { path, text: json({ [key]: resolve(root, dir) }), rec: { scalars: [{ file: path, key: [key], dir }], created: [path] } };
+  const value = JSON.stringify(resolve(root, md));
+  if (old === null) return { path, text: json({ [key]: resolve(root, md) }), rec: { scalars: [{ file: path, key: [key], dir }], created: [path] } };
   const nl = old.includes("\r\n") ? "\r\n" : "\n";
   const at = old.slice(0, old.lastIndexOf("}")).trimEnd().length;
   const multi = old.includes("\n");
@@ -351,6 +353,11 @@ const clean = (root, p) => {
 
 // Reads and parses every target file before any write (ruling P2) and refuses before any write.
 // `ans` maps question id -> chosen label; an unanswered question is listed in `questions` and planned with its safe answer.
+// The two changes install makes to a package text it writes; published() undoes them.
+const tierToModel = (text, tiers) => text.replace(/^tier: (\w+)$/m, (_, k) => `model: ${tiers.claude[k]}`);
+const nameAs = (text, name) => text.replace(/^name: .*$/m, `name: ${name}`);
+// the file of a unit that carries its name line: the agent file, or a skill's SKILL.md
+const named = (p, u) => p === u || p.endsWith("/SKILL.md");
 // Every file this package copies, with the text it copies (tier line included); plan() and uninstall share it.
 function pkgWrites(manifest) {
   const tiers = readFileSync(join(PKG, "tiers.json"), "utf8");
@@ -360,9 +367,7 @@ function pkgWrites(manifest) {
       const t = target(f);
       if (!t) continue;
       let text = readFileSync(join(PKG, f), "utf8");
-      if (f.startsWith("agents/")) {
-        text = text.replace(/^tier: (\w+)$/m, (_, k) => `model: ${JSON.parse(tiers).claude[k]}`);
-      }
+      if (f.startsWith("agents/")) text = tierToModel(text, JSON.parse(tiers));
       writes.push({ path: t, text, piece: p.id, src: f });
     }
   }
@@ -372,8 +377,26 @@ function pkgWrites(manifest) {
 function renameWrite(w, u) {
   const id = basename(u, ".md");
   const nu = `${dirname(u)}/xwf-${basename(u)}`;
-  const named = w.path === u || w.path.endsWith("/SKILL.md");
-  return { ...w, path: nu + w.path.slice(u.length), text: named ? w.text.replace(/^name: .*$/m, `name: xwf-${id}`) : w.text };
+  return { ...w, path: nu + w.path.slice(u.length), text: named(w.path, u) ? nameAs(w.text, `xwf-${id}`) : w.text };
+}
+// The texts the package may have published for a file install wrote at p: the text on disk with install's changes undone. The name
+// line of an xwf- unit goes back to `name: <id>`, as every named file of the package has it. An agent's model line is install's,
+// written with the map of the version that installed it, so every tier of the map is a candidate.
+function published(p, text, tiers) {
+  const u = p.match(UNIT)?.[0], id = u && basename(u, ".md");
+  const t = id?.startsWith("xwf-") && named(p, u) && nameAs(text, id) === text ? nameAs(text, id.slice(4)) : text;
+  const ks = p.startsWith(".claude/agents/") ? Object.keys(tiers.claude) : [];
+  return [t, ...ks.map((k) => t.replace(/^model: .*$/m, `tier: ${k}`))];
+}
+
+// path -> the hashes the manifest lists for a retired file, at every place install may have written it, the xwf- one included
+function retiredPaths(manifest) {
+  const listed = new Map();
+  for (const [f, hashes] of manifest.pieces.flatMap((p) => Object.entries(p.retired ?? {}))) {
+    const t = target(f), u = t?.match(UNIT)?.[0];
+    if (t) for (const p of u ? [t, renameWrite({ path: t, text: "" }, u).path] : [t]) listed.set(p, hashes);
+  }
+  return listed;
 }
 
 export function plan(manifest, root, record, ans = {}) {
@@ -453,27 +476,24 @@ export function plan(manifest, root, record, ans = {}) {
       w.keep = true; notes.push(`kept (not ours): ${w.path}  new: ${w.src}`);
     } else if (hash(cur) !== rec.sha256) { w.keep = true; notes.push(`kept (changed locally): ${w.path}  new: ${w.src}`); }
   }
-  // a file the manifest lists as retired: removed when its content is one the package wrote, kept and named when edited; the record never decides
+  // a file install wrote that this version no longer ships: found from the record, removed only when the manifest lists it as retired
+  // with the hash of the text on disk as the package published it, kept and named once when edited, and then out of the record; the record's hash never decides
+  const listed = retiredPaths(manifest);
   const shipped = new Set(writes.map((w) => w.key ?? w.path));
-  const retired = [];
-  for (const [f, hashes] of manifest.pieces.flatMap((p) => Object.entries(p.retired ?? {}))) {
-    const t = target(f);
-    if (!t) continue;
-    const u = t.match(UNIT)?.[0], nu = u && `${dirname(u)}/xwf-${basename(u)}`;
-    if (kept.includes(u) || record.kept.includes(u)) continue;
-    // a unit that ships no file any more: nobody was asked about its folder, so only a file the record holds under it is ours to judge
-    if (u && ![...shipped, ...Object.keys(record.files)].some((k) => k.startsWith(`${u}/`) || k.startsWith(`${nu}/`))) continue;
-    const p = nu && (renamed[nu] || record.renamed[nu]) ? nu + t.slice(u.length) : t;
-    if (shipped.has(p) || !plain(p) || !clean(root, p) || !lstatSync(join(root, p), { throwIfNoEntry: false })?.isFile()) continue;
-    if (hashes.includes(hash(read(root, p)))) retired.push(p);
+  const retired = [], tiers = JSON.parse(readFileSync(join(PKG, "tiers.json"), "utf8"));
+  for (const p of Object.keys(record.files)) {
+    const hashes = listed.get(p), u = p.match(UNIT)?.[0];
+    // a unit under kept, this plan's or the record's, is the user's: not judged, as uninstall does
+    if (!hashes || kept.includes(u) || record.kept.includes(u) || shipped.has(p) || !plain(p) || !clean(root, p) || !lstatSync(join(root, p), { throwIfNoEntry: false })?.isFile()) continue;
+    if (published(p, read(root, p), tiers).some((t) => hashes.includes(hash(t)))) retired.push(p);
     else notes.push(`kept (no longer shipped, changed locally): ${p}`);
   }
   const merges = [];
-  let mem;
-  try { mem = loadConfig(root).memory; } catch (e) { die(1, e.message); }
+  let config;
+  try { config = loadConfig(root); } catch (e) { die(1, e.message); }
   let qmd = false;
-  const md = memName(mem.dir);
-  if (!md) notes.push(`not written: memory.dir must be a folder inside the repository: ${mem.dir}`);
+  const mem = config.memory, { dir: md, line: refused } = memoryFolder(config, root);
+  if (!md) notes.push(`not written: ${refused}`);
   else {
     if (!existsSync(join(root, md)) && !off(md)) merges.push({ path: md, text: null, dir: true, verb: "create", rec: { created: [md] } });
     qmd = !mem.index && !localYml(root) && !off(YML);
@@ -513,10 +533,9 @@ export function apply(pl, root, manifest, record) {
   const linked = (path, hook) => { if (!hook && !clean(root, path)) throw new Error(`not written (symlink): ${path}`); };
   const put = (root, path, text, mode, hook) => { linked(path, hook); mk(dirname(path)); putFile(root, path, text, mode); };
   // a folder the removal empties goes with it when it is the package's own: a subfolder of .xworkflows/ or a skill's folder
-  const emptied = [];
   for (const p of pl.retired) {
     linked(p); rmSync(join(root, p)); out.push(`removed ${p}`);
-    for (let d = dirname(p); /^\.xworkflows\/|^\.claude\/(skills|agents)\/[^/]+/.test(d) && !readdirSync(join(root, d)).length; d = dirname(d)) { rmdirSync(join(root, d)); out.push(`removed ${d}/`); emptied.push(d); }
+    for (let d = dirname(p); /^\.xworkflows\/|^\.claude\/(skills|agents)\/[^/]+/.test(d) && !readdirSync(join(root, d)).length; d = dirname(d)) { rmdirSync(join(root, d)); out.push(`removed ${d}/`); }
   }
   for (const w of pl.writes) if (!w.keep && differs(root, w)) {
     const hook = HOOKS.includes(w.src);
@@ -544,8 +563,8 @@ export function apply(pl, root, manifest, record) {
       for (const x of list) if (!next[k].some((y) => (k === "merged" ? x.file === y.file && isDeepStrictEqual(x.key, y.key) && isDeepStrictEqual(x.entry, y.entry) : (k === "blocks" || k === "imports" ? x.file === y.file && x.line === y.line : isDeepStrictEqual(x, y))))) next[k].push(x);
     }
   }
-  // a unit whose folder is gone leaves its line of .graphifyignore, and the record its entry
-  for (const line of emptied.map((d) => giLine(d)).filter((l) => l && !existsSync(join(root, l)))) {
+  // a unit whose folder or agent file is gone leaves its line of .graphifyignore, and the record its entry
+  for (const line of new Set(pl.retired.map(giLine).filter((l) => l && !existsSync(join(root, l))))) {
     const t = read(root, GI), ls = t?.split("\n") ?? [];
     if (!next.imports.some((i) => i.file === GI && i.line === line) || !ls.includes(line)) continue;
     ls.splice(ls.indexOf(line), 1);
@@ -611,7 +630,7 @@ async function install(flags) {
   for (const a of auto) console.log(a);
 }
 
-async function doctor() {
+async function doctor(flags) {
   const out = [];
   let nf = 0, nw = 0;
   const INSTALL = "run xworkflows install";
@@ -620,6 +639,13 @@ async function doctor() {
     console.log(out.join("\n") + `\ndoctor: ${nf} fail, ${nw} warn`);
     process.exit(nf ? 1 : 0);
   };
+  // one catch around the body: a throw anywhere is one fail line with its message, and doctor ends as it always does
+  try { await checks(); } catch (e) {
+    say("fail", `doctor stopped: ${e?.message ?? e}: run xworkflows doctor --trace to see the stack`);
+    if (flags.trace) process.stderr.write(`${e?.stack ?? e}\n`);
+  }
+  finish();
+  async function checks() {
   say("ok", "git repository");
   // a hook run the way Claude Code runs it: the settings command, the event on standard input
   const TIMEOUT = Number(process.env.XWORKFLOWS_PROBE_TIMEOUT_MS) || 10000;
@@ -682,9 +708,16 @@ async function doctor() {
   else say("fail", "CLAUDE.md does not import AGENTS.md: add the line @AGENTS.md");
   // config
   let cfg = {};
-  try { cfg = JSON.parse(readFileSync(join(ROOT, ".xworkflows/config.json"), "utf8")); } catch {}
+  // a file holding null is said by the config line below
+  try { cfg = JSON.parse(readFileSync(join(ROOT, ".xworkflows/config.json"), "utf8")) ?? {}; } catch {}
   const specs = cfg.paths?.specs ?? "docs/superpowers/specs";
-  const memDir = cfg.memory?.dir ?? "docs/memory";
+  // a memory.dir that is not a text reads as the default, as the hooks read it
+  const memSet = cfg.memory?.dir === undefined ? DEFAULTS.memory.dir : cfg.memory.dir;
+  if (typeof memSet !== "string") say("fail", `memory.dir must be text: set it in .xworkflows/config.json to a folder inside the repository (the default is "${DEFAULTS.memory.dir}")`);
+  // the folder the hooks use, or their line refusing it: then no line below names that folder
+  const MEMFIX = `set memory.dir in .xworkflows/config.json to a folder inside the repository, then ${INSTALL}`;
+  const { dir: mem, line: memRefused } = memoryFolder(cfg, ROOT);
+  if (memRefused) say("fail", `${memRefused}: ${MEMFIX}`);
   const budget = cfg.tokens?.alwaysLoadedBytes ?? 24000;
   // 5
   let command;
@@ -714,8 +747,8 @@ async function doctor() {
     }
   };
   load(join(ROOT, "CLAUDE.md"));
-  const mem = join(ROOT, memDir, "MEMORY.md");
-  if (existsSync(mem) && !seen.has(mem)) { seen.add(mem); bytes += statSync(mem).size; }
+  const memFile = mem && join(ROOT, mem, "MEMORY.md");
+  if (memFile && existsSync(memFile) && !seen.has(memFile)) { seen.add(memFile); bytes += statSync(memFile).size; }
   say(bytes > budget ? "fail" : "ok", `always-loaded: ${bytes} bytes of ${budget}${bytes > budget ? ": shorten CLAUDE.md, AGENTS.md and what they import, or raise tokens.alwaysLoadedBytes in .xworkflows/config.json" : ""}`);
   // 7
   const has = (cmd) => spawnSync("sh", ["-c", `command -v ${cmd}`]).status === 0;
@@ -731,7 +764,10 @@ async function doctor() {
       const gone = missing(conf, PROJECT_KEYS);
       for (const k of gone) say("fail", `not configured: ${k}${needs[k] ? ` (needed by ${needs[k].join(", ")})` : ""}, run /adapt`);
       if (!gone.length) say("ok", "config: every project key is set");
-    } catch (e) { say("fail", `config: ${e.message}: ${e.message.startsWith(".xworkflows/config.json does not parse") ? "fix the JSON of .xworkflows/config.json" : `if a file of the package is named "changed locally" above, delete it; then ${INSTALL}`}`); }
+    } catch (e) {
+      const m = e.message;
+      say("fail", `config: ${m}: ${m.startsWith(".xworkflows/config.json does not parse") ? "fix the JSON of .xworkflows/config.json" : /^\.xworkflows\/config\.json: \S+ must be an object$/.test(m) ? "make it an object, or take it out of .xworkflows/config.json" : `if a file of the package is named "changed locally" above, delete it; then ${INSTALL}`}`);
+    }
     if (conf.paths.code?.length) {
       const dir = conf.lookup.index.folder;
       // an empty command is the default, as in the git hooks
@@ -747,12 +783,9 @@ async function doctor() {
     // a memory.index that is not text would reach qmd as an argument: say so, and use qmd's default index
     let idx = conf.memory.index;
     if (idx && typeof idx !== "string") { say("fail", "memory.index must be text: set it in .xworkflows/config.json, or take it out for qmd's default index"); idx = undefined; }
-    const named = memName(conf.memory.dir), mem = named ?? conf.memory.dir;
-    // install writes no folder and no yml for a memory.dir outside the repository
-    const MEMFIX = `set memory.dir in .xworkflows/config.json to a folder inside the repository, then ${INSTALL}`;
     if (!has("qmd")) say("fail", "qmd command is missing: npm install -g @tobilu/qmd");
-    else if (!existsSync(join(ROOT, mem))) say("warn", `no memory folder yet: ${mem}: ${named ? INSTALL : MEMFIX}`);
-    else {
+    else if (mem && !existsSync(join(ROOT, mem))) say("warn", `no memory folder yet: ${mem}: ${INSTALL}`);
+    else if (mem) {
       const abs = resolve(ROOT, mem);
       const q = (...a) => spawnSync("qmd", [...(idx ? ["--index", idx] : []), "collection", ...a], { cwd: ROOT, encoding: "utf8", timeout: TIMEOUT });
       const qcmd = `qmd${idx ? ` --index ${sh(idx)}` : ""}`;
@@ -770,7 +803,7 @@ async function doctor() {
           return t && (abs === t || abs.startsWith(t + "/"));
         });
         const yml = localYml(ROOT);
-        const why = idx ? `${qcmd} collection add ${sh(mem)}` : !named ? MEMFIX : !yml ? INSTALL : (read(ROOT, yml) ?? "").includes(abs) ? `this qmd does not read ${yml}, which names it: npm install -g @tobilu/qmd@latest` : `${yml} names no collection with the path ${abs}; add one, or delete .qmd and run install again`;
+        const why = idx ? `${qcmd} collection add ${sh(mem)}` : !yml ? INSTALL : (read(ROOT, yml) ?? "").includes(abs) ? `this qmd does not read ${yml}, which names it: npm install -g @tobilu/qmd@latest` : `${yml} names no collection with the path ${abs}; add one, or delete .qmd and run install again`;
         say(covers ? "ok" : "fail", covers ? `qmd collection covers ${mem}` : `no qmd collection covers ${mem}: ${why}`);
       }
     }
@@ -778,19 +811,19 @@ async function doctor() {
     const cur = lstatSync(join(ROOT, hp), { throwIfNoEntry: false })?.isFile() ? read(ROOT, hp) : null;
     // the record's key for it: .git/hooks/pre-push whichever checkout this is, unless core.hooksPath moved the folder
     const key = hookKey(ROOT, "pre-push");
-    // the folder outside the repository: the file is read through a link; the line must stand on its own and before any exit, and git runs only an executable file
+    // the hook git runs, ours or of the folder outside the repository (read through a link there): git runs only an executable file; outside, the line must be its first command, since a command before it may use up the refs on standard input
     const theirs = { path: resolve(hooksFolder(ROOT), "pre-push"), live: false, exec: false };
     try {
-      const ls = readFileSync(theirs.path, "utf8").split("\n").map((l) => l.trim()), at = ls.indexOf(GUARDED);
-      theirs.live = at >= 0 && !ls.slice(0, at).some((l) => /^exit\b/.test(l));
+      const ls = readFileSync(theirs.path, "utf8").split("\n").map((l) => l.trim());
+      theirs.live = ls.find((l) => l !== "" && !l.startsWith("#")) === GUARDED;
       accessSync(theirs.path, constants.X_OK); theirs.exec = true;
     } catch {}
-    if (cur !== null && [false, true].some((c) => cur === hookText("pre-push", c))) say("ok", "pre-push hook is ours");
+    if (cur !== null && [false, true].some((c) => cur === hookText("pre-push", c))) say(theirs.exec ? "ok" : "fail", theirs.exec ? "pre-push hook is ours" : `pre-push hook is ours but not executable, so git ignores it: chmod +x ${sh(theirs.path)}`);
     else if (cur !== null && rec.files[key]) say("warn", `pre-push hook changed locally: it may no longer run the check; make it run: ${CHECK}`);
     else if (rec.declined.some((d) => d.file === key && d.what === "chain")) say("warn", `pre-push hook is yours: chaining declined at install; add this line to it: ${CHECK}`);
     else if (ownHooks(ROOT) === null && theirs.live && theirs.exec) say("ok", "pre-push hook of the folder outside this repository runs the check");
     else if (ownHooks(ROOT) === null && theirs.live) say("fail", `pre-push hook of the folder outside this repository holds the check but is not executable, so git ignores it: chmod +x ${sh(theirs.path)}`);
-    else if (ownHooks(ROOT) === null) say("fail", `pre-push hook: core.hooksPath points outside this repository, where install writes no hook; either add this line to the pre-push hook of that folder, which then runs it in every repository that uses the folder, and runs the check only where the file is: ${GUARDED} ; or point this repository at its own hooks folder, after which the hooks of the other folder no longer run here: run: git config core.hooksPath "$(git rev-parse --path-format=absolute --git-common-dir)/hooks"; then ${INSTALL}`);
+    else if (ownHooks(ROOT) === null) say("fail", `pre-push hook: core.hooksPath points outside this repository, where install writes no hook; either add this line to the pre-push hook of that folder as its first command, which then runs it in every repository that uses the folder, and runs the check only where the file is: ${GUARDED} ; or point this repository at its own hooks folder, after which the hooks of the other folder no longer run here: run: git config core.hooksPath "$(git rev-parse --path-format=absolute --git-common-dir)/hooks"; then ${INSTALL}`);
     else say("fail", `pre-push hook is missing or not ours: ${INSTALL}`);
     let st = {}, local = {};
     try { st = JSON.parse(readFileSync(join(ROOT, ".claude/settings.json"), "utf8")); } catch {}
@@ -804,16 +837,16 @@ async function doctor() {
     say(bytes > sb ? "fail" : "ok", `session-start text: ${bytes} bytes of ${sb}${bytes > sb ? ": raise tokens.sessionStartBytes in .xworkflows/config.json or cut what the hook prints" : ""}`);
     const ai = st.attribution && typeof st.attribution === "object" ? [st.attribution.commit, st.attribution.pr].some((x) => x) : !!st.attribution;
     if (ai) say("warn", 'attribution in .claude/settings.json shows an AI line: set "attribution" to {"commit": "", "pr": ""} there');
-    const amd = local.autoMemoryDirectory, abs = resolve(ROOT, mem);
-    try {
-      const where = real(abs), base = real(ROOT);
-      if (where !== base && !where.startsWith(base + sep)) say("warn", 'the memory folder is outside the repository: qmd indexes it only after "qmd trust" is run here');
-      // a write there is refused unless memory.outside lists the real path: the same line the hooks refuse with
-      const refused = outsideLine(ROOT, join(mem, "MEMORY.md"), conf.memory?.outside);
-      if (where !== base && !where.startsWith(base + sep) && refused) say("warn", refused);
-    } catch {}
-    if (amd === undefined) say("warn", `autoMemoryDirectory is not set in .claude/settings.local.json: add "autoMemoryDirectory": "${abs}" to it`);
-    else if (typeof amd !== "string" || !(resolve(ROOT, amd) + sep).startsWith(abs + sep)) say("warn", `autoMemoryDirectory is not the memory folder ${mem}: set it to "${abs}" in .claude/settings.local.json`);
+    const amd = local.autoMemoryDirectory, abs = mem && resolve(ROOT, mem);
+    if (mem) {
+      // a link out that memory.outside lists
+      try {
+        const where = real(abs), base = real(ROOT);
+        if (where !== base && !where.startsWith(base + sep)) say("warn", 'the memory folder is outside the repository: qmd indexes it only after "qmd trust" is run here');
+      } catch {}
+      if (amd === undefined) say("warn", `autoMemoryDirectory is not set in .claude/settings.local.json: add "autoMemoryDirectory": "${abs}" to it`);
+      else if (typeof amd !== "string" || !(resolve(ROOT, amd) + sep).startsWith(abs + sep)) say("warn", `autoMemoryDirectory is not the memory folder ${mem}: set it to "${abs}" in .claude/settings.local.json`);
+    }
     for (const n of Object.keys(conf.packs).filter((n) => run.PACKS.includes(n))) {
       let tool;
       try { tool = (await mod(`checks/packs/${n}.mjs`)).TOOL; } catch { continue; }
@@ -837,7 +870,7 @@ async function doctor() {
   };
   await tooling();
   say("ok", "Claude Code: tested");
-  finish();
+  }
 }
 
 const SETTINGS = ".claude/settings.json", LOCAL = ".claude/settings.local.json", LOCAL_KEY = "autoMemoryDirectory";
@@ -871,9 +904,10 @@ function uninstall() {
     if (u) { const x = renameWrite(w, u); wanted.set(x.path, x.text); }
   }
   const wants = settingsWants(manifest);
-  const giLines = new Set([".xworkflows/", ...[...wanted.keys()].map(giLine).filter(Boolean)]);
+  // a retired unit's line too: install wrote it, and it stays while a changed file keeps the unit's folder
+  const giLines = new Set([".xworkflows/", ...[...wanted.keys(), ...retiredPaths(manifest).keys()].map(giLine).filter(Boolean)]);
   let md = null;
-  try { md = memName(loadConfig(ROOT).memory.dir); } catch {}
+  try { md = memoryFolder(loadConfig(ROOT), ROOT).dir; } catch {}
 
   // the marker, not the record, says this checkout's install wrote the yml: only install's exact text is the marker
   let marked = false;
@@ -941,7 +975,8 @@ function uninstall() {
     }
   }
   let memory;
-  try { memory = resolve(ROOT, loadConfig(ROOT).memory.dir); } catch {}
+  // the folder install wrote there; a record of an earlier version may hold a value that names none
+  try { memory = resolve(ROOT, md ?? loadConfig(ROOT).memory.dir); } catch {}
   for (const [file, key, was] of [[SETTINGS, "attribution", ATTRIBUTION], [LOCAL, LOCAL_KEY, memory]]) {
     const x = rec.scalars.find((e) => e.file === file);
     if (!x) continue;

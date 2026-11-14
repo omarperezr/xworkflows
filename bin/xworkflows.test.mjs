@@ -79,11 +79,11 @@ const packed = spawnSync("node", [join(SHARED, "bin/xworkflows.mjs"), "pack"], {
 assert.equal(packed.status, 0, `pack of the shared copy failed, every install test depends on it:\n${packed.stdout}${packed.stderr}`);
 const BIN = join(SHARED, "bin/xworkflows.mjs");
 
-function cliAt(pkg, cwd, args) {
+function cliAt(pkg, cwd, args, extra = {}) {
   const env = { ...process.env };
   delete env.XWORKFLOWS_FREE;
   delete env.XWORKFLOWS_RECORD;
-  const r = spawnSync("node", [join(pkg, "bin/xworkflows.mjs"), ...args], { cwd, env: { ...env, ...ISO }, input: "", encoding: "utf8" });
+  const r = spawnSync("node", [join(pkg, "bin/xworkflows.mjs"), ...args], { cwd, env: { ...env, ...ISO, ...extra }, input: "", encoding: "utf8" });
   return { status: r.status, stdout: r.stdout, stderr: r.stderr };
 }
 
@@ -192,16 +192,16 @@ test("install wires adapt hooks", () => {
   assert.equal(post.length, 1);
   assert.match(post[0].hooks[0].command, /run\.mjs" claude adapt-record$/);
 });
-test("adapt-gates denies a shell redirect into the summary, sent as the runner sends it", () => {
+test("adapt-gates denies a Write of a file the adapt scripts write, sent as the runner sends it", () => {
   const r = repo();
   cli(r, ["install"]);
   writeJson(r, ".xworkflows/adapt-run.json", { startedAt: Date.now() });
   const env = { ...process.env, CLAUDE_PROJECT_DIR: r, XWORKFLOWS_STATE_DIR: mkdtempSync(join(tmpdir(), "xwf-state-")) };
   for (const k of ["XWORKFLOWS_FREE", "XWORKFLOWS_RECORD"]) delete env[k];
-  const send = (command) => JSON.parse(spawnSync("node", [join(r, ".xworkflows/hooks/run.mjs"), "claude", "adapt-gates"], { cwd: r, encoding: "utf8", env,
-    input: JSON.stringify({ session_id: "s1", cwd: r, hook_event_name: "PreToolUse", tool_name: "Bash", tool_input: { command } }) }).stdout || "{}");
-  assert.equal(send("echo x > .xworkflows/summary.md").hookSpecificOutput.permissionDecision, "deny");
-  assert.deepEqual(send("cat .xworkflows/summary.md"), {});
+  const send = (tool_name, tool_input) => JSON.parse(spawnSync("node", [join(r, ".xworkflows/hooks/run.mjs"), "claude", "adapt-gates"], { cwd: r, encoding: "utf8", env,
+    input: JSON.stringify({ session_id: "s1", cwd: r, hook_event_name: "PreToolUse", tool_name, tool_input }) }).stdout || "{}");
+  assert.equal(send("Write", { file_path: join(r, ".xworkflows/rules.json"), content: "{}\n" }).hookSpecificOutput?.permissionDecision, "deny");
+  assert.deepEqual(send("Bash", { command: "cat .xworkflows/summary.md" }), {});
 });
 test("an edited entry of ours is not duplicated", () => {
   const r = repo();
@@ -978,6 +978,14 @@ test("doctor: the pre-push hook must be ours; a declined one warns", () => {
   const out = doctor(d);
   assert.match(out.stdout, /^warn pre-push hook is yours: chaining declined at install; /m);
 });
+test("doctor: install's own pre-push hook that is not executable is a fail that says chmod +x", () => {
+  const r = repo(); cli(r, ["install"]);
+  chmodSync(join(r, ".git/hooks/pre-push"), 0o644);
+  const out = doctor(r);
+  assert.equal(out.status, 1);
+  assert.doesNotMatch(out.stdout, /^ok +pre-push hook is ours$/m);
+  assert.match(out.stdout, /^fail pre-push hook is ours but not executable, so git ignores it: chmod \+x \S*\/\.git\/hooks\/pre-push$/m);
+});
 test("doctor prints the session-start bytes and fails above the budget", () => {
   const r = repo(); cli(r, ["install"]);
   const home = tmp("xwf-home-");
@@ -1536,12 +1544,21 @@ test("install --dry-run writes nothing and names the folder, the yml and the .gi
   assert.match(out.stdout, /^would merge \.gitignore$/m);
   assert.equal(tree(r), before);
 });
-test("install: a docs link that leaves the repo gets no folder", () => {
+// P-128: install reads the memory folder by the one rule the hooks read it by
+test("install: a docs link that leaves the repo gets no folder, no yml and no autoMemoryDirectory, and the line says why; listed under memory.outside it gets them", () => {
   const o = tmp("xwf-out-"), r = repo();
   symlinkSync(o, join(r, "docs"));
   const out = inst(r);
+  assert.equal(out.status, 0, out.stderr);
   assert.deepEqual(readdirSync(o), []);
-  assert.match(out.stdout, /^not written \(symlink\): docs\/memory$/m);
+  assert.ok(!existsSync(join(r, ".qmd")));
+  assert.ok(!existsSync(join(r, ".claude/settings.local.json")));
+  assert.ok(out.stdout.split("\n").some((l) => l.startsWith(`not written: docs/memory/MEMORY.md is written outside the repository (${realpathSync(o)})`)), out.stdout);
+  mkdirSync(join(o, "memory"));
+  writeJson(r, ".xworkflows/config.json", { memory: { outside: [realpathSync(o)] } });
+  assert.equal(inst(r).status, 0);
+  assert.equal(readFileSync(join(r, ".qmd/index.yml"), "utf8"), yml(r));
+  assert.equal(readJson(r, ".claude/settings.local.json").autoMemoryDirectory, join(top(r), "docs/memory"));
 });
 test("install: a .qmd link that leaves the repo gets no yml and no .gitignore line", () => {
   const o = tmp("xwf-out-"), r = repo();
@@ -1558,9 +1575,25 @@ for (const [what, dir] of [["absolute", (o) => join(o, "mem")], ["climbing out w
     assert.equal(out.status, 0, out.stderr);
     assert.deepEqual(readdirSync(o), []);
     assert.ok(!existsSync(join(r, ".qmd")));
-    assert.ok(out.stdout.split("\n").includes(`not written: memory.dir must be a folder inside the repository: ${dir(o)}`));
+    assert.ok(out.stdout.split("\n").includes(`not written: memory.dir ${JSON.stringify(dir(o))} must be a folder inside the repository`), out.stdout);
   });
 }
+// P-125: settings.local.json gets the folder the memory.dir rule names, and nothing for a value that names none
+// P-128: a value that is not a text is the default folder, for install as for the hooks
+test("install: a memory.dir that is not text is read as the default folder; a padded one is written and taken back as the folder it names", () => {
+  const r = repo({ ".xworkflows/config.json": JSON.stringify({ memory: { dir: 5 } }) });
+  const out = inst(r);
+  assert.equal(out.status, 0, out.stderr);
+  assert.ok(statSync(join(r, "docs/memory")).isDirectory());
+  assert.equal(readJson(r, ".claude/settings.local.json").autoMemoryDirectory, join(top(r), "docs/memory"));
+  assert.equal(cli(r, ["uninstall"]).status, 0);
+  assert.ok(!existsSync(join(r, ".claude/settings.local.json")) && !existsSync(join(r, "docs")));
+  const q = repo({ ".xworkflows/config.json": JSON.stringify({ memory: { dir: " docs/memory " } }) });
+  assert.equal(inst(q).status, 0);
+  assert.equal(readJson(q, ".claude/settings.local.json").autoMemoryDirectory, join(top(q), "docs/memory"));
+  assert.equal(cli(q, ["uninstall"]).status, 0);
+  assert.ok(!existsSync(join(q, ".claude/settings.local.json")));
+});
 test("install: a repository path with a space, # and : gives the JSON string of the folder", () => {
   const d = join(tmp("xwf-"), "a b#c:d");
   mkdirSync(d);
@@ -1584,13 +1617,16 @@ test("doctor: the two qmd failures name the cause, a linked folder outside warns
   withConfig(r, {});
   const o = tmp("xwf-out-"); rmSync(join(r, "docs"), { recursive: true }); symlinkSync(o, join(r, "docs"));
   mkdirSync(join(o, "memory"));
-  assert.match(doctor(r, { PATH: q }).stdout, /^warn the memory folder is outside the repository: qmd indexes it only after "qmd trust" is run here$/m);
-  // a write there is refused unless memory.outside lists the real path: doctor says so with both ways out
+  // a write there is refused unless memory.outside lists the real path: doctor fails with the line the hooks refuse with, and says nothing more of that folder
   const real = realpathSync(join(o, "memory"));
-  const refused = lineOf(doctor(r, { PATH: q }), /^warn docs\/memory\/MEMORY\.md is written outside the repository/);
-  assert.ok(refused?.includes(`(${real})`) && refused.includes("put the notes inside the project") && refused.includes(`list ${real} under memory.outside in .xworkflows/config.json`), refused);
+  const unlisted = doctor(r, { PATH: q });
+  const refused = lineOf(unlisted, /^fail docs\/memory\/MEMORY\.md is written outside the repository/);
+  assert.ok(refused?.includes(`(${real})`) && refused.includes("put the notes inside the project") && refused.includes(`list ${real} under memory.outside in .xworkflows/config.json`), unlisted.stdout);
+  assert.match(refused, /: set memory\.dir in \.xworkflows\/config\.json to a folder inside the repository, then run xworkflows install$/);
+  assert.doesNotMatch(unlisted.stdout, /qmd trust|qmd collection covers|autoMemoryDirectory/);
   withConfig(r, { memory: { outside: [real] } });
   assert.doesNotMatch(doctor(r, { PATH: q }).stdout, /is written outside the repository/);
+  assert.match(doctor(r, { PATH: q }).stdout, /^warn the memory folder is outside the repository: qmd indexes it only after "qmd trust" is run here$/m);
   withConfig(r, {});
   rmSync(join(r, "docs")); writeFileSync(join(r, "docs"), "a file\n");
   const out = doctor(r, { PATH: q });
@@ -2196,15 +2232,18 @@ function retiringCopy(retired) {
   writeFileSync(join(copy, "manifest.json"), JSON.stringify(m, null, 2) + "\n");
   return copy;
 }
-test("install removes only a file the manifest lists as retired with a listed hash; the record never decides", () => {
-  const copy = retiringCopy({ "skills/adapt/old.md": [sha("v1\n"), sha("v2\n")], "skills/adapt/edited.md": [sha("v1\n")] });
+test("install removes only a file the record holds that the manifest lists as retired with a listed hash; the record's hash never decides", () => {
+  const copy = retiringCopy({ "skills/adapt/old.md": [sha("v1\n"), sha("v2\n")], "skills/adapt/edited.md": [sha("v1\n")], "skills/adapt/stray.md": [sha("v1\n")] });
   const r = repo(); assert.equal(cliAt(copy, r, ["install", "--yes"]).status, 0);
-  const mine = ".claude/skills/mine/SKILL.md", conf = ".xworkflows/config.json", gone = ".claude/skills/adapt/old.md", edited = ".claude/skills/adapt/edited.md";
+  const mine = ".claude/skills/mine/SKILL.md", conf = ".xworkflows/config.json", gone = ".claude/skills/adapt/old.md", edited = ".claude/skills/adapt/edited.md", stray = ".claude/skills/adapt/stray.md";
   mkdirSync(join(r, ".claude/skills/mine"), { recursive: true });
   writeFileSync(join(r, mine), "mine\n"); writeFileSync(join(r, conf), "{}\n");
-  writeFileSync(join(r, gone), "v2\n"); writeFileSync(join(r, edited), "v1\nmine\n");
-  // a hand-edited record names the user's files with their own hashes; the retired file is not in it at all
-  withRecord(r, (rec) => { rec.files[mine] = { piece: "adapt", sha256: sha("mine\n") }; rec.files[conf] = { piece: "adapt", sha256: sha("{}\n") }; });
+  writeFileSync(join(r, gone), "v2\n"); writeFileSync(join(r, edited), "v1\nmine\n"); writeFileSync(join(r, stray), "v1\n");
+  // the record holds the retired file install wrote; a hand edit names the user's files with their own hashes; the stray file is not in it at all
+  withRecord(r, (rec) => {
+    rec.files[gone] = { piece: "adapt", sha256: sha("v2\n") };
+    for (const [p, t] of [[mine, "mine\n"], [conf, "{}\n"], [edited, "v1\nmine\n"]]) rec.files[p] = { piece: "adapt", sha256: sha(t) };
+  });
   const dry = cliAt(copy, r, ["install", "--yes", "--dry-run"]);
   assert.match(dry.stdout, new RegExp(`^would remove ${gone.replaceAll(".", "\\.")}$`, "m"));
   assert.ok(existsSync(join(r, gone)), "dry-run removes nothing");
@@ -2214,9 +2253,12 @@ test("install removes only a file the manifest lists as retired with a listed ha
   assert.equal(readFileSync(join(r, mine), "utf8"), "mine\n");
   assert.equal(readFileSync(join(r, conf), "utf8"), "{}\n");
   assert.equal(readFileSync(join(r, edited), "utf8"), "v1\nmine\n");
-  assert.match(out.stdout, new RegExp(`^kept \\(no longer shipped, changed locally\\): ${edited.replaceAll(".", "\\.")}$`, "m"));
+  assert.equal(readFileSync(join(r, stray), "utf8"), "v1\n");
+  assert.ok(!dry.stdout.includes(stray) && !out.stdout.includes(stray), out.stdout);
+  assert.equal(out.stdout.split("\n").filter((l) => l === `kept (no longer shipped, changed locally): ${edited}`).length, 1, out.stdout);
   const files = readJson(r, ".xworkflows/installed.json").files;
-  assert.ok(!(gone in files) && !(edited in files) && !(mine in files) && !(conf in files));
+  assert.ok(!(gone in files) && !(mine in files) && !(conf in files) && !(stray in files));
+  assert.ok(!(edited in files), "the kept file is named once and leaves the record");
   assert.match(cliAt(copy, r, ["install", "--yes"]).stdout, /nothing to do/);
 });
 test("install does not throw on a null entry of the record's files: it counts as not recorded", () => {
@@ -2242,7 +2284,7 @@ test("install: a retired file alone in a folder of the package takes the folder;
   mkdirSync(join(r, unit), { recursive: true }); writeFileSync(join(r, unit, "SKILL.md"), "g\n");
   mkdirSync(join(r, sub), { recursive: true }); writeFileSync(join(r, sub, "x.mjs"), "x\n");
   appendFileSync(join(r, ".graphifyignore"), `${unit}/\n`);
-  withRecord(r, (rec) => { rec.imports.push({ file: ".graphifyignore", line: `${unit}/` }); rec.files[`${unit}/SKILL.md`] = { piece: "adapt", sha256: sha("g\n") }; });
+  withRecord(r, (rec) => { rec.imports.push({ file: ".graphifyignore", line: `${unit}/` }); rec.files[`${unit}/SKILL.md`] = { piece: "adapt", sha256: sha("g\n") }; rec.files[`${sub}/x.mjs`] = { piece: "hooks", sha256: sha("x\n") }; });
   const out = cliAt(copy, r, ["install", "--yes"]);
   assert.equal(out.status, 0, out.stderr);
   assert.ok(!existsSync(join(r, unit)) && !existsSync(join(r, sub)), "both folders are gone");
@@ -2273,6 +2315,169 @@ test("install: an upgrade whose record holds the file of a retired unit still re
   withRecord(r, (rec) => { rec.files[f] = { piece: "adapt", sha256: sha("g\n") }; });
   assert.equal(cliAt(copy, r, ["install", "--yes"]).status, 0);
   assert.ok(!existsSync(join(r, f)));
+});
+
+// a retired agent is a unit of one file; a retired file outside a unit is judged the same way
+const AGENT = ".claude/agents/gone.md", LOOSE = ".xworkflows/hooks/core/old.mjs";
+const retiringBoth = () => retiringCopy({ "agents/gone.md": [sha("a\n")], "hooks/core/old.mjs": [sha("a\n")] });
+// an earlier install wrote the retired agent: its file, its record entry and its line of .graphifyignore
+function upgradeWithAgent(text) {
+  const copy = retiringBoth();
+  const r = repo(); assert.equal(cliAt(copy, r, ["install", "--yes"]).status, 0);
+  writeFileSync(join(r, AGENT), text);
+  appendFileSync(join(r, ".graphifyignore"), `${AGENT}\n`);
+  withRecord(r, (rec) => { rec.files[AGENT] = { piece: "agents", sha256: sha("a\n") }; rec.imports.push({ file: ".graphifyignore", line: AGENT }); });
+  return { copy, r };
+}
+test("install: a retired agent the record holds, unchanged, is removed on an upgrade, and uninstall then leaves nothing of it", () => {
+  const { copy, r } = upgradeWithAgent("a\n");
+  const out = cliAt(copy, r, ["install", "--yes"]);
+  assert.equal(out.status, 0, out.stderr);
+  assert.ok(!existsSync(join(r, AGENT)));
+  assert.match(out.stdout, /^removed \.claude\/agents\/gone\.md$/m);
+  const rec = readJson(r, ".xworkflows/installed.json");
+  assert.ok(!(AGENT in rec.files) && !rec.imports.some((i) => i.line === AGENT));
+  assert.ok(!lines(r).includes(AGENT));
+  const un = cliAt(copy, r, ["uninstall"]);
+  assert.equal(un.status, 0, un.stderr);
+  assert.doesNotMatch(un.stdout, /gone\.md|kept \(not ours\)/);
+  assert.ok(!existsSync(join(r, AGENT)) && !(existsSync(join(r, ".graphifyignore")) && lines(r).includes(AGENT)));
+});
+test("install: a retired agent the record holds, changed locally, is kept, named once and leaves the record", () => {
+  const { copy, r } = upgradeWithAgent("a\nmine\n");
+  const out = cliAt(copy, r, ["install", "--yes"]);
+  assert.equal(out.status, 0, out.stderr);
+  assert.equal(readFileSync(join(r, AGENT), "utf8"), "a\nmine\n");
+  assert.equal(out.stdout.split("\n").filter((l) => l === `kept (no longer shipped, changed locally): ${AGENT}`).length, 1, out.stdout);
+  assert.ok(!(AGENT in readJson(r, ".xworkflows/installed.json").files));
+});
+test("install: a first install into a project with its own files at retired paths, with the published text, leaves them and names nothing", () => {
+  const r = repo({ [AGENT]: "a\n", [LOOSE]: "a\n" });
+  const out = cliAt(retiringBoth(), r, ["install", "--yes"]);
+  assert.equal(out.status, 0, out.stderr);
+  for (const f of [AGENT, LOOSE]) assert.equal(readFileSync(join(r, f), "utf8"), "a\n", f);
+  assert.doesNotMatch(out.stdout, /gone\.md|old\.mjs/);
+});
+test("install: a record edited by hand to name the user's files at retired paths with other content removes nothing", () => {
+  const copy = retiringBoth();
+  const r = repo(); assert.equal(cliAt(copy, r, ["install", "--yes"]).status, 0);
+  for (const f of [AGENT, LOOSE]) writeFileSync(join(r, f), "mine\n");
+  withRecord(r, (rec) => { for (const f of [AGENT, LOOSE]) rec.files[f] = { piece: "adapt", sha256: sha("mine\n") }; });
+  const out = cliAt(copy, r, ["install", "--yes"]);
+  assert.equal(out.status, 0, out.stderr);
+  const files = readJson(r, ".xworkflows/installed.json").files;
+  for (const f of [AGENT, LOOSE]) {
+    assert.equal(readFileSync(join(r, f), "utf8"), "mine\n", f);
+    assert.match(out.stdout, new RegExp(`^kept \\(no longer shipped, changed locally\\): ${f.replaceAll(".", "\\.")}$`, "m"));
+    assert.ok(!(f in files), f);
+  }
+});
+
+// P-123: the manifest holds the hash of the text the package published; install changed some on the way to the disk
+// the package's copy, the given files of its own retired with the hash of the text it ships
+function retireReal(files) {
+  const copy = packedCopy();
+  const m = JSON.parse(readFileSync(join(copy, "manifest.json"), "utf8"));
+  for (const f of files) {
+    const p = m.pieces.find((q) => f in q.files);
+    p.retired = { ...p.retired, [f]: [p.files[f]] };
+    delete p.files[f];
+  }
+  writeFileSync(join(copy, "manifest.json"), JSON.stringify(m, null, 2) + "\n");
+  return copy;
+}
+const committed = (setup) => { const r = repo(setup); git(r, "add -A"); git(r, "commit -q --allow-empty -m base"); return r; };
+test("install: a retired agent whose tier line install wrote as a model line is removed on the upgrade, and uninstall leaves git status empty", () => {
+  const r = committed(), a = ".claude/agents/explore.md";
+  assert.equal(cli(r, ["install", "--yes"]).status, 0);
+  assert.match(readFileSync(join(PKG_ROOT, "agents/explore.md"), "utf8"), /^tier: /m);
+  assert.match(readFileSync(join(r, a), "utf8"), /^model: /m);
+  const copy = retireReal(["agents/explore.md"]);
+  const up = cliAt(copy, r, ["install", "--yes"]);
+  assert.equal(up.status, 0, up.stderr);
+  assert.ok(!existsSync(join(r, a)), up.stdout);
+  assert.match(up.stdout, /^removed \.claude\/agents\/explore\.md$/m);
+  assert.equal(cliAt(copy, r, ["uninstall"]).status, 0);
+  assert.equal(git(r, "status --porcelain"), "");
+});
+// P-130: the file on disk was written with the map of the version that installed it, which may not be today's
+test("install: a retired agent written with an older map of tiers is removed on the upgrade, and uninstall leaves git status empty", () => {
+  const r = committed(), a = ".claude/agents/explore.md";
+  assert.equal(cli(r, ["install", "--yes"]).status, 0);
+  const tier = readFileSync(join(PKG_ROOT, "agents/explore.md"), "utf8").match(/^tier: (\w+)$/m)[1];
+  const was = readJson(PKG_ROOT, "tiers.json").claude[tier], now = was === "opus" ? "sonnet" : "opus";
+  assert.match(readFileSync(join(r, a), "utf8"), new RegExp(`^model: ${was}$`, "m"));
+  const copy = retireReal(["agents/explore.md"]);
+  const tiers = readJson(copy, "tiers.json");
+  tiers.claude[tier] = now;
+  writeJson(copy, "tiers.json", tiers);
+  const up = cliAt(copy, r, ["install", "--yes"]);
+  assert.equal(up.status, 0, up.stderr);
+  assert.match(up.stdout, /^removed \.claude\/agents\/explore\.md$/m);
+  assert.ok(!existsSync(join(r, a)), up.stdout);
+  assert.equal(cliAt(copy, r, ["uninstall"]).status, 0);
+  assert.equal(git(r, "status --porcelain"), "");
+});
+test("install: the SKILL.md of a renamed unit and a renamed agent, retired, are removed on the upgrade; the user's own stay and uninstall leaves git status empty", () => {
+  const own = { ".claude/skills/next-step/SKILL.md": "mine\n", ".claude/agents/explore.md": "mine\n" };
+  const r = committed(own), skill = ".claude/skills/xwf-next-step/SKILL.md", agent = ".claude/agents/xwf-explore.md";
+  assert.equal(cli(r, ["install", "--yes"]).status, 0);
+  assert.match(readFileSync(join(r, skill), "utf8"), /^name: xwf-next-step$/m);
+  assert.match(readFileSync(join(r, agent), "utf8"), /^name: xwf-explore$/m);
+  const copy = retireReal(["skills/next-step/SKILL.md", "agents/explore.md"]);
+  const up = cliAt(copy, r, ["install", "--yes"]);
+  assert.equal(up.status, 0, up.stderr);
+  assert.ok(!existsSync(join(r, ".claude/skills/xwf-next-step")) && !existsSync(join(r, agent)), up.stdout);
+  assert.doesNotMatch(up.stdout, /kept/);
+  for (const [p, t] of Object.entries(own)) assert.equal(readFileSync(join(r, p), "utf8"), t, p);
+  assert.equal(cliAt(copy, r, ["uninstall"]).status, 0);
+  assert.equal(git(r, "status --porcelain"), "");
+});
+// P-130: a retired unit's line of .graphifyignore is install's line, also when the unit's folder stays for a changed file
+for (const [what, own] of [["install made", null], ["the project had", "mine/\n"]]) {
+  test(`uninstall: after an upgrade that retires changed units, a .graphifyignore ${what} holds no line of install's`, () => {
+    const r = repo(own === null ? {} : { ".graphifyignore": own }), skill = ".claude/skills/next-step/SKILL.md", agent = ".claude/agents/explore.md";
+    assert.equal(cli(r, ["install", "--yes"]).status, 0);
+    assert.ok(lines(r).includes(".claude/skills/next-step/") && lines(r).includes(agent));
+    appendFileSync(join(r, skill), "mine\n"); appendFileSync(join(r, agent), "mine\n");
+    const copy = retireReal(["skills/next-step/SKILL.md", "agents/explore.md"]);
+    const up = cliAt(copy, r, ["install", "--yes"]);
+    assert.equal(up.status, 0, up.stderr);
+    assert.ok(existsSync(join(r, skill)) && existsSync(join(r, agent)), up.stdout);
+    const un = cliAt(copy, r, ["uninstall"]);
+    assert.equal(un.status, 0, un.stderr);
+    assert.doesNotMatch(un.stdout, /kept \(not ours\): \.graphifyignore/);
+    if (own === null) assert.ok(!existsSync(join(r, ".graphifyignore")), "the .graphifyignore install made is left");
+    else assert.equal(readFileSync(join(r, ".graphifyignore"), "utf8"), own);
+  });
+}
+test("install: a skill the user put under kept is not judged: an upgrade that retires its file removes nothing in that folder", () => {
+  const r = repo(), f = ".claude/skills/next-step/SKILL.md";
+  assert.equal(cli(r, ["install", "--yes"]).status, 0);
+  const text = readFileSync(join(r, f), "utf8");
+  withRecord(r, (rec) => { rec.kept.push(".claude/skills/next-step"); });
+  const out = cliAt(retireReal(["skills/next-step/SKILL.md"]), r, ["install", "--yes"]);
+  assert.equal(out.status, 0, out.stderr);
+  assert.ok(existsSync(join(r, f)), out.stdout);
+  assert.equal(readFileSync(join(r, f), "utf8"), text);
+  assert.doesNotMatch(out.stdout, /next-step/);
+});
+test("install: a changed retired file is named once, at the upgrade, and leaves the record: doctor and a second install say nothing of it", () => {
+  const r = repo(), f = ".claude/skills/next-step/SKILL.md";
+  assert.equal(cli(r, ["install", "--yes"]).status, 0);
+  appendFileSync(join(r, f), "mine\n");
+  const text = readFileSync(join(r, f), "utf8"), copy = retireReal(["skills/next-step/SKILL.md"]);
+  const up = cliAt(copy, r, ["install", "--yes"]);
+  assert.equal(up.status, 0, up.stderr);
+  assert.equal(up.stdout.split("\n").filter((l) => l === `kept (no longer shipped, changed locally): ${f}`).length, 1, up.stdout);
+  assert.ok(!(f in readJson(r, ".xworkflows/installed.json").files));
+  const again = cliAt(copy, r, ["install", "--yes"]);
+  assert.equal(again.status, 0, again.stderr);
+  assert.doesNotMatch(again.stdout, /next-step/);
+  assert.match(again.stdout, /nothing to do/);
+  const doc = cliAt(copy, r, ["doctor"], { PATH: GOOD, HOME: EMPTY_HOME });
+  assert.doesNotMatch(doc.stdout, /next-step/);
+  assert.equal(readFileSync(join(r, f), "utf8"), text);
 });
 
 // P-46: until the chaining is designed apart, install says what a chained hook cannot do
@@ -2326,19 +2531,20 @@ test("doctor: with core.hooksPath outside the repository the pre-push line names
   assert.deepEqual(FAILS(doctor(r, env)), []);
   assert.deepEqual(readdirSync(g), []);
 });
-test("doctor: a memory.dir outside the repository, existing or not, says to name a folder inside it, and doing so makes the lines go", () => {
+// P-128: a folder outside is refused by the hooks even when memory.outside lists it: doctor names only the way out they accept
+test("doctor: a memory.dir outside the repository, existing or not, listed or not, gives one fail line that says to name a folder inside it, and doing so makes it go", () => {
   const o = tmp("xwf-out-"), r = repo(); cli(r, ["install", "--yes"]);
   const ours = (extra = {}) => doctor(r, { PATH: GOOD, ...extra });
-  for (const dir of [o, join(o, "not-there"), relative(r, o)]) {
-    withConfig(r, { memory: { dir } });
+  for (const dir of [o, join(o, "not-there"), relative(r, o)]) for (const outside of [[], [o, realpathSync(o)]]) {
+    withConfig(r, { memory: { dir, outside } });
     const out = ours();
-    const bad = out.stdout.split("\n").filter((l) => /^(fail|warn) (no qmd collection covers|no memory folder yet)/.test(l));
-    assert.equal(bad.length, 1, out.stdout);
-    assert.match(bad[0], /set memory\.dir in \.xworkflows\/config\.json to a folder inside the repository, then run xworkflows install$/);
+    const bad = out.stdout.split("\n").filter((l) => /memory\.dir|memory folder|autoMemoryDirectory|qmd collection|qmd trust/.test(l));
+    assert.deepEqual(bad, [`fail memory.dir ${JSON.stringify(dir)} must be a folder inside the repository: set memory.dir in .xworkflows/config.json to a folder inside the repository, then run xworkflows install`], out.stdout);
+    assert.doesNotMatch(out.stdout, /memory\.outside/);
   }
   withConfig(r, { memory: { dir: "docs/memory" } });
   assert.equal(cli(r, ["install", "--yes"], { env: { PATH: GOOD, HOME: EMPTY_HOME } }).status, 0);
-  assert.doesNotMatch(ours().stdout, /no qmd collection covers|no memory folder yet/);
+  assert.doesNotMatch(ours().stdout, /memory\.dir|no qmd collection covers|no memory folder yet|autoMemoryDirectory/);
 });
 
 // P-116 (b): the first word of lookup.index.command reaches a shell only quoted
@@ -2399,15 +2605,68 @@ test("doctor: a lookup.index.command or memory.index that is not text gives a fa
   }
 });
 
-test("install --yes: a retired file is looked for only under the xwf- name of a unit that install renames", () => {
+test("doctor: a memory.dir that is not text gives one fail line naming the key and its fix, and doctor goes on", () => {
+  const r = repo(); cli(r, ["install"]);
+  for (const dir of [5, null, ["docs/memory"]]) {
+    withConfig(r, { memory: { dir } });
+    const out = doctor(r, { PATH: tools({ qmd: COVERS }) });
+    assert.equal(out.stderr, "", JSON.stringify(dir));
+    assert.equal(out.stdout.split("\n").filter((l) => /^fail memory\.dir must be text: .*\.xworkflows\/config\.json/.test(l)).length, 1, out.stdout);
+    assert.match(out.stdout, /^ok +qmd collection covers docs\/memory$/m);
+    assert.match(out.stdout, /^doctor: \d+ fail/m);
+  }
+});
+
+// P-125: doctor never throws; a throw anywhere in it is one fail line, and doctor ends with its count
+const ENDS = /\ndoctor: [1-9]\d* fail, \d+ warn\n$/;
+test("doctor: a pre-push hook it cannot read gives a fail line and doctor ends with its count, no stack trace", { skip: process.getuid?.() === 0 && "root reads a file of mode 000" }, () => {
+  const r = repo(); cli(r, ["install"]);
+  const hook = join(r, ".git/hooks/pre-push");
+  chmodSync(hook, 0o000);
+  const out = doctor(r);
+  chmodSync(hook, 0o755);
+  assert.equal(out.stderr, "");
+  assert.equal(out.status, 1);
+  // P-131: the last catch ends with a command, the one that shows where doctor stopped
+  assert.match(out.stdout, /^fail doctor stopped: EACCES.*: run xworkflows doctor --trace to see the stack$/m);
+  assert.match(out.stdout, ENDS);
+  chmodSync(hook, 0o000);
+  const traced = cli(r, ["doctor", "--trace"], { env: { PATH: GOOD, HOME: EMPTY_HOME } });
+  chmodSync(hook, 0o755);
+  assert.match(traced.stderr, /EACCES[^]*\n +at /, traced.stderr);
+  assert.match(traced.stdout, ENDS);
+  assert.equal(cli(r, ["install", "--trace"]).status, 2);
+});
+// P-131: the loader names the section; doctor's line for the config gives the fix, and the last catch is not reached
+test("doctor: a config section that is not an object, or a config file holding null, gives a line naming the file, the section and the fix, and doctor ends with its count", () => {
+  const r = repo(); cli(r, ["install"]);
+  const section = (k) => `fail config: .xworkflows/config.json: ${k} must be an object: make it an object, or take it out of .xworkflows/config.json`;
+  for (const [text, line] of [['{"memory":null}', section("memory")], ['{"paths":null}', section("paths")], ['{"tokens":5}', section("tokens")], ['{"packs":[]}', section("packs")], ['{"tests":"x"}', section("tests")],
+    ["null", "fail config: .xworkflows/config.json does not parse: not a JSON object: fix the JSON of .xworkflows/config.json"]]) {
+    writeFileSync(join(r, ".xworkflows/config.json"), text);
+    const out = doctor(r);
+    assert.equal(out.stderr, "", text);
+    assert.equal(out.status, 1, text);
+    assert.ok(out.stdout.split("\n").includes(line), out.stdout);
+    assert.doesNotMatch(out.stdout, /doctor stopped/, text);
+    assert.match(out.stdout, ENDS, text);
+  }
+});
+
+test("install --yes: a retired file is removed under the xwf- name the record holds, and with no record nothing is removed", () => {
   const published = spawnSync("git", ["show", "f467f65~1:skills/adapt/topics.md"], { cwd: PKG_ROOT, encoding: "utf8" }).stdout;
   const mine = ".claude/skills/adapt/topics.md", ours = ".claude/skills/xwf-adapt/topics.md";
   const r = repo({ ".claude/skills/adapt/SKILL.md": "mine\n", [mine]: published, [ours]: published });
+  const first = cli(r, ["install", "--yes"]);
+  assert.equal(first.status, 0, first.stderr);
+  assert.ok(existsSync(join(r, mine)) && existsSync(join(r, ours)), "no record: nothing is removed");
+  assert.ok(!first.stdout.includes("adapt/topics.md"), first.stdout);
+  withRecord(r, (rec) => { rec.files[ours] = { piece: "adapt", sha256: sha(published) }; });
   const out = cli(r, ["install", "--yes"]);
   assert.equal(out.status, 0, out.stderr);
   assert.ok(existsSync(join(r, mine)), "the user's file is still there");
   assert.ok(!existsSync(join(r, ours)), "the retired file of the package's skill is removed");
-  assert.ok(!out.stdout.includes(".claude/skills/adapt/topics.md"), out.stdout);
+  assert.ok(!out.stdout.includes(mine), out.stdout);
 });
 test("install: the user's own skill with a topics.md of other content is untouched and not named", () => {
   const mine = ".claude/skills/adapt/topics.md";
@@ -2487,4 +2746,20 @@ test("doctor: a pre-push hook of an outside folder with the line after an exit i
 });
 test("doctor: a pre-push hook of an outside folder that is a link to a file holding the line is ok", () => {
   assert.match(outsideHook((l) => `#!/bin/sh\n${l}\n`, { link: true }).out, OK_LINE);
+});
+// a command before the line may use up the refs on standard input: only the first command is sure to get them
+for (const [what, before] of [["cat >/dev/null", "cat >/dev/null\n"], ["a while read loop", "while read a b c d; do :; done\n"]]) {
+  test(`doctor: a pre-push hook of an outside folder with ${what} before the line is a fail`, () => {
+    const { out } = outsideHook((l) => `#!/bin/sh\n${before}${l}\n`);
+    assert.doesNotMatch(out, OK_LINE);
+    assert.match(out, /^fail pre-push hook/m);
+  });
+}
+test("doctor: a pre-push hook of an outside folder with a function holding exit 1 before the line is a fail that says first", () => {
+  const { out } = outsideHook((l) => `#!/bin/sh\ndie() {\n  echo "$1" >&2\n  exit 1\n}\n${l}\n`);
+  assert.doesNotMatch(out, OK_LINE);
+  assert.match(lineOf({ stdout: out }, /^fail pre-push hook/), /first command/);
+});
+test("doctor: a pre-push hook of an outside folder with only comments and blank lines before the line is ok", () => {
+  assert.match(outsideHook((l) => `#!/bin/sh\n\n# the check of this repository\n  # indented\n\n${l}\necho after\n`).out, OK_LINE);
 });

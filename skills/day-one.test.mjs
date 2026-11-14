@@ -287,7 +287,7 @@ test("gitignore lines", () => {
   const l = s.split("\n").find((x) => x.includes("to `.gitignore`"));
   has(l, ["`graphify-out/`", "`.xworkflows/research.md`", "`.xworkflows/research.json`", "`.xworkflows/research.prev.json`", "`.xworkflows/scan.json`",
     "`.xworkflows/interview.json`", "`.xworkflows/interview.log.jsonl`", "`.xworkflows/adapt-run.json`", "`.xworkflows/rules.json`", "`.xworkflows/screens.json`", "`.xworkflows/details.md`", "`.xworkflows/research.answered.json`"]);
-  inOrder(s, ["git commit -m", "research.mjs done"]);
+  inOrder(s, ["research.mjs done", "git commit -m"]);
 });
 
 test("fix round 1: every stop in step 2 ends the run", () => {

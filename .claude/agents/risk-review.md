@@ -25,4 +25,4 @@ Hold this checklist against the diff; each line that fails is a `blocking` findi
 - `proof/`: no model call without `--api-credits` and an entry in the spend ledger; the owner's profile is moved aside before a session and restored after it.
 - Everywhere: nothing installed imports outside the Node standard library; every installed file is a manifest piece (`node bin/xworkflows.mjs pack --check` prints nothing); the two privacy commands print nothing.
 
-Say which of the five risks each finding belongs to. If you cannot review, hand back only `blocked: <question>`.
+Say which of the five risks each finding belongs to. Name the function or section each finding is in, right after its `path:line`. If you cannot review, hand back only `blocked: <question>`.

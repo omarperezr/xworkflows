@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync as makeTmp, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { main, PACKS, TABLE } from "./run.mjs";
 import { makeRepo } from "../test/helpers/repo.mjs";
@@ -105,6 +105,15 @@ test("config that does not parse: exit 2", withRepo({}, async (repo) => {
   const r = await check(repo, []);
   assert.equal(r.code, 2);
   assert.match(r.out[0], /^xworkflows check: .*does not parse/);
+}));
+
+test("a config section that is not an object: could not run, the section named; the whole file null does not parse", withRepo({}, async (repo) => {
+  for (const [text, name] of [['{"memory":null}', "memory"], ['{"paths":5}', "paths"]]) {
+    repo.write(".xworkflows/config.json", text);
+    for (const argv of [[], ["index"]]) assert.deepEqual(await check(repo, argv), { code: 2, out: [`xworkflows check: .xworkflows/config.json: ${name} must be an object`] }, `${text} ${argv}`);
+  }
+  repo.write(".xworkflows/config.json", "null");
+  assert.deepEqual(await check(repo, []), { code: 2, out: ["xworkflows check: .xworkflows/config.json does not parse: not a JSON object"] });
 }));
 
 test("a base that does not resolve: exit 2", withRepo({}, async (repo) => {
@@ -339,7 +348,7 @@ test("packs that is not an object: setup error, exit 2", async () => {
     await withRepo({ config: { packs: bad } }, async (repo) => {
       const r = await check(repo, []);
       assert.equal(r.code, 2);
-      assert.deepEqual(r.out, ["xworkflows check: packs in the config is not an object"]);
+      assert.deepEqual(r.out, ["xworkflows check: .xworkflows/config.json: packs must be an object"]);
     })();
   }
 });
@@ -480,4 +489,26 @@ test("index: a memory.outside that is not a list of texts counts as empty and th
     assert.equal(existsSync(join(real, "MEMORY.md")), false);
   }
   rmSync(real, { recursive: true, force: true });
+}));
+
+test("index: the memory folder follows the one rule: empty or . refused with a MEMORY.md in the root unchanged, outside refused even when listed, not a text gives the default", withRepo({}, async (repo) => {
+  repo.write("MEMORY.md", "# Our own notes\n");
+  repo.write("AGENTS.md", "---\nname: Agents\n---\n");
+  for (const dir of ["", ".", "./"]) {
+    repo.write(".xworkflows/config.json", JSON.stringify({ memory: { dir } }));
+    assert.deepEqual(await check(repo, ["index"]), { code: 2, out: [`xworkflows check: memory.dir ${JSON.stringify(dir)} must be a folder inside the repository`] });
+    assert.equal(readFileSync(join(repo.root, "MEMORY.md"), "utf8"), "# Our own notes\n", JSON.stringify(dir));
+  }
+  const real = realpathSync(mkdtempSync(join(tmpdir(), "xwf-out-")));
+  writeFileSync(join(real, "a.md"), "---\ndescription: one\n---\n");
+  const up = relative(realpathSync(repo.root), real);
+  for (const dir of [up, real]) {
+    repo.write(".xworkflows/config.json", JSON.stringify({ memory: { dir, outside: [real] } }));
+    assert.deepEqual(await check(repo, ["index"]), { code: 2, out: [`xworkflows check: memory.dir ${JSON.stringify(dir)} must be a folder inside the repository`] });
+    assert.equal(existsSync(join(real, "MEMORY.md")), false, dir);
+  }
+  repo.write("docs/memory/a.md", "---\ndescription: one\n---\n");
+  repo.write(".xworkflows/config.json", JSON.stringify({ memory: { dir: 5 } }));
+  assert.deepEqual(await check(repo, ["index"]), { code: 0, out: [] });
+  assert.equal(readFileSync(join(repo.root, "docs/memory/MEMORY.md"), "utf8"), "- [a](a.md) — one\n");
 }));

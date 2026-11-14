@@ -88,6 +88,7 @@ batch merges. A fix is confirmed by a fresh reviewer of the same role, never
 the one that asked for it; it reads only the diff of the fix (owner,
 2026-11-11). Two rounds at most; if findings that
 block still remain, the owner decides: fix, accept, or revert.
+A finding in the same place as a finding of an earlier round of the batch is a repeat; the place is its file and the function or section it names, its file alone when it names none. The main session then writes `Possible design error in <place>` in the plan with the root cause and the best design that removes it at the root, and when one exists asks the owner: redesign or patch once more. This holds through the second round; after it the review's last step decides.
 
 ## 4. Source layout (the `xworkflows` repository)
 
@@ -430,7 +431,7 @@ a valid answer. The reference column is not the default (owner, 2026-11-11).
 | `comments.marks` | Comment marks per file extension | `//` family, `--` for SQL, `#` for shell |
 | `checks.project` | The project's own commands | type check, unit tests |
 | `checks.patterns`, `checks.ratchets` | Forbidden patterns; counters that may only go down | project lists |
-| `packs` | Enabled check packs with their options | `semgrep trivy squawk lint bundle` |
+| `packs` | Enabled check packs with their options: an object keyed by pack name | `{ "semgrep": { "configs": ["p/default"] }, "trivy": {}, "lint": { "run": "npm run lint" } }` |
 | `memory.index` | Optional: the name of a `qmd` index the project already has. When it is set, `install` writes no `.qmd/index.yml` and every `qmd` call names that index | not set: the project-local `.qmd/index.yml` |
 | `tokens.alwaysLoadedBytes` | The budget of section 13 | 24000 |
 | `memory.dir` | The one memory folder | `docs/memory` |

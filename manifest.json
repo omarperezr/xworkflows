@@ -16,17 +16,17 @@
         "gemini"
       ],
       "files": {
-        "hooks/run.mjs": "e507832f0975fba80bdf8389374d84b23850709d71c77fee1880cf4220b8dcdd",
+        "hooks/run.mjs": "cf9ecf76c88fc39449b299ea6bb379af132a3d7d3b0163b8281eb0599831008a",
         "hooks/mark.mjs": "f2ecad21dedeb1515287063237e6852b9374781f71ce876f13b57324bfcb88a5",
         "hooks/core/marks.mjs": "9f52d052c8fb1275e92335d1dd5664be0f1bff7d43a4a9432268bac01d61a2b7",
         "hooks/adapters/claude.mjs": "8693cd79efe0043cf8afb96553daa4e9b5122c1ee2c820a2def91224abbb31aa",
         "hooks/adapters/codex.mjs": "0589bf97b5cec7e06fee8a70bd92d8a0f51e8bb082cc241f743a80308e44d059",
         "hooks/adapters/cursor.mjs": "394c1a81f4040089b67f0fbf1131012bbb5883bdf705ce3af12dff66d9b3cbd5",
         "hooks/adapters/gemini.mjs": "eff8f29bce46d7c4a7c62845f3762a16c6fd38e831e6c4a5d6b54361ec599175",
-        "hooks/core/config.mjs": "85cf81ea8172edbce1f3171157bfb998c8df65b36e7e94066e706cd9affb68e4",
+        "hooks/core/config.mjs": "4be92661c437aa5c6f638de1dbfc6b8e841862786dfc7037344504fa9e823e20",
         "hooks/core/ctx.mjs": "c467ec88a800a1b3df3193922b7bd1377e12d610b6c75e2a7becc81cdd848138"
       },
-      "sha256": "71b0c837f6043a66c7f5d025f207d21c9cb7a619c62f00972a5e5dc9d2f9b6bc"
+      "sha256": "a4aa7488de052080c112b1e19a72fabc56b187f47b6970eff4b4a551308a41d6"
     },
     {
       "id": "design-first",
@@ -74,9 +74,9 @@
         }
       ],
       "files": {
-        "hooks/core/adapt-gates.mjs": "9544cb3e1303777271184bec16182a7acc2b8846d8efd8db680b78da753e820e"
+        "hooks/core/adapt-gates.mjs": "d1ac987c691d8322c7391e8a4045af9adeac4ce6a94a691cb3cdd68a879be407"
       },
-      "sha256": "b5dbd39d881a20bc214a33684cbd3bc6de83baace30add53f97e8bdbc13a07c4"
+      "sha256": "913b3479ada56045b99d00d2d353510abf6801310957ba47db8d991480604b98"
     },
     {
       "id": "adapt-record",
@@ -261,14 +261,14 @@
         ]
       },
       "files": {
-        "skills/adapt/SKILL.md": "d520ba22f1e25ffcec0b9bd66e12a629f34e017516e94868ed4e449e5d3410da",
+        "skills/adapt/SKILL.md": "e6eff403a630a283f5a7e0125900049ebcbe125c8da190019be37c41601410e8",
         "skills/adapt/scan.mjs": "c7d9a47a268cdf6135057da9eb267826b3d5df6df574b7fc206daccacfe401e9",
         "skills/adapt/rules.mjs": "736bb9ee53874d8c9447ab4107780d9b8f5733cee26597dae96862d43d37bde2",
         "skills/adapt/research.workflow.js": "c7d72c728a5eef056d9a23f56d3334b6f2400fa9730cb96dfcad23dadd579daa",
-        "skills/adapt/research.mjs": "6a2e14b49e16dd31037ebb6cadfe575b41544584d538d0462d9542e342273ae0",
+        "skills/adapt/research.mjs": "b2bdb932ebd801d51760c168c6750132baa82fff51b8a1fce50cdad91b6be60a",
         "skills/adapt/screens.mjs": "0a0f3698ea1e41ebae375416e52eac0df90e8d644f8b452c44e9fe702bc34cdc"
       },
-      "sha256": "1c113fb6171636ef22ec78ec41a6eaf42f4591487ad1658e6debba2369210f16"
+      "sha256": "a98213c681bce828eda07d51eeaecf7991759d7a3eebda155cda65d0a42d54e3"
     },
     {
       "id": "full-review",
@@ -377,10 +377,10 @@
         }
       ],
       "files": {
-        "hooks/core/memory.mjs": "c1452fba87f7d226d1c91703593930ee58517d598b5d420c7384c02fc174831d",
+        "hooks/core/memory.mjs": "6ad9d4b75477afa18423245118def7f7d93ebb50837feb5f129b53af4ac5b829",
         "hooks/core/memory-index.mjs": "ed9d990262ae86bfb68b63b7c34e6594e3239460136907fbb376011990898006"
       },
-      "sha256": "64d633c787e0fac9513d1a03258eff2be2f70da57ed92460f09d4e9827095118"
+      "sha256": "2c40fb708181a40e13b9534f49791107287c475d2f42a7d5de535cdce3e8f9ff"
     },
     {
       "id": "modes",
@@ -443,9 +443,9 @@
         "claude"
       ],
       "files": {
-        "agents/review.md": "cc664745c387c9b0fd4f6041bfb17e2a2ac5832c559ffaa418c22cd177646ba8"
+        "agents/review.md": "1ca8ee55c9b2c555517d860b8ac41ad7d0494dec3e77ff25f38706f016306b99"
       },
-      "sha256": "244c129220da386ae3c84d1670d20d2226b0490ac18db984e6c88a59e74cff06"
+      "sha256": "f01aa761e0696d3848e3d3578a72664924288c7fcc10cc6c4ad3b62636771ef5"
     },
     {
       "id": "dream-analyzer",
@@ -518,9 +518,9 @@
         "claude"
       ],
       "files": {
-        "skills/orchestrate/SKILL.md": "07f40bc19128e9635b43b23fdf5648821a6f5669e99f4f4a5042cb97ea44ed96"
+        "skills/orchestrate/SKILL.md": "1f506c458d579ad4ab331c698340738b7811a964f1d370c910e2774714f12b02"
       },
-      "sha256": "c08df093fa9a9a47425ab51ed66194453ab281be9f68bc4a416659f6a41ffa90"
+      "sha256": "e3abe85db45467a06dea053ed2050bae4555befc14f54afe7396f2a07a3e3a75"
     },
     {
       "id": "pending",
@@ -640,7 +640,7 @@
         ]
       },
       "files": {
-        "checks/run.mjs": "76aa3b26c99f21037fb2bb85d4cd369b8d4b6bf912a7ba25bda7306139977626",
+        "checks/run.mjs": "a9e8ea271375853592858420ae6386cf383bf22827f52be2cf977f9a8b5c18d0",
         "checks/comment-lines.mjs": "7cc1262dc37358f5c2436e47f3808baa4af7c39d5579d5c428996c90c446dcf7",
         "checks/signature.mjs": "369f1c717d975692f082dc71d05540a2279408807969254f987ae01a0ef5d28f",
         "checks/review-seal.mjs": "f3ab75a35ba6f5fad303b5d0b2af975928c240aa9a0b5ac791ced5c0c62a4139",
@@ -657,7 +657,7 @@
         "checks/index-current.mjs": "1da87381699bfd1825b26a6ee2cef90b75fde9ebec72575b5f3c511ee49030cc",
         "checks/project.mjs": "3756970ca6af156dc599cdae8afcb7f2adc0982d5be72cb0c79b04d2777ce901"
       },
-      "sha256": "eecb422e157fd2cf380228af0092991616bfd8be5f0711124a9a1eccea85fdc3"
+      "sha256": "f5b9ddbb244303f8a07339057ef66c65cb79e3148088bcff04df26157e27a3af"
     },
     {
       "id": "lint",
