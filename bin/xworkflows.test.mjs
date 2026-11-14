@@ -825,6 +825,17 @@ test("a declined chain installs nothing for that hook and is not asked again", (
   assert.match(again.stdout, /^nothing to do$/m);
   assert.deepEqual(readJson(r, ".xworkflows/installed.json").declined.filter((d) => d.what === "chain").length, 1);
 });
+test("a line of install's that the user changed stays: install adds no second one, uninstall leaves it, and both name the file", () => {
+  const { r } = chained();
+  cli(r, ["install", "--yes"]);
+  const hook = join(r, ".git/hooks/pre-push"), line = marked(readFileSync(hook, "utf8"))[0];
+  const edited = OLD.replace("\n", `\n${line.replace("then", "then echo mine;")}\n`);
+  writeFileSync(hook, edited);
+  assert.match(cli(r, ["install", "--yes"]).stdout, /^kept \(changed locally\): \.git\/hooks\/pre-push$/m);
+  assert.equal(readFileSync(hook, "utf8"), edited);
+  assert.match(cli(r, ["uninstall"]).stdout, /^kept \(changed locally\): \.git\/hooks\/pre-push$/m);
+  assert.equal(readFileSync(hook, "utf8"), edited);
+});
 test("a hook the user changed after install keeps the change on uninstall, which takes out the line alone", () => {
   const { r } = chained();
   cli(r, ["install", "--yes"]);

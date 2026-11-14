@@ -473,7 +473,8 @@ export function plan(manifest, root, record, ans = {}) {
         hookMerges.push(declined);
       } else if (text.split("\n").includes(line)) {
         if (!record.imports.some((i) => i.file === fkey && i.line === line)) hookMerges.push({ path: file, text: null, rec: { imports: [{ file: fkey, line }] } });
-      } else if (ask(`chain:${name}`, `A ${name} hook exists. Add the xworkflows line to ${file}? The line runs first, then the rest of the hook.`, ["no", "yes"]) === "no") {
+      } else if (text.split("\n").some((l) => l.endsWith(" # xworkflows"))) notes.push(`kept (changed locally): ${file}`);
+      else if (ask(`chain:${name}`, `A ${name} hook exists. Add the xworkflows line to ${file}? The line runs first, then the rest of the hook.`, ["no", "yes"]) === "no") {
         notes.push(`${file} left as it is; to run the check, add this line to it as its first command: ${line}`);
         hookMerges.push(declined);
       } else hookMerges.push({ path: file, text: withLine(text, line), hook: !husky, rec: { imports: [{ file: fkey, line }], created: at ? [] : [file] } });
@@ -1030,6 +1031,8 @@ function uninstall() {
     const file = hookSet.has(key) ? relative(ROOT, join(hooksDir, basename(key))) : key;
     if (hookSet.has(key) && !lstatSync(join(ROOT, file), { throwIfNoEntry: false })?.isFile()) continue;
     const t = read(ROOT, file), ls = t?.split("\n") ?? [], i = ls.lastIndexOf(line);
+    // a line of a hook that the user changed still holds the mark: it stays, and is named
+    if (i < 0 && line === hookLine(basename(key)) && ls.some((l) => l.endsWith(" # xworkflows"))) out.push(`kept (changed locally): ${key}`);
     if (i < 0) continue;
     ls.splice(i, 1);
     const out2 = ls.join("\n");
