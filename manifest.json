@@ -23,10 +23,10 @@
         "hooks/adapters/codex.mjs": "0589bf97b5cec7e06fee8a70bd92d8a0f51e8bb082cc241f743a80308e44d059",
         "hooks/adapters/cursor.mjs": "394c1a81f4040089b67f0fbf1131012bbb5883bdf705ce3af12dff66d9b3cbd5",
         "hooks/adapters/gemini.mjs": "eff8f29bce46d7c4a7c62845f3762a16c6fd38e831e6c4a5d6b54361ec599175",
-        "hooks/core/config.mjs": "deade648cc594d3e0a79a8c018a63e41d24b6896118a85cb68e4c1c9b3e58c57",
+        "hooks/core/config.mjs": "85cf81ea8172edbce1f3171157bfb998c8df65b36e7e94066e706cd9affb68e4",
         "hooks/core/ctx.mjs": "07fd3d9b2172fee59ef333d4c3f7d0a0bbe681d099afcecd78827d2bbf95f99d"
       },
-      "sha256": "1dd1a56566bedbc4de8815d97c2969f157c19ad3ed70a63af928f6438bf11228"
+      "sha256": "15850101325911485b8ab9417ebdc81699925c8a09d804950ed5c7055c6e9c88"
     },
     {
       "id": "design-first",
@@ -74,9 +74,9 @@
         }
       ],
       "files": {
-        "hooks/core/adapt-gates.mjs": "e90a3d1500ce3e59ce8b329a715bfd0cb58aed48313b9c8bc78f06e6f0469b95"
+        "hooks/core/adapt-gates.mjs": "9544cb3e1303777271184bec16182a7acc2b8846d8efd8db680b78da753e820e"
       },
-      "sha256": "dc8ddb2117d0e1441552d01b4e183b310683836857770c80739be929bbd3bcfd"
+      "sha256": "b5dbd39d881a20bc214a33684cbd3bc6de83baace30add53f97e8bdbc13a07c4"
     },
     {
       "id": "adapt-record",
@@ -326,9 +326,9 @@
         }
       ],
       "files": {
-        "hooks/core/orchestrator.mjs": "5462dd6a5df1c93dd77956880884ca1eeac6113c6d1b07ea8445577a12f42da4"
+        "hooks/core/orchestrator.mjs": "db7bc1ee1f65207257488897bc5acc1f9687892fed4abf311fa0552f1bbc9ad9"
       },
-      "sha256": "80541a702bc5cf7a03a763fec328d809e5cff2d345db100f632491a22f41209b"
+      "sha256": "c3b74b9b3f67a3afe73a4c70d53e20e9411bb0a2fe479c87b33b48064e8f8449"
     },
     {
       "id": "handback",
@@ -377,10 +377,10 @@
         }
       ],
       "files": {
-        "hooks/core/memory.mjs": "c139f32942f7d853c69c8cee94f1eef8c238e440642ebad416256a934409b0c0",
+        "hooks/core/memory.mjs": "906f423d73f6ace5b772347c5f2fb926311e00cf4663930049b6417612ffb32a",
         "hooks/core/memory-index.mjs": "ed9d990262ae86bfb68b63b7c34e6594e3239460136907fbb376011990898006"
       },
-      "sha256": "793b32d99a8bd7459034cf1f46fc39d8f55580b5ce1058910ced599d3a61ea16"
+      "sha256": "bf8411385bf6914e0f8e46c5889a4442b9723d808754a4d15cfe992033d8f2d4"
     },
     {
       "id": "modes",
@@ -446,6 +446,36 @@
         "agents/review.md": "cc664745c387c9b0fd4f6041bfb17e2a2ac5832c559ffaa418c22cd177646ba8"
       },
       "sha256": "244c129220da386ae3c84d1670d20d2226b0490ac18db984e6c88a59e74cff06"
+    },
+    {
+      "id": "dream-analyzer",
+      "kind": "agent",
+      "origin": "own",
+      "version": "0.1.0",
+      "license": "MIT",
+      "scope": "project",
+      "tools": [
+        "claude"
+      ],
+      "files": {
+        "agents/dream-analyzer.md": "1ed59c7b16110fa52e22e9f64ae79eae702e1045c61da75660b2a8d230038277"
+      },
+      "sha256": "a8877c3638ead3736432b08d80d4f6f36bbebb0f0db2a0cee21140352792a2bc"
+    },
+    {
+      "id": "dream-organizer",
+      "kind": "agent",
+      "origin": "own",
+      "version": "0.1.0",
+      "license": "MIT",
+      "scope": "project",
+      "tools": [
+        "claude"
+      ],
+      "files": {
+        "agents/dream-organizer.md": "95ecaf971c38ad84969da1ed37e78ccf28eaa63c0cdbcd7b53aedfe6d5fd3b43"
+      },
+      "sha256": "3f9ee1f9be17028138a8c71fa1f52bf5db7aa0114d690fd48895defaf475e554"
     },
     {
       "id": "deepen",
@@ -565,6 +595,25 @@
         "skills/ponytail-review/SOURCE.md": "efc2bad9ff85270a0ea9f55890b4ad7b63680bf66fa07ba1b41bb9e044388f7c"
       },
       "sha256": "668b7e9812764f990234ac58cf21e2d816e16cb8584e8130234da5e23fc7e4ff"
+    },
+    {
+      "id": "dream",
+      "kind": "skill",
+      "origin": "own",
+      "version": "0.1.0",
+      "license": "MIT",
+      "scope": "project",
+      "tools": [
+        "claude"
+      ],
+      "files": {
+        "skills/dream/SKILL.md": "ccf3ee1cff194665291c840750a7cf36eb863d4b9ca72327a58676529e6f9d84",
+        "skills/dream/extract.mjs": "944845735aa74e58188c6c300b299a2102b3c67587b7794e00773a53ffe29d6a",
+        "skills/dream/branch.mjs": "aa30300a186e80d4453be860c08d6fa81f75d615a02b470d0afca8c97c780d39",
+        "skills/dream/shared.mjs": "6055f40386bf830bb0453b36e10dc55b87930825053ce3df4906aa99e356d02d",
+        "skills/dream/dream.workflow.js": "2fb92e9ca37653772f4a141e2569edaa216681dda527677a0a4164d96b717a71"
+      },
+      "sha256": "540fed1fd8cbfbe560a32c1ba569f3f1299ff680d4d000b4f80ae05fc44034f7"
     },
     {
       "id": "checks",
