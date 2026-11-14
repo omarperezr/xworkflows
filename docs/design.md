@@ -209,7 +209,7 @@ The installer owns only what it wrote. `installed.json` is the list.
 | JSON settings (`.claude/settings.json`, `.codex/hooks.json`, `.cursor/hooks.json`, Gemini `settings.json`) | **Merged**: its hook entries are appended to the existing arrays; no existing key or entry is changed or reordered. Its entries are recognized by their command path under `.xworkflows/` |
 | `AGENTS.md` exists | **Merged**: one block between `<!-- xworkflows:start -->` and `<!-- xworkflows:end -->`; text outside the block is never touched |
 | `CLAUDE.md` or `GEMINI.md` exists | **Asked**: add one line that imports `AGENTS.md`. On no, the file is left alone and `doctor` warns that this tool does not load the rules (owner, 2026-11-11) |
-| `core.hooksPath` is set, or a `pre-push` hook exists | **Asked**: add one marked line to the existing hook, which runs `xworkflows check` first and then the rest of the hook. Nothing is renamed, moved or replaced. husky's own file gets the line; for lefthook and pre-commit `install` prints it. An install made the old way (the hook renamed `<name>.before-xworkflows`) is migrated by the next `install` |
+| `core.hooksPath` is set, or a `pre-push` hook exists | **Asked**, for a hook that is a shell script: add one marked line to it, which runs `xworkflows check` first and then the rest of the hook. Nothing is renamed, moved or replaced; husky's own file gets the line. The line is silent where `.xworkflows/` is not; where the checks are and its file under `.xworkflows/git/` is not, it refuses the push and says to run `install`. A hook written by lefthook or pre-commit, a hook that is not a shell script (its bytes are not text, or its `#!` line names no shell) and a hook that is a link cannot take the line: **Asked**, chain it as before the line (renamed `<name>.before-xworkflows`, run first with the same input). An install made the old way (the hook renamed `<name>.before-xworkflows`) is migrated by the next `install` when the hook can take the line, whole or not at all, and kept as it is when it cannot |
 | An agent, skill or rule with the same name exists | **Asked** per file: keep theirs, or install under a prefixed name |
 | The working tree has uncommitted changes | Proceeds, and prints the list of files it wrote so they can be committed apart |
 
@@ -217,8 +217,8 @@ The installer owns only what it wrote. `installed.json` is the list.
 `installed.json` whose hash still matches, lists the ones that changed and
 leaves them, removes its entries from the merged JSON files, removes its
 block from `AGENTS.md`, removes the import line it added, and removes
-the marked line from the git hook (and restores a hook chained the old way
-that was never migrated). It never deletes what the interview wrote (`docs/BUSINESS.md`,
+the marked line from the git hook (never from a hook whose bytes are not
+text), and restores a chained hook to its name. It never deletes what the interview wrote (`docs/BUSINESS.md`,
 the pending list, memory, rules): that is project content.
 
 Running `install` twice must change nothing the second time.

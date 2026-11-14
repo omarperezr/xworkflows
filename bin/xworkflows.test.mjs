@@ -1115,16 +1115,6 @@ const outside = (hooksPath) => {
   return cfg;
 };
 const hasHook = (d) => { const p = join(d, "pre-push"); writeFileSync(p, OLD); chmodSync(p, 0o755); };
-// the package as it was before the hook line (P-46): its install renames a hook of the project and runs it from its own
-const BEFORE_LINE = "2131110";
-let oldPkg;
-const oldPackage = () => (oldPkg ??= (() => {
-  const d = tmp("xwf-old-");
-  const x = spawnSync("sh", ["-c", 'git archive "$1" package.json manifest.json tiers.json templates bin skills agents hooks checks | tar -x -C "$2"', "sh", BEFORE_LINE, d], { cwd: PKG_ROOT, encoding: "utf8" });
-  assert.equal(x.status, 0, x.stderr);
-  return d;
-})());
-
 test("the developer's global git config never reaches a test", () => {
   const g = tmp("xwf-ghooks-"); hasHook(g);
   const saved = process.env.GIT_CONFIG_GLOBAL;
@@ -1165,7 +1155,7 @@ for (const [what, theirs] of [["the user's three hooks chained", true], ["its ow
     const names = ["pre-push", "post-merge", "post-commit"], at = (n) => join(r, ".git/hooks", n);
     if (theirs) for (const n of names.slice(1)) { writeFileSync(at(n), OLD); chmodSync(at(n), 0o755); }
     else rmSync(at("pre-push"));
-    assert.equal(cliAt(oldPackage(), r, ["install", "--yes"]).status, 0);
+    oldInstall(r);
     rmSync(join(r, ".xworkflows/installed.json"));
     const out = cli(r, ["install"]);
     assert.equal(out.status, 0, out.stderr);
@@ -1207,7 +1197,7 @@ test("--dry-run says what it would migrate and where it would add the line, neve
 });
 test("an install chained the old way is migrated with no question: the user's hook has its name back and holds the line, the check runs first, and uninstall gives the hook back byte for byte", () => {
   const { r } = chained();
-  assert.equal(cliAt(oldPackage(), r, ["install", "--yes"]).status, 0);
+  oldInstall(r);
   const hook = join(r, ".git/hooks/pre-push");
   assert.equal(readFileSync(`${hook}.before-xworkflows`, "utf8"), OLD);
   assert.match(doctor(r).stdout, /^warn pre-push hook holds an earlier text of the package: run xworkflows install replaces it$/m);
