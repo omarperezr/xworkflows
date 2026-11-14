@@ -6,11 +6,13 @@ const OWNER_ONLY = new Set(["user", "feedback"]);
 const NOISE = /<(system-reminder|local-command-[\w-]+|command-[\w-]+|bash-stdout|bash-stderr)>[\s\S]*?<\/\1>/g;
 const REPORT = /^(<task-notification>|Another Claude session sent a message)/;
 
+const dirOf = (config) => (typeof config.memory.dir === "string" ? config.memory.dir : DEFAULTS.memory.dir); // a value that is not a text reads as the default
+
 const qmd = (ctx, ...args) => [...(ctx.config.memory.index ? ["--index", ctx.config.memory.index] : []), ...args];
 
 function rebuild(ev, ctx) {
   const read = (p) => ctx.readFile(path.resolve(ev.root, p));
-  const dir = ctx.config.memory.dir;
+  const dir = dirOf(ctx.config);
   const names = ctx.listDir(dir).filter((f) => f.endsWith(".md") && f !== "MEMORY.md");
   if (!names.length && !ctx.exists(dir)) return;
   const files = names.flatMap((file) => { const text = read(path.join(dir, file)); return text === null ? [] : [{ file, text }]; });
@@ -49,8 +51,13 @@ function start(ev, ctx) {
       lines.push(`Goals written ${months} months ago: run /adapt to refresh them.`);
     }
   }
-  const refused = ctx.outsideLine?.(path.join(memoryDir(config.memory.dir) ?? DEFAULTS.memory.dir, "MEMORY.md")); // the index write of session end is refused for this: say it
-  if (refused) lines.push(refused);
+  const dir = dirOf(config), flat = path.posix.normalize(dir.trim());
+  // a folder the config's own rule refuses has no link and no parent to list: the link line below would name "/" or the parent of the repository
+  if (memoryDir(dir) === null && (flat.startsWith("/") || flat === ".." || flat.startsWith("../"))) lines.push(`memory.dir ${dir} is outside the repository: ask the owner, and set it to a folder inside the repository.`);
+  else {
+    const refused = ctx.outsideLine?.(path.join(dir, "MEMORY.md")); // the index write of session end is refused for this: say it
+    if (refused) lines.push(refused);
+  }
   const idx = config.lookup?.index;
   if (Array.isArray(config.paths.code) && config.paths.code.length && idx?.command) {
     const graph = ctx.mtime(path.join(idx.folder, "graph.json"));
@@ -78,7 +85,7 @@ export function decide(ev, ctx) {
     const lines = start(ev, ctx);
     if (lines.length) return { decision: "allow", context: lines.join("\n") };
   } else if (ev.event === "preTool" && ev.kind === "write") {
-    const dir = path.resolve(ev.root, ctx.config.memory.dir) + path.sep;
+    const dir = path.resolve(ev.root, dirOf(ctx.config)) + path.sep;
     const left = new Map(); // the text of each file as the edits so far leave it
     for (const w of ev.writes ?? []) {
       const abs = path.resolve(ev.root, String(w.path).replaceAll("\\", "/"));

@@ -2,7 +2,7 @@
 import { execFileSync, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { createInterface } from "node:readline/promises";
-import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, readlinkSync, realpathSync, renameSync, rmSync, rmdirSync, statSync, writeFileSync } from "node:fs";
+import { accessSync, chmodSync, constants, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, readlinkSync, realpathSync, renameSync, rmSync, rmdirSync, statSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { basename, dirname, isAbsolute, join, normalize, posix, relative, resolve, sep } from "node:path";
 import { isDeepStrictEqual } from "node:util";
@@ -453,18 +453,20 @@ export function plan(manifest, root, record, ans = {}) {
       w.keep = true; notes.push(`kept (not ours): ${w.path}  new: ${w.src}`);
     } else if (hash(cur) !== rec.sha256) { w.keep = true; notes.push(`kept (changed locally): ${w.path}  new: ${w.src}`); }
   }
-  // a file the manifest lists as retired: removed when its content is one the package wrote, kept and named when edited; the record never decides
-  const shipped = new Set(writes.map((w) => w.key ?? w.path));
-  const retired = [];
+  // a file install wrote that this version no longer ships: found from the record, removed only when the manifest lists it as retired
+  // with the hash on disk, kept and named (and still recorded) when edited; the record's hash never decides
+  const listed = new Map();
   for (const [f, hashes] of manifest.pieces.flatMap((p) => Object.entries(p.retired ?? {}))) {
-    const t = target(f);
-    if (!t) continue;
-    const u = t.match(UNIT)?.[0], nu = u && `${dirname(u)}/xwf-${basename(u)}`;
-    if (kept.includes(u) || record.kept.includes(u)) continue;
-    const p = nu && (renamed[nu] || record.renamed[nu]) ? nu + t.slice(u.length) : t;
-    if (shipped.has(p) || !plain(p) || !clean(root, p) || !lstatSync(join(root, p), { throwIfNoEntry: false })?.isFile()) continue;
+    const t = target(f), u = t?.match(UNIT)?.[0];
+    if (t) for (const p of u ? [t, renameWrite({ path: t, text: "" }, u).path] : [t]) listed.set(p, hashes);
+  }
+  const shipped = new Set(writes.map((w) => w.key ?? w.path));
+  const retired = [], held = [];
+  for (const p of Object.keys(record.files)) {
+    const hashes = listed.get(p);
+    if (!hashes || shipped.has(p) || !plain(p) || !clean(root, p) || !lstatSync(join(root, p), { throwIfNoEntry: false })?.isFile()) continue;
     if (hashes.includes(hash(read(root, p)))) retired.push(p);
-    else notes.push(`kept (no longer shipped, changed locally): ${p}`);
+    else { held.push(p); notes.push(`kept (no longer shipped, changed locally): ${p}`); }
   }
   const merges = [];
   let mem;
@@ -494,7 +496,7 @@ export function plan(manifest, root, record, ans = {}) {
       merges.push({ path: "CLAUDE.md", text: claude + (claude.endsWith("\n") ? "" : "\n") + "@AGENTS.md\n", rec: { imports: [claude.endsWith("\n") ? { file: "CLAUDE.md", line: "@AGENTS.md" } : { file: "CLAUDE.md", line: "@AGENTS.md", addedNewline: true }] } });
     } else merges.push({ path: "CLAUDE.md", text: null, rec: { declined: [{ file: "CLAUDE.md", what: "import" }] } });
   }
-  return { writes, merges, questions, kept, renamed, notes, retired };
+  return { writes, merges, questions, kept, renamed, notes, retired, held };
 }
 
 const differs = (root, w) => !existsSync(join(root, w.path)) || readFileSync(join(root, w.path), "utf8") !== w.text;
@@ -511,10 +513,9 @@ export function apply(pl, root, manifest, record) {
   const linked = (path, hook) => { if (!hook && !clean(root, path)) throw new Error(`not written (symlink): ${path}`); };
   const put = (root, path, text, mode, hook) => { linked(path, hook); mk(dirname(path)); putFile(root, path, text, mode); };
   // a folder the removal empties goes with it when it is the package's own: a subfolder of .xworkflows/ or a skill's folder
-  const emptied = [];
   for (const p of pl.retired) {
     linked(p); rmSync(join(root, p)); out.push(`removed ${p}`);
-    for (let d = dirname(p); /^\.xworkflows\/|^\.claude\/(skills|agents)\/[^/]+/.test(d) && !readdirSync(join(root, d)).length; d = dirname(d)) { rmdirSync(join(root, d)); out.push(`removed ${d}/`); emptied.push(d); }
+    for (let d = dirname(p); /^\.xworkflows\/|^\.claude\/(skills|agents)\/[^/]+/.test(d) && !readdirSync(join(root, d)).length; d = dirname(d)) { rmdirSync(join(root, d)); out.push(`removed ${d}/`); }
   }
   for (const w of pl.writes) if (!w.keep && differs(root, w)) {
     const hook = HOOKS.includes(w.src);
@@ -542,8 +543,8 @@ export function apply(pl, root, manifest, record) {
       for (const x of list) if (!next[k].some((y) => (k === "merged" ? x.file === y.file && isDeepStrictEqual(x.key, y.key) && isDeepStrictEqual(x.entry, y.entry) : (k === "blocks" || k === "imports" ? x.file === y.file && x.line === y.line : isDeepStrictEqual(x, y))))) next[k].push(x);
     }
   }
-  // a unit whose folder is gone leaves its line of .graphifyignore, and the record its entry
-  for (const line of emptied.map((d) => giLine(d)).filter((l) => l && !existsSync(join(root, l)))) {
+  // a unit whose folder or agent file is gone leaves its line of .graphifyignore, and the record its entry
+  for (const line of new Set(pl.retired.map(giLine).filter((l) => l && !existsSync(join(root, l))))) {
     const t = read(root, GI), ls = t?.split("\n") ?? [];
     if (!next.imports.some((i) => i.file === GI && i.line === line) || !ls.includes(line)) continue;
     ls.splice(ls.indexOf(line), 1);
@@ -552,6 +553,7 @@ export function apply(pl, root, manifest, record) {
   }
   for (const p of manifest.pieces) next.pieces[p.id] = { version: p.version, sha256: p.sha256 };
   for (const w of pl.writes) next.files[w.key ?? w.path] = w.keep ? record.files[w.key ?? w.path] : { piece: w.piece, sha256: hash(w.text) };
+  for (const p of pl.held) next.files[p] = record.files[p];
   const rp = ".xworkflows/installed.json";
   mk(dirname(rp));
   if (record.dirs) next.dirs = [...new Set([...next.dirs, ...made])]; else delete next.dirs;
@@ -682,7 +684,10 @@ async function doctor() {
   let cfg = {};
   try { cfg = JSON.parse(readFileSync(join(ROOT, ".xworkflows/config.json"), "utf8")); } catch {}
   const specs = cfg.paths?.specs ?? "docs/superpowers/specs";
-  const memDir = cfg.memory?.dir ?? "docs/memory";
+  // a memory.dir that is not a text reads as the default, as the hooks read it
+  const memSet = cfg.memory?.dir === undefined ? DEFAULTS.memory.dir : cfg.memory.dir;
+  if (typeof memSet !== "string") say("fail", `memory.dir must be text: set it in .xworkflows/config.json to a folder inside the repository (the default is "${DEFAULTS.memory.dir}")`);
+  const memDir = typeof memSet === "string" ? memSet : DEFAULTS.memory.dir;
   const budget = cfg.tokens?.alwaysLoadedBytes ?? 24000;
   // 5
   let command;
@@ -745,7 +750,7 @@ async function doctor() {
     // a memory.index that is not text would reach qmd as an argument: say so, and use qmd's default index
     let idx = conf.memory.index;
     if (idx && typeof idx !== "string") { say("fail", "memory.index must be text: set it in .xworkflows/config.json, or take it out for qmd's default index"); idx = undefined; }
-    const named = memName(conf.memory.dir), mem = named ?? conf.memory.dir;
+    const named = memName(memDir), mem = named ?? memDir;
     // install writes no folder and no yml for a memory.dir outside the repository
     const MEMFIX = `set memory.dir in .xworkflows/config.json to a folder inside the repository, then ${INSTALL}`;
     if (!has("qmd")) say("fail", "qmd command is missing: npm install -g @tobilu/qmd");
@@ -776,11 +781,19 @@ async function doctor() {
     const cur = lstatSync(join(ROOT, hp), { throwIfNoEntry: false })?.isFile() ? read(ROOT, hp) : null;
     // the record's key for it: .git/hooks/pre-push whichever checkout this is, unless core.hooksPath moved the folder
     const key = hookKey(ROOT, "pre-push");
-    if (cur !== null && [false, true].some((c) => cur === hookText("pre-push", c))) say("ok", "pre-push hook is ours");
+    // the hook git runs, ours or of the folder outside the repository (read through a link there): git runs only an executable file; outside, the line must be its first command, since a command before it may use up the refs on standard input
+    const theirs = { path: resolve(hooksFolder(ROOT), "pre-push"), live: false, exec: false };
+    try {
+      const ls = readFileSync(theirs.path, "utf8").split("\n").map((l) => l.trim());
+      theirs.live = ls.find((l) => l !== "" && !l.startsWith("#")) === GUARDED;
+      accessSync(theirs.path, constants.X_OK); theirs.exec = true;
+    } catch {}
+    if (cur !== null && [false, true].some((c) => cur === hookText("pre-push", c))) say(theirs.exec ? "ok" : "fail", theirs.exec ? "pre-push hook is ours" : `pre-push hook is ours but not executable, so git ignores it: chmod +x ${sh(theirs.path)}`);
     else if (cur !== null && rec.files[key]) say("warn", `pre-push hook changed locally: it may no longer run the check; make it run: ${CHECK}`);
     else if (rec.declined.some((d) => d.file === key && d.what === "chain")) say("warn", `pre-push hook is yours: chaining declined at install; add this line to it: ${CHECK}`);
-    else if (ownHooks(ROOT) === null && cur?.includes(GUARDED)) say("ok", "pre-push hook of the folder outside this repository runs the check");
-    else if (ownHooks(ROOT) === null) say("fail", `pre-push hook: core.hooksPath points outside this repository, where install writes no hook; either add this line to the pre-push hook of that folder, which then runs it in every repository that uses the folder, and runs the check only where the file is: ${GUARDED} ; or point this repository at its own hooks folder, after which the hooks of the other folder no longer run here: run: git config core.hooksPath "$(git rev-parse --path-format=absolute --git-common-dir)/hooks"; then ${INSTALL}`);
+    else if (ownHooks(ROOT) === null && theirs.live && theirs.exec) say("ok", "pre-push hook of the folder outside this repository runs the check");
+    else if (ownHooks(ROOT) === null && theirs.live) say("fail", `pre-push hook of the folder outside this repository holds the check but is not executable, so git ignores it: chmod +x ${sh(theirs.path)}`);
+    else if (ownHooks(ROOT) === null) say("fail", `pre-push hook: core.hooksPath points outside this repository, where install writes no hook; either add this line to the pre-push hook of that folder as its first command, which then runs it in every repository that uses the folder, and runs the check only where the file is: ${GUARDED} ; or point this repository at its own hooks folder, after which the hooks of the other folder no longer run here: run: git config core.hooksPath "$(git rev-parse --path-format=absolute --git-common-dir)/hooks"; then ${INSTALL}`);
     else say("fail", `pre-push hook is missing or not ours: ${INSTALL}`);
     let st = {}, local = {};
     try { st = JSON.parse(readFileSync(join(ROOT, ".claude/settings.json"), "utf8")); } catch {}
