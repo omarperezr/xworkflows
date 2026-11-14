@@ -200,7 +200,7 @@ test("the cap cuts at a line: the session says how far it was read and the rest 
   assert.deepEqual(first.sessions.map((s) => [s.name, s.lines, s.bytes]), [["s1", 2, 201]]);
   assert.equal(readFileSync(first.sessions[0].file, "utf8"), `user: ${body}\nuser: ${body}`);
   assert.deepEqual([first.cut, first.left, first.bytes], [true, 2, 201]);
-  w.state({ sessions: { "s1.jsonl": 2 } });
+  w.state({ sessions: { s1: 2 } });
   const next = w.go().json;
   assert.deepEqual(next.sessions.map((s) => [s.name, s.lines, s.bytes]), [["s1", 3, 100], ["s2", 1, 100]]);
   assert.deepEqual([next.cut, next.left], [false, 0]);
@@ -223,7 +223,7 @@ test("dream.json: each session is read from the line after the count it holds", 
   w.put("s1", user("t1", day(1)), user("t1 more", day(5)));
   w.put("s2", user("t2", day(2)));
   w.put("s3", user("t3", day(3)));
-  w.state({ sessions: { "s1.jsonl": 1, "s2.jsonl": 1 } });
+  w.state({ sessions: { s1: 1, s2: 1 } });
   const { json } = w.go();
   assert.deepEqual(json.sessions.map((s) => [s.name, s.lines]), [["s3", 1], ["s1", 2]]); // s1 by the time of its first unread line
   assert.equal(readFileSync(json.sessions[1].file, "utf8"), "user: t1 more");
@@ -244,7 +244,7 @@ test("a last line still being written is not read yet", () => {
   writeFileSync(join(w.sessions, "s.jsonl"), user("done", day(1)) + "\n" + user("half", day(1)).slice(0, 20));
   const first = w.go().json;
   assert.deepEqual([first.sessions[0].lines, first.skipped], [1, 0]);
-  w.state({ sessions: { "s.jsonl": 1 } });
+  w.state({ sessions: { s: 1 } });
   appendFileSync(join(w.sessions, "s.jsonl"), user("half", day(1)).slice(20) + "\n");
   assert.equal(readFileSync(w.go().json.sessions[0].file, "utf8"), "user: half");
 });
@@ -259,7 +259,7 @@ test("no memory notes: an empty list with its reason, exit 0", () => {
 
 test("no new session: an empty list with its reason, exit 0", () => {
   const w = world();
-  w.state({ sessions: { "s1.jsonl": 1 } });
+  w.state({ sessions: { s1: 1 } });
   w.put("s1", user("t", day(1)));
   const r = w.go();
   assert.equal(r.code, 0);

@@ -64,7 +64,7 @@ export function run(argv, env, root, home) {
   const memory = join(root, memoryDir(config.memory.dir) ?? DEFAULTS.memory.dir);
   const notes = existsSync(memory) ? readdirSync(memory).filter((f) => f.endsWith(".md") && f !== "MEMORY.md").length : 0;
   const folder = arg(argv, "--sessions") ?? join(home, ".claude", "projects", root.replace(/[^A-Za-z0-9]/g, "-"));
-  let state = {}; // session file name -> lines read
+  let state = {}; // session name (its file without .jsonl) -> lines read
   try {
     const s = JSON.parse(readFileSync(join(memory, "dream.json"), "utf8")).sessions;
     if (s && typeof s === "object" && !Array.isArray(s)) state = s;
@@ -83,10 +83,10 @@ export function run(argv, env, root, home) {
     if (!e.isFile() || !e.name.endsWith(".jsonl") || e.name === `${current}.jsonl`) continue;
     const file = join(folder, e.name), all = readFileSync(file, "utf8").split("\n");
     all.pop(); // after the last newline: nothing, or a line still being written, read at a later run
-    const from = Number.isInteger(state[e.name]) && state[e.name] > 0 ? state[e.name] : 0;
+    const name = e.name.slice(0, -6), from = Number.isInteger(state[name]) && state[name] > 0 ? state[name] : 0;
     if (all.length <= from) continue;
     const lines = all.slice(from).map(line);
-    found.push({ name: e.name.slice(0, -6), from, lines, time: lines.find((l) => l.time)?.time ?? statSync(file).mtime.toISOString() });
+    found.push({ name, from, lines, time: lines.find((l) => l.time)?.time ?? statSync(file).mtime.toISOString() });
   }
   found.sort((a, b) => Date.parse(a.time) - Date.parse(b.time));
   if (!found.length) return done("no new session");

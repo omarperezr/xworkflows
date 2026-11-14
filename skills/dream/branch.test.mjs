@@ -36,7 +36,7 @@ function repo() {
 }
 const json = (r) => JSON.parse(r.stdout);
 // the folder of an extract, as extract.mjs leaves it
-const extracted = (sessions = [{ file: "s.txt", name: "s.jsonl", bytes: 1, masked: 0, lines: 1 }]) => {
+const extracted = (sessions = [{ file: "s.txt", name: "s", bytes: 1, masked: 0, lines: 1 }]) => {
   const out = realpathSync(mkdtempSync(join(tmpdir(), "dream-b-out-")));
   made.push(out);
   writeFileSync(join(out, "extract.json"), JSON.stringify({ out, sessions }));
@@ -73,7 +73,7 @@ test("close commits the changed, added and masked notes with the index and dream
   writeFileSync(join(o.memory, "a.md"), "---\nname: a\ndescription: first, edited\n---\nbody a\n");
   writeFileSync(join(o.memory, "c.md"), "---\nname: c\ndescription: third\n---\nbody c\n");
   writeFileSync(join(o.memory, "b.md"), "---\nname: b\ndescription: second\n---\ntoken: abcdef123456\n");
-  const out = extracted([{ file: "s1.txt", name: "sess-1.jsonl", bytes: 10, masked: 0, lines: 40 }]);
+  const out = extracted([{ file: "s1.txt", name: "sess-1", bytes: 10, masked: 0, lines: 40 }]);
   const r = run(["close", "--worktree", o.worktree, "--out", out], root);
   assert.equal(r.code, 0, r.stdout);
   const c = json(r);
@@ -85,7 +85,7 @@ test("close commits the changed, added and masked notes with the index and dream
   assert.equal(c.discard, `git branch -D ${o.branch}`);
   assert.equal(git(root, "show", `${o.branch}:docs/memory/b.md`).includes("abcdef123456"), false);
   assert.match(git(root, "show", `${o.branch}:docs/memory/MEMORY.md`), /\bc\b/);
-  assert.deepEqual(JSON.parse(git(root, "show", `${o.branch}:docs/memory/dream.json`)), { sessions: { "sess-1.jsonl": 40 } });
+  assert.deepEqual(JSON.parse(git(root, "show", `${o.branch}:docs/memory/dream.json`)), { sessions: { "sess-1": 40 } });
   assert.equal(git(root, "log", "-1", "--format=%s", o.branch), `dream: ${today}`);
   assert.equal(git(root, "rev-list", "--count", `main..${o.branch}`), "1");
   assert.equal(existsSync(o.worktree), false);
@@ -149,7 +149,7 @@ test("close with nothing at all to commit makes no commit", () => {
   const o = opened(root);
   run(["close", "--worktree", o.worktree, "--out", extracted()], root); // first run adds dream.json
   const again = opened(root);
-  writeFileSync(join(again.memory, "dream.json"), JSON.stringify({ sessions: { "s.jsonl": 1 } }, null, 2) + "\n");
+  writeFileSync(join(again.memory, "dream.json"), JSON.stringify({ sessions: { "s": 1 } }, null, 2) + "\n");
   git(again.worktree, "add", "-A"); git(again.worktree, "commit", "-q", "-m", "x");
   const c = json(run(["close", "--worktree", again.worktree, "--out", extracted()], root));
   assert.equal(git(root, "rev-list", "--count", `main..${again.branch}`), "1"); // only the setup commit
@@ -169,14 +169,14 @@ test("a worktree that is not a dream worktree of this repository is refused", ()
 
 test("close keeps the earlier entries of dream.json and sets the lines read of each session taken", () => {
   const root = repo();
-  writeFileSync(join(root, "docs/memory/dream.json"), JSON.stringify({ sessions: { "old.jsonl": 5, "s1.jsonl": 3 } }));
+  writeFileSync(join(root, "docs/memory/dream.json"), JSON.stringify({ sessions: { "old": 5, "s1": 3 } }));
   git(root, "add", "-A"); git(root, "commit", "-q", "-m", "state");
   const o = opened(root);
   const r = run(["close", "--worktree", o.worktree, "--out", extracted([
-    { file: "1.txt", name: "s1.jsonl", bytes: 1, masked: 0, lines: 10 },
-    { file: "2.txt", name: "s2.jsonl", bytes: 1, masked: 0, lines: 7 }])], root);
+    { file: "1.txt", name: "s1", bytes: 1, masked: 0, lines: 10 },
+    { file: "2.txt", name: "s2", bytes: 1, masked: 0, lines: 7 }])], root);
   assert.equal(r.code, 0, r.stdout);
-  assert.deepEqual(JSON.parse(git(root, "show", `${o.branch}:docs/memory/dream.json`)).sessions, { "old.jsonl": 5, "s1.jsonl": 10, "s2.jsonl": 7 });
+  assert.deepEqual(JSON.parse(git(root, "show", `${o.branch}:docs/memory/dream.json`)).sessions, { "old": 5, "s1": 10, "s2": 7 });
 });
 
 test("a missing or broken extract.json is refused with one line before anything changes", () => {
