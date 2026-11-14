@@ -1,9 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, utimesSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, utimesSync, cpSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+import { execFileSync } from "node:child_process";
 import { mask, run } from "./extract.mjs";
+import { shared } from "./shared.mjs";
 
 const tmp = () => mkdtempSync(join(tmpdir(), "dream-x-"));
 const user = (text, timestamp) => JSON.stringify({ type: "user", timestamp, message: { content: text } });
@@ -193,4 +196,28 @@ test("without --sessions the folder is under home, named after the repository ro
   writeFileSync(join(dir, "s.jsonl"), user("from home", day(1)) + "\n");
   const j = JSON.parse(run(["--out", w.out, "--current", "none"], {}, w.root, home).stdout);
   assert.deepEqual(j.sessions.map((s) => s.name), ["s"]);
+});
+
+test("installed in a project, the script finds the method's shared code and prints its JSON", () => {
+  const pkg = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
+  const proj = tmp(), sessions = tmp(), out = tmp();
+  try {
+    cpSync(join(pkg, "skills/dream"), join(proj, ".claude/skills/dream"), { recursive: true });
+    for (const d of ["hooks", "checks"]) cpSync(join(pkg, d), join(proj, ".xworkflows", d), { recursive: true });
+    execFileSync("git", ["init", "-q"], { cwd: proj });
+    mkdirSync(join(proj, "docs/memory"), { recursive: true });
+    writeFileSync(join(proj, "docs/memory/a.md"), "note");
+    writeFileSync(join(sessions, "s.jsonl"), user("hello", day(1)) + "\n");
+    const stdout = execFileSync("node", [join(proj, ".claude/skills/dream/extract.mjs"), "--sessions", sessions, "--current", "none", "--out", out], { cwd: proj, encoding: "utf8" });
+    assert.equal(JSON.parse(stdout).sessions.length, 1);
+  } finally { for (const d of [proj, sessions, out]) rmSync(d, { recursive: true, force: true }); }
+});
+
+test("shared: in the package layout the module under the package root resolves", async () => {
+  const m = await shared("hooks/core/config.mjs");
+  assert.equal(typeof m.load, "function");
+});
+
+test("shared: when neither path exists it throws one line naming both", async () => {
+  await assert.rejects(shared("hooks/core/none.mjs"), (e) => !e.message.includes("\n") && /hooks\/core\/none\.mjs/.test(e.message) && /\.xworkflows\/hooks\/core\/none\.mjs/.test(e.message));
 });
