@@ -1,0 +1,9 @@
+#!/bin/sh
+in=$(mktemp) || exit 1
+cat > "$in"
+old="$(dirname "$0")/pre-push.before-xworkflows"
+if [ -x "$old" ]; then "$old" "$@" < "$in" || { c=$?; rm -f "$in"; exit $c; }; fi
+node "$(git rev-parse --show-toplevel)/.xworkflows/checks/run.mjs" --pre-push "$1" < "$in"
+c=$?
+rm -f "$in"
+exit $c

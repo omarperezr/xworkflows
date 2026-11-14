@@ -1,0 +1,12 @@
+if awk 'f{r=1} / # xworkflows/{f=1} END{exit !(f && !r)}' 2>/dev/null < "$0"; then
+node "$(git rev-parse --show-toplevel)/.xworkflows/checks/run.mjs" --pre-push "$1" || exit $?
+else
+xwf_in=$(mktemp "${TMPDIR:-/tmp}/xworkflows.XXXXXX") || exit 1
+trap 'rm -f "$xwf_in"; exit 1' HUP INT TERM
+cat > "$xwf_in"
+node "$(git rev-parse --show-toplevel)/.xworkflows/checks/run.mjs" --pre-push "$1" < "$xwf_in" || { xwf_c=$?; rm -f "$xwf_in"; exit $xwf_c; }
+exec < "$xwf_in"
+rm -f "$xwf_in"
+trap - HUP INT TERM
+unset xwf_in xwf_c
+fi
