@@ -50,7 +50,7 @@
     },
     "adapt": {
       "version": "0.1.0",
-      "sha256": "c9847038611e3e149d972b732d4e1c04b651d05935e492c5a5a30fd7669972ca"
+      "sha256": "33888b4b6b1ab116bb32d79036d9e3651d7096e378168c67aeed23e6441b8bb7"
     },
     "full-review": {
       "version": "0.1.0",
@@ -70,7 +70,7 @@
     },
     "memory": {
       "version": "0.1.0",
-      "sha256": "bf8411385bf6914e0f8e46c5889a4442b9723d808754a4d15cfe992033d8f2d4"
+      "sha256": "2d271a826df105d2ceebd89ec69d15fa8780b321fcd4a80c6980b0b8a8474dc6"
     },
     "modes": {
       "version": "0.1.0",
@@ -184,7 +184,7 @@
     },
     ".xworkflows/hooks/core/memory.mjs": {
       "piece": "memory",
-      "sha256": "906f423d73f6ace5b772347c5f2fb926311e00cf4663930049b6417612ffb32a"
+      "sha256": "4499700c7759c979ed646641a2a119cfa1b96a4e41827f83c1e8dfb2531d51d4"
     },
     ".xworkflows/hooks/core/memory-index.mjs": {
       "piece": "memory",
@@ -328,7 +328,7 @@
     },
     ".claude/skills/adapt/SKILL.md": {
       "piece": "adapt",
-      "sha256": "bdeed50b3819e84bb1cd5ec26c80127269083ea2ccb555ba33a5b85aa7e4941e"
+      "sha256": "e6eff403a630a283f5a7e0125900049ebcbe125c8da190019be37c41601410e8"
     },
     ".claude/skills/adapt/scan.mjs": {
       "piece": "adapt",
@@ -344,7 +344,7 @@
     },
     ".claude/skills/adapt/research.mjs": {
       "piece": "adapt",
-      "sha256": "fc2540ae234ca560fa4d14f1adf01664ffb4fae157e226dbf29af1a430d82927"
+      "sha256": "c04bc5c06cc3b2b6934013231ac7482435933f915458d33436fa7f3da3160b4b"
     },
     ".claude/skills/adapt/screens.mjs": {
       "piece": "adapt",
