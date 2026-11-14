@@ -2242,7 +2242,7 @@ test("install: a retired file alone in a folder of the package takes the folder;
   mkdirSync(join(r, unit), { recursive: true }); writeFileSync(join(r, unit, "SKILL.md"), "g\n");
   mkdirSync(join(r, sub), { recursive: true }); writeFileSync(join(r, sub, "x.mjs"), "x\n");
   appendFileSync(join(r, ".graphifyignore"), `${unit}/\n`);
-  withRecord(r, (rec) => { rec.imports.push({ file: ".graphifyignore", line: `${unit}/` }); });
+  withRecord(r, (rec) => { rec.imports.push({ file: ".graphifyignore", line: `${unit}/` }); rec.files[`${unit}/SKILL.md`] = { piece: "adapt", sha256: sha("g\n") }; });
   const out = cliAt(copy, r, ["install", "--yes"]);
   assert.equal(out.status, 0, out.stderr);
   assert.ok(!existsSync(join(r, unit)) && !existsSync(join(r, sub)), "both folders are gone");
@@ -2251,6 +2251,28 @@ test("install: a retired file alone in a folder of the package takes the folder;
   assert.ok(!readJson(r, ".xworkflows/installed.json").imports.some((i) => i.line === `${unit}/`));
   const un = cliAt(copy, r, ["uninstall"]);
   assert.doesNotMatch(un.stdout, /kept \(not ours\)/);
+});
+
+// a unit that ships no file any more is judged only where the record knows it
+for (const [what, content] of [["other content", "mine\n"], ["the published text", "g\n"]]) {
+  test(`install: a first install leaves the user's own skill whose retired file holds ${what}, and names nothing`, () => {
+    const copy = retiringCopy({ "skills/gone/SKILL.md": [sha("g\n")] });
+    const f = ".claude/skills/gone/SKILL.md";
+    const r = repo({ [f]: content });
+    const out = cliAt(copy, r, ["install", "--yes"]);
+    assert.equal(out.status, 0, out.stderr);
+    assert.equal(readFileSync(join(r, f), "utf8"), content);
+    assert.doesNotMatch(out.stdout, /skills\/gone/);
+  });
+}
+test("install: an upgrade whose record holds the file of a retired unit still removes the unchanged one", () => {
+  const copy = retiringCopy({ "skills/gone/SKILL.md": [sha("g\n")] });
+  const r = repo(); assert.equal(cliAt(copy, r, ["install", "--yes"]).status, 0);
+  const f = ".claude/skills/gone/SKILL.md";
+  mkdirSync(join(r, ".claude/skills/gone"), { recursive: true }); writeFileSync(join(r, f), "g\n");
+  withRecord(r, (rec) => { rec.files[f] = { piece: "adapt", sha256: sha("g\n") }; });
+  assert.equal(cliAt(copy, r, ["install", "--yes"]).status, 0);
+  assert.ok(!existsSync(join(r, f)));
 });
 
 // P-46: until the chaining is designed apart, install says what a chained hook cannot do

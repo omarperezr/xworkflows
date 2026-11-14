@@ -461,6 +461,8 @@ export function plan(manifest, root, record, ans = {}) {
     if (!t) continue;
     const u = t.match(UNIT)?.[0], nu = u && `${dirname(u)}/xwf-${basename(u)}`;
     if (kept.includes(u) || record.kept.includes(u)) continue;
+    // a unit that ships no file any more: nobody was asked about its folder, so only a file the record holds under it is ours to judge
+    if (u && ![...shipped, ...Object.keys(record.files)].some((k) => k.startsWith(`${u}/`) || k.startsWith(`${nu}/`))) continue;
     const p = nu && (renamed[nu] || record.renamed[nu]) ? nu + t.slice(u.length) : t;
     if (shipped.has(p) || !plain(p) || !clean(root, p) || !lstatSync(join(root, p), { throwIfNoEntry: false })?.isFile()) continue;
     if (hashes.includes(hash(read(root, p)))) retired.push(p);
