@@ -54,12 +54,6 @@ export function run(argv, root) {
       if (!entry) return { code: 2, stdout: `--worktree is not a worktree of this repository on a dream/ branch: ${given}\n` };
       const { branch } = entry, memory = join(real, dir);
 
-      let masked = 0;
-      for (const f of existsSync(memory) ? readdirSync(memory).filter((f) => f.endsWith(".md")) : []) {
-        const [text, n] = mask(readFileSync(join(memory, f), "utf8"));
-        masked += n;
-        if (n) writeFileSync(join(memory, f), text);
-      }
       if (existsSync(memory)) {
         const files = readdirSync(memory).filter((f) => f.endsWith(".md") && f !== "MEMORY.md").map((file) => ({ file, text: readFileSync(join(memory, file), "utf8") }));
         const index = join(memory, "MEMORY.md"), text = buildIndex(files);
@@ -70,10 +64,18 @@ export function run(argv, root) {
       writeFileSync(join(memory, "dream.json"), JSON.stringify({ name, time }, null, 2) + "\n");
 
       const date = /^dream\/(\d{4}-\d\d-\d\d)/.exec(branch)?.[1] ?? branch;
+      git(real, "reset", "-q"); // the index holds only what this close stages
       git(real, "add", "-A", "--", dir);
-      if (git(real, "status", "--porcelain", "--", dir)) git(real, "commit", "-q", "-m", `dream: ${date}`, "--", dir);
-      const outside = git(real, "status", "--porcelain", "-z", "--untracked-files=all").split("\0").filter(Boolean)
-        .map((l) => l.slice(3)).filter((f) => !f.startsWith(`${dir}/`));
+      // the mask runs on what the commit takes against main; a binary file cannot be masked, so it stays out and is named in outside
+      const masked = [];
+      for (const l of git(real, "diff", "--cached", "--merge-base", main, "--no-renames", "--diff-filter=AM", "--numstat", "-z", "--", dir).split("\0").filter(Boolean)) {
+        const [a, , file] = l.split("\t");
+        if (a === "-") { git(real, "reset", "-q", "--", file); continue; }
+        const [text, count] = mask(readFileSync(join(real, file), "utf8"));
+        if (count) { writeFileSync(join(real, file), text); git(real, "add", "--", file); masked.push({ file, count }); }
+      }
+      if (tryGit(real, "diff", "--cached", "--quiet").code === 1) git(real, "commit", "-q", "-m", `dream: ${date}`);
+      const outside = git(real, "status", "--porcelain", "-z", "--untracked-files=all").split("\0").filter(Boolean).map((l) => l.slice(3));
 
       const notes = git(root, "diff", "--no-renames", "--name-status", `${main}...${branch}`, "--", dir).split("\n").filter(Boolean)
         .map((l) => l.split("\t")).filter(([, f]) => f.endsWith(".md") && f.slice(dir.length + 1) !== "MEMORY.md" && !f.slice(dir.length + 1).includes("/"));
