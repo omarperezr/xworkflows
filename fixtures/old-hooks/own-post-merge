@@ -1,0 +1,11 @@
+#!/bin/sh
+c=0
+cd "$(git rev-parse --show-toplevel)" || exit $c
+main=$(node -e 'try{process.stdout.write(JSON.parse(require("fs").readFileSync(".xworkflows/config.json","utf8")).mainBranch||"main")}catch{process.stdout.write("main")}') || main=main
+[ "$(git symbolic-ref --short -q HEAD)" = "$main" ] || exit $c
+tool=$(node -e 'try{process.stdout.write((JSON.parse(require("fs").readFileSync(".xworkflows/config.json","utf8")).lookup.index.command||"graphify query").split(" ")[0]||"graphify")}catch{process.stdout.write("graphify")}') || tool=graphify
+folder=$(node -e 'try{process.stdout.write(JSON.parse(require("fs").readFileSync(".xworkflows/config.json","utf8")).lookup.index.folder||"graphify-out")}catch{process.stdout.write("graphify-out")}') || folder=graphify-out
+command -v "$tool" >/dev/null 2>&1 || exit $c
+mkdir -p "$folder"
+{ "$tool" update . && touch -c -h -- "$folder/graph.json"; } > "$folder/.update.log" 2>&1 < /dev/null &
+exit $c
