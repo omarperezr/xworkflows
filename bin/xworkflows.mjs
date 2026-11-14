@@ -310,10 +310,12 @@ function gitText(name) {
   if (name === "pre-push") return `xwf_in=$(mktemp) || exit 1\ncat > "$xwf_in"\n${CHECK} < "$xwf_in" || { xwf_c=$?; rm -f "$xwf_in"; exit $xwf_c; }\nexec < "$xwf_in"\nrm -f "$xwf_in"\nunset xwf_in xwf_c\n`;
   return `#!/bin/sh\nc=0\ncd "$(git rev-parse --show-toplevel)" || exit $c\nmain=$(${MAIN}) || main=main\n[ "$(git symbolic-ref --short -q HEAD)" = "$main" ] || exit $c\ntool=$(${TOOL}) || tool=graphify\nfolder=$(${FOLDER}) || folder=graphify-out\ncommand -v "$tool" >/dev/null 2>&1 || exit $c\nmkdir -p "$folder"\n{ "$tool" update . && touch -c -h -- "$folder/graph.json"; } > "$folder/.update.log" 2>&1 < /dev/null &\nexit $c\n`;
 }
-// The one line install puts in a hook: it does nothing where the file is not; the two post hooks run it as a child that never fails them.
+// The one line install puts in a hook: the two post hooks run its file as a child that never fails them. It is silent only where the
+// method is not installed; where the checks are and its file is not, pre-push refuses the push and a post hook says so on stderr.
 const hookLine = (name) => {
-  const f = `"$(git rev-parse --show-toplevel)/.xworkflows/git/${name}"`;
-  return `if [ -f ${f} ]; then ${name === "pre-push" ? `. ${f}` : `sh ${f} "$@" || :`}; fi # xworkflows`;
+  const x = `"$(git rev-parse --show-toplevel)/.xworkflows`, f = `${x}/git/${name}"`;
+  const gone = `echo "xworkflows: .xworkflows/git/${name} is missing: run xworkflows install" >&2${name === "pre-push" ? "; exit 1" : " || :"}`;
+  return `if [ -f ${f} ]; then ${name === "pre-push" ? `. ${f}` : `sh ${f} "$@" || :`}; elif [ -f ${x}/checks/run.mjs" ]; then ${gone}; fi # xworkflows`;
 };
 // a hook manager is known by its hook's text: husky's shim reads the file h beside it; lefthook's and pre-commit's hooks name their tool
 const manager = (t) => (/^\.\s+"?(\$\{0%\/\*\}|\$\(dirname "\$0"\))\/h"?\s*$/m.test(t) ? "husky" : /lefthook/i.test(t) ? "lefthook" : /pre-commit\.com/.test(t) ? "pre-commit" : null);
@@ -844,7 +846,9 @@ async function doctor() {
       accessSync(theirs.path, constants.X_OK); theirs.exec = true;
     } catch {}
     const of = inside ? "" : " of the folder outside this repository";
-    if (cur === hookText("pre-push")) say(theirs.exec ? "ok" : "fail", theirs.exec ? "pre-push hook is ours" : `pre-push hook is ours but not executable, so git ignores it: chmod +x ${sh(theirs.path)}`);
+    // the line refuses every push while install's file for it is missing
+    if (inside && (cur === hookText("pre-push") || theirs.live) && !existsSync(join(ROOT, ".xworkflows/git/pre-push"))) say("fail", `pre-push hook runs .xworkflows/git/pre-push, which is missing: ${INSTALL}`);
+    else if (cur === hookText("pre-push")) say(theirs.exec ? "ok" : "fail", theirs.exec ? "pre-push hook is ours" : `pre-push hook is ours but not executable, so git ignores it: chmod +x ${sh(theirs.path)}`);
     // an install made the old way, or its record: install puts the present text in its place
     else if (cur !== null && (earlierHook(readManifest(), "pre-push", cur) || hash(cur) === rec.files[hookKey(ROOT, "pre-push")]?.sha256)) say("warn", `pre-push hook holds an earlier text of the package: ${INSTALL} replaces it`);
     else if (theirs.live) say(theirs.exec ? "ok" : "fail", theirs.exec ? `pre-push hook${of} runs the check` : `pre-push hook${of} holds the check but is not executable, so git ignores it: chmod +x ${sh(theirs.path)}`);

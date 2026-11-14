@@ -746,7 +746,7 @@ test("a real push goes through the installed pre-push hook", () => {
 });
 // the line install puts in a hook ends with this mark
 const marked = (t) => t.split("\n").filter((l) => l.endsWith(" # xworkflows"));
-test("install's own git hook is the #! line and one marked line that runs its file under .xworkflows/git, and does nothing where that file is not", () => {
+test("install's own git hook is the #! line and one marked line that runs its file under .xworkflows/git; without that file it refuses the push where the checks are, and is silent where .xworkflows is not", () => {
   const { r, bare } = withRemote();
   cli(r, ["install"]);
   const rec = readJson(r, ".xworkflows/installed.json");
@@ -761,9 +761,36 @@ test("install's own git hook is the #! line and one marked line that runs its fi
   assert.equal(pushed(r).status, 0);
   commit(r, "b.txt", "BADWORD\n");
   assert.match(pushed(r).stderr, /patterns: /);
+  // a branch made before the install was committed: the checks are there, install's file for the hook is not
+  config(r, []);
   rmSync(join(r, ".xworkflows/git/pre-push"));
-  assert.equal(pushed(r).status, 0);
+  const no = pushed(r);
+  assert.equal(no.status, 1);
+  assert.match(no.stderr, /^xworkflows: \.xworkflows\/git\/pre-push is missing: run xworkflows install$/m);
+  assert.equal(git(bare, "rev-list --count main"), "1");
+  // a clone with no .xworkflows at all
+  rmSync(join(r, ".xworkflows"), { recursive: true });
+  assert.deepEqual(pushed(r), { status: 0, stderr: "" });
   assert.equal(git(bare, "rev-list --count main"), "2");
+});
+test("the line of a post hook whose file under .xworkflows/git is missing says so in one line and never fails the commit; with no .xworkflows it is silent", () => {
+  const r = repo();
+  cli(r, ["install"]);
+  rmSync(join(r, ".xworkflows/git/post-commit"));
+  const c = commit(r, "a.txt", "x\n");
+  assert.equal(c.status, 0);
+  assert.equal(c.stderr, "xworkflows: .xworkflows/git/post-commit is missing: run xworkflows install\n");
+  rmSync(join(r, ".xworkflows"), { recursive: true });
+  assert.deepEqual([commit(r, "b.txt", "x\n")].map((x) => [x.status, x.stderr]), [[0, ""]]);
+});
+test("doctor fails, and does not say ours, when install's file for pre-push is missing", () => {
+  for (const { r } of [{ r: repo() }, chained()]) {
+    cli(r, ["install", "--yes"]);
+    rmSync(join(r, ".xworkflows/git/pre-push"));
+    const out = doctor(r);
+    assert.doesNotMatch(out.stdout, /^ok +pre-push hook/m);
+    assert.match(out.stdout, /^fail pre-push hook runs \.xworkflows\/git\/pre-push, which is missing: run xworkflows install$/m);
+  }
 });
 
 const OLD = '#!/bin/sh\nd="$(dirname "$0")/.."\nbasename "$0" > "$d/old-name"\necho "$@" > "$d/old-args"\ncat > "$d/old-in"\n[ -e "$d/old-fail" ] && { echo OLD-FAILED >&2; exit 7; }\nexit 0\n';
