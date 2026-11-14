@@ -466,17 +466,29 @@
       "piece": "dream",
       "sha256": "1e54b3ce3104638a2ecd3a231560cfb17b4832659057a053c69757c4ce34e5ea"
     },
+    ".xworkflows/git/pre-push": {
+      "piece": "checks",
+      "sha256": "096d349400afc039392699cdfa8ebc6fb507531d3d051e08bd36a47110adbaa3"
+    },
     ".git/hooks/pre-push": {
       "piece": "checks",
-      "sha256": "aa713744c2f71f4a6bdbdc7917e6b80bca6c67923bb8d08228fd36141f9387d1"
+      "sha256": "df9169167f7b11029bcff4e440005a9f112904093187e2646359b2ce78696902"
+    },
+    ".xworkflows/git/post-merge": {
+      "piece": "checks",
+      "sha256": "c5bd136544e108c68d14f5498ca7c269439d404eb4e8a4f2bab0e74c2e2530a1"
     },
     ".git/hooks/post-merge": {
+      "piece": "checks",
+      "sha256": "62068fcad35fc3aa0408871013c03bc71f938a8511c427a058e8634a37665096"
+    },
+    ".xworkflows/git/post-commit": {
       "piece": "checks",
       "sha256": "c5bd136544e108c68d14f5498ca7c269439d404eb4e8a4f2bab0e74c2e2530a1"
     },
     ".git/hooks/post-commit": {
       "piece": "checks",
-      "sha256": "c5bd136544e108c68d14f5498ca7c269439d404eb4e8a4f2bab0e74c2e2530a1"
+      "sha256": "c471f14f02248ffbd83da083bb43dd6581939210a0188b7dc345afb23c0d0acd"
     }
   },
   "merged": [
@@ -799,7 +811,8 @@
     ".graphifyignore"
   ],
   "dirs": [
-    ".claude/skills/dream"
+    ".claude/skills/dream",
+    ".xworkflows/git"
   ],
   "declined": [],
   "kept": [],
