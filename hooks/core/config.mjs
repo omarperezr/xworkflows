@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join, posix } from "node:path";
+import { outsideLine } from "./ctx.mjs";
 
 export const DEFAULTS = {
   owner: "the owner",
@@ -52,6 +53,16 @@ export const PROJECT_KEYS = [
 export function memoryDir(d) {
   const n = typeof d === "string" ? posix.normalize(d.trim()).replace(/^\.\/|\/+$/g, "") : "";
   return n === "" || n === "." || n.startsWith("/") || n === ".." || n.startsWith("../") ? null : n;
+}
+
+// the memory folder every reader uses, { dir, line: null }, or the line that refuses it, { dir: null, line }
+// a value that is not a text is the default; a text outside is refused even when memory.outside lists it: that list is only for a link inside
+export function memoryFolder(config, root) {
+  const value = config.memory?.dir;
+  const dir = typeof value === "string" ? memoryDir(value) : DEFAULTS.memory.dir;
+  if (dir === null) return { dir: null, line: `memory.dir ${JSON.stringify(value)} must be a folder inside the repository` };
+  const line = outsideLine(root, join(dir, "MEMORY.md"), config.memory?.outside);
+  return line ? { dir: null, line } : { dir, line: null };
 }
 
 const isObj = (v) => v !== null && typeof v === "object" && !Array.isArray(v);

@@ -1,6 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { DEFAULTS, PROJECT_KEYS, merge, load, get, missing, inPaths, memoryDir } from "./config.mjs";
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { DEFAULTS, PROJECT_KEYS, merge, load, get, missing, inPaths, memoryDir, memoryFolder } from "./config.mjs";
+import { outsideLine } from "./ctx.mjs";
 
 test("DEFAULTS has the product defaults and none of the project keys", () => {
   assert.equal(DEFAULTS.mainBranch, "main");
@@ -100,4 +104,38 @@ test("memoryDir: a folder name inside the repository comes back plain, anything 
 test("memory.outside is an empty list by default", () => {
   assert.deepEqual(DEFAULTS.memory.outside, []);
   assert.deepEqual(merge(DEFAULTS, { memory: { dir: "n" } }).memory, { dir: "n", outside: [] });
+});
+
+test("memoryFolder: the folder every reader uses, or the line that refuses it", () => {
+  const top = realpathSync(mkdtempSync(join(tmpdir(), "xwf-cfg-")));
+  try {
+    const root = join(top, "repo"), away = join(top, "away"), linkedRoot = join(top, "linked-repo");
+    mkdirSync(root); mkdirSync(away); mkdirSync(join(linkedRoot, "docs"), { recursive: true });
+    symlinkSync(away, join(root, "linked"));
+    symlinkSync(away, join(linkedRoot, "docs", "memory"));
+    const inside = (v) => ({ dir: null, line: `memory.dir ${JSON.stringify(v)} must be a folder inside the repository` });
+    const link = (r, file) => ({ dir: null, line: outsideLine(r, file, []) });
+    assert.ok(link(root, "linked/MEMORY.md").line);
+    for (const [r, dir, outside, want] of [
+      [root, undefined, [], { dir: "docs/memory", line: null }],
+      [root, 5, [], { dir: "docs/memory", line: null }],
+      [root, null, [], { dir: "docs/memory", line: null }],
+      [root, ["notes"], [], { dir: "docs/memory", line: null }],
+      [root, "notes", [], { dir: "notes", line: null }],
+      [root, " ./notes/ ", [], { dir: "notes", line: null }],
+      [root, "", [], inside("")],
+      [root, ".", [], inside(".")],
+      [root, "./", [], inside("./")],
+      [root, "..", [], inside("..")],
+      [root, "a/../..", [], inside("a/../..")],
+      [root, "../away", [], inside("../away")],
+      [root, "../away", [away], inside("../away")],
+      [root, away, [away], inside(away)],
+      [root, "linked", [], link(root, "linked/MEMORY.md")],
+      [root, "linked", [away], { dir: "linked", line: null }],
+      [linkedRoot, 5, [], link(linkedRoot, "docs/memory/MEMORY.md")],
+    ]) {
+      assert.deepEqual(memoryFolder({ memory: { dir, outside } }, r), want, `${JSON.stringify(dir)} ${JSON.stringify(outside)}`);
+    }
+  } finally { rmSync(top, { recursive: true, force: true }); }
 });

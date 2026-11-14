@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync as makeTmp, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { main, PACKS, TABLE } from "./run.mjs";
 import { makeRepo } from "../test/helpers/repo.mjs";
@@ -480,4 +480,26 @@ test("index: a memory.outside that is not a list of texts counts as empty and th
     assert.equal(existsSync(join(real, "MEMORY.md")), false);
   }
   rmSync(real, { recursive: true, force: true });
+}));
+
+test("index: the memory folder follows the one rule: empty or . refused with a MEMORY.md in the root unchanged, outside refused even when listed, not a text gives the default", withRepo({}, async (repo) => {
+  repo.write("MEMORY.md", "# Our own notes\n");
+  repo.write("AGENTS.md", "---\nname: Agents\n---\n");
+  for (const dir of ["", ".", "./"]) {
+    repo.write(".xworkflows/config.json", JSON.stringify({ memory: { dir } }));
+    assert.deepEqual(await check(repo, ["index"]), { code: 2, out: [`xworkflows check: memory.dir ${JSON.stringify(dir)} must be a folder inside the repository`] });
+    assert.equal(readFileSync(join(repo.root, "MEMORY.md"), "utf8"), "# Our own notes\n", JSON.stringify(dir));
+  }
+  const real = realpathSync(mkdtempSync(join(tmpdir(), "xwf-out-")));
+  writeFileSync(join(real, "a.md"), "---\ndescription: one\n---\n");
+  const up = relative(realpathSync(repo.root), real);
+  for (const dir of [up, real]) {
+    repo.write(".xworkflows/config.json", JSON.stringify({ memory: { dir, outside: [real] } }));
+    assert.deepEqual(await check(repo, ["index"]), { code: 2, out: [`xworkflows check: memory.dir ${JSON.stringify(dir)} must be a folder inside the repository`] });
+    assert.equal(existsSync(join(real, "MEMORY.md")), false, dir);
+  }
+  repo.write("docs/memory/a.md", "---\ndescription: one\n---\n");
+  repo.write(".xworkflows/config.json", JSON.stringify({ memory: { dir: 5 } }));
+  assert.deepEqual(await check(repo, ["index"]), { code: 0, out: [] });
+  assert.equal(readFileSync(join(repo.root, "docs/memory/MEMORY.md"), "utf8"), "- [a](a.md) — one\n");
 }));
