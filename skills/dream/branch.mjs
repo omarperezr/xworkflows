@@ -7,7 +7,7 @@ import { join, dirname, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 import { shared } from "./shared.mjs";
-import { mask } from "./extract.mjs";
+import { shapes, suspect } from "./extract.mjs";
 
 const { load, memoryDir, DEFAULTS } = await shared("hooks/core/config.mjs");
 const { buildIndex } = await shared("hooks/core/memory-index.mjs");
@@ -92,13 +92,15 @@ export function run(argv, root) {
       const date = /^dream\/(\d{4}-\d\d-\d\d)/.exec(branch)?.[1] ?? branch;
       git(real, "reset", "-q"); // the index holds only what this close stages
       git(real, "add", "-A", "--", dir);
-      // the mask runs on what the commit takes against main; a binary file cannot be masked and a link is not followed, so they stay out and are named in outside
-      const masked = [];
+      // what the commit takes against main: sure shapes are masked, the lines the wide rule would touch are named in look; a binary file cannot be
+      // masked and a link is not followed, so they stay out and are named in outside
+      const masked = [], look = [], own = [`${dir}/MEMORY.md`, `${dir}/dream.json`]; // close's own files: their lines come from the notes and the sessions' names
       for (const l of git(real, "diff", "--cached", "--merge-base", main, "--no-renames", "--diff-filter=AMT", "--numstat", "-z", "--", dir).split("\0").filter(Boolean)) {
         const [a, , file] = l.split("\t");
         if (a === "-" || !mine(real, join(real, file))) { git(real, "reset", "-q", "--", file); continue; }
-        const [text, count] = mask(readFileSync(join(real, file), "utf8"));
+        const [text, count] = shapes(readFileSync(join(real, file), "utf8"));
         if (count) { writeFileSync(join(real, file), text); git(real, "add", "--", file); masked.push({ file, count }); }
+        if (!own.includes(file)) look.push(...suspect(text).map((line) => ({ file, line })));
       }
       if (tryGit(real, "diff", "--cached", "--quiet").code === 1) {
         const c = tryGit(real, "commit", "-q", "-m", `dream: ${date}`); // the project's commit hooks run: never --no-verify
@@ -119,7 +121,7 @@ export function run(argv, root) {
 
       git(root, "worktree", "remove", "--force", real); // the changes outside the memory folder are named above and go with it
       rmSync(dirOut, { recursive: true, force: true });
-      return out({ branch, added: count("A"), changed: count("M"), removed: count("D"), masked, stale: lines, outside,
+      return out({ branch, added: count("A"), changed: count("M"), removed: count("D"), masked, look, stale: lines, outside,
         see: `git diff ${main}...${branch} -- ${dir}`, adopt: `git merge --no-ff ${branch}`, discard: `git branch -D ${branch}` });
     }
     return { code: 2, stdout: "usage: branch.mjs unseen | open | close --worktree <folder> --out <folder>\n" };

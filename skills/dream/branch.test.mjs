@@ -66,13 +66,16 @@ test("a second open the same day numbers the branch", () => {
   assert.equal(opened(root).branch, `dream/${today}-3`);
 });
 
+const pw = "pass" + "word=" + "hunter" + "2", bearer = "Authorization: " + "Bearer " + "abc.def" + "-1";
+const ghp = "gh" + "p_" + "Ab1".repeat(8), sk = "s" + "k-" + "Zz9".repeat(8); // keys of a known form
+
 test("close commits the changed, added and masked notes with the index and dream.json, and removes the worktree", () => {
   const root = repo();
   const main = git(root, "rev-parse", "main");
   const o = opened(root);
   writeFileSync(join(o.memory, "a.md"), "---\nname: a\ndescription: first, edited\n---\nbody a\n");
   writeFileSync(join(o.memory, "c.md"), "---\nname: c\ndescription: third\n---\nbody c\n");
-  writeFileSync(join(o.memory, "b.md"), "---\nname: b\ndescription: second\n---\ntoken: abcdef123456\n");
+  writeFileSync(join(o.memory, "b.md"), `---\nname: b\ndescription: second\n---\n${ghp}\ntoken: abcdef123456\n`);
   const out = extracted([{ file: "s1.txt", name: "sess-1", bytes: 10, masked: 0, lines: 40 }]);
   const r = run(["close", "--worktree", o.worktree, "--out", out], root);
   assert.equal(r.code, 0, r.stdout);
@@ -83,7 +86,9 @@ test("close commits the changed, added and masked notes with the index and dream
   assert.equal(c.see, `git diff main...${o.branch} -- docs/memory`);
   assert.equal(c.adopt, `git merge --no-ff ${o.branch}`);
   assert.equal(c.discard, `git branch -D ${o.branch}`);
-  assert.equal(git(root, "show", `${o.branch}:docs/memory/b.md`).includes("abcdef123456"), false);
+  assert.deepEqual(c.look, [{ file: "docs/memory/b.md", line: 6 }]);
+  assert.equal(git(root, "show", `${o.branch}:docs/memory/b.md`).includes(ghp), false);
+  assert.equal(git(root, "show", `${o.branch}:docs/memory/b.md`).includes("token: abcdef123456"), true);
   assert.match(git(root, "show", `${o.branch}:docs/memory/MEMORY.md`), /\bc\b/);
   assert.deepEqual(JSON.parse(git(root, "show", `${o.branch}:docs/memory/dream.json`)), { sessions: { "sess-1": 40 } });
   assert.equal(git(root, "log", "-1", "--format=%s", o.branch), `dream: ${today}`);
@@ -94,22 +99,21 @@ test("close commits the changed, added and masked notes with the index and dream
   assert.equal(git(root, "status", "--porcelain"), "");
 });
 
-const pw = "pass" + "word=" + "hunter" + "2", bearer = "Authorization: " + "Bearer " + "abc.def" + "-1";
-
-test("close masks every file the commit takes, at any depth and of any name, and leaves a binary file out", () => {
+test("close masks the sure shapes in every file the commit takes, at any depth and of any name, names the lines the wide rule would touch, and leaves a binary file out", () => {
   const root = repo();
   const o = opened(root);
   mkdirSync(join(o.memory, "api"));
-  writeFileSync(join(o.memory, "api/keys.md"), `---\nname: keys\ndescription: k\n---\n${pw}\n`);
-  writeFileSync(join(o.memory, "scratch.txt"), `${bearer}\n`);
+  writeFileSync(join(o.memory, "api/keys.md"), `---\nname: keys\ndescription: k\n---\n${ghp}\n${pw}\n`);
+  writeFileSync(join(o.memory, "scratch.txt"), `${sk}\n${bearer}\n`);
   writeFileSync(join(o.memory, "pic.bin"), Buffer.concat([Buffer.from([0, 1, 2]), Buffer.from(pw)]));
   const r = run(["close", "--worktree", o.worktree, "--out", extracted()], root);
   assert.equal(r.code, 0, r.stdout);
   const c = json(r);
   assert.deepEqual(c.masked.map((m) => m.file).sort(), ["docs/memory/api/keys.md", "docs/memory/scratch.txt"]);
-  assert.ok(c.masked.every((m) => m.count >= 1));
-  assert.equal(git(root, "show", `${o.branch}:docs/memory/api/keys.md`).includes("hunter2"), false);
-  assert.equal(git(root, "show", `${o.branch}:docs/memory/scratch.txt`).includes("abc.def"), false);
+  assert.ok(c.masked.every((m) => m.count === 1));
+  assert.deepEqual(c.look, [{ file: "docs/memory/api/keys.md", line: 6 }, { file: "docs/memory/scratch.txt", line: 2 }]);
+  assert.equal(git(root, "show", `${o.branch}:docs/memory/api/keys.md`), `---\nname: keys\ndescription: k\n---\n[masked]\n${pw}`);
+  assert.equal(git(root, "show", `${o.branch}:docs/memory/scratch.txt`), `[masked]\n${bearer}`);
   assert.deepEqual(c.outside, ["docs/memory/pic.bin"]);
   assert.equal(git(root, "ls-tree", "--name-only", o.branch, "docs/memory/pic.bin"), "");
 });
@@ -124,6 +128,7 @@ test("a note the run did not change is not read again nor rewritten", () => {
   const c = json(run(["close", "--worktree", o.worktree, "--out", extracted()], root));
   assert.equal(git(root, "show", `${o.branch}:docs/memory/k.md`) + "\n", kept);
   assert.equal(c.masked.some((m) => m.file === "docs/memory/k.md"), false);
+  assert.deepEqual(c.look, []);
 });
 
 test("a file changed outside the memory folder is named and not committed", () => {
