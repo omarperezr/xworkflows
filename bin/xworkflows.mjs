@@ -315,6 +315,8 @@ const hookLine = (name) => {
   const f = `"$(git rev-parse --show-toplevel)/.xworkflows/git/${name}"`;
   return `if [ -f ${f} ]; then ${name === "pre-push" ? `. ${f}` : `sh ${f} "$@" || :`}; fi # xworkflows`;
 };
+// a hook manager is known by its hook's text: husky's shim reads the file h beside it; lefthook's and pre-commit's hooks name their tool
+const manager = (t) => (/^\.\s+"?(\$\{0%\/\*\}|\$\(dirname "\$0"\))\/h"?\s*$/m.test(t) ? "husky" : /lefthook/i.test(t) ? "lefthook" : /pre-commit\.com/.test(t) ? "pre-commit" : null);
 // a shell runs the hook: its #! line names one, or it has none
 const SHELL = /^(?!#!)|^#!\s*(\S*\/)?(env\s+(-\S+\s+)*)?(sh|bash|dash|zsh|ksh)(\s|$)/;
 // the line goes after the #! line, else first; uninstall takes that line out alone, which gives every one of these bytes back
@@ -457,15 +459,24 @@ export function plan(manifest, root, record, ans = {}) {
       // the user's hook keeps its name and its place: it gets the line, or nothing, and the line is printed
       if (record.declined.some((d) => d.file === key && d.what === "chain")) continue;
       const line = hookLine(name), declined = { path, text: null, rec: { declined: [{ file: key, what: "chain" }] } };
-      if (cur === null || !SHELL.test(cur)) {
-        notes.push(`${path} is not a shell script: nothing written; to run the check, call this line from it as its first command: ${line}`);
+      // husky's shim runs the file of its own name one folder up: that file is the user's hook, made by a yes when it is not there
+      const tool = cur === null ? null : manager(cur), husky = tool === "husky";
+      const file = husky ? join(dirname(dirname(path)), name) : path, fkey = husky ? file : key;
+      const at = husky ? lstatSync(join(root, file), { throwIfNoEntry: false }) : lst;
+      const text = !at ? "" : at.isFile() ? read(root, file) : null;
+      if (tool && !husky) {
+        notes.push(`${path} is ${tool}'s: nothing written; to run the check, add this line as a command of ${tool} for ${name}: ${line}`);
         hookMerges.push(declined);
-      } else if (cur.split("\n").includes(line)) {
-        if (!record.imports.some((i) => i.file === key && i.line === line)) hookMerges.push({ path, text: null, rec: { imports: [{ file: key, line }] } });
-      } else if (ask(`chain:${name}`, `A ${name} hook exists. Add the xworkflows line to it? The line runs first, then the rest of the hook.`, ["no", "yes"]) === "no") {
-        notes.push(`${path} left as it is; to run the check, add this line to it as its first command: ${line}`);
+      } else if (husky && !(plain(file) && clean(root, file))) notes.push(`not written (symlink): ${file}`);
+      else if (text === null || !SHELL.test(text)) {
+        notes.push(`${file} is not a shell script: nothing written; to run the check, call this line from it as its first command: ${line}`);
         hookMerges.push(declined);
-      } else hookMerges.push({ path, text: withLine(cur, line), hook: true, rec: { imports: [{ file: key, line }] } });
+      } else if (text.split("\n").includes(line)) {
+        if (!record.imports.some((i) => i.file === fkey && i.line === line)) hookMerges.push({ path: file, text: null, rec: { imports: [{ file: fkey, line }] } });
+      } else if (ask(`chain:${name}`, `A ${name} hook exists. Add the xworkflows line to ${file}? The line runs first, then the rest of the hook.`, ["no", "yes"]) === "no") {
+        notes.push(`${file} left as it is; to run the check, add this line to it as its first command: ${line}`);
+        hookMerges.push(declined);
+      } else hookMerges.push({ path: file, text: withLine(text, line), hook: !husky, rec: { imports: [{ file: fkey, line }], created: at ? [] : [file] } });
       continue;
     }
     writes.push({ path, key, text: hookText(name, chain), piece: "checks", src: name, mode: 0o755 });
@@ -926,7 +937,8 @@ function uninstall() {
     scalars: (x) => (x.file === SETTINGS && isDeepStrictEqual(x.key, ["attribution"])) || (x.file === LOCAL && isDeepStrictEqual(x.key, [LOCAL_KEY])),
     blocks: (b) => b.file === "AGENTS.md",
     imports: (i) => !!LINES.get(i.file)?.includes(i.line) || (i.file === GI && giLines.has(i.line)) || i.line === hookLine(basename(i.file)),
-    created: (p) => FIVE.includes(p) || p === md || (p === YML && marked),
+    // a hook file install made for husky: the record holds the line it put there
+    created: (p) => FIVE.includes(p) || p === md || (p === YML && marked) || rec.imports.some((i) => i.file === p && i.line === hookLine(basename(p))),
     chained: (c) => hookSet.has(c.file) && c.to === c.file + ".before-xworkflows",
   };
   const said = new Set();
