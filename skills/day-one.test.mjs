@@ -90,10 +90,23 @@ test("full-review pins zones, file names, card form and decisions", () => {
 });
 test("full-review writes the reviewed commit only when every agent returned", () => {
   const s = read("skills/full-review/SKILL.md");
-  for (const t of ["is written only when every agent the skill launched returned",
-    "when one did not, write the review file without that line and tell the owner which zones were not read",
+  for (const t of ["is written only when every agent the skill launched returned, that is when `missing` in the script's result is empty",
+    "when it is not, write the review file without that line and tell the owner which zones were not read, the `{ review, zone }` pairs of `missing`",
     "the sha is the head the agents were given, noted before they start, not the head when the file is written"]) assert.ok(s.includes(t), t);
   assert.ok(s.split("\n").length < 120);
+});
+test("full-review's script returns the review and zone pairs whose agent returned nothing, an empty list when all returned", async () => {
+  const js = read("skills/full-review/SKILL.md").match(/```js\n([\s\S]*?)```/)[1];
+  const body = js.replace(/export const meta = \{[\s\S]*?\n\};\n/, "");
+  const AsyncFunction = (async () => {}).constructor;
+  const run = (agent) => new AsyncFunction("args", "agent", "parallel", "pipeline", "log", "phase", body)(
+    { zones: [{ key: "a", paths: ["a"] }, { key: "b", paths: ["b"] }], skills: { "thermo-nuclear-review": "s1", "thermo-nuclear-code-quality-review": "s2" } },
+    agent, (jobs) => Promise.all(jobs.map((j) => j().catch(() => null))), null, () => {}, () => {});
+  const found = [{ severity: "low", kind: "error", file: "x.js", line: 1, title: "t", case: "c" }];
+  assert.deepEqual((await run(async () => ({ findings: [] }))).missing, []);
+  const r = await run(async (prompt) => (prompt.includes("s2/") && prompt.includes('Zone "b"') ? undefined : { findings: found }));
+  assert.deepEqual(r.missing, [{ review: "thermo-nuclear-code-quality-review", zone: "b" }]);
+  assert.equal(r.errors.length, 3);
 });
 test("full-review's Workflow script compiles as an async body", () => {
   const js = read("skills/full-review/SKILL.md").match(/```js\n([\s\S]*?)```/)[1];
@@ -168,7 +181,7 @@ test("full-review resolves renamed review skills; restructuring question has no 
   assert.match(js, /args\.skills/);
   assert.doesNotMatch(js, /\.claude\/skills\/\$\{review\}/);
 });
-test("adapt: installer files stay uncommitted, existing files are merged, topic 6 list reaches explore", () => {
+test("adapt: installer files stay uncommitted, existing files are merged", () => {
   const s = read("skills/adapt/SKILL.md");
   has(s, ["If an installer file (the `files` keys and `created` list in `.xworkflows/installed.json`) is still uncommitted, tell the owner which ones. Do not commit them.",
     "is merged, never overwritten", "`## Changes to existing files`", "merge into only that section"]);
@@ -226,6 +239,7 @@ test("adapt research steps in order", () => {
   const s = step(2);
   inOrder(s, ["research.mjs start", "rules.mjs", "scan.mjs", "graphify update .", "`Workflow`", "scriptPath", "zeroHits", "`.xworkflows/research.json`", "research.mjs render", "research.mjs queue"]);
   has(s, ["Without the Workflow tool, stop", "`kinds.<key>.total` is 0", "wait for its result", "unchanged", "stop and tell the owner"]);
+  assert.ok(!read("skills/adapt/SKILL.md").includes("kinds.json"));
   assert.ok(!/script:/.test(s));
 });
 test("adapt passes the installed agent names to the Workflow", () => {
@@ -272,7 +286,7 @@ test("gitignore lines", () => {
   const s = step(4);
   const l = s.split("\n").find((x) => x.includes("to `.gitignore`"));
   has(l, ["`graphify-out/`", "`.xworkflows/research.md`", "`.xworkflows/research.json`", "`.xworkflows/research.prev.json`", "`.xworkflows/scan.json`",
-    "`.xworkflows/interview.json`", "`.xworkflows/interview.log.jsonl`", "`.xworkflows/adapt-run.json`", "`.xworkflows/rules.json`", "`.xworkflows/kinds.json`", "`.xworkflows/screens.json`", "`.xworkflows/details.md`", "`.xworkflows/research.answered.json`"]);
+    "`.xworkflows/interview.json`", "`.xworkflows/interview.log.jsonl`", "`.xworkflows/adapt-run.json`", "`.xworkflows/rules.json`", "`.xworkflows/screens.json`", "`.xworkflows/details.md`", "`.xworkflows/research.answered.json`"]);
   inOrder(s, ["git commit -m", "research.mjs done"]);
 });
 

@@ -2,6 +2,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { makeRepo } from "../test/helpers/repo.mjs";
 import * as brake from "./ratchet.mjs";
+import { mkdtempSync, rmSync, existsSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 const BASE = ".xworkflows/ratchets.json";
 const withRepo = async (list, base, fn) => {
@@ -107,3 +110,83 @@ for (const [what, list] of [["an object", { name: "a", count: "echo 1" }], ["an 
     assert.equal(r.cannotRun, true);
   }));
 }
+
+test("a count command that passes the limit is cut: the line gives the command, the minutes and the key", async () => {
+  const repo = makeRepo({ config: { checks: { timeoutMinutes: 0.01, ratchets: [{ name: "todo", count: "sleep 30" }] } }, files: { [BASE]: '{"todo":5}' } });
+  try {
+    const r = await repo.run(brake);
+    assert.equal(r.ok, false);
+    assert.equal(r.cannotRun, true);
+    const line = r.lines.join("\n");
+    assert.match(line, /todo/);
+    assert.match(line, /sleep 30/);
+    assert.match(line, /0\.01 minutes/);
+    assert.match(line, /checks\.timeoutMinutes/);
+    assert.match(line, /by hand/);
+  } finally { repo.cleanup(); }
+});
+
+test("a count command that ends in time is not cut by the limit", async () => {
+  const repo = makeRepo({ config: { checks: { timeoutMinutes: 0.5, ratchets: debt(7) } }, files: { [BASE]: '{"todo":5}' } });
+  try {
+    const r = await repo.run(brake);
+    assert.match(r.lines[0], /7 is above the baseline 5/);
+  } finally { repo.cleanup(); }
+});
+
+test("a timeoutMinutes of 0 falls back to the default and says so; the count command still runs", async () => {
+  const repo = makeRepo({ config: { checks: { timeoutMinutes: 0, ratchets: debt(5) } }, files: { [BASE]: '{"todo":5}' } });
+  try {
+    const r = await repo.run(brake);
+    assert.equal(r.ok, true);
+    assert.equal(r.lines.length, 1);
+    assert.match(r.lines[0], /checks\.timeoutMinutes/);
+  } finally { repo.cleanup(); }
+});
+
+// a count command that starts a daemon outside its group, the daemon holding the output pipe
+const daemonCommand = (dir) => {
+  const pidFile = join(dir, "pid"), script = join(dir, "start.mjs");
+  writeFileSync(script, `import { spawn } from "node:child_process";
+import { writeFileSync } from "node:fs";
+const d = spawn("sleep", ["32"], { detached: true, stdio: ["ignore", 1, 2] });
+writeFileSync(${JSON.stringify(pidFile + ".self")}, String(process.pid));
+writeFileSync(${JSON.stringify(pidFile)}, String(d.pid));
+setInterval(() => {}, 1000);
+`);
+  return { pidFile, cmd: `node '${script}'` };
+};
+
+// runs the check as its own process, waits for the daemon, sends the signal; resolves how it ended
+const dieBySignal = async (repo, only, pidFile, signal) => {
+  const { spawn } = await import("node:child_process");
+  const run = new URL("./run.mjs", import.meta.url).pathname;
+  const child = spawn(process.execPath, [run, "--only", only], { cwd: repo.root, detached: true, stdio: "ignore" });
+  const ended = new Promise((r) => child.on("exit", (code, sig) => r({ code, sig })));
+  try {
+    for (let i = 0; i < 100 && !existsSync(pidFile); i++) await new Promise((r) => setTimeout(r, 100));
+    assert.ok(existsSync(pidFile), "the daemon did not start");
+    const t0 = Date.now();
+    child.kill(signal);
+    const r = await Promise.race([ended, new Promise((r) => setTimeout(() => r({ late: true }), 3000))]);
+    await new Promise((r) => setTimeout(r, 300));
+    let self = true;
+    try { process.kill(Number(readFileSync(pidFile + ".self", "utf8")), 0); } catch { self = false; }
+    return { ...r, ms: Date.now() - t0, self };
+  } finally {
+    try { process.kill(Number(readFileSync(pidFile, "utf8")), "SIGKILL"); } catch {}
+    try { process.kill(-child.pid, "SIGKILL"); } catch {}
+  }
+};
+
+test("SIGTERM ends the ratchet check by that signal at once, though a daemon holds the pipe", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "xwf-sig-"));
+  const { pidFile, cmd } = daemonCommand(dir);
+  const repo = makeRepo({ config: { checks: { timeoutMinutes: 0.1, ratchets: [{ name: "todo", count: cmd }] } }, files: { [BASE]: '{"todo":5}' } });
+  try {
+    const r = await dieBySignal(repo, "ratchet", pidFile, "SIGTERM");
+    assert.equal(r.late, undefined, "the check was still running 3 s after SIGTERM");
+    assert.equal(r.sig, "SIGTERM");
+    assert.equal(r.self, false, "the count command is left running");
+  } finally { repo.cleanup(); rmSync(dir, { recursive: true, force: true }); }
+});

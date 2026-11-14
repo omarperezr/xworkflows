@@ -1,10 +1,23 @@
-import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, statSync, lstatSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, statSync, lstatSync, realpathSync } from "node:fs";
 import { homedir } from "node:os";
-import { join, dirname, resolve } from "node:path";
+import { join, dirname, resolve, sep } from "node:path";
 import { spawn, spawnSync } from "node:child_process";
 import { markFile } from "./marks.mjs";
 
 const read = (p) => { try { return readFileSync(p, "utf8"); } catch { return null; } };
+
+// the line that refuses a write whose real folder leaves the repository, unless it is, or lies under, a real path of memory.outside; null when it may go
+export function outsideLine(root, file, outside = []) {
+  if (!Array.isArray(outside) || !outside.every((o) => typeof o === "string")) outside = []; // a value that is not a list of texts lists nothing
+  try {
+    let dir = dirname(resolve(root, file));
+    while (!existsSync(dir)) dir = dirname(dir);
+    const real = realpathSync(dir), top = realpathSync(root);
+    const under = (base) => real === base || real.startsWith(base.endsWith(sep) ? base : base + sep);
+    if (under(top) || outside.some((o) => under(resolve(o)))) return null;
+    return `${file} is written outside the repository (${real}): ask the owner; put the notes inside the project (replace the link with a folder), or have the owner list ${real} under memory.outside in .xworkflows/config.json`;
+  } catch { return null; }
+}
 
 export function makeCtx(ev, { env, config, stateDir }) {
   const at = (p) => resolve(ev.root, p);
@@ -35,8 +48,10 @@ export function makeCtx(ev, { env, config, stateDir }) {
     exists: (p) => existsSync(at(p)),
     mtime: (p) => { try { return statSync(at(p)).mtimeMs; } catch { return null; } },
     listDir: (p) => { try { return readdirSync(at(p)); } catch { return []; } },
+    outsideLine: (p) => outsideLine(ev.root, p, config?.memory?.outside),
     writeFile: (p, text) => { // never through a symlink: it could lead outside the tree
       try { if (lstatSync(at(p)).isSymbolicLink()) return false; } catch { /* absent: fine */ }
+      if (outsideLine(ev.root, p, config?.memory?.outside)) return false;
       mkdirSync(dirname(at(p)), { recursive: true }); writeFileSync(at(p), text); return true;
     },
     git: (...args) => { const r = exec("git", args, { timeout: 5000 }); return r.code === 0 ? r.out.trim() : null; },

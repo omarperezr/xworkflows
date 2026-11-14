@@ -1,4 +1,5 @@
 import path from "node:path";
+import { DEFAULTS, memoryDir } from "./config.mjs";
 import { buildIndex, header } from "./memory-index.mjs";
 
 const OWNER_ONLY = new Set(["user", "feedback"]);
@@ -48,13 +49,15 @@ function start(ev, ctx) {
       lines.push(`Goals written ${months} months ago: run /adapt to refresh them.`);
     }
   }
+  const refused = ctx.outsideLine?.(path.join(memoryDir(config.memory.dir) ?? DEFAULTS.memory.dir, "MEMORY.md")); // the index write of session end is refused for this: say it
+  if (refused) lines.push(refused);
   const idx = config.lookup?.index;
   if (Array.isArray(config.paths.code) && config.paths.code.length && idx?.command) {
     const graph = ctx.mtime(path.join(idx.folder, "graph.json"));
     const head = Number(ctx.git("log", "-1", "--format=%ct"));
     if (graph === null || (head && graph < head * 1000)) {
       // graphify leaves graph.json untouched when the code's shape did not change, so the time is set here; the names go in as arguments, never as shell text
-      ctx.background("sh", ["-c", '"$0" update . && touch -c "$1"', idx.command.split(/\s+/)[0], path.join(idx.folder, "graph.json")]);
+      ctx.background("sh", ["-c", '"$0" update . && touch -c -h -- "$1"', idx.command.split(/\s+/)[0], path.join(idx.folder, "graph.json")]);
       lines.push("The code graph is out of date, it is being updated in the background.");
     }
   }

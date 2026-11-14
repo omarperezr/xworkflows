@@ -1,15 +1,18 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { cpSync, mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync, existsSync, symlinkSync, truncateSync } from "node:fs";
+import { cpSync, mkdtempSync as makeTmp, mkdirSync, writeFileSync, readFileSync, readdirSync, existsSync, symlinkSync, truncateSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, dirname, extname } from "node:path";
+import { join, dirname, extname, relative, sep } from "node:path";
 import { execFileSync, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { KINDS, scan, proposeZones, sqlInventory } from "./scan.mjs";
+const madeTmp = [];
+const mkdtempSync = (p) => { const d = makeTmp(p); madeTmp.push(d); return d; };
+test.after(() => { for (const d of madeTmp) rmSync(d, { recursive: true, force: true }); });
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = join(HERE, "../..");
-const FIXTURE = join(REPO, "test/fixtures/mechanisms");
+const FIXTURE = join(REPO, "fixtures/mechanisms");
 const KEYS = ["values", "snap", "srvw", "delta", "idem", "txn", "access", "batch", "domain", "compat", "conc", "input"];
 const git = (cwd, ...a) => execFileSync("git", ["-c", "user.name=test", "-c", "user.email=test@example.invalid", ...a], { cwd, stdio: "pipe" });
 const tmp = () => mkdtempSync(join(tmpdir(), "scan-"));
@@ -152,8 +155,12 @@ test("every signal has a matching example", () => {
 
 test("fixtures are never packed", () => {
   const m = JSON.parse(readFileSync(join(REPO, "manifest.json"), "utf8"));
-  for (const p of m.pieces) assert.ok(Object.keys(p.files).every((f) => !f.startsWith("test/")), p.id);
+  for (const p of m.pieces) assert.ok(Object.keys(p.files).every((f) => !f.startsWith("test/") && !f.startsWith("fixtures/")), p.id);
   assert.ok(existsSync(FIXTURE));
+});
+
+test("the sample repository sits outside any folder named test, which a bare node --test runs", () => {
+  assert.ok(!relative(REPO, FIXTURE).split(sep).includes("test"));
 });
 
 const L = (o) => Object.entries(o).map(([path, mb]) => ({ path, bytes: mb * 1e6 }));

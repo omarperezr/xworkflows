@@ -1,12 +1,15 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { readFileSync, writeFileSync, mkdtempSync, rmSync, existsSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdtempSync as makeTmp, rmSync, existsSync } from "node:fs";
 import { spawn } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import * as brake from "./fix-has-test.mjs";
 import { makeRepo } from "../test/helpers/repo.mjs";
+const madeTmp = [];
+const mkdtempSync = (p) => { const d = makeTmp(p); madeTmp.push(d); return d; };
+test.after(() => { for (const d of madeTmp) rmSync(d, { recursive: true, force: true }); });
 
 const config = {
   paths: { code: ["src/"] },

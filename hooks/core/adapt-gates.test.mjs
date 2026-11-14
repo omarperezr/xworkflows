@@ -1,19 +1,20 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, writeFileSync, symlinkSync, realpathSync, rmSync, readFileSync, existsSync } from "node:fs";
+import { mkdtempSync as makeTmp, mkdirSync, writeFileSync, symlinkSync, realpathSync, rmSync, readFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { decide } from "./adapt-gates.mjs";
 import { normalize } from "../adapters/claude.mjs";
+const madeTmp = [];
+const mkdtempSync = (p) => { const d = makeTmp(p); madeTmp.push(d); return d; };
+test.after(() => { for (const d of madeTmp) rmSync(d, { recursive: true, force: true }); });
 
-const KINDS = ["values", "snap", "srvw", "delta", "idem", "txn", "access", "batch", "domain", "compat", "conc", "input"];
 const HEADS = ["What it is", "Who pays, what is sold, what is not done", "Aspirations at about 3, 12 and 36 months", "Risks, the costliest mistake first", "What must not change; what is free to change", "Zones and which paths are risk paths", "How the owner works", "About you"];
 const summary = (status, five = "") => `---\nstatus: ${status}\n---\n` + HEADS.map((h, i) => `## ${i + 1}. ${h}\n${i === 4 ? five : ""}\n`).join("");
 const fresh = { run: "r1", startedAt: Date.now() };
-const research = { kinds: Object.fromEntries(KINDS.map((k) => [k, { status: k === "snap" ? "absent" : "found" }])) };
 const scan = { kinds: { values: { total: 3 }, snap: { total: 0 }, conc: { total: 0 } } };
-const files = (run = fresh) => ({ "/r/.xworkflows/adapt-run.json": run && JSON.stringify(run), "/r/.xworkflows/scan.json": JSON.stringify(scan), "/r/.xworkflows/research.json": JSON.stringify(research) });
+const files = (run = fresh) => ({ "/r/.xworkflows/adapt-run.json": run && JSON.stringify(run), "/r/.xworkflows/scan.json": JSON.stringify(scan) });
 const ctx = (f = files(), check = () => ({ code: 0, out: "" }), skill = "adapt") => ({ readFile: (p) => f[p] ?? null, runCheck: check, skillName: () => skill });
 const wf = (extra = {}) => ({ event: "preTool", tool: "Workflow", kind: "workflow", session: "s", root: "/r", inline: false, scriptPath: "/r/.claude/skills/adapt/research.workflow.js", args: { root: "/r", zeroHits: ["conc", "snap"] }, ...extra });
 const wr = (writes) => ({ event: "preTool", tool: "Write", kind: "write", session: "s", root: "/r", writes });
@@ -35,7 +36,6 @@ test("Workflow args must match the scan", () => {
 });
 test("research.md write denied during a run", () => deny(decide(wr([{ path: "/r/.xworkflows/research.md", content: "x" }]), ctx()), /research\.mjs render/));
 test("script-written sidecars denied during a run", () => {
-  deny(decide(wr([{ path: "/r/.xworkflows/kinds.json", content: "{}" }]), ctx()), /kinds\.json is written by node \.claude\/skills\/adapt\/research\.mjs render\./);
   deny(decide(wr([{ path: "/r/.xworkflows/rules.json", old: "a", new: "b" }]), ctx()), /rules\.json is written by node \.claude\/skills\/adapt\/rules\.mjs\./);
   deny(decide(wr([{ path: "/r/.xworkflows/scan.json", content: "{}" }]), ctx()), /scan\.json is written by node \.claude\/skills\/adapt\/scan\.mjs\./);
   ok(decide(wr([{ path: "/r/.xworkflows/config.json", content: "{}" }]), ctx()));
@@ -43,10 +43,6 @@ test("script-written sidecars denied during a run", () => {
 test("screens.json and details.md writes denied during a run", () => {
   deny(decide(wr([{ path: "/r/.xworkflows/screens.json", content: "{}" }]), ctx()), /screens\.json is written by node \.claude\/skills\/adapt\/research\.mjs render\./);
   deny(decide(wr([{ path: "/r/.xworkflows/details.md", content: "x" }]), ctx()), /details\.md is written by node \.claude\/skills\/adapt\/research\.mjs render\./);
-});
-test("draft summary with the eight headings passes when a kind is absent in kinds.json", () => {
-  const f = { ...files(), "/r/.xworkflows/kinds.json": JSON.stringify({ snap: { status: "found", general: "x", unverified: false }, idem: { status: "absent", general: null, unverified: false } }) };
-  ok(decide(sw(summary("draft", FIVE)), ctx(f)));
 });
 test("draft summary denied while ids are missing", () => {
   deny(decide(sw(summary("draft", FIVE)), ctx(files(), missing("H1-a\nH2-b"))), /Ask these first: H1-a, H2-b/);
@@ -64,7 +60,6 @@ test("no run file, nothing denied or recorded", () => {
   const c = ctx(files(null), missing("x"));
   ok(decide(wf({ inline: true }), c));
   ok(decide(wr([{ path: "/r/.xworkflows/research.md", content: "x" }]), c));
-  ok(decide(wr([{ path: "/r/.xworkflows/kinds.json", content: "x" }]), c));
 });
 test("stale run file denies nothing", () => ok(decide(wf({ inline: true }), ctx(files({ ...fresh, startedAt: Date.now() - 13 * 3600e3 })))));
 test("gates active during a re-adapt", () => deny(decide(wf({ inline: true }), ctx(files())), /fixed research/));
@@ -90,7 +85,7 @@ test("run.mjs: a check that cannot run lets the call through and says so", () =>
   mkdirSync(join(d, ".xworkflows"));
   writeFileSync(join(d, ".xworkflows/adapt-run.json"), JSON.stringify(fresh));
   const input = { session_id: "s", cwd: d, tool_name: "Write", tool_input: { file_path: join(d, ".xworkflows/summary.md"), content: summary("draft", FIVE) } };
-  const r = spawnSync("node", [join(import.meta.dirname, "..", "run.mjs"), "claude", "adapt-gates"], { input: JSON.stringify(input), encoding: "utf8", env: { ...process.env, XWORKFLOWS_FREE: "" } });
+  const r = spawnSync("node", [join(import.meta.dirname, "..", "run.mjs"), "claude", "adapt-gates"], { input: JSON.stringify(input), encoding: "utf8", env: { ...process.env, XWORKFLOWS_FREE: "", XWORKFLOWS_STATE_DIR: mkdtempSync(join(tmpdir(), "xwf-state-")) } });
   assert.equal(r.stdout, "");
   assert.match(r.stderr, /xworkflows: adapt check could not run/);
 });
@@ -125,7 +120,7 @@ test("scriptPath compared after realpath", () => {
   const link = join(real, "..", `xwf-link-${Date.now()}`);
   symlinkSync(real, link);
   const f = { [join(real, ".xworkflows/adapt-run.json")]: JSON.stringify(fresh), [join(real, ".xworkflows/scan.json")]: JSON.stringify(scan) };
-  ok(decide(wf({ root: real, scriptPath: join(link, ".claude/skills/adapt/research.workflow.js") }), { ...ctx(f) }));
+  try { ok(decide(wf({ root: real, scriptPath: join(link, ".claude/skills/adapt/research.workflow.js") }), { ...ctx(f) })); } finally { rmSync(link); }
 });
 test("translated label is not a pick", () => {
   const d = mkdtempSync(join(tmpdir(), "xwf-g-"));
@@ -182,6 +177,24 @@ test("a long word after tee is judged in linear time", () => {
   const small = time(20000), big = time(80000);
   assert.ok(big < 8 * Math.max(small, 1) + 20, `20000 chars ${small} ms, 80000 chars ${big} ms`);
 });
+test("a long run of digits is judged in linear time", () => {
+  const time = (n) => { const e = sh("1".repeat(n)); const t = process.hrtime.bigint(); ok(decide(e, ctx())); return Number(process.hrtime.bigint() - t) / 1e6; };
+  time(1000);
+  const small = time(20000), big = time(80000);
+  assert.ok(big < 8 * Math.max(small, 1) + 20, `20000 digits ${small} ms, 80000 digits ${big} ms`);
+});
+test("a redirect glued to the word before it is denied", () => {
+  for (const c of ["echo x>.xworkflows/summary.md", "cat draft.md>.xworkflows/summary.md", "{ echo a; }>.xworkflows/summary.md", "cat <<'EOF'>.xworkflows/summary.md"])
+    deny(decide(sh(c), ctx()), /summary\.md is written with Write/);
+});
+test("tee that reads the summary writes nothing", () => ok(decide(sh("tee /tmp/copy < .xworkflows/summary.md"), ctx())));
+test("tee with a redirect source before the summary writes it", () => deny(decide(sh("tee < in.txt .xworkflows/summary.md"), ctx()), /summary\.md is written with Write/));
+test("many tee words are judged in linear time", () => {
+  const time = (n) => { const e = sh("tee ".repeat(n)); const t = process.hrtime.bigint(); ok(decide(e, ctx())); return Number(process.hrtime.bigint() - t) / 1e6; };
+  time(1000);
+  const small = time(10000), big = time(40000);
+  assert.ok(big < 8 * Math.max(small, 1) + 20, `10000 words ${small} ms, 40000 words ${big} ms`);
+});
 test("a shell redirect into summary.md passes when no run is in progress", () => ok(decide(sh("echo x > .xworkflows/summary.md"), ctx(files(null)))));
 test("a missing interview.json denies with the command that writes it", () =>
   deny(decide(sw(summary("draft", FIVE)), ctx(files(), () => ({ code: 1, out: "", err: "adapt: interview.json is missing or unreadable\n" }))), /interview\.json is missing or unreadable.*research\.mjs queue/));
@@ -200,4 +213,21 @@ test("a write spelled in another case is the summary only on a disk that ignores
   deny(decide(e(join(d, ".xworkflows/summary.md")), c), /H1-a/);
   const r = decide(e(join(d, ".XWORKFLOWS/Summary.md")), c);
   if (folded) deny(r, /H1-a/); else ok(r);
+});
+test("the table of shell commands that write the summary during a run", () => {
+  const DENIED = ["echo x > .xworkflows/summary.md", "echo x >> .xworkflows/summary.md", "echo x>.xworkflows/summary.md", "cat draft.md>.xworkflows/summary.md", "{ echo a; }>.xworkflows/summary.md", "cat <<'EOF'>.xworkflows/summary.md", "echo x 2> .xworkflows/summary.md", "echo x > .xworkflows//summary.md", `echo x > .xworkflows/"summary.md"`, "echo x > ./.xworkflows/summary.md", "echo x | tee .xworkflows/summary.md", "echo x | tee -a .xworkflows/summary.md", "echo x | tee /tmp/copy .xworkflows/summary.md", "tee < in.txt .xworkflows/summary.md", `tee <<< "$x" .xworkflows/summary.md`, "tee <<EOF .xworkflows/summary.md",
+    // known and accepted: a quoted text that only mentions a write is denied; telling it apart needs a shell parser
+    `echo "a > .xworkflows/summary.md"`];
+  const ALLOWED = ["cat .xworkflows/summary.md", "grep -n status .xworkflows/summary.md", `git commit -m "adapt: research -> .xworkflows/summary.md"`, "grep -n \\> .xworkflows/summary.md", "cat /home/u/teemo/.xworkflows/summary.md", "tee /tmp/copy < .xworkflows/summary.md", "cat .xworkflows/summary.md > /tmp/copy", "ls > /tmp/out; cat .xworkflows/summary.md", "echo tee; cat .xworkflows/summary.md"];
+  for (const c of DENIED) deny(decide(sh(c), ctx()), /summary\.md is written with Write/);
+  for (const c of ALLOWED) assert.equal(decide(sh(c), ctx()).decision, "allow", `allowed: ${c}`);
+});
+test("every shape of a long command grows linearly with its length", () => {
+  const shapes = { "a long word": (n) => "tee -" + "a".repeat(n), "digits": (n) => "1".repeat(n), "tee words": (n) => "tee ".repeat(n / 4), "tee < words": (n) => "tee < ".repeat(n / 6), "the path": (n) => ".xworkflows/summary.md ".repeat(n / 23) };
+  for (const [name, make] of Object.entries(shapes)) {
+    const time = (n) => { const e = sh(make(n)); const t = process.hrtime.bigint(); decide(e, ctx()); return Number(process.hrtime.bigint() - t) / 1e6; };
+    time(1000);
+    const small = time(20000), big = time(80000);
+    assert.ok(big < 8 * Math.max(small, 1) + 20, `${name}: 20000 chars ${small} ms, 80000 chars ${big} ms`);
+  }
 });

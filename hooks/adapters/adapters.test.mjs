@@ -1,9 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { readdirSync, readFileSync, existsSync, mkdtempSync } from "node:fs";
+import { readdirSync, readFileSync, existsSync, mkdtempSync as makeTmp, rmSync } from "node:fs";
 import { tmpdir, homedir } from "node:os";
 import { join } from "node:path";
+const madeTmp = [];
+const mkdtempSync = (p) => { const d = makeTmp(p); madeTmp.push(d); return d; };
+test.after(() => { for (const d of madeTmp) rmSync(d, { recursive: true, force: true }); });
 
 const run = join(import.meta.dirname, "..", "run.mjs");
 const fixtures = join(import.meta.dirname, "..", "fixtures");

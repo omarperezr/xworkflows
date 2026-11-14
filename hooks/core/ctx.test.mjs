@@ -1,11 +1,14 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, writeFileSync, mkdirSync, existsSync, symlinkSync } from "node:fs";
+import { mkdtempSync as makeTmp, readFileSync, writeFileSync, mkdirSync, existsSync, symlinkSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir, homedir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
-import { makeCtx } from "./ctx.mjs";
+import { makeCtx, outsideLine } from "./ctx.mjs";
 import { DEFAULTS } from "./config.mjs";
+const madeTmp = [];
+const mkdtempSync = (p) => { const d = makeTmp(p); madeTmp.push(d); return d; };
+test.after(() => { for (const d of madeTmp) rmSync(d, { recursive: true, force: true }); });
 
 const tmp = () => mkdtempSync(join(tmpdir(), "xwf-ctx-"));
 const mk = (root = tmp(), stateDir = tmp(), session = "s1") => ({ root, stateDir, c: makeCtx({ root, session }, { env: {}, config: DEFAULTS, stateDir }) });
@@ -115,4 +118,53 @@ test("background starts nothing while the dry flag is set", () => {
   };
   assert.equal(ran({ PATH: process.env.PATH, XWORKFLOWS_DRY: "1" }), false);
   assert.equal(ran({ PATH: process.env.PATH }), true);
+});
+
+const linked = (outside = []) => {
+  const root = tmp(), real = realpathSync(tmp());
+  mkdirSync(join(real, "notes"), { recursive: true });
+  mkdirSync(join(root, "docs"));
+  symlinkSync(real, join(root, "docs", "memory"));
+  const config = { ...DEFAULTS, memory: { ...DEFAULTS.memory, outside: outside.map((f) => f(real)) } };
+  return { root, real, c: makeCtx({ root, session: "s1" }, { env: {}, config, stateDir: tmp() }) };
+};
+
+test("writeFile: a folder linked out of the repository is refused with the line that says to ask the owner", () => {
+  const { c, real, root } = linked();
+  assert.equal(c.writeFile("docs/memory/a.md", "x"), false);
+  assert.equal(existsSync(join(real, "a.md")), false);
+  assert.match(outsideLine(root, "docs/memory/a.md", []), /ask the owner.*inside the project.*replace the link with a folder.*memory\.outside in \.xworkflows\/config\.json/);
+});
+
+test("writeFile: the same folder listed under memory.outside is written; a longer sibling name is not opened", () => {
+  const { c, real } = linked([(r) => r]);
+  assert.equal(c.writeFile("docs/memory/a.md", "x"), true);
+  assert.equal(readFileSync(join(real, "a.md"), "utf8"), "x");
+  const sib = linked([(r) => r.slice(0, -1)]);
+  assert.equal(sib.c.writeFile("docs/memory/a.md", "x"), false);
+  const under = linked([(r) => join(r, "..")]);
+  assert.equal(under.c.writeFile("docs/memory/notes/a.md", "x"), true);
+});
+
+test("writeFile: a link in the middle of the path that leaves the repository is refused", () => {
+  const { c, real } = linked();
+  assert.equal(c.writeFile("docs/memory/notes/a.md", "x"), false);
+  assert.equal(existsSync(join(real, "notes", "a.md")), false);
+});
+
+test("writeFile: a folder inside the repository is written as before, also when it does not exist yet", () => {
+  const { c, root } = mk();
+  assert.equal(c.writeFile("docs/memory/a.md", "x"), true);
+  assert.equal(readFileSync(join(root, "docs/memory/a.md"), "utf8"), "x");
+});
+
+test("writeFile: a memory.outside that is not a list of texts counts as empty, the write is refused and the line names the key", () => {
+  for (const bad of [null, "x", 5, [5], ["ok", 5]]) {
+    const { root, real } = linked();
+    const config = { ...DEFAULTS, memory: { ...DEFAULTS.memory, outside: bad === "x" ? real : Array.isArray(bad) && bad[0] === "ok" ? [real, 5] : Array.isArray(bad) ? bad : bad } };
+    const c = makeCtx({ root, session: "s1" }, { env: {}, config, stateDir: tmp() });
+    assert.equal(c.writeFile("docs/memory/a.md", "x"), false, JSON.stringify(bad));
+    assert.equal(existsSync(join(real, "a.md")), false);
+    assert.match(outsideLine(root, "docs/memory/a.md", bad), /memory\.outside/);
+  }
 });

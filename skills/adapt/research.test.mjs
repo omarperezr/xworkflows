@@ -2,10 +2,13 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, writeFileSync, existsSync, rmSync, utimesSync, symlinkSync } from "node:fs";
+import { mkdtempSync as makeTmp, mkdirSync, writeFileSync, existsSync, rmSync, utimesSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { sum, verifyCitation, buildQueue, missing } from "./research.mjs";
+const madeTmp = [];
+const mkdtempSync = (p) => { const d = makeTmp(p); madeTmp.push(d); return d; };
+test.after(() => { for (const d of madeTmp) rmSync(d, { recursive: true, force: true }); });
 
 const KINDS = ["values", "snap", "srvw", "delta", "idem", "txn", "access", "batch", "domain", "compat", "conc", "input"];
 const MJS = new URL("./research.mjs", import.meta.url).pathname;
@@ -140,7 +143,7 @@ test("citation kept, fake dropped and listed", () => {
   assert.ok(!verifyCitation(d, { file: "../x", line: 2, quote: "x" }));
 });
 
-test("render writes research.md, screens.json, details.md and kinds.json; an unverified citation reaches none of them but the dropped list", () => {
+test("render writes research.md, screens.json and details.md, and no kinds.json; an unverified citation reaches none of them but the dropped list", () => {
   const d = repo();
   put(d, sample());
   assert.equal(cli(d, "render").status, 0);
@@ -157,10 +160,10 @@ test("render writes research.md, screens.json, details.md and kinds.json; an unv
   assert.match(det, /## Rules found in comments[\s\S]*- \[truth\] Never round twice\. a\.js:1/);
   for (const bad of ["fake rule", "A made up claim", "absent text"]) assert.ok(!det.includes(bad), bad);
   assert.ok(!JSON.stringify(s.drawer1).includes("made up"));
-  assert.deepEqual(rj(d, "kinds.json"), { conc: { general: null, status: "not-present" }, values: { general: "A loan is counted in whole days, in the library's time zone", status: "found" } });
-  const before = [md, rt(d, "details.md"), rt(d, "kinds.json")];
+  assert.ok(!existsSync(X(d, "kinds.json")));
+  const before = [md, rt(d, "details.md")];
   cli(d, "render");
-  assert.deepEqual([rt(d, "research.md"), rt(d, "details.md"), rt(d, "kinds.json")], before);
+  assert.deepEqual([rt(d, "research.md"), rt(d, "details.md")], before);
 });
 
 test("render exits 1 when the Workflow's key order or any value changed", () => {
@@ -202,7 +205,7 @@ test("the printed dropped count includes the mechanism drops, and the line is in
   const out = cli(d, "render");
   assert.match(out.stdout, /dropped: 2$/m); // the made up sentence and the mechanism rule
   assert.match(rt(d, "research.md"), /- snap: general rule: Prices never change\. a\.js:2/);
-  assert.ok(!rt(d, "kinds.json").includes("Prices never change"));
+  assert.ok(!rt(d, "details.md").includes("Prices never change"));
 });
 
 // ---- queue and check
@@ -351,7 +354,7 @@ test("check and queue fail with one line, not a stack, and skip a truncated log 
 
 test("start git-ignores the run's private files from the first question", async () => {
   const { execFileSync } = await import("node:child_process");
-  const { mkdtempSync, mkdirSync, writeFileSync, appendFileSync } = await import("node:fs");
+  const { mkdirSync, writeFileSync, appendFileSync } = await import("node:fs");
   const { tmpdir } = await import("node:os");
   const { join } = await import("node:path");
   const g = (r, ...a) => execFileSync("git", a, { cwd: r, encoding: "utf8" });
@@ -361,7 +364,7 @@ test("start git-ignores the run's private files from the first question", async 
   g(r, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qam", "x", "--allow-empty"); g(r, "add", "a.txt");
   g(r, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "a");
   start(r);
-  for (const f of ["research.md", "research.json", "research.prev.json", "scan.json", "interview.json", "rules.json", "kinds.json", "screens.json", "details.md", "research.answered.json"]) writeFileSync(join(r, ".xworkflows", f), "{}");
+  for (const f of ["research.md", "research.json", "research.prev.json", "scan.json", "interview.json", "rules.json", "screens.json", "details.md", "research.answered.json"]) writeFileSync(join(r, ".xworkflows", f), "{}");
   appendFileSync(join(r, ".xworkflows", "interview.log.jsonl"), '{"run":"x"}\n');
   assert.equal(g(r, "status", "--porcelain", "--untracked-files=all"), "");
   const r2 = mkdtempSync(join(tmpdir(), "adapt-ign-"));
@@ -379,7 +382,7 @@ test("start git-ignores the run's private files from the first question", async 
 });
 
 test("a tracked symlink under .xworkflows is never written through, and render writes nothing when any output is a link", () => {
-  for (const f of ["research.md", "screens.json", "details.md", "kinds.json"]) {
+  for (const f of ["research.md", "screens.json", "details.md"]) {
     const d = repo();
     put(d, sample());
     const out = join(mkdtempSync(join(tmpdir(), "res-out-")), "outside.txt");
@@ -389,7 +392,7 @@ test("a tracked symlink under .xworkflows is never written through, and render w
     assert.equal(r.status, 1, f);
     assert.match(r.stderr, new RegExp(`${f.replace(".", "\\.")} is a symlink`));
     assert.equal(readFileSync(out, "utf8"), "keep");
-    for (const g of ["research.md", "screens.json", "details.md", "kinds.json"]) if (g !== f) assert.ok(!existsSync(X(d, g)), `${g} written next to a link at ${f}`);
+    for (const g of ["research.md", "screens.json", "details.md"]) if (g !== f) assert.ok(!existsSync(X(d, g)), `${g} written next to a link at ${f}`);
   }
   const d = repo();
   cli(d, "start");
@@ -433,9 +436,15 @@ test("with sentences left out the queue adds S1-more after screen 1, then the fi
   assert.ok(!ids(q).includes("S1-27"));
   const more = q.find((i) => i.id === "S1-more");
   assert.deepEqual(more.options, ["Yes, show them", "No, skip them"]);
-  assert.match(more.text, /15 more.*Show up to 12/);
+  assert.equal(more.text, "The second page holds 12 sentence(s). Show them?");
   assert.deepEqual(q[3], { id: "S1-13", heading: "1", style: "choice", text: "Second. (a.js:5) seen in 1 more place(s).", options: ["Right", "Real, but a bad rule", "Not how it works", "I don't know"] });
   assert.equal(q[4].text, "Third. (a.js:6)");
+});
+
+test("S1-more says the size of the second page, not how many were left out", () => {
+  const text = (n) => buildQueue(SC({ drawer1LeftOut: MORE(n) })).find((i) => i.id === "S1-more").text;
+  assert.equal(text(15), "The second page holds 12 sentence(s). Show them?");
+  assert.equal(text(3), "The second page holds 3 sentence(s). Show them?");
 });
 
 test("nothing left out: no S1-more", () => {
@@ -619,12 +628,13 @@ test("start in a repository with no commit says so, no stack trace", () => {
 
 test("start replaces the ignore file each earlier version wrote, never one the user changed", () => {
   const ALL = [".gitignore", "research.md", "research.json", "research.prev.json", "scan.json", "interview.json", "interview.log.jsonl", "adapt-run.json", "rules.json", "kinds.json", "screens.json", "details.md"];
-  for (const n of [10, 12]) {
+  for (const n of [10, 12, 13]) {
     const EARLIER = ALL.slice(0, n).join("\n") + "\n";
     const d = repo();
     writeFileSync(X(d, ".gitignore"), EARLIER);
     assert.equal(cli(d, "start").status, 0);
     for (const f of ["screens.json", "details.md", "research.answered.json"]) assert.ok(rt(d, ".gitignore").split("\n").includes(f), `${n}: ${f}`);
+    assert.ok(!rt(d, ".gitignore").split("\n").includes("kinds.json"), `${n}: kinds.json`);
     const e = repo();
     writeFileSync(X(e, ".gitignore"), EARLIER + "mine\n");
     assert.equal(cli(e, "start").status, 0);
@@ -660,6 +670,14 @@ test("a re-adaptation never queues a sentence past place 24, even when the answe
   t.prev.plain.claims = THIRTY.map((x) => ({ text: x.text, from: ["truth.1"] }));
   const q = t.ids(SC({ drawer1: THIRTY.slice(0, 12), drawer1LeftOut: THIRTY.slice(12) }));
   assert.deepEqual(q, []);
+});
+
+test("in a re-adaptation S1-more counts the sentences it will show, as research.md counts the second page", () => {
+  const t = again({ answered: THIRTY.slice(0, 20).map((x) => ({ text: x.text, at: x.at, answer: "Right" })) });
+  t.prev.plain.claims = THIRTY.map((x) => ({ text: x.text, from: ["truth.1"] }));
+  const q = buildQueue(SC({ drawer1: THIRTY.slice(0, 12), drawer1LeftOut: THIRTY.slice(12) }), {}, {}, t.prev, {}, t.earlier);
+  assert.deepEqual(ids(q).filter((i) => /^S1-/.test(i)), ["S1-more", "S1-21", "S1-22", "S1-23", "S1-24"]);
+  assert.equal(q.find((i) => i.id === "S1-more").text, "The second page holds 4 sentence(s). Show them?");
 });
 
 test("done keeps an old answer only for a sentence skipped because it was answered, not for one the cap cut", () => {

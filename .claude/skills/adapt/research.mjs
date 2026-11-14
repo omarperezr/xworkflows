@@ -81,10 +81,10 @@ export function buildQueue(s, research = {}, scan = {}, prev = null, cfg = {}, e
   };
   const sentence = (x, i) => item(`S1-${i + 1}`, "1", `${x.text} (${x.at})${seen(x)}`, SENTENCE);
   const first = s.drawer1.flatMap((x, i) => (asked(x) ? [[x, i]] : [])), out = s.drawer1LeftOut.flatMap((x, i) => (asked(x) ? [[x, MAX_RULES + i]] : []));
-  const left = out.length, more = out.filter(([, i]) => i < MAX_RULES + MAX_MORE); // the second page is the first MAX_MORE places, cut before the skip
+  const more = out.filter(([, i]) => i < MAX_RULES + MAX_MORE); // the second page is the first MAX_MORE places, cut before the skip
   return [
     ...first.map(([x, i]) => sentence(x, i)),
-    ...(more.length ? [item("S1-more", "1", `${left} more sentence(s) were left out of the first ${MAX_RULES}. Show up to ${more.length} of them?`, MORE)] : []),
+    ...(more.length ? [item("S1-more", "1", `The second page holds ${more.length} sentence(s). Show them?`, MORE)] : []),
     ...more.map(([x, i]) => sentence(x, i)),
     ...s.drawer2.map((g) => item(g.id, "2", g.text, g.options)),
     ...s.drawer3.map((q) => {
@@ -165,8 +165,9 @@ function cli(cmd, root) {
     mkdirSync(dir, { recursive: true });
     // The owner's answers land here from the first question; ignore them now, not at step 4.
     const ign = join(dir, ".gitignore");
-    const NOW = [".gitignore", "research.md", "research.json", "research.prev.json", "scan.json", "interview.json", "interview.log.jsonl", "adapt-run.json", "rules.json", "kinds.json", "screens.json", "details.md", "research.answered.json"];
-    const BEFORE = [10, 12].map((n) => NOW.slice(0, n).join("\n") + "\n"); // the texts the earlier versions wrote, replaced only when the file is still exactly one of them
+    const LAST = [".gitignore", "research.md", "research.json", "research.prev.json", "scan.json", "interview.json", "interview.log.jsonl", "adapt-run.json", "rules.json", "kinds.json", "screens.json", "details.md", "research.answered.json"]; // the list before kinds.json went
+    const NOW = LAST.filter((f) => f !== "kinds.json");
+    const BEFORE = [10, 12, 13].map((n) => LAST.slice(0, n).join("\n") + "\n"); // the texts the earlier versions wrote, replaced only when the file is still exactly one of them
     let flag = "wx";
     try { if (!isLink(ign) && BEFORE.includes(readFileSync(ign, "utf8"))) flag = "w"; } catch {}
     try { writeFileSync(ign, NOW.join("\n") + "\n", { flag }); } catch {}
@@ -212,7 +213,7 @@ function cli(cmd, root) {
     s.dropped.push(...m.dropped);
     const errors = [...s.errors, ...m.errors];
     if (errors.length) { console.error(errors.join("\n")); process.exit(1); }
-    const out = [["research.md", render(research, s, scan.commit)], ["screens.json", JSON.stringify(s, null, 2) + "\n"], ["details.md", details(research, s, m, root, rules)], ["kinds.json", m.state]];
+    const out = [["research.md", render(research, s, scan.commit)], ["screens.json", JSON.stringify(s, null, 2) + "\n"], ["details.md", details(research, s, m, root, rules)]];
     for (const [f] of out) if (isLink(join(dir, f))) refuse(join(dir, f)); // refuse before writing any
     for (const [f, text] of out) put(join(dir, f), text);
     console.log(`screen 1: ${s.drawer1.length} sentence(s), ${s.drawer1LeftOut.length} left out; screen 2: ${s.drawer2.length} question(s), ${s.drawer2LeftOut.length} left out; dropped: ${s.dropped.length}`);

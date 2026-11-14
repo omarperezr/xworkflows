@@ -1,5 +1,5 @@
 { "invariants": [
-  { "id": "inv-idem", "patterns": ["idempotency key"] },
+  { "id": "inv-idem", "patterns": ["recorded once"] },
   { "id": "inv-batch", "patterns": ["loop over rows", "batch"] },
   { "id": "inv-gamma", "patterns": ["gamma bounds"] }
 ] }

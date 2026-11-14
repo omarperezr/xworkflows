@@ -123,24 +123,23 @@ export function screens(root, r) {
   };
 }
 
-// The mechanism agents' answers: kinds.json (hooks read it), and the lines of the detail file. A kind the Workflow did not run is skipped.
+// The mechanism agents' answers: the lines of the detail file. A kind the Workflow did not run is skipped.
 export function mechanism(root, r) {
   const { ok, at } = checker(root);
-  const errors = [], parts = [], dropped = [], state = {};
+  const errors = [], parts = [], dropped = [];
   for (const k of Object.keys(r.kinds || {}).sort()) {
     const x = r.kinds[k];
     if (!x) { errors.push(`${k}: agent returned nothing`); continue; }
     if (!["found", "absent", "not-present"].includes(x.status)) { errors.push(`${k}: invalid status ${JSON.stringify(x.status)}`); continue; }
     for (const v of x.verdicts || []) if (v.verdict !== "no-evidence" && !ok(v)) dropped.push({ area: k, what: `verdict ${v.id} ${v.verdict}`, ...(v.file ? { at: at(v), quote: v.quote } : { reason: "no citation" }) });
-    if (x.status !== "found") { state[k] = { general: null, status: x.status }; continue; }
-    // A found kind whose general rule is missing or does not verify counts as absent; what failed gets a line.
+    if (x.status !== "found") continue;
+    // A found kind whose general rule is missing or does not verify keeps no general line; what failed gets a line.
     const g = x.general?.rule && ok(x.general) ? x.general : null;
     if (x.general?.rule && !g) dropped.push({ area: k, what: `general rule: ${x.general.rule}`, at: at(x.general), quote: x.general.quote });
-    state[k] = { general: g ? g.rule : null, status: g ? "found" : "absent" };
     const rules = (x.rules || []).filter((y) => ok(y) || (dropped.push({ area: k, what: `rule: ${y.rule}`, at: at(y), quote: y.quote }), false));
     if (g || rules.length) parts.push({ k, general: g ? `- general: ${g.rule} (${g.basis}) ${at(g)}` : null, rules: rules.map((y) => `- ${y.rule} (code) ${at(y)}`) });
   }
-  return { state: JSON.stringify(state, null, 2) + "\n", parts, errors, dropped };
+  return { parts, errors, dropped };
 }
 
 // The detail's mechanism lines; a kind whose general rule a shown sentence lists is left out of its own section.

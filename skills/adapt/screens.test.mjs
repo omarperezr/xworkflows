@@ -119,7 +119,7 @@ test("research.md is version 3 and carries no detail; details.md holds every ver
   for (const bad of ["Fake rule.", "Made up comment.", "nope", "src/a.js:9"]) assert.ok(!d.includes(bad), bad);
 });
 
-test("mechanism keeps the shape of kinds.json: general, status, sorted by kind", () => {
+test("mechanism builds no kinds.json state; a kind with no answer or an invalid status is an error, sorted by kind", () => {
   const m = mechanism(root, research({}, undefined, { kinds: {
     values: { status: "found", general: { rule: "Round once.", basis: "code", ...c(1, "days(loan)") }, rules: [] },
     snap: { status: "found", general: { rule: "Unproven.", basis: "code", ...c(1, "zzz") }, rules: [] },
@@ -127,12 +127,7 @@ test("mechanism keeps the shape of kinds.json: general, status, sorted by kind",
     conc: { status: "not-present", rules: [] },
   } }));
   assert.deepEqual(m.errors, []);
-  assert.deepEqual(JSON.parse(m.state), {
-    conc: { general: null, status: "not-present" },
-    idem: { general: null, status: "absent" },
-    snap: { general: null, status: "absent" },
-    values: { general: "Round once.", status: "found" },
-  });
+  assert.equal(m.state, undefined);
   assert.match(mechanism(root, research({}, undefined, { kinds: { txn: null, access: { status: "maybe" } } })).errors.join("\n"), /access[\s\S]*txn/);
 });
 
@@ -148,11 +143,9 @@ test("details.md lists each written rule with the kinds' verdict; a verdict with
   assert.ok(!d.includes("W9") && !d.includes("Unjudged") && !d.includes("src/a.js:2 "));
 });
 
-test("kinds.json never holds the text of a mechanism rule whose citation failed; its drop is a line", () => {
+test("the parts never hold the text of a mechanism rule whose citation failed; its drop is a line", () => {
   const m = mechanism(root, { kinds: { snap: { status: "found", general: { rule: "A fee never changes after the loan is returned.", basis: "code", ...c(1, "not in the file") }, rules: [{ rule: "Fake detail.", ...c(2, "zzz") }] } } });
-  const snap = JSON.parse(m.state).snap;
-  assert.deepEqual(snap, { general: null, status: "absent" });
-  assert.ok(!m.state.includes("A fee never changes") && !JSON.stringify(m.parts).includes("A fee never changes"));
+  assert.ok(!JSON.stringify(m.parts).includes("A fee never changes"));
   assert.deepEqual(m.dropped.map((d) => [d.area, d.what]), [["snap", "general rule: A fee never changes after the loan is returned."], ["snap", "rule: Fake detail."]]);
 });
 
@@ -495,7 +488,9 @@ test("a screen 2 item with a blank how or risk is dropped with a line, never ask
 });
 
 test("a citation spelled through a link of the project root, or through its real path, verifies and is shown repo-relative", () => {
-  const link = join(mkdtempSync(join(tmpdir(), "xwf-link-")), "p");
+  const linkDir = mkdtempSync(join(tmpdir(), "xwf-link-"));
+  test.after(() => rmSync(linkDir, { recursive: true, force: true }));
+  const link = join(linkDir, "p");
   symlinkSync(root, link);
   const real = realpathSync(root);
   for (const [base, file] of [[link, join(real, "src/a.js")], [real, join(link, "src/a.js")], [link, join(link, "src/a.js")]]) {

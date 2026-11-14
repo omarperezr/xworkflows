@@ -37,7 +37,7 @@ test("a graph older than the head commit fails with the fix", async () => {
     const r = await repo.run(mod);
     assert.equal(r.ok, false);
     assert.match(r.lines[0], /older/);
-    assert.match(r.lines.join("\n"), /run `graphify update \. && touch -c graphify-out\/graph\.json`/);
+    assert.match(r.lines.join("\n"), /run `graphify update \. && touch -c -h -- graphify-out\/graph\.json`/);
   } finally { repo.cleanup(); }
 });
 
@@ -59,7 +59,7 @@ test("the folder and command come from config", async () => {
     const r = await repo.run(mod);
     assert.equal(r.ok, false);
     assert.match(r.lines.join("\n"), /maps\/graph\.json/);
-    assert.match(r.lines.join("\n"), /run `mapper update \. && touch -c maps\/graph\.json`/);
+    assert.match(r.lines.join("\n"), /run `mapper update \. && touch -c -h -- maps\/graph\.json`/);
     repo.write("maps/graph.json", "{}");
     at(repo, "maps/graph.json", "2026-06-01T00:00:00Z");
     assert.equal((await repo.run(mod)).ok, true);
@@ -76,4 +76,16 @@ test("a graph still being updated by the commit's hook is waited for", async () 
     setTimeout(() => at(repo, "graphify-out/graph.json", new Date(Date.now() + 5000).toISOString()), 400);
     assert.deepEqual(await repo.run(mod), { ok: true, lines: [] });
   } finally { repo.cleanup(); }
+});
+
+test("the fix names a folder with a space or a leading dash quoted, after --", async () => {
+  for (const [folder, shown] of [["my maps", "'my maps/graph.json'"], ["-out", "-out/graph.json"], ["it's", "'it'\\''s/graph.json'"]]) {
+    const repo = makeRepo({ config: { ...CODE, lookup: { index: { command: "graphify query", folder, minutes: 30 } } } });
+    try {
+      repo.commit("code", { files: { "src/a.js": "1" } });
+      const r = await repo.run(mod);
+      assert.equal(r.ok, false);
+      assert.ok(r.lines.join("\n").includes(`touch -c -h -- ${shown}\``), r.lines.join("\n"));
+    } finally { repo.cleanup(); }
+  }
 });

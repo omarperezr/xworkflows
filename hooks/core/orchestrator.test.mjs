@@ -1,11 +1,14 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
+import { mkdtempSync as makeTmp, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { decide } from "./orchestrator.mjs";
 import { load } from "./config.mjs";
+const madeTmp = [];
+const mkdtempSync = (p) => { const d = makeTmp(p); madeTmp.push(d); return d; };
+test.after(() => { for (const d of madeTmp) rmSync(d, { recursive: true, force: true }); });
 
 const T0 = 1_000_000_000_000;
 const base = load("/nonexistent", () => null);
@@ -341,6 +344,18 @@ test("shell: no pattern grows with the square of a long command", () => {
     const small = cost(shape(5000)), big = cost(shape(20000));
     assert.ok(big <= 8 * Math.max(small, 25), `${shape(3).slice(0, 12)} took ${small} ms, then ${big} ms for four times the repeats`);
   }
+});
+
+test("shell: a line past 4000 characters is judged by its first 4000 characters", () => {
+  const files = Array.from({ length: 200 }, (_, i) => `src/module-number-${i}/file.ts`);
+  assert.ok(files.join(" ").length > 4000);
+  assert.ok(denied(decide(sh("cat " + files.join(" ")), mk())));
+  assert.ok(denied(decide(sh("cat \\\n" + files.join(" \\\n")), mk())));
+  assert.ok(allowed(decide(sh('git commit -m "' + "x".repeat(4500) + '"'), mk())));
+});
+
+test("shell: a read that starts after character 4000 of one line is still allowed (known limit)", () => {
+  assert.ok(allowed(decide(sh('git commit -m "' + "x".repeat(4500) + '" && cat src/big.ts'), mk())));
 });
 
 test("shell: a continued line that ends in CR LF is joined, a redirect `>&` is not a reader's argument, a root with backslashes is the root", () => {

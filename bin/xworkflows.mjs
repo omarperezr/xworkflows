@@ -7,7 +7,8 @@ import { homedir, tmpdir } from "node:os";
 import { basename, dirname, isAbsolute, join, normalize, posix, relative, resolve, sep } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { DEFAULTS, PROJECT_KEYS, load as loadConfig, missing } from "../hooks/core/config.mjs";
+import { outsideLine } from "../hooks/core/ctx.mjs";
+import { DEFAULTS, PROJECT_KEYS, load as loadConfig, memoryDir as memName, missing } from "../hooks/core/config.mjs";
 
 export const PKG = dirname(dirname(fileURLToPath(import.meta.url)));
 export let ROOT;
@@ -22,7 +23,7 @@ export const digest = (files) =>
   hash(Object.keys(files).sort().map((p) => `${p} ${files[p]}\n`).join(""));
 export const readManifest = () => JSON.parse(readFileSync(join(PKG, "manifest.json"), "utf8"));
 
-const KEYS = ["id", "kind", "origin", "source", "version", "license", "modified", "scope", "tools", "claude", "earlierHooks", "files", "sha256"];
+const KEYS = ["id", "kind", "origin", "source", "version", "license", "modified", "scope", "tools", "claude", "earlierHooks", "retired", "files", "sha256"];
 
 function pack(check) {
   const m = readManifest();
@@ -248,11 +249,6 @@ const QMARK = ".qmd/xworkflows";
 const MARK_TEXT = "written by xworkflows install: uninstall removes index.yml and its database here only while this file exists\n";
 // qmd reads index.yaml before index.yml: either one is a local config
 const localYml = (root) => [".qmd/index.yaml", YML].find((f) => existsSync(join(root, f)));
-// memory.dir as checks/index-current.mjs reads it; null when it is not a folder name inside the repository
-const memName = (d) => {
-  const n = typeof d === "string" ? posix.normalize(d.trim()).replace(/^\.\/|\/+$/g, "") : "";
-  return n === "" || n === "." || n.startsWith("/") || n === ".." || n.startsWith("../") ? null : n;
-};
 const IGNORE = [["graphify-out/", "graphify-out/x"], [".claude/settings.local.json", ".claude/settings.local.json"], [".qmd/", ".qmd/x"]];
 // `.qmd/` is added only in a run that writes the yml
 function mergeIgnore(root, qmd) {
@@ -295,6 +291,8 @@ const hookKey = (root, name) => {
   return dir === resolve(root, execFileSync("git", ["rev-parse", "--git-common-dir"], { cwd: root, encoding: "utf8" }).trim(), "hooks") ? `.git/hooks/${name}` : relative(root, resolve(dir, name));
 };
 const CHECK = 'node "$(git rev-parse --show-toplevel)/.xworkflows/checks/run.mjs" --pre-push "$1"';
+// for the hook of a folder shared with repositories that have no xworkflows: runs only where the file is, and a failed check still ends the hook
+const GUARDED = 'f="$(git rev-parse --show-toplevel)/.xworkflows/checks/run.mjs"; if [ -f "$f" ]; then node "$f" --pre-push "$1" || exit $?; fi';
 // a value of .xworkflows/config.json read at hook time, `d` when the file or the key is not there
 const CFG = (expr, d) => `node -e 'try{process.stdout.write(${expr}||"${d}")}catch{process.stdout.write("${d}")}'`;
 const CONF = 'JSON.parse(require("fs").readFileSync(".xworkflows/config.json","utf8"))';
@@ -312,7 +310,7 @@ function hookText(name, chain) {
     // git feeds the pushed refs on stdin once: keep them for both runs
     return `#!/bin/sh\nin=$(mktemp) || exit 1\ncat > "$in"\n${old}if [ -x "$old" ]; then "$old" "$@" < "$in" || { c=$?; rm -f "$in"; exit $c; }; fi\n${CHECK} < "$in"\nc=$?\nrm -f "$in"\nexit $c\n`;
   }
-  return `#!/bin/sh\nc=0\n${chain ? `${old}[ -x "$old" ] && { "$old" "$@"; c=$?; }\n` : ""}cd "$(git rev-parse --show-toplevel)" || exit $c\nmain=$(${MAIN}) || main=main\n[ "$(git symbolic-ref --short -q HEAD)" = "$main" ] || exit $c\ntool=$(${TOOL}) || tool=graphify\nfolder=$(${FOLDER}) || folder=graphify-out\ncommand -v "$tool" >/dev/null 2>&1 || exit $c\nmkdir -p "$folder"\n{ "$tool" update . && touch -c "$folder/graph.json"; } > "$folder/.update.log" 2>&1 < /dev/null &\nexit $c\n`;
+  return `#!/bin/sh\nc=0\n${chain ? `${old}[ -x "$old" ] && { "$old" "$@"; c=$?; }\n` : ""}cd "$(git rev-parse --show-toplevel)" || exit $c\nmain=$(${MAIN}) || main=main\n[ "$(git symbolic-ref --short -q HEAD)" = "$main" ] || exit $c\ntool=$(${TOOL}) || tool=graphify\nfolder=$(${FOLDER}) || folder=graphify-out\ncommand -v "$tool" >/dev/null 2>&1 || exit $c\nmkdir -p "$folder"\n{ "$tool" update . && touch -c -h -- "$folder/graph.json"; } > "$folder/.update.log" 2>&1 < /dev/null &\nexit $c\n`;
 }
 
 export function agentsBlock() {
@@ -432,6 +430,7 @@ export function plan(manifest, root, record, ans = {}) {
       rename = `${path}.before-xworkflows`;
       if (lstatSync(join(root, rename), { throwIfNoEntry: false })) die(1, `exists and is not ours: ${rename}`);
       chain = true;
+      notes.push(`chained ${name}: a hook which depends on its own file name will not work chained`);
       hookMerges.push({ path, text: null, rec: { chained: [{ file: key, to: `${key}.before-xworkflows` }] } });
     }
     writes.push({ path, key, text: hookText(name, chain), piece: "checks", src: name, mode: 0o755, rename });
@@ -453,6 +452,19 @@ export function plan(manifest, root, record, ans = {}) {
       if (ask(`file:${w.path}`, `${w.path} exists and is not a text this package wrote. Keep it or write ours over it?`, ["keep mine", "overwrite"], 0) === "overwrite") continue;
       w.keep = true; notes.push(`kept (not ours): ${w.path}  new: ${w.src}`);
     } else if (hash(cur) !== rec.sha256) { w.keep = true; notes.push(`kept (changed locally): ${w.path}  new: ${w.src}`); }
+  }
+  // a file the manifest lists as retired: removed when its content is one the package wrote, kept and named when edited; the record never decides
+  const shipped = new Set(writes.map((w) => w.key ?? w.path));
+  const retired = [];
+  for (const [f, hashes] of manifest.pieces.flatMap((p) => Object.entries(p.retired ?? {}))) {
+    const t = target(f);
+    if (!t) continue;
+    const u = t.match(UNIT)?.[0], nu = u && `${dirname(u)}/xwf-${basename(u)}`;
+    if (kept.includes(u) || record.kept.includes(u)) continue;
+    const p = nu && (renamed[nu] || record.renamed[nu]) ? nu + t.slice(u.length) : t;
+    if (shipped.has(p) || !plain(p) || !clean(root, p) || !lstatSync(join(root, p), { throwIfNoEntry: false })?.isFile()) continue;
+    if (hashes.includes(hash(read(root, p)))) retired.push(p);
+    else notes.push(`kept (no longer shipped, changed locally): ${p}`);
   }
   const merges = [];
   let mem;
@@ -482,7 +494,7 @@ export function plan(manifest, root, record, ans = {}) {
       merges.push({ path: "CLAUDE.md", text: claude + (claude.endsWith("\n") ? "" : "\n") + "@AGENTS.md\n", rec: { imports: [claude.endsWith("\n") ? { file: "CLAUDE.md", line: "@AGENTS.md" } : { file: "CLAUDE.md", line: "@AGENTS.md", addedNewline: true }] } });
     } else merges.push({ path: "CLAUDE.md", text: null, rec: { declined: [{ file: "CLAUDE.md", what: "import" }] } });
   }
-  return { writes, merges, questions, kept, renamed, notes };
+  return { writes, merges, questions, kept, renamed, notes, retired };
 }
 
 const differs = (root, w) => !existsSync(join(root, w.path)) || readFileSync(join(root, w.path), "utf8") !== w.text;
@@ -495,16 +507,26 @@ export function apply(pl, root, manifest, record) {
   const out = [], made = [];
   // the folders install had to make, so uninstall stops at the ones that were there; the git folder is not ours to record
   const mk = (d) => { for (; plain(d) && d.split("/")[0] !== ".git" && !existsSync(join(root, d)); d = dirname(d)) made.push(d); };
-  const put = (root, path, text, mode) => { mk(dirname(path)); putFile(root, path, text, mode); };
+  // plan() read the tree earlier: a link made since is not written through (a hook's folder was vetted by ownHooks)
+  const linked = (path, hook) => { if (!hook && !clean(root, path)) throw new Error(`not written (symlink): ${path}`); };
+  const put = (root, path, text, mode, hook) => { linked(path, hook); mk(dirname(path)); putFile(root, path, text, mode); };
+  // a folder the removal empties goes with it when it is the package's own: a subfolder of .xworkflows/ or a skill's folder
+  const emptied = [];
+  for (const p of pl.retired) {
+    linked(p); rmSync(join(root, p)); out.push(`removed ${p}`);
+    for (let d = dirname(p); /^\.xworkflows\/|^\.claude\/(skills|agents)\/[^/]+/.test(d) && !readdirSync(join(root, d)).length; d = dirname(d)) { rmdirSync(join(root, d)); out.push(`removed ${d}/`); emptied.push(d); }
+  }
   for (const w of pl.writes) if (!w.keep && differs(root, w)) {
+    const hook = HOOKS.includes(w.src);
+    linked(w.path, hook);
     if (w.rename) renameSync(join(root, w.path), join(root, w.rename));
-    put(root, w.path, w.text, w.mode);
+    put(root, w.path, w.text, w.mode, hook);
     out.push(w.path);
   }
   const next = { ...record, xworkflows: manifest.version, tools: ["claude"], pieces: {}, files: {}, dirs: [...new Set([...(record.dirs ?? []), ...made])], kept: [...new Set([...record.kept, ...pl.kept])], renamed: { ...record.renamed, ...pl.renamed } };
   for (const m of pl.merges) {
     try {
-      if (m.dir) { mk(m.path); mkdirSync(join(root, m.path), { recursive: true }); out.push(m.path); }
+      if (m.dir) { linked(m.path); mk(m.path); mkdirSync(join(root, m.path), { recursive: true }); out.push(m.path); }
       if (m.text !== null) { put(root, m.path, m.text); out.push(m.path); }
     } catch (e) {
       // the new writes of the memory folder and the yml: say so, record nothing, go on
@@ -519,6 +541,14 @@ export function apply(pl, root, manifest, record) {
       if (k === "merged") next[k] = next[k].filter((y) => !list.some((x) => x.entry?.hooks && x.file === y.file && isDeepStrictEqual(x.key, y.key) && x.entry.hooks[0].command === y.entry?.hooks?.[0]?.command));
       for (const x of list) if (!next[k].some((y) => (k === "merged" ? x.file === y.file && isDeepStrictEqual(x.key, y.key) && isDeepStrictEqual(x.entry, y.entry) : (k === "blocks" || k === "imports" ? x.file === y.file && x.line === y.line : isDeepStrictEqual(x, y))))) next[k].push(x);
     }
+  }
+  // a unit whose folder is gone leaves its line of .graphifyignore, and the record its entry
+  for (const line of emptied.map((d) => giLine(d)).filter((l) => l && !existsSync(join(root, l)))) {
+    const t = read(root, GI), ls = t?.split("\n") ?? [];
+    if (!next.imports.some((i) => i.file === GI && i.line === line) || !ls.includes(line)) continue;
+    ls.splice(ls.indexOf(line), 1);
+    put(root, GI, ls.join("\n")); out.push(GI);
+    next.imports = next.imports.filter((i) => !(i.file === GI && i.line === line));
   }
   for (const p of manifest.pieces) next.pieces[p.id] = { version: p.version, sha256: p.sha256 };
   for (const w of pl.writes) next.files[w.key ?? w.path] = w.keep ? record.files[w.key ?? w.path] : { piece: w.piece, sha256: hash(w.text) };
@@ -569,6 +599,7 @@ async function install(flags) {
   for (const n of pl.notes) console.log(n);
   if (flags["dry-run"]) {
     for (const w of pl.writes) if (!w.keep && differs(ROOT, w)) console.log(`${w.rename ? `would rename ${w.path} to ${w.rename}\n` : ""}would write ${w.path}`);
+    for (const p of pl.retired) console.log(`would remove ${p}`);
     for (const m of pl.merges) if (m.text !== null || m.dir) console.log(`would ${m.verb ?? "merge"} ${m.path}`);
   } else {
     const done = apply(pl, ROOT, m, record);
@@ -701,18 +732,28 @@ async function doctor() {
     } catch (e) { say("fail", `config: ${e.message}: ${e.message.startsWith(".xworkflows/config.json does not parse") ? "fix the JSON of .xworkflows/config.json" : `if a file of the package is named "changed locally" above, delete it; then ${INSTALL}`}`); }
     if (conf.paths.code?.length) {
       const dir = conf.lookup.index.folder;
-      // the tool is the first word of lookup.index.command, as the git hooks read it
-      const tool = conf.lookup.index.command.split(" ")[0];
-      say(has(sh(tool)) ? "ok" : "fail", has(sh(tool)) ? `${tool} command` : `${tool} command is missing${tool === "graphify" ? ": uv tool install graphifyy" : ""}`);
-      say(existsSync(join(ROOT, dir, "graph.json")) ? "ok" : "fail", existsSync(join(ROOT, dir, "graph.json")) ? `${tool} index` : `${dir}/graph.json is missing: ${sh(tool)} update .`);
+      // an empty command is the default, as in the git hooks
+      const cmd = conf.lookup.index.command || DEFAULTS.lookup.index.command;
+      if (typeof cmd !== "string") say("fail", `lookup.index.command must be text: set it in .xworkflows/config.json (the default is "${DEFAULTS.lookup.index.command}")`);
+      else {
+        // the tool is the first word of lookup.index.command, as the git hooks read it
+        const tool = cmd.split(" ")[0];
+        say(has(sh(tool)) ? "ok" : "fail", has(sh(tool)) ? `${tool} command` : `${tool} command is missing${tool === "graphify" ? ": uv tool install graphifyy" : ""}`);
+        say(existsSync(join(ROOT, dir, "graph.json")) ? "ok" : "fail", existsSync(join(ROOT, dir, "graph.json")) ? `${tool} index` : `${dir}/graph.json is missing: ${sh(tool)} update .`);
+      }
     }
-    const mem = memName(conf.memory.dir) ?? conf.memory.dir;
+    // a memory.index that is not text would reach qmd as an argument: say so, and use qmd's default index
+    let idx = conf.memory.index;
+    if (idx && typeof idx !== "string") { say("fail", "memory.index must be text: set it in .xworkflows/config.json, or take it out for qmd's default index"); idx = undefined; }
+    const named = memName(conf.memory.dir), mem = named ?? conf.memory.dir;
+    // install writes no folder and no yml for a memory.dir outside the repository
+    const MEMFIX = `set memory.dir in .xworkflows/config.json to a folder inside the repository, then ${INSTALL}`;
     if (!has("qmd")) say("fail", "qmd command is missing: npm install -g @tobilu/qmd");
-    else if (!existsSync(join(ROOT, mem))) say("warn", `no memory folder yet: ${mem}: ${INSTALL}`);
+    else if (!existsSync(join(ROOT, mem))) say("warn", `no memory folder yet: ${mem}: ${named ? INSTALL : MEMFIX}`);
     else {
       const abs = resolve(ROOT, mem);
-      const q = (...a) => spawnSync("qmd", [...(conf.memory.index ? ["--index", conf.memory.index] : []), "collection", ...a], { cwd: ROOT, encoding: "utf8", timeout: TIMEOUT });
-      const qcmd = `qmd${conf.memory.index ? ` --index ${sh(conf.memory.index)}` : ""}`;
+      const q = (...a) => spawnSync("qmd", [...(idx ? ["--index", idx] : []), "collection", ...a], { cwd: ROOT, encoding: "utf8", timeout: TIMEOUT });
+      const qcmd = `qmd${idx ? ` --index ${sh(idx)}` : ""}`;
       // no minimum is compared: the line only says which qmd this is
       const v = spawnSync("qmd", ["--version"], { cwd: ROOT, encoding: "utf8", timeout: TIMEOUT });
       const ver = v.error || v.status !== 0 ? "" : (v.stdout ?? "").trim().split("\n")[0];
@@ -727,7 +768,7 @@ async function doctor() {
           return t && (abs === t || abs.startsWith(t + "/"));
         });
         const yml = localYml(ROOT);
-        const why = conf.memory.index ? `${qcmd} collection add ${sh(mem)}` : !yml ? INSTALL : (read(ROOT, yml) ?? "").includes(abs) ? `this qmd does not read ${yml}, which names it: npm install -g @tobilu/qmd@latest` : `${yml} names no collection with the path ${abs}; add one, or delete .qmd and run install again`;
+        const why = idx ? `${qcmd} collection add ${sh(mem)}` : !named ? MEMFIX : !yml ? INSTALL : (read(ROOT, yml) ?? "").includes(abs) ? `this qmd does not read ${yml}, which names it: npm install -g @tobilu/qmd@latest` : `${yml} names no collection with the path ${abs}; add one, or delete .qmd and run install again`;
         say(covers ? "ok" : "fail", covers ? `qmd collection covers ${mem}` : `no qmd collection covers ${mem}: ${why}`);
       }
     }
@@ -738,6 +779,8 @@ async function doctor() {
     if (cur !== null && [false, true].some((c) => cur === hookText("pre-push", c))) say("ok", "pre-push hook is ours");
     else if (cur !== null && rec.files[key]) say("warn", `pre-push hook changed locally: it may no longer run the check; make it run: ${CHECK}`);
     else if (rec.declined.some((d) => d.file === key && d.what === "chain")) say("warn", `pre-push hook is yours: chaining declined at install; add this line to it: ${CHECK}`);
+    else if (ownHooks(ROOT) === null && cur?.includes(GUARDED)) say("ok", "pre-push hook of the folder outside this repository runs the check");
+    else if (ownHooks(ROOT) === null) say("fail", `pre-push hook: core.hooksPath points outside this repository, where install writes no hook; either add this line to the pre-push hook of that folder, which then runs it in every repository that uses the folder, and runs the check only where the file is: ${GUARDED} ; or point this repository at its own hooks folder, after which the hooks of the other folder no longer run here: run: git config core.hooksPath "$(git rev-parse --path-format=absolute --git-common-dir)/hooks"; then ${INSTALL}`);
     else say("fail", `pre-push hook is missing or not ours: ${INSTALL}`);
     let st = {}, local = {};
     try { st = JSON.parse(readFileSync(join(ROOT, ".claude/settings.json"), "utf8")); } catch {}
@@ -755,6 +798,9 @@ async function doctor() {
     try {
       const where = real(abs), base = real(ROOT);
       if (where !== base && !where.startsWith(base + sep)) say("warn", 'the memory folder is outside the repository: qmd indexes it only after "qmd trust" is run here');
+      // a write there is refused unless memory.outside lists the real path: the same line the hooks refuse with
+      const refused = outsideLine(ROOT, join(mem, "MEMORY.md"), conf.memory?.outside);
+      if (where !== base && !where.startsWith(base + sep) && refused) say("warn", refused);
     } catch {}
     if (amd === undefined) say("warn", `autoMemoryDirectory is not set in .claude/settings.local.json: add "autoMemoryDirectory": "${abs}" to it`);
     else if (typeof amd !== "string" || !(resolve(ROOT, amd) + sep).startsWith(abs + sep)) say("warn", `autoMemoryDirectory is not the memory folder ${mem}: set it to "${abs}" in .claude/settings.local.json`);
@@ -946,4 +992,5 @@ function uninstall() {
   console.log(out.join("\n") + (out.length ? "\n" : "") + "uninstalled");
 }
 
-main(process.argv.slice(2));
+// not on import: a test calls plan() and apply() itself
+if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) main(process.argv.slice(2));

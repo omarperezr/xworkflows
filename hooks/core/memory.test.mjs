@@ -1,10 +1,15 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync } from "node:fs";
+import { realpathSync, mkdtempSync as makeTmp, mkdirSync, writeFileSync, readFileSync, utimesSync, symlinkSync, chmodSync, statSync, lstatSync, lutimesSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { decide } from "./memory.mjs";
+import { makeCtx } from "./ctx.mjs";
+import { DEFAULTS } from "./config.mjs";
+const madeTmp = [];
+const mkdtempSync = (p) => { const d = makeTmp(p); madeTmp.push(d); return d; };
+test.after(() => { for (const d of madeTmp) rmSync(d, { recursive: true, force: true }); });
 
 const run = join(import.meta.dirname, "..", "run.mjs");
 const DAY = 86400000;
@@ -128,7 +133,7 @@ test("code graph: older than HEAD or missing starts the update; current does not
   const head = Math.floor(NOW / 1000);
   const stale = fake({ config: cfg, git: String(head), mtimes: { "graphify-out/graph.json": NOW - DAY } });
   assert.match(decide(ev("sessionStart", {}), stale.ctx).context, /code graph/);
-  assert.deepEqual(stale.calls.bg, [["sh", ["-c", '"$0" update . && touch -c "$1"', "graphify", "graphify-out/graph.json"]]]);
+  assert.deepEqual(stale.calls.bg, [["sh", ["-c", '"$0" update . && touch -c -h -- "$1"', "graphify", "graphify-out/graph.json"]]]);
   const gone = fake({ config: cfg, git: String(head) });
   assert.match(decide(ev("sessionStart", {}), gone.ctx).context, /code graph/);
   const fresh = fake({ config: cfg, git: String(head), mtimes: { "graphify-out/graph.json": NOW } });
@@ -221,4 +226,39 @@ test("through the real runner: a deny on a feedback write, an index on preCompac
   const p = go({ hook_event_name: "PreCompact" });
   assert.equal(p.status, 0);
   assert.equal(readFileSync(join(root, "docs", "memory", "MEMORY.md"), "utf8"), "- [A](a.md) — first\n");
+});
+
+test("code graph: the command it starts sets the time of a linked graph file itself, in a folder named with a leading dash", () => {
+  const cfg = { ...base, paths: { code: ["src/"] }, lookup: { index: { command: "tool query", folder: "-out", minutes: 30 } } };
+  const stale = fake({ config: cfg, git: String(Math.floor(NOW / 1000)) });
+  decide(ev("sessionStart", {}), stale.ctx);
+  const dir = mkdtempSync(join(tmpdir(), "xwf-mem-"));
+  mkdirSync(join(dir, "-out")); mkdirSync(join(dir, "bin"));
+  writeFileSync(join(dir, "elsewhere.json"), "{}");
+  const old = new Date("2020-01-01T00:00:00Z");
+  utimesSync(join(dir, "elsewhere.json"), old, old);
+  symlinkSync("../elsewhere.json", join(dir, "-out/graph.json")); lutimesSync(join(dir, "-out/graph.json"), old, old);
+  writeFileSync(join(dir, "bin/tool"), "#!/bin/sh\nexit 0\n"); chmodSync(join(dir, "bin/tool"), 0o755);
+  const [cmd, args] = stale.calls.bg[0];
+  const r = spawnSync(cmd, args, { cwd: dir, env: { ...process.env, PATH: `${join(dir, "bin")}:${process.env.PATH}` }, encoding: "utf8" });
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(statSync(join(dir, "elsewhere.json")).mtimeMs, old.getTime(), "the file behind the link was touched");
+  assert.ok(lstatSync(join(dir, "-out/graph.json")).mtimeMs > old.getTime(), "the link's own time was not set");
+});
+
+test("sessionStart: a memory folder linked out of the repository, not listed, says to ask the owner; listed, it says nothing", () => {
+  const root = mkdtempSync(join(tmpdir(), "xwf-mem-")), real = realpathSync(mkdtempSync(join(tmpdir(), "xwf-mem-")));
+  mkdirSync(join(root, "docs"));
+  symlinkSync(real, join(root, "docs", "memory"));
+  const at = (outside) => decide(ev("sessionStart", { source: "startup", root }), makeCtx({ root, session: "s" }, { env: {}, config: { ...DEFAULTS, memory: { dir: "docs/memory", outside } }, stateDir: root }));
+  assert.match(at([]).context, /ask the owner.*inside the project.*memory\.outside in \.xworkflows\/config\.json/);
+  assert.equal(at([real]).context, undefined);
+});
+
+test("sessionStart: a memory.dir that is not a text is read as the default and does not throw", () => {
+  for (const dir of [5, ["docs/memory"]]) {
+    const root = mkdtempSync(join(tmpdir(), "xwf-mem-"));
+    const run = () => decide(ev("sessionStart", { source: "startup", root }), makeCtx({ root, session: "s" }, { env: {}, config: { ...DEFAULTS, memory: { dir, outside: [] } }, stateDir: root }));
+    assert.doesNotThrow(run, JSON.stringify(dir));
+  }
 });

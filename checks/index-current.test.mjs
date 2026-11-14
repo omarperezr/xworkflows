@@ -108,3 +108,14 @@ test("a memory folder name with glob characters is read as written", async () =>
     assert.equal((await repo.run(mod)).ok, false);
   }, { memory: { dir: "m[1]*" } })();
 });
+
+for (const dir of ["..mem", "mem ", "./mem/"]) {
+  test(`memory.dir written ${JSON.stringify(dir)} is read as its folder`, withRepo(async (repo) => {
+    const d = dir.trim().replace(/^\.\//, "").replace(/\/$/, "");
+    repo.commit("mem", { files: { [`${d}/a.md`]: A } });
+    const r = await repo.run(mod);
+    assert.equal(r.cannotRun, undefined);
+    assert.equal(r.ok, false);
+    assert.equal(r.lines[0], `${d}/MEMORY.md is missing`);
+  }, { memory: { dir } }));
+}

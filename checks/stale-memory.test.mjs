@@ -143,3 +143,12 @@ test("a memory folder name with glob characters is checked", withRepo({ "m[1]*/n
   assert.match(t, /src\/gone\.js/);
   assert.ok(!t.includes("gone2"));
 }, { memory: { dir: "m[1]*" } }));
+
+for (const dir of ["..mem", "mem ", "./mem/"]) {
+  test(`memory.dir written ${JSON.stringify(dir)} is checked as mem`, withRepo({ "mem/n.md": "`src/gone.js`\n", "..mem/n.md": "`src/gone.js`\n" }, async (repo) => {
+    const r = await repo.run(mod);
+    assert.equal(r.ok, false);
+    assert.equal(r.cannotRun, undefined);
+    assert.match(r.lines.join("\n"), new RegExp(`^${dir.trim().replace(/^\.\//, "").replace(/\/$/, "").replace(/\./g, "\\.")}/n\\.md:1`, "m"));
+  }, { memory: { dir } }));
+}
