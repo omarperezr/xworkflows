@@ -1270,6 +1270,21 @@ test("a failed check ends the push with its code before the user's hook runs", (
   assert.ok(!existsSync(join(r, ".git/old-in")), "the user's hook ran");
   assert.deepEqual(readdirSync(t), []);
 });
+// awk reads an operand of the form name=value as an assignment: the hook's own path must reach it as a file whatever its name
+test("in a hooks folder whose name holds =, the check and the user's hook still get the pushed refs", () => {
+  for (const body of [OLD, null]) {
+    const { r } = withRemote();
+    git(r, "config core.hooksPath h=1");
+    if (body) { mkdirSync(join(r, "h=1")); writeFileSync(join(r, "h=1/pre-push"), body, { mode: 0o755 }); }
+    cli(r, ["install", "--yes"]);
+    spyCheck(r);
+    commit(r, "a.txt", "fine\n");
+    assert.equal(pushIn(r, tmp("xwf-hooktmp-")).status, 0);
+    const got = readFileSync(join(r, ".git/check-in"), "utf8");
+    assert.match(got, /^refs\/heads\/main [0-9a-f]{40} refs\/heads\/main 0{40}$/m, String(body));
+    if (body) assert.equal(readFileSync(join(r, "old-in"), "utf8"), got);
+  }
+});
 const REFS = "refs/heads/main 1 refs/heads/main 0\n";
 const runHook = (r, t, env = {}) => spawnSync(join(r, ".git/hooks/pre-push"), ["origin", "x"], { cwd: r, input: REFS, env: { ...isoEnv(), TMPDIR: t, PATH: mktempIn(true), ...env } });
 test("a push cut by a signal while the check runs leaves no temp file", () => {
