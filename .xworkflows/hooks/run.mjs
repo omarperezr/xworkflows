@@ -2,7 +2,7 @@ import { readFileSync, writeFileSync, mkdirSync, appendFileSync } from "node:fs"
 import { tmpdir, homedir } from "node:os";
 import { join, dirname, sep } from "node:path";
 import { markFrom, markFile } from "./core/marks.mjs";
-import { load } from "./core/config.mjs";
+import { loadLenient } from "./core/config.mjs";
 import { makeCtx } from "./core/ctx.mjs";
 
 const [tool, hook] = process.argv.slice(2);
@@ -31,7 +31,9 @@ try {
     log(stateDir, ev.session, "free", ev.tool ?? ev.event);
   } else {
     if (ev.kind === "shell" && markFrom(ev.command)) writeFileSync(markFile(stateDir, markFrom(ev.command), ev.session), "");
-    const ctx = makeCtx(ev, { env, config: load(ev.root), stateDir });
+    const { config, replaced } = loadLenient(ev.root);
+    for (const section of replaced) process.stderr.write(`xworkflows: .xworkflows/config.json: ${section} must be an object; using its default\n`);
+    const ctx = makeCtx(ev, { env, config, stateDir });
     const decision = core.decide(ev, ctx);
     out = adapter.answer(decision, ev);
     if (decision.decision === "deny" && ev.event === "preTool") log(stateDir, ev.session, "deny", decision.reason);
