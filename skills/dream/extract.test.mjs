@@ -1,0 +1,196 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, utimesSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { mask, run } from "./extract.mjs";
+
+const tmp = () => mkdtempSync(join(tmpdir(), "dream-x-"));
+const user = (text, timestamp) => JSON.stringify({ type: "user", timestamp, message: { content: text } });
+const asst = (text, timestamp) => JSON.stringify({ type: "assistant", timestamp, message: { content: [{ type: "text", text }, { type: "tool_use", name: "Bash", input: { command: "ls" } }] } });
+const day = (n) => `2030-01-0${n}T10:00:00.000Z`;
+
+// a fake repository root with one memory note, a sessions folder and an out folder
+function world({ notes = true, config } = {}) {
+  const root = tmp(), sessions = tmp(), out = tmp();
+  if (notes) { mkdirSync(join(root, "docs/memory"), { recursive: true }); writeFileSync(join(root, "docs/memory/a.md"), "note"); writeFileSync(join(root, "docs/memory/MEMORY.md"), "index"); }
+  if (config) { mkdirSync(join(root, ".xworkflows")); writeFileSync(join(root, ".xworkflows/config.json"), JSON.stringify(config)); }
+  const put = (name, ...lines) => writeFileSync(join(sessions, name + ".jsonl"), lines.join("\n") + "\n");
+  const go = (...extra) => {
+    const r = run([...extra, "--sessions", sessions, "--out", out, "--current", "none"], {}, root, tmp());
+    return { ...r, json: r.stdout.startsWith("{") ? JSON.parse(r.stdout) : null };
+  };
+  return { root, sessions, out, put, go };
+}
+
+test("sessions come oldest first by their first timestamp, not by name", () => {
+  const w = world();
+  w.put("a-late", user("second", day(2)));
+  w.put("z-early", user("first", day(1)));
+  const { json } = w.go();
+  assert.deepEqual(json.sessions.map((s) => s.name), ["z-early", "a-late"]);
+  assert.deepEqual(json.last, { name: "a-late", time: day(2) });
+  assert.equal(readFileSync(json.sessions[0].file, "utf8"), "user: first");
+  assert.equal(json.notes, 1);
+});
+
+test("a session with no timestamp falls back to the modification time", () => {
+  const w = world();
+  w.put("old", user("x"));
+  utimesSync(join(w.sessions, "old.jsonl"), new Date(day(1)), new Date(day(1)));
+  w.put("new", user("y", day(2)));
+  assert.deepEqual(w.go().json.sessions.map((s) => s.name), ["old", "new"]);
+});
+
+test("the running session is skipped, by --current and by the environment", () => {
+  const w = world();
+  w.put("run", user("now", day(2)));
+  w.put("past", user("then", day(1)));
+  assert.deepEqual(w.go("--current", "run").json.sessions.map((s) => s.name), ["past"]);
+  const r = run(["--sessions", w.sessions, "--out", w.out], { CLAUDE_CODE_SESSION_ID: "past" }, w.root, tmp());
+  assert.deepEqual(JSON.parse(r.stdout).sessions.map((s) => s.name), ["run"]);
+});
+
+test("a file in a sub-folder is not read", () => {
+  const w = world();
+  mkdirSync(join(w.sessions, "agents"));
+  writeFileSync(join(w.sessions, "agents", "side.jsonl"), user("side", day(1)) + "\n");
+  w.put("main", user("main", day(2)));
+  assert.deepEqual(w.go().json.sessions.map((s) => s.name), ["main"]);
+});
+
+test("both sides' text is kept; tools, notices, meta, summaries and reports are dropped", () => {
+  const w = world();
+  w.put("s",
+    user("typed by the owner", day(1)),
+    asst("written by the model", day(1)),
+    JSON.stringify({ type: "user", message: { content: [{ type: "tool_result", content: "TOOLOUT" }] } }),
+    JSON.stringify({ type: "user", isMeta: true, message: { content: "METALINE" } }),
+    JSON.stringify({ type: "user", isCompactSummary: true, message: { content: "SUMMARY" } }),
+    user("<task-notification>AGENTREPORT</task-notification>", day(1)),
+    user("<system-reminder>NOTICE</system-reminder> after the tag", day(1)),
+    JSON.stringify({ type: "system", message: { content: "SYS" } }));
+  const text = readFileSync(w.go().json.sessions[0].file, "utf8");
+  assert.equal(text, "user: typed by the owner\nassistant: written by the model\nuser: after the tag");
+});
+
+test("mask: each shape goes, the key name stays, the count is returned", () => {
+  const pk = "-----BEGIN RSA PRIVATE " + "KEY-----\nabc\n-----END RSA PRIVATE " + "KEY-----";
+  const cases = [
+    [pk, "[masked]"],
+    ["Authorization: Bearer abc.def-1", "Authorization: Bearer [masked]"],
+    ["password=hunter2 ok", "password=[masked] ok"],
+    ['"passwd": "hunter2"', '"passwd": "[masked]"'],
+    ["secret: hunter2", "secret: [masked]"],
+    ["token='hunter2'", "token='[masked]'"],
+    ["api_key=hunter2", "api_key=[masked]"],
+    ["apikey=hunter2", "apikey=[masked]"],
+    ["sk-" + "a1".repeat(12), "[masked]"],
+    ["gh" + "p_" + "A1".repeat(12), "[masked]"],
+    ["gh" + "o_" + "A1".repeat(12), "[masked]"],
+    ["gh" + "s_" + "A1".repeat(12), "[masked]"],
+    ["github" + "_pat_" + "A1".repeat(12), "[masked]"],
+    ["AK" + "IA" + "ABCDEFGH12345678", "[masked]"],
+    ["xo" + "xb-123-abc", "[masked]"],
+    ["ey" + "Jhbg.ey" + "Jzdw.sig_-9", "[masked]"],
+  ];
+  for (const [from, to] of cases) assert.deepEqual(mask(from), [to, 1], from);
+  assert.deepEqual(mask("plain words"), ["plain words", 0]);
+  assert.equal(mask("password=a token=b")[1], 2);
+});
+
+test("a session's masked count is reported and the text on disk is masked", () => {
+  const w = world();
+  w.put("s", user("password=hunter2", day(1)));
+  const { json } = w.go();
+  assert.equal(json.sessions[0].masked, 1);
+  assert.equal(readFileSync(json.sessions[0].file, "utf8"), "user: password=[masked]");
+});
+
+const body = "x".repeat(94); // "user: " + 94 = 100 bytes
+
+test("the cap: two sessions fit, the third waits for the next run", () => {
+  const w = world({ config: { dream: { maxExtractBytes: 250 } } });
+  for (const n of [1, 2, 3]) w.put("s" + n, user(body, day(n)));
+  const { json } = w.go();
+  assert.deepEqual(json.sessions.map((s) => s.name), ["s1", "s2"]);
+  assert.equal(json.sessions[0].bytes, 100);
+  assert.equal(json.bytes, 200);
+  assert.equal(json.tokens, 50);
+  assert.equal(json.left, 1);
+  assert.equal(json.cut, false);
+  assert.equal(json.last.name, "s2");
+});
+
+test("one session bigger than the cap is taken alone, cut, and says so", () => {
+  const w = world({ config: { dream: { maxExtractBytes: 50 } } });
+  w.put("s1", user(body, day(1)));
+  w.put("s2", user(body, day(2)));
+  const { json } = w.go();
+  assert.deepEqual(json.sessions.map((s) => s.name), ["s1"]);
+  assert.equal(json.bytes, 50);
+  assert.equal(json.cut, true);
+  assert.equal(json.left, 1);
+  assert.equal(readFileSync(json.sessions[0].file, "utf8").length, 50);
+});
+
+test("the last point of dream.json skips the sessions at or before it", () => {
+  const w = world();
+  writeFileSync(join(w.root, "docs/memory/dream.json"), JSON.stringify({ name: "s2", time: day(2) }));
+  for (const n of [1, 2, 3]) w.put("s" + n, user("t" + n, day(n)));
+  const { json } = w.go();
+  assert.deepEqual(json.sessions.map((s) => s.name), ["s3"]);
+  assert.equal(json.notes, 1);
+});
+
+test("no memory notes: an empty list with its reason, exit 0", () => {
+  const w = world({ notes: false });
+  w.put("s", user("t", day(1)));
+  const r = w.go();
+  assert.equal(r.code, 0);
+  assert.deepEqual([r.json.sessions, r.json.reason, r.json.notes], [[], "no memory notes", 0]);
+});
+
+test("no new session: an empty list with its reason, exit 0", () => {
+  const w = world();
+  writeFileSync(join(w.root, "docs/memory/dream.json"), JSON.stringify({ name: "s1", time: day(1) }));
+  w.put("s1", user("t", day(1)));
+  const r = w.go();
+  assert.equal(r.code, 0);
+  assert.deepEqual([r.json.sessions, r.json.reason, r.json.left], [[], "no new session", 0]);
+});
+
+test("a broken line is skipped and counted, never thrown", () => {
+  const w = world();
+  w.put("s", "{not json", user("kept", day(1)), "also not json");
+  const { json } = w.go();
+  assert.equal(json.skipped, 2);
+  assert.equal(readFileSync(json.sessions[0].file, "utf8"), "user: kept");
+});
+
+test("--out inside the repository is refused with one line and exit 2", () => {
+  const w = world();
+  w.put("s", user("t", day(1)));
+  const r = run(["--sessions", w.sessions, "--out", join(w.root, "inside"), "--current", "none"], {}, w.root, tmp());
+  assert.equal(r.code, 2);
+  assert.equal(r.stdout.trim().split("\n").length, 1);
+  assert.ok(!r.stdout.startsWith("{"));
+});
+
+test("without --out the files go to a new folder under the system temp folder", () => {
+  const w = world();
+  w.put("s", user("t", day(1)));
+  const r = run(["--sessions", w.sessions, "--current", "none"], {}, w.root, tmp());
+  const j = JSON.parse(r.stdout);
+  assert.ok(!j.out.startsWith(w.root));
+  assert.equal(readFileSync(j.sessions[0].file, "utf8"), "user: t");
+});
+
+test("without --sessions the folder is under home, named after the repository root", () => {
+  const w = world(), home = tmp();
+  const dir = join(home, ".claude", "projects", w.root.replace(/[^A-Za-z0-9]/g, "-"));
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, "s.jsonl"), user("from home", day(1)) + "\n");
+  const j = JSON.parse(run(["--out", w.out, "--current", "none"], {}, w.root, home).stdout);
+  assert.deepEqual(j.sessions.map((s) => s.name), ["s"]);
+});
