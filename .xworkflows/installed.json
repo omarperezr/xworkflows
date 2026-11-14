@@ -14,7 +14,7 @@
     },
     "adapt-gates": {
       "version": "0.1.0",
-      "sha256": "9356983522573c20db5b0eda29674211d858077cf84b2bbe4c1f51fb105aa67f"
+      "sha256": "dc8ddb2117d0e1441552d01b4e183b310683836857770c80739be929bbd3bcfd"
     },
     "adapt-record": {
       "version": "0.1.0",
@@ -70,7 +70,7 @@
     },
     "memory": {
       "version": "0.1.0",
-      "sha256": "27b5b4fa75974cb47794af48a1cca730e9315ceed834aa74e4f319fb0db2545c"
+      "sha256": "793b32d99a8bd7459034cf1f46fc39d8f55580b5ce1058910ced599d3a61ea16"
     },
     "modes": {
       "version": "0.1.0",
@@ -168,7 +168,7 @@
     },
     ".xworkflows/hooks/core/adapt-gates.mjs": {
       "piece": "adapt-gates",
-      "sha256": "967f42bf582c1d08702b74348d96f9fe7e9deccc30463b50ed956bf86d2e01e5"
+      "sha256": "e90a3d1500ce3e59ce8b329a715bfd0cb58aed48313b9c8bc78f06e6f0469b95"
     },
     ".xworkflows/hooks/core/adapt-record.mjs": {
       "piece": "adapt-record",
@@ -184,7 +184,7 @@
     },
     ".xworkflows/hooks/core/memory.mjs": {
       "piece": "memory",
-      "sha256": "0abf97d0abba3f11ca06fd8eff3991f2407aae072276d8a829a3e87e02af93df"
+      "sha256": "c139f32942f7d853c69c8cee94f1eef8c238e440642ebad416256a934409b0c0"
     },
     ".xworkflows/hooks/core/memory-index.mjs": {
       "piece": "memory",
