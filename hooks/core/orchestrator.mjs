@@ -1,11 +1,28 @@
 import path from "node:path";
-import { get, inPaths } from "./config.mjs";
+import { existsSync, lstatSync, readFileSync, realpathSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { get, inPaths, memoryDir, DEFAULTS } from "./config.mjs";
 
 const MARKS = ["orchestrate", "adapt", "full-review", "next-step", "dream"];
 const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const list = (v) => (Array.isArray(v) && v.length ? v : null);
 const allow = { decision: "allow" };
 const lines = (s) => new Set(String(s ?? "").split("\n").map((l) => l.trim()));
+const DREAM = /^(xwf-)?dream-(analyzer|organizer)$/;
+// the real path; one that does not exist yet is its nearest existing parent's (lstat: a dangling link exists, and its realpath throws)
+const realOf = (p) => { const rest = []; while (p !== path.dirname(p)) { try { lstatSync(p); break; } catch { rest.unshift(path.basename(p)); p = path.dirname(p); } } return path.join(realpathSync(p), ...rest); };
+// under the memory folder of dream-<x> directly in the temp folder, whose .git file names a git folder that holds open's mark; files read only, no git
+function inRun(config, root, p) {
+  if (/(^|[\\/])\.\.([\\/]|$)/.test(p)) return false; // `..` after a link is not where path.resolve says
+  const abs = path.resolve(root, p.replaceAll("\\", "/"));
+  try {
+    const tmp = realpathSync(tmpdir()), parts = path.relative(tmp, realOf(abs)).split(path.sep);
+    const mem = (memoryDir(config.memory?.dir) ?? DEFAULTS.memory.dir).split("/");
+    if (!/^dream-./.test(parts[0]) || parts.length <= mem.length + 1 || mem.some((m, i) => parts[i + 1] !== m)) return false;
+    const gitdir = /^gitdir:\s*(.+?)\s*$/m.exec(readFileSync(path.join(tmp, parts[0], ".git"), "utf8"))?.[1];
+    return Boolean(gitdir) && existsSync(path.join(path.resolve(tmp, parts[0], gitdir), "dream-open"));
+  } catch { return false; }
+}
 
 export function decide(ev, ctx) {
   const { config } = ctx;
@@ -14,6 +31,8 @@ export function decide(ev, ctx) {
   const under = (p, prefixes) => { const r = rel(p); return !r.startsWith("..") && inPaths(r, prefixes); };
 
   if (ev.isSubagent) {
+    const away = DREAM.test(ev.agent ?? "") && (ev.writes ?? []).find((w) => typeof w?.path === "string" && !inRun(config, ev.root, w.path));
+    if (away) return deny(`${away.path}: ${ev.agent} writes only in the memory folder of the run's branch.`);
     const bad = (ev.writes ?? []).find((w) => under(w.path, config.paths.curated));
     return bad ? deny(`${bad.path} is curated by ${config.owner}: report the change you wanted instead.`) : allow;
   }

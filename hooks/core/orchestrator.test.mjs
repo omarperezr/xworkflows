@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync as makeTmp, mkdirSync, writeFileSync, rmSync } from "node:fs";
+import { mkdtempSync as makeTmp, mkdirSync, writeFileSync, rmSync, realpathSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { decide } from "./orchestrator.mjs";
@@ -96,6 +96,41 @@ test("subagent passes everything except a write under curated", () => {
   assert.ok(denied(decide(sub("write", { writes: [{ path: "/r/CLAUDE.md", content: "x" }] }), mk()), /report the change you wanted instead/));
   assert.ok(denied(decide(sub("write", { writes: [{ path: ".claude/rules/a.md", old: "a", new: "b" }] }), mk())));
   assert.ok(allowed(decide(ev("write", { writes: [{ path: "/r/CLAUDE.md", content: "x" }] }), mk())));
+});
+
+test("the two dream agents write only in the memory folder of a worktree that open made", () => {
+  const tmp = realpathSync(tmpdir());
+  const mark = (wt, made = true) => { // the shape open leaves: .git is a file naming a git folder that holds dream-open
+    const gd = mkdtempSync(join(tmp, "xwf-orch-gitdir-"));
+    if (made) writeFileSync(join(gd, "dream-open"), "dream/x\n");
+    writeFileSync(join(wt, ".git"), `gitdir: ${gd}\n`);
+  };
+  const run = (mem) => { const wt = mkdtempSync(join(tmp, "dream-")); mkdirSync(join(wt, mem), { recursive: true }); mkdirSync(join(wt, "src")); return wt; };
+  const other = mkdtempSync(join(tmp, "xwf-orch-other-"));
+  for (const mem of ["docs/memory", "notes/kept"]) {
+    const config = mem === "docs/memory" ? cfg : { ...cfg, memory: { ...cfg.memory, dir: mem } };
+    const x = run(mem), y = run(mem), z = run(mem);
+    mark(x);
+    mark(y, false);
+    mkdirSync(join(z, ".git")); writeFileSync(join(z, ".git", "dream-open"), ""); // .git a folder: not a worktree
+    symlinkSync(other, join(x, mem, "out"));
+    symlinkSync(join(other, "x.md"), join(x, mem, "l.md"));
+    symlinkSync(join(other, "missing.md"), join(x, mem, "gone.md")); // a link to a file not there yet
+    writeFileSync(join(other, "real.md"), "x");
+    symlinkSync(join(other, "real.md"), join(x, mem, "r.md"));
+    const w = (type, p, o = { content: "x" }) => decide(ev("write", { isSubagent: true, agent: type, writes: [{ path: p, ...o }] }), mk({ config }));
+    const yes = [join(x, mem, "note.md"), join(x, mem, "new", "deeper", "n.md")];
+    const no = ["/r/src/a.mjs", `/r/${mem}/n.md`, ".git/hooks/pre-push", ".claude/settings.json", join(other, "x.md"), join(x, "src", "a.mjs"), join(y, mem, "n.md"), join(z, mem, "n.md"), join(x, mem, "out", "x.md"), join(x, mem, "l.md"), `${x}/${mem}/out/../x.md`, `${x}/${mem}/../../src/a.mjs`, join(x, mem, "gone.md"), join(x, mem, "r.md"), join(x, mem)];
+    for (const type of ["dream-analyzer", "dream-organizer", "xwf-dream-analyzer", "xwf-dream-organizer"]) {
+      for (const p of yes) assert.ok(allowed(w(type, p)), `${type} ${p}`);
+      assert.ok(allowed(w(type, join(x, mem, "note.md"), { old: "a", new: "b" })));
+      for (const p of no) assert.ok(denied(w(type, p), /only in the memory folder of the run's branch/), `${type} ${p}`);
+    }
+    for (const type of ["explore", "dream-other", undefined]) for (const p of [...yes, ...no]) assert.ok(allowed(w(type, p)), `${type} ${p}`);
+    assert.ok(allowed(decide(ev("write", { writes: [{ path: join(other, "x.md"), content: "x" }] }), mk({ config }))));
+  }
+  for (const e of [{}, { writes: [{}] }, { writes: [{ path: 3 }] }])
+    assert.ok(allowed(decide({ event: "preTool", kind: "write", root: "/r", isSubagent: true, agent: "dream-organizer", ...e }, mk())), JSON.stringify(e));
 });
 
 test("risk reviewer needs a plan or spec in the prompt", () => {
