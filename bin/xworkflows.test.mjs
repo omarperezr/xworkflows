@@ -1395,6 +1395,40 @@ test("a hook that is a link stays chained as before the line: the link is rename
   assert.equal(readFileSync(hook, "utf8"), OLD);
   assert.ok(!existsSync(`${hook}.before-xworkflows`));
 });
+const ROOT_WRITES = process.getuid?.() === 0 && "root writes a file of mode 555";
+test("a migration that cannot write the user's hook leaves the old pair whole, says so in one line, and goes on", { skip: ROOT_WRITES }, () => {
+  const { r, bare } = chained(), hook = join(r, ".git/hooks/pre-push");
+  oldInstall(r);
+  chmodSync(`${hook}.before-xworkflows`, 0o555);
+  const out = cli(r, ["install"]);
+  assert.equal(out.status, 0, out.stderr);
+  assert.equal(out.stderr, "");
+  assert.match(out.stdout, /^not migrated \(EACCES\): \.git\/hooks\/pre-push stays chained the old way$/m);
+  assert.doesNotMatch(out.stdout, /^migrated /m);
+  assert.equal(readFileSync(hook, "utf8"), OLD_TEXT("chained", "pre-push"));
+  assert.equal(readFileSync(`${hook}.before-xworkflows`, "utf8"), OLD);
+  assert.deepEqual(readJson(r, ".xworkflows/installed.json").chained, [{ file: ".git/hooks/pre-push", to: ".git/hooks/pre-push.before-xworkflows" }]);
+  config(r, BAD);
+  commit(r, "a.txt", "fine\n");
+  assert.equal(pushed(r).status, 0);
+  commit(r, "b.txt", "BADWORD\n");
+  assert.match(pushed(r).stderr, /patterns: /);
+  assert.equal(git(bare, "rev-list --count main"), "1");
+});
+test("a first install over a hook it cannot write says so in one line for that hook, writes the rest, and records the hook as declined", { skip: ROOT_WRITES }, () => {
+  const { r } = chained(), hook = join(r, ".git/hooks/pre-push");
+  chmodSync(hook, 0o555);
+  const out = cli(r, ["install", "--yes"]);
+  assert.equal(out.status, 0, out.stderr);
+  assert.equal(out.stderr, "");
+  assert.match(out.stdout, /^not written \(EACCES\): \.git\/hooks\/pre-push$/m);
+  assert.equal(readFileSync(hook, "utf8"), OLD);
+  assert.ok(existsSync(join(r, ".git/hooks/post-commit")));
+  const rec = readJson(r, ".xworkflows/installed.json");
+  assert.deepEqual([rec.declined, rec.imports.filter((i) => i.file.startsWith(".git/"))], [[{ file: ".git/hooks/pre-push", what: "chain" }], []]);
+  assert.match(cli(r, ["uninstall"]).stdout, /uninstalled/);
+  assert.equal(readFileSync(hook, "utf8"), OLD);
+});
 test("an install chained the old way for a hook that cannot take the line keeps its pair, says nothing of it, and the check still runs", () => {
   const { r, bare } = withRemote(), hook = join(r, ".git/hooks/pre-push");
   writeFileSync(hook, NODE_HOOK); chmodSync(hook, 0o755);

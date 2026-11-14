@@ -472,11 +472,11 @@ export function plan(manifest, root, record, ans = {}) {
       if (!record.chained.some((c) => c.file === key)) hookMerges.push({ path, text: null, rec: { chained: [{ file: key, to: `${key}.before-xworkflows` }] } });
       continue;
     }
-    if (back) hookMerges.push({ path, key, back, text: null, hook: true, rec: {} });
     // the user's hook keeps its name and its place: it gets the line, or nothing, and the line is printed
     if (!back && record.declined.some((d) => d.file === key && d.what === "chain")) continue;
     const line = hookLine(name), declined = { path, text: null, rec: { declined: [{ file: key, what: "chain" }] } };
-    const was = back ? `migrated ${name}: ${path} has its name back; ` : "";
+    // a migration is one merge, done whole or not at all; a line that cannot be written leaves the old pair, or declines a first one
+    const merge = (t, rec) => hookMerges.push({ path: file, text: t, hook: !husky, rec, back, to: path, key, fail: back ? {} : declined.rec });
     if (chain) {
       // a hook that cannot take the line is chained as before it: renamed, and run first from install's hook
       if (ask(`chain:${name}`, `A ${name} hook exists. Chain it (it runs first, then ours)?`, ["no", "yes"]) === "no") { hookMerges.push(declined); continue; }
@@ -489,16 +489,14 @@ export function plan(manifest, root, record, ans = {}) {
       notes.push(`${file} is not a shell script: nothing written; to run the check, call this line from it as its first command: ${line}`);
       hookMerges.push(declined);
     } else if (text.split("\n").includes(line)) {
-      if (back) notes.push(`${was}${file} holds the xworkflows line`);
-      if (!record.imports.some((i) => i.file === fkey && i.line === line)) hookMerges.push({ path: file, text: null, rec: { imports: [{ file: fkey, line }] } });
-    } else if (text.split("\n").some((l) => l.endsWith(" # xworkflows"))) notes.push(`${was}kept (changed locally): ${file}`);
-    else if (!back && ask(`chain:${name}`, `A ${name} hook exists. Add the xworkflows line to ${file}? The line runs first, then the rest of the hook.`, ["no", "yes"]) === "no") {
+      if (back || !record.imports.some((i) => i.file === fkey && i.line === line)) merge(null, { imports: [{ file: fkey, line }] });
+    } else if (text.split("\n").some((l) => l.endsWith(" # xworkflows"))) {
+      notes.push(`kept (changed locally): ${file}`);
+      if (back) merge(null, {});
+    } else if (!back && ask(`chain:${name}`, `A ${name} hook exists. Add the xworkflows line to ${file}? The line runs first, then the rest of the hook.`, ["no", "yes"]) === "no") {
       notes.push(`${file} left as it is; to run the check, add this line to it as its first command: ${line}`);
       hookMerges.push(declined);
-    } else {
-      if (back) notes.push(`${was}${file} holds the xworkflows line`);
-      hookMerges.push({ path: file, text: withLine(text, line), hook: !husky, rec: { imports: [{ file: fkey, line }], created: at ? [] : [file] } });
-    }
+    } else merge(withLine(text, line), { imports: [{ file: fkey, line }], created: at ? [] : [file] });
   }
   // install and uninstall share one test: a path with a symlink component is never written or merged
   const hookPaths = new Set(writes.filter((w) => w.src && HOOKS.includes(w.src)).map((w) => w.path));
@@ -591,18 +589,25 @@ export function apply(pl, root, manifest, record) {
     out.push(w.path);
   }
   const next = { ...record, xworkflows: manifest.version, tools: ["claude"], pieces: {}, files: {}, dirs: [...new Set([...(record.dirs ?? []), ...made])], kept: [...new Set([...record.kept, ...pl.kept])], renamed: { ...record.renamed, ...pl.renamed } };
+  const moved = [];
   for (const m of pl.merges) {
+    let rec = m.rec;
     try {
       if (m.dir) { linked(m.path); mk(m.path); mkdirSync(join(root, m.path), { recursive: true }); out.push(m.path); }
-      if (m.back) { renameSync(join(root, m.back), join(root, m.path)); out.push(`renamed ${m.back} to ${m.path}`); }
-      if (m.text !== null) { put(root, m.path, m.text, undefined, m.hook); out.push(m.path); }
+      // a migration writes the line into the old file first and renames it over the hook after: a failed write leaves the old pair whole
+      if (m.text !== null) put(root, m.back && m.path === m.to ? m.back : m.path, m.text, undefined, m.hook);
+      if (m.back) {
+        renameSync(join(root, m.back), join(root, m.to)); moved.push(m.key);
+        out.push(`migrated ${basename(m.to)}: ${m.to} has its name back${m.rec.imports ? `; ${m.path} holds the xworkflows line` : ""}`);
+      } else if (m.text !== null) out.push(m.path);
     } catch (e) {
-      // the new writes of the memory folder and the yml: say so, record nothing, go on
-      if (!m.verb) throw e;
-      out.push(`not written: ${m.path}`);
-      continue;
+      // the new writes of the memory folder and the yml: say so, record nothing, go on; a hook's line the same, in one line, without a stack
+      if (!m.verb && !m.fail) throw e;
+      out.push(m.verb ? `not written: ${m.path}` : m.back ? `not migrated (${e.code}): ${m.to} stays chained the old way` : `not written (${e.code ?? "symlink"}): ${m.path}`);
+      if (!m.fail) continue;
+      rec = m.fail;
     }
-    for (const [k, list] of Object.entries(m.rec)) {
+    for (const [k, list] of Object.entries(rec)) {
       next[k] = [...next[k]];
       // the replaced entry of a hook leaves the record
       if (k === "merged") for (const x of list) { const gone = next[k].find((y) => x.entry?.hooks && x.file === y.file && isDeepStrictEqual(x.key, y.key) && x.entry.hooks[0].command === y.entry?.hooks?.[0]?.command); if (gone?.createdKey) { x.createdKey = true; x.levels = gone.levels; } }
@@ -611,7 +616,7 @@ export function apply(pl, root, manifest, record) {
     }
   }
   // a hook migrated from the old way is chained no more
-  next.chained = next.chained.filter((c) => !pl.merges.some((m) => m.back && m.key === c.file));
+  next.chained = next.chained.filter((c) => !moved.includes(c.file));
   // a unit whose folder or agent file is gone leaves its line of .graphifyignore, and the record its entry
   for (const line of new Set(pl.retired.map(giLine).filter((l) => l && !existsSync(join(root, l))))) {
     const t = read(root, GI), ls = t?.split("\n") ?? [];
