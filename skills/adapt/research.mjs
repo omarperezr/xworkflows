@@ -120,6 +120,10 @@ const readJson = (p) => JSON.parse(readFileSync(p, "utf8"));
 const statusOf = (f) => (existsSync(f) ? (readFileSync(f, "utf8").match(/^status:\s*["']?(\w+)/mi) || [])[1]?.toLowerCase() : null) || null;
 // The summary's sha256, as the adapt-gates hook keeps it from a Write; null when there is none.
 const shaOf = (f) => { try { return createHash("sha256").update(readFileSync(f)).digest("hex"); } catch { return null; } };
+// The same hash of the summary git holds at HEAD; null when HEAD has none.
+const headSha = (root) => { try { return createHash("sha256").update(execFileSync("git", ["cat-file", "blob", "HEAD:.xworkflows/summary.md"], { cwd: root, stdio: ["ignore", "pipe", "ignore"] })).digest("hex"); } catch { return null; } };
+// A run file start wrote with the hash of the summary it found; one an earlier version wrote, or any other JSON, has none.
+const marked = (r) => r !== null && typeof r === "object" && "startSha" in r;
 
 // A tracked symlink under .xworkflows would send the write outside the project.
 const isLink = (f) => { try { return lstatSync(f).isSymbolicLink(); } catch { return false; } };
@@ -193,11 +197,11 @@ function cli(cmd, root) {
     console.log(run.run);
   } else if (cmd === "done") {
     // The approved summary written in this run makes its research the base of the next re-adapt.
-    // Written in this run: its hash is not the one start found, or a Write of this run gave it.
+    // Written in this run: a Write of this run gave it, or (in a run with a start mark) its hash is neither the one start found nor the one git holds at HEAD.
     let r = null;
     try { r = readJson(runFile); } catch {}
     const h = shaOf(summary);
-    if (r && statusOf(summary) === "approved" && (h !== r.startSha || h === r.summarySha)) {
+    if (r && statusOf(summary) === "approved" && (h === r.summarySha || (marked(r) && h !== r.startSha && h !== headSha(root)))) {
       // the adapt-gates hook kept the hash of the last summary Write it allowed; any other text on disk came another way
       if (h !== r.summarySha && process.env.XWORKFLOWS_FREE) {
         process.stderr.write("xworkflows: research.mjs done: the summary check skipped by XWORKFLOWS_FREE\n");

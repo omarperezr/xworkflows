@@ -186,6 +186,29 @@ test("with research.json absent, a changed approved summary no Write gave is ref
   assert.match(r.stderr, NOT_WRITTEN);
   assert.ok(existsSync(X(d, "adapt-run.json")));
 });
+test("a left re-adapt whose tracked summary a pull or a branch switch changed to another committed text is cleared by done", () => {
+  const d = leftRun();
+  execFileSync("git", ["checkout", "-q", "-b", "other"], { cwd: d });
+  writeFileSync(X(d, "summary.md"), "---\nstatus: approved\n---\nanother adaptation\n");
+  execFileSync("git", [...G, "commit", "-qm", "adapt again", "--", ".xworkflows/summary.md"], { cwd: d });
+  const r = cli(d, "done");
+  assert.deepEqual([r.status, r.stderr], [0, ""]);
+  assert.ok(!existsSync(X(d, "adapt-run.json")));
+  assert.ok(!existsSync(X(d, "research.prev.json")));
+});
+test("a run file with no start mark is cleared by done, its approved summary not compared", () => {
+  const old = { run: "0123abcd-x", commit: "0123abcd", startedAt: Date.now(), mismatches: 0 }; // as the version before wrote it
+  for (const form of [JSON.stringify(old), "{}", "[]", "5", '"x"']) {
+    const d = repo();
+    writeFileSync(X(d, "research.json"), '{"x":1}');
+    writeFileSync(X(d, "summary.md"), "---\nstatus: approved\n---\n");
+    writeFileSync(X(d, "adapt-run.json"), form);
+    const r = cli(d, "done");
+    assert.deepEqual([form, r.status, r.stderr], [form, 0, ""]);
+    assert.ok(!existsSync(X(d, "adapt-run.json")));
+    assert.ok(!existsSync(X(d, "research.prev.json")));
+  }
+});
 
 test("with XWORKFLOWS_FREE, done skips the summary check as the gate does and says so", () => {
   const d = repo();
