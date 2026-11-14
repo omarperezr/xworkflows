@@ -169,7 +169,7 @@ test("SKILL.md: the question says only what the lists know; a refused close is s
   assert.match(ask, /`unfinished`/);
   assert.match(ask, /not merged into main/);
   assert.doesNotMatch(ask, /not on the main branch/);
-  assert.doesNotMatch(ask, /waiting[^;]*read again/);
+  assert.match(ask, /a branch of that list that was not adopted has its sessions read again by this run, which is paid again; one adopted by a squash merge stays in the list and is not read again/);
   const close = t.split("\n").find((l) => l.startsWith("7."));
   for (const k of ["`refused`", "`look`", "`masked`", "`worktree`", "`finish`"]) assert.ok(close.includes(k), k);
 });
