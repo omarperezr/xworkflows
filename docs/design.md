@@ -552,13 +552,12 @@ the report only, with the sessions that support it. Turning it into a rule in
 `AGENTS.md` stays the owner's act, because that file is curated. The moment
 that suggests a run is not built (card P-120).
 
-The limit of the mask. The report says each time: the mask sees a secret of a
-known form, a value right after a credential word of its list and `=`, `:` or
-a quote (or on the next line when the word ends its line), and the values of
-`-u name:value` and `-p value`; it does not see a value with other words
-between it and the word, a word outside the list or in another language, a
-value in a later message, or a password with no such word near it, so read the
-change before adopting it.
+The limit of the mask. The report says each time: the mask is proven only on a private key
+block, the password inside a URL, and a key that begins with sk-, sk_live_, sk_test_, rk_live_, rk_test_, ghp_,
+gho_, ghu_, ghs_, ghr_, github_pat_, AKIA, xoxb-, xoxa-, xoxp-, xoxr-, xoxs-
+or eyJ; a value beside a credential word (a password, a token, a secret) is
+masked in some layouts and not in others, so do not count on it; anything
+else passes; so read the lines of `look` and the change before adopting it.
 
 Rules every agent in the run holds, taken from the recipe:
 

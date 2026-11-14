@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { shapes } from "./extract.mjs";
 
 const read = (p) => readFileSync(new URL(p, import.meta.url), "utf8");
 const text = read("./dream.workflow.js");
@@ -146,7 +147,7 @@ for (const n of ["dream-analyzer", "dream-organizer"]) {
   });
 }
 
-const LIMIT = "the mask sees a secret of a known form, a value right after a credential word of its list and `=`, `:` or a quote (or on the next line when the word ends its line), and the values of `-u name:value` and `-p value`; it does not see a value with other words between it and the word, a word outside the list or in another language, a value in a later message, or a password with no such word near it, so read the change before adopting it";
+const LIMIT = "the mask is proven only on a private key block, the password inside a URL, and a key that begins with sk-, sk_live_, sk_test_, rk_live_, rk_test_, ghp_, gho_, ghu_, ghs_, ghr_, github_pat_, AKIA, xoxb-, xoxa-, xoxp-, xoxr-, xoxs- or eyJ; a value beside a credential word (a password, a token, a secret) is masked in some layouts and not in others, so do not count on it; anything else passes; so read the lines of `look` and the change before adopting it";
 
 test("the limit of the mask is said as it is in the report step, in design 7.9 and in the gaps", () => {
   const report = read("./SKILL.md").split("\n").find((l) => l.startsWith("8."));
@@ -154,7 +155,29 @@ test("the limit of the mask is said as it is in the report step, in design 7.9 a
   const d = read("../../docs/design.md");
   assert.ok(d.slice(d.indexOf("### 7.9")).replace(/\s+/g, " ").includes(LIMIT));
   assert.ok(read("../../docs/gaps.md").includes(LIMIT));
-  assert.doesNotMatch(report, /beside a credential word/);
+  for (const bad of ["right after a credential word", "on the next line", "-u name:value"]) assert.ok(!LIMIT.includes(bad), bad);
+});
+
+// one row per form the sentence names: the words, and a made-up example built from parts
+const A = "Zq7", B = "Lm4Xt9Rw2Vb8Nc5Hd6Jk3";
+const FORMS = [
+  ["a private key block", "-----BEGIN " + "PRIVATE KEY-----\n" + B + "\n-----END " + "PRIVATE KEY-----", B],
+  ["the password inside a URL", "https" + "://admin:" + B + "@host.example/x", B],
+  ...[["sk-", "sk-"], ["sk_live_", "sk_live_"], ["sk_test_", "sk_test_"], ["rk_live_", "rk_live_"], ["rk_test_", "rk_test_"],
+    ["ghp_", "ghp_"], ["gho_", "gho_"], ["ghu_", "ghu_"], ["ghs_", "ghs_"], ["ghr_", "ghr_"], ["github_pat_", "github_pat_"], ["AKIA", "AKIA"],
+    ["xoxb-", "xoxb-"], ["xoxa-", "xoxa-"], ["xoxp-", "xoxp-"], ["xoxr-", "xoxr-"], ["xoxs-", "xoxs-"]]
+    .map(([w, p]) => [w, `key ${p}${w === "AKIA" ? "ABCD1234EFGH5678" : B + A}`, w === "AKIA" ? "ABCD1234EFGH5678" : B]),
+  ["eyJ", "key " + "eyJ" + "hbGciOi" + "." + B + "." + A + "sig", B],
+];
+
+test("the limit names each form once, and each form is masked by shapes", () => {
+  for (const [words, example, secret] of FORMS) {
+    assert.ok(LIMIT.includes(words), words);
+    assert.ok(!shapes(example)[0].includes(secret), words);
+  }
+  const named = LIMIT.slice(LIMIT.indexOf("a key that begins with ") + 23, LIMIT.indexOf(";")).split(/, | or /);
+  assert.equal(FORMS.length, 2 + named.length);
+  assert.deepEqual(FORMS.slice(2).map((f) => f[0]), named);
 });
 
 test("a refused commit says the mask does not see every secret and points at `look`", () => {
