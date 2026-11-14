@@ -2458,3 +2458,33 @@ test("doctor: for a hooks folder outside the repository the line it prints runs 
   writeFileSync(join(other, ".xworkflows/checks/run.mjs"), "process.exit(3);\n");
   assert.equal(run(other).status, 3);
 });
+
+// doctor says ok for a hook of a folder outside the repository only when git will run the check line
+function outsideHook(body, { mode = 0o755, link = false } = {}) {
+  const g = tmp("xwf-ghooks-");
+  const env = { GIT_CONFIG_GLOBAL: outside(g) };
+  const r = repo();
+  assert.equal(cli(r, ["install", "--yes"], { env }).status, 0);
+  const line = doctor(r, env).stdout.match(/^fail pre-push hook: core\.hooksPath points outside.*file is: (.+?) ; or point/m)?.[1];
+  assert.ok(line);
+  const real = link ? join(tmp("xwf-real-"), "hook.sh") : join(g, "pre-push");
+  writeFileSync(real, body(line), { mode });
+  chmodSync(real, mode);
+  if (link) symlinkSync(real, join(g, "pre-push"));
+  return { out: doctor(r, env).stdout, g };
+}
+const OK_LINE = /^ok +pre-push hook of the folder outside this repository runs the check$/m;
+test("doctor: a pre-push hook of an outside folder holding the line but not executable is a fail that says chmod +x", () => {
+  const { out, g } = outsideHook((l) => `#!/bin/sh\n${l}\n`, { mode: 0o644 });
+  assert.doesNotMatch(out, OK_LINE);
+  assert.match(out, new RegExp(`^fail +.*chmod \\+x ${join(g, "pre-push").replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "m"));
+});
+test("doctor: a pre-push hook of an outside folder with the line commented out is not ok", () => {
+  assert.doesNotMatch(outsideHook((l) => `#!/bin/sh\n# ${l}\n`).out, OK_LINE);
+});
+test("doctor: a pre-push hook of an outside folder with the line after an exit is not ok", () => {
+  assert.doesNotMatch(outsideHook((l) => `#!/bin/sh\nexit 0\n${l}\n`).out, OK_LINE);
+});
+test("doctor: a pre-push hook of an outside folder that is a link to a file holding the line is ok", () => {
+  assert.match(outsideHook((l) => `#!/bin/sh\n${l}\n`, { link: true }).out, OK_LINE);
+});

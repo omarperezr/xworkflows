@@ -2,7 +2,7 @@
 import { execFileSync, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { createInterface } from "node:readline/promises";
-import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, readlinkSync, realpathSync, renameSync, rmSync, rmdirSync, statSync, writeFileSync } from "node:fs";
+import { accessSync, chmodSync, constants, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, readlinkSync, realpathSync, renameSync, rmSync, rmdirSync, statSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { basename, dirname, isAbsolute, join, normalize, posix, relative, resolve, sep } from "node:path";
 import { isDeepStrictEqual } from "node:util";
@@ -778,10 +778,18 @@ async function doctor() {
     const cur = lstatSync(join(ROOT, hp), { throwIfNoEntry: false })?.isFile() ? read(ROOT, hp) : null;
     // the record's key for it: .git/hooks/pre-push whichever checkout this is, unless core.hooksPath moved the folder
     const key = hookKey(ROOT, "pre-push");
+    // the folder outside the repository: the file is read through a link; the line must stand on its own and before any exit, and git runs only an executable file
+    const theirs = { path: resolve(hooksFolder(ROOT), "pre-push"), live: false, exec: false };
+    try {
+      const ls = readFileSync(theirs.path, "utf8").split("\n").map((l) => l.trim()), at = ls.indexOf(GUARDED);
+      theirs.live = at >= 0 && !ls.slice(0, at).some((l) => /^exit\b/.test(l));
+      accessSync(theirs.path, constants.X_OK); theirs.exec = true;
+    } catch {}
     if (cur !== null && [false, true].some((c) => cur === hookText("pre-push", c))) say("ok", "pre-push hook is ours");
     else if (cur !== null && rec.files[key]) say("warn", `pre-push hook changed locally: it may no longer run the check; make it run: ${CHECK}`);
     else if (rec.declined.some((d) => d.file === key && d.what === "chain")) say("warn", `pre-push hook is yours: chaining declined at install; add this line to it: ${CHECK}`);
-    else if (ownHooks(ROOT) === null && cur?.includes(GUARDED)) say("ok", "pre-push hook of the folder outside this repository runs the check");
+    else if (ownHooks(ROOT) === null && theirs.live && theirs.exec) say("ok", "pre-push hook of the folder outside this repository runs the check");
+    else if (ownHooks(ROOT) === null && theirs.live) say("fail", `pre-push hook of the folder outside this repository holds the check but is not executable, so git ignores it: chmod +x ${sh(theirs.path)}`);
     else if (ownHooks(ROOT) === null) say("fail", `pre-push hook: core.hooksPath points outside this repository, where install writes no hook; either add this line to the pre-push hook of that folder, which then runs it in every repository that uses the folder, and runs the check only where the file is: ${GUARDED} ; or point this repository at its own hooks folder, after which the hooks of the other folder no longer run here: run: git config core.hooksPath "$(git rev-parse --path-format=absolute --git-common-dir)/hooks"; then ${INSTALL}`);
     else say("fail", `pre-push hook is missing or not ours: ${INSTALL}`);
     let st = {}, local = {};
