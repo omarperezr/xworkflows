@@ -196,6 +196,31 @@ test("a left re-adapt whose tracked summary a pull or a branch switch changed to
   assert.ok(!existsSync(X(d, "adapt-run.json")));
   assert.ok(!existsSync(X(d, "research.prev.json")));
 });
+test("start keeps the start mark of an open run: an approved summary a shell wrote stays refused after a second start, and a Write lets done pass", () => {
+  const d = repo();
+  writeFileSync(X(d, "research.json"), '{"x":1}');
+  writeFileSync(X(d, "summary.md"), "---\nstatus: draft\n---\n");
+  cli(d, "start");
+  writeFileSync(X(d, "summary.md"), "---\nstatus: approved\n---\n");
+  for (let i = 0; i < 2; i++) {
+    const r = cli(d, "done");
+    assert.equal(r.status, 1);
+    assert.match(r.stderr, NOT_WRITTEN);
+    assert.ok(existsSync(X(d, "adapt-run.json")));
+    if (i === 0) assert.equal(cli(d, "start").status, 0);
+  }
+  writeSummary(d, "---\nstatus: approved\n---\n");
+  assert.deepEqual([cli(d, "done").status, existsSync(X(d, "adapt-run.json")), existsSync(X(d, "research.prev.json"))], [0, false, true]);
+});
+test("a re-adapt started again after a pull brought another committed summary is not refused at its end", () => {
+  const d = leftRun();
+  writeFileSync(X(d, "summary.md"), "---\nstatus: approved\n---\nanother adaptation\n");
+  execFileSync("git", [...G, "commit", "-qm", "pulled", "--", ".xworkflows/summary.md"], { cwd: d });
+  assert.equal(cli(d, "start").status, 0);
+  const r = cli(d, "done");
+  assert.deepEqual([r.status, r.stderr], [0, ""]);
+  assert.ok(!existsSync(X(d, "adapt-run.json")));
+});
 test("a run file with no start mark is cleared by done, its approved summary not compared", () => {
   const old = { run: "0123abcd-x", commit: "0123abcd", startedAt: Date.now(), mismatches: 0 }; // as the version before wrote it
   for (const form of [JSON.stringify(old), "{}", "[]", "5", '"x"']) {
