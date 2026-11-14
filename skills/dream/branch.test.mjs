@@ -255,3 +255,22 @@ test("unseen names a note committed on another branch than main", () => {
   git(root, "add", "-A"); git(root, "commit", "-q", "-m", "w");
   assert.deepEqual(json(run(["unseen"], root)), ["docs/memory/w.md"]);
 });
+
+test("close never reads or writes through a link under the memory folder, and names each link in outside", () => {
+  const root = repo();
+  const o = opened(root);
+  const away = realpathSync(mkdtempSync(join(tmpdir(), "dream-b-away-")));
+  made.push(away);
+  const links = ["leak.md", "MEMORY.md", "dream.json"];
+  for (const name of links) {
+    writeFileSync(join(away, name), `---\nname: away\ndescription: away\n---\n${pw}\n`);
+    rmSync(join(o.memory, name), { force: true });
+    symlinkSync(join(away, name), join(o.memory, name));
+  }
+  const before = links.map((name) => readFileSync(join(away, name)));
+  const r = run(["close", "--worktree", o.worktree, "--out", extracted()], root);
+  assert.equal(r.code, 0, r.stdout);
+  assert.deepEqual(links.map((name) => readFileSync(join(away, name))), before);
+  assert.deepEqual(json(r).outside.sort(), links.map((name) => `docs/memory/${name}`).sort());
+  assert.equal(git(root, "ls-tree", "--name-only", o.branch, "docs/memory/leak.md"), "");
+});

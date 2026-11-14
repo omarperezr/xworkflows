@@ -1,7 +1,7 @@
 // Opens the branch of a dream run in a worktree, and closes the run. No model.
 // Usage: node branch.mjs unseen | open
 //        node branch.mjs close --worktree <folder> --out <the extract's folder>
-import { readFileSync, readdirSync, writeFileSync, mkdtempSync, existsSync, realpathSync, rmSync } from "node:fs";
+import { readFileSync, readdirSync, writeFileSync, mkdtempSync, existsSync, realpathSync, rmSync, lstatSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -16,6 +16,8 @@ const stale = await shared("checks/stale-memory.mjs");
 
 const MARK = "dream-open"; // in the worktree's own git folder: close takes only a worktree that open made
 const arg = (argv, k) => (argv.includes(k) ? argv[argv.indexOf(k) + 1] : undefined);
+// a link under the memory folder is never read or written through: it stays out of the commit and is named in outside
+const link = (p) => lstatSync(p, { throwIfNoEntry: false })?.isSymbolicLink() === true;
 
 export function run(argv, root) {
   const env = { ...process.env };
@@ -64,25 +66,27 @@ export function run(argv, root) {
       if (!entry || !existsSync(join(git(real, "rev-parse", "--absolute-git-dir"), MARK)))
         return { code: 2, stdout: `--worktree is not a worktree that open made in this repository: ${given}\n` };
       const { branch } = entry, memory = join(real, dir), state = join(memory, "dream.json");
-      const { sessions = {} } = existsSync(state) ? JSON.parse(readFileSync(state, "utf8")) : {};
+      const { sessions = {} } = existsSync(state) && !link(state) ? JSON.parse(readFileSync(state, "utf8")) : {};
 
-      if (existsSync(memory)) {
-        const files = readdirSync(memory).filter((f) => f.endsWith(".md") && f !== "MEMORY.md").map((file) => ({ file, text: readFileSync(join(memory, file), "utf8") }));
-        const index = join(memory, "MEMORY.md"), text = buildIndex(files);
+      const index = join(memory, "MEMORY.md");
+      if (existsSync(memory) && !link(index)) {
+        const files = readdirSync(memory, { withFileTypes: true }).filter((e) => e.isFile() && e.name.endsWith(".md") && e.name !== "MEMORY.md")
+          .map(({ name: file }) => ({ file, text: readFileSync(join(memory, file), "utf8") }));
+        const text = buildIndex(files);
         let old = null;
         try { old = readFileSync(index, "utf8"); } catch { /* no index yet */ }
         if (old !== text && (text || old !== null)) writeFileSync(index, text);
       }
-      writeFileSync(state, JSON.stringify({ sessions: { ...sessions, ...Object.fromEntries(extract.sessions.map((s) => [s.name, s.lines])) } }, null, 2) + "\n");
+      if (!link(state)) writeFileSync(state, JSON.stringify({ sessions: { ...sessions, ...Object.fromEntries(extract.sessions.map((s) => [s.name, s.lines])) } }, null, 2) + "\n");
 
       const date = /^dream\/(\d{4}-\d\d-\d\d)/.exec(branch)?.[1] ?? branch;
       git(real, "reset", "-q"); // the index holds only what this close stages
       git(real, "add", "-A", "--", dir);
-      // the mask runs on what the commit takes against main; a binary file cannot be masked, so it stays out and is named in outside
+      // the mask runs on what the commit takes against main; a binary file cannot be masked and a link is not followed, so they stay out and are named in outside
       const masked = [];
-      for (const l of git(real, "diff", "--cached", "--merge-base", main, "--no-renames", "--diff-filter=AM", "--numstat", "-z", "--", dir).split("\0").filter(Boolean)) {
+      for (const l of git(real, "diff", "--cached", "--merge-base", main, "--no-renames", "--diff-filter=AMT", "--numstat", "-z", "--", dir).split("\0").filter(Boolean)) {
         const [a, , file] = l.split("\t");
-        if (a === "-") { git(real, "reset", "-q", "--", file); continue; }
+        if (a === "-" || link(join(real, file))) { git(real, "reset", "-q", "--", file); continue; }
         const [text, count] = mask(readFileSync(join(real, file), "utf8"));
         if (count) { writeFileSync(join(real, file), text); git(real, "add", "--", file); masked.push({ file, count }); }
       }
