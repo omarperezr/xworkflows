@@ -35,5 +35,5 @@ return {
   merged: merged?.merged ?? 0,
   conflicts: merged?.conflicts ?? 0,
   proposals: ok.flatMap((r) => r.proposals),
-  missing: found.length - ok.length,
+  missing: sessions.filter((_, i) => !found[i]).map((f) => f.split(/[\\/]/).pop().replace(/\.txt$/, "")), // the session names close takes in --not-read
 };

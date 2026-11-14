@@ -56,10 +56,10 @@ test("no focus: no focus line in the prompts", async () => {
   assert.ok(calls.every((c) => !/focus/i.test(c.prompt)));
 });
 
-test("an analyzer that returns nothing is counted in missing and the organizer still runs", async () => {
+test("an analyzer that returns nothing is named in missing and the organizer still runs", async () => {
   const { calls, result } = await run(ARGS, { "xwf-dream-analyzer": (p, o) => (o.label === "analyze 2" ? null : { proposals: [] }) });
   assert.equal(calls.length, 4);
-  assert.equal(result.missing, 1);
+  assert.deepEqual(result.missing, ["two"]);
 });
 
 test("the result has the four keys", async () => {
@@ -68,7 +68,7 @@ test("the result has the four keys", async () => {
   assert.equal(result.merged, 3);
   assert.equal(result.conflicts, 1);
   assert.deepEqual(result.proposals, [1, 2, 3].map((i) => ({ rule: "Never skip tests", session: `analyze ${i}` })));
-  assert.equal(result.missing, 0);
+  assert.deepEqual(result.missing, []);
 });
 
 test("a rule an analyzer proposed is returned and never enters the organizer's prompt", async () => {
