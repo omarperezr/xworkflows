@@ -6,6 +6,8 @@ import { mkdtempSync as makeTmp, mkdirSync, writeFileSync, existsSync, rmSync, u
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { sum, verifyCitation, buildQueue, missing } from "./research.mjs";
+import { decide } from "../../hooks/core/adapt-gates.mjs";
+import { makeCtx } from "../../hooks/core/ctx.mjs";
 const madeTmp = [];
 const mkdtempSync = (p) => { const d = makeTmp(p); madeTmp.push(d); return d; };
 test.after(() => { for (const d of madeTmp) rmSync(d, { recursive: true, force: true }); });
@@ -27,6 +29,12 @@ const cli = (d, cmd) => spawnSync("node", [MJS, cmd], { cwd: d, encoding: "utf8"
 const rj = (d, f) => JSON.parse(readFileSync(join(d, ".xworkflows", f), "utf8"));
 const rt = (d, f) => readFileSync(join(d, ".xworkflows", f), "utf8");
 const X = (d, f) => join(d, ".xworkflows", f);
+// The summary saved as the Write tool saves it: the adapt gate allows the Write (and keeps its hash), then the file is written.
+function writeSummary(d, text) {
+  const ev = { event: "preTool", tool: "Write", kind: "write", session: "s", root: d, writes: [{ path: X(d, "summary.md"), content: text }] };
+  assert.equal(decide(ev, { ...makeCtx(ev, { env: process.env, config: {}, stateDir: tmpdir() }), runCheck: () => ({ code: 0 }) }).decision, "allow");
+  writeFileSync(X(d, "summary.md"), text);
+}
 
 // The Workflow result, version 3, its keys in the script's order.
 function sample(over = {}) {
@@ -77,7 +85,7 @@ test("prev is saved by done when the approved summary is written, never by start
   const d = repo();
   writeFileSync(X(d, "research.json"), '{"x":1}');
   cli(d, "start");
-  writeFileSync(X(d, "summary.md"), "---\nstatus: approved\n---\n");
+  writeSummary(d, "---\nstatus: approved\n---\n");
   cli(d, "done");
   assert.equal(readFileSync(X(d, "research.prev.json"), "utf8"), '{"x":1}');
   // a re-adapt that stops before the summary is approved again keeps the old prev
@@ -90,6 +98,42 @@ test("prev is saved by done when the approved summary is written, never by start
   // done with no run file copies nothing
   rmSync(X(d, "research.prev.json"));
   cli(d, "done");
+  assert.ok(!existsSync(X(d, "research.prev.json")));
+});
+
+const NOT_WRITTEN = /^adapt: the summary on disk is not the one written with the Write tool; write it again with Write, then run research\.mjs done again\n$/;
+test("done refuses an approved summary that a shell write changed after the Write, and keeps the run", () => {
+  const d = repo();
+  writeFileSync(X(d, "research.json"), '{"x":1}');
+  cli(d, "start");
+  writeSummary(d, "---\nstatus: approved\n---\n");
+  writeFileSync(X(d, "summary.md"), "---\nstatus: approved\n---\nadded by a shell\n");
+  const r = cli(d, "done");
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, NOT_WRITTEN);
+  assert.ok(existsSync(X(d, "adapt-run.json")));
+  assert.ok(!existsSync(X(d, "research.prev.json")));
+  writeSummary(d, "---\nstatus: approved\n---\nadded by a shell\n");
+  assert.equal(cli(d, "done").status, 0);
+  assert.ok(existsSync(X(d, "research.prev.json")));
+});
+test("done passes an approved summary that is what the Write wrote", () => {
+  const d = repo();
+  writeFileSync(X(d, "research.json"), '{"x":1}');
+  cli(d, "start");
+  writeSummary(d, "---\nstatus: approved\n---\n");
+  const r = cli(d, "done");
+  assert.deepEqual([r.status, r.stderr], [0, ""]);
+  assert.ok(!existsSync(X(d, "adapt-run.json")));
+});
+test("done refuses an approved summary when no Write of it was kept", () => {
+  const d = repo();
+  writeFileSync(X(d, "research.json"), '{"x":1}');
+  cli(d, "start");
+  writeFileSync(X(d, "summary.md"), "---\nstatus: approved\n---\n");
+  const r = cli(d, "done");
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, NOT_WRITTEN);
   assert.ok(!existsSync(X(d, "research.prev.json")));
 });
 
@@ -523,7 +567,7 @@ function approved(answers, status = "approved") {
   const run = cli(d, "start").stdout.trim();
   writeFileSync(X(d, "interview.json"), JSON.stringify([{ id: "S1-1" }, { id: "S1-2" }]));
   writeFileSync(X(d, "interview.log.jsonl"), answers.map(([id, answer]) => JSON.stringify({ run, id, question: "q", answer })).join("\n") + "\n");
-  writeFileSync(X(d, "summary.md"), `---\nstatus: ${status}\n---\n`);
+  (status === "approved" ? writeSummary : (d, t) => writeFileSync(X(d, "summary.md"), t))(d, `---\nstatus: ${status}\n---\n`);
   return d;
 }
 
@@ -550,7 +594,7 @@ test("queue run twice gives the same ids; the next run asks only the sentence no
   assert.deepEqual(s1(), ["S1-2"]);
   const run = cli(d, "start").stdout.trim();
   writeFileSync(X(d, "interview.log.jsonl"), JSON.stringify({ run, id: "S1-2", question: "q", answer: "Right" }) + "\n");
-  writeFileSync(X(d, "summary.md"), `---\nstatus: approved\ncommit: ${head}\n---\n`);
+  writeSummary(d, `---\nstatus: approved\ncommit: ${head}\n---\n`);
   cli(d, "done");
   assert.deepEqual(rj(d, "research.answered.json"), [A1, { text: "Ids are never reused.", at: "a.js:3", answer: "Right" }]);
 });
@@ -689,7 +733,7 @@ test("done keeps an old answer only for a sentence skipped because it was answer
   const queue = [...THIRTY.slice(0, 12).map((_, i) => ({ id: `S1-${i + 1}` })), { id: "S1-more" }, ...THIRTY.slice(12, 24).map((_, i) => ({ id: `S1-${i + 13}` }))];
   writeFileSync(X(d, "interview.json"), JSON.stringify(queue));
   writeFileSync(X(d, "interview.log.jsonl"), queue.filter((q) => q.id !== "S1-more").map((q) => JSON.stringify({ run, id: q.id, question: "q", answer: "Right" })).join("\n") + "\n");
-  writeFileSync(X(d, "summary.md"), `---\nstatus: approved\n---\n`);
+  writeSummary(d, `---\nstatus: approved\n---\n`);
   cli(d, "done");
   assert.equal(rj(d, "research.answered.json").length, 24);
 });
