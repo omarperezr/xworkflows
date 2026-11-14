@@ -2313,11 +2313,16 @@ test("doctor: for husky's shim it looks in the file one folder up, and names tha
   writeFileSync(file, `${line}\necho mine\n`);
   assert.match(doctor(r).stdout, /^ok +pre-push hook runs the check$/m);
 });
-test("doctor: a hook of lefthook fails with the line to add as a command of lefthook", () => {
-  const r = repo({ ".git/hooks/pre-push": '#!/bin/sh\nlefthook run "pre-push" "$@"\n' });
-  chmodSync(join(r, ".git/hooks/pre-push"), 0o755);
-  cli(r, ["install"]);
-  assert.match(doctor(r).stdout, /^fail pre-push hook is lefthook's and does not run the check: add this line as a command of lefthook for pre-push: .+ # xworkflows$/m);
+test("doctor: a declined hook that cannot take the line is told to chain it, never to add the line", () => {
+  const CHAIN = /^warn pre-push hook is yours: chaining declined at install; run xworkflows install and answer yes to chain it$/m;
+  for (const body of ['#!/bin/sh\nlefthook run "pre-push" "$@"\n', "#!/usr/bin/env node\nprocess.exit(0)\n"]) {
+    const r = repo({ ".git/hooks/pre-push": body });
+    chmodSync(join(r, ".git/hooks/pre-push"), 0o755);
+    cli(r, ["install"]);
+    const out = doctor(r).stdout;
+    assert.match(out, CHAIN, body);
+    assert.doesNotMatch(out, /add this line|^ok +pre-push hook/m, body);
+  }
 });
 
 const QMD_V = "qmd 2.8.3 (facd35e)";
