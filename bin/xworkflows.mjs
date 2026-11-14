@@ -474,8 +474,9 @@ export function plan(manifest, root, record, ans = {}) {
   const shipped = new Set(writes.map((w) => w.key ?? w.path));
   const retired = [], held = [], tiers = JSON.parse(readFileSync(join(PKG, "tiers.json"), "utf8"));
   for (const p of Object.keys(record.files)) {
-    const hashes = listed.get(p);
-    if (!hashes || shipped.has(p) || !plain(p) || !clean(root, p) || !lstatSync(join(root, p), { throwIfNoEntry: false })?.isFile()) continue;
+    const hashes = listed.get(p), u = p.match(UNIT)?.[0];
+    // a unit under kept, this plan's or the record's, is the user's: not judged, as uninstall does
+    if (!hashes || kept.includes(u) || record.kept.includes(u) || shipped.has(p) || !plain(p) || !clean(root, p) || !lstatSync(join(root, p), { throwIfNoEntry: false })?.isFile()) continue;
     if (published(p, read(root, p), tiers).some((t) => hashes.includes(hash(t)))) retired.push(p);
     else { held.push(p); notes.push(`kept (no longer shipped, changed locally): ${p}`); }
   }

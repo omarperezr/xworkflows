@@ -2387,6 +2387,17 @@ test("install: the SKILL.md of a renamed unit and a renamed agent, retired, are 
   assert.equal(cliAt(copy, r, ["uninstall"]).status, 0);
   assert.equal(git(r, "status --porcelain"), "");
 });
+test("install: a skill the user put under kept is not judged: an upgrade that retires its file removes nothing in that folder", () => {
+  const r = repo(), f = ".claude/skills/next-step/SKILL.md";
+  assert.equal(cli(r, ["install", "--yes"]).status, 0);
+  const text = readFileSync(join(r, f), "utf8");
+  withRecord(r, (rec) => { rec.kept.push(".claude/skills/next-step"); });
+  const out = cliAt(retireReal(["skills/next-step/SKILL.md"]), r, ["install", "--yes"]);
+  assert.equal(out.status, 0, out.stderr);
+  assert.ok(existsSync(join(r, f)), out.stdout);
+  assert.equal(readFileSync(join(r, f), "utf8"), text);
+  assert.doesNotMatch(out.stdout, /next-step/);
+});
 
 // P-46: until the chaining is designed apart, install says what a chained hook cannot do
 test("install: chaining a hook of the project prints one line that a hook which depends on its own file name will not work chained", () => {
