@@ -978,6 +978,14 @@ test("doctor: the pre-push hook must be ours; a declined one warns", () => {
   const out = doctor(d);
   assert.match(out.stdout, /^warn pre-push hook is yours: chaining declined at install; /m);
 });
+test("doctor: install's own pre-push hook that is not executable is a fail that says chmod +x", () => {
+  const r = repo(); cli(r, ["install"]);
+  chmodSync(join(r, ".git/hooks/pre-push"), 0o644);
+  const out = doctor(r);
+  assert.equal(out.status, 1);
+  assert.doesNotMatch(out.stdout, /^ok +pre-push hook is ours$/m);
+  assert.match(out.stdout, /^fail pre-push hook is ours but not executable, so git ignores it: chmod \+x \S*\/\.git\/hooks\/pre-push$/m);
+});
 test("doctor prints the session-start bytes and fails above the budget", () => {
   const r = repo(); cli(r, ["install"]);
   const home = tmp("xwf-home-");

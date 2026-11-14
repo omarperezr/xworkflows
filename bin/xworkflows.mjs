@@ -778,14 +778,14 @@ async function doctor() {
     const cur = lstatSync(join(ROOT, hp), { throwIfNoEntry: false })?.isFile() ? read(ROOT, hp) : null;
     // the record's key for it: .git/hooks/pre-push whichever checkout this is, unless core.hooksPath moved the folder
     const key = hookKey(ROOT, "pre-push");
-    // the folder outside the repository: the file is read through a link; the line must be its first command, since a command before it may use up the refs on standard input, and git runs only an executable file
+    // the hook git runs, ours or of the folder outside the repository (read through a link there): git runs only an executable file; outside, the line must be its first command, since a command before it may use up the refs on standard input
     const theirs = { path: resolve(hooksFolder(ROOT), "pre-push"), live: false, exec: false };
     try {
       const ls = readFileSync(theirs.path, "utf8").split("\n").map((l) => l.trim());
       theirs.live = ls.find((l) => l !== "" && !l.startsWith("#")) === GUARDED;
       accessSync(theirs.path, constants.X_OK); theirs.exec = true;
     } catch {}
-    if (cur !== null && [false, true].some((c) => cur === hookText("pre-push", c))) say("ok", "pre-push hook is ours");
+    if (cur !== null && [false, true].some((c) => cur === hookText("pre-push", c))) say(theirs.exec ? "ok" : "fail", theirs.exec ? "pre-push hook is ours" : `pre-push hook is ours but not executable, so git ignores it: chmod +x ${sh(theirs.path)}`);
     else if (cur !== null && rec.files[key]) say("warn", `pre-push hook changed locally: it may no longer run the check; make it run: ${CHECK}`);
     else if (rec.declined.some((d) => d.file === key && d.what === "chain")) say("warn", `pre-push hook is yours: chaining declined at install; add this line to it: ${CHECK}`);
     else if (ownHooks(ROOT) === null && theirs.live && theirs.exec) say("ok", "pre-push hook of the folder outside this repository runs the check");
