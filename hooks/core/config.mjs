@@ -30,7 +30,7 @@ export const DEFAULTS = {
       "No commit, PR or comment names an AI as author or co-author.",
     ],
   },
-  brakes: { changeSize: { warn: 400, max: 800 } },
+  brakes: { changeSize: { warn: 400, max: 800 }, fixHasTest: { seconds: 120 } },
   tokens: { sessionStartBytes: 2000, alwaysLoadedBytes: 24000 },
   limits: { inlineReadLines: 40, agentsBeforeWorkflow: 2, commentRatio: 0.2, commentMinLines: 30 },
   lookup: { index: { command: "graphify query", folder: "graphify-out", minutes: 30 } },

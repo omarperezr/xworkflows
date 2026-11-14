@@ -1,7 +1,7 @@
 ---
 name: risk-review
 description: Reviews a change that touches this project's risk paths (bin, hooks, checks, proof) against what would cost its users most. Never fixes.
-tier: top
+model: opus
 tools: Read, Grep, Glob, Bash
 skills:
   - ponytail-review

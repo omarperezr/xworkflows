@@ -48,5 +48,10 @@
     ],
     "patterns": [],
     "ratchets": []
+  },
+  "brakes": {
+    "fixHasTest": {
+      "seconds": 600
+    }
   }
 }

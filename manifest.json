@@ -23,10 +23,10 @@
         "hooks/adapters/codex.mjs": "0589bf97b5cec7e06fee8a70bd92d8a0f51e8bb082cc241f743a80308e44d059",
         "hooks/adapters/cursor.mjs": "394c1a81f4040089b67f0fbf1131012bbb5883bdf705ce3af12dff66d9b3cbd5",
         "hooks/adapters/gemini.mjs": "eff8f29bce46d7c4a7c62845f3762a16c6fd38e831e6c4a5d6b54361ec599175",
-        "hooks/core/config.mjs": "59254d6463e68a6d225b2d4068a68856d772fdd82609d4a189c69c437a40a3b9",
+        "hooks/core/config.mjs": "ea58516b21df776580b0424bc94adc09d3527c1f384e86b3fc583629fbc40068",
         "hooks/core/ctx.mjs": "c467ec88a800a1b3df3193922b7bd1377e12d610b6c75e2a7becc81cdd848138"
       },
-      "sha256": "30fa70a5772c70ff7961391cd8ef7740bf5e21898c2244ebc66bd5425c15298a"
+      "sha256": "0a1149508b77b8ae4a35985bae4e61ea072dc75438434e9104cffc19b93545f3"
     },
     {
       "id": "design-first",
@@ -654,7 +654,7 @@
         "checks/review-seal.mjs": "f3ab75a35ba6f5fad303b5d0b2af975928c240aa9a0b5ac791ced5c0c62a4139",
         "checks/goal-cited.mjs": "ece9e129e2bdb39a619bf8680195101364e67d2d6ab318eef00cf4cb11c9eb8d",
         "checks/pending.mjs": "0eb036116ed41676dd1fb2bed3c8a96d1357360e246bead864af6b311559c0cb",
-        "checks/fix-has-test.mjs": "f4f4e4f0e56f73bdeb8fa13d3624ec81cc95394e6b07eeb943112f40c17c526b",
+        "checks/fix-has-test.mjs": "0cb0dbc57227be360e44671ab7ad5feb218758f00ece5102d4abddedcb6518d8",
         "checks/change-size.mjs": "be1366d8e2f5fa80b0616cf4a22c660526316b988df38d28643c31c46ac8b855",
         "checks/comment-ratio.mjs": "20112da90275485c4cfa149cb2164517aa308873b49a97d1f5d8c98f9a621310",
         "checks/skills-travel.mjs": "d6188c4677f6ddcaf7bbb6ba6a311976377b318c6d9ddb3612614dce6d7e89cd",
@@ -665,7 +665,7 @@
         "checks/index-current.mjs": "1da87381699bfd1825b26a6ee2cef90b75fde9ebec72575b5f3c511ee49030cc",
         "checks/project.mjs": "3756970ca6af156dc599cdae8afcb7f2adc0982d5be72cb0c79b04d2777ce901"
       },
-      "sha256": "f5b9ddbb244303f8a07339057ef66c65cb79e3148088bcff04df26157e27a3af"
+      "sha256": "97b1d3e13d1969d8b60a2ae975608f1e1daef9c83024b5cd3ff9ca00e9dcca51"
     },
     {
       "id": "lint",

@@ -293,7 +293,8 @@ const hookKey = (root, name) => {
   return dir === resolve(root, execFileSync("git", ["rev-parse", "--git-common-dir"], { cwd: root, encoding: "utf8" }).trim(), "hooks") ? `.git/hooks/${name}` : relative(root, resolve(dir, name));
 };
 const CHECK = 'node "$(git rev-parse --show-toplevel)/.xworkflows/checks/run.mjs" --pre-push "$1"';
-// for the hook of a folder shared with repositories that have no xworkflows: runs only where the file is, and a failed check still ends the hook
+// the line an earlier version gave for the hook of a folder outside the repository: doctor still knows it, since it hands the rest of
+// that hook no pushed refs
 const GUARDED = 'f="$(git rev-parse --show-toplevel)/.xworkflows/checks/run.mjs"; if [ -f "$f" ]; then node "$f" --pre-push "$1" || exit $?; fi';
 // a value of .xworkflows/config.json read at hook time, `d` when the file or the key is not there
 const CFG = (expr, d) => `node -e 'try{process.stdout.write(${expr}||"${d}")}catch{process.stdout.write("${d}")}'`;
@@ -349,17 +350,26 @@ const firstCommand = (t) => t?.split("\n").map((l) => l.trim()).find((l) => l !=
 //   chained   a hook that cannot take the line, chained: install's chained hook runs it first
 //   chain     a hook that cannot take the line (a link, bytes that are not a shell script, lefthook's or pre-commit's), not chained
 //   blocked   such a hook, with a <name>.before-xworkflows that is not install's in the way of its chain
-//   line      a hook of the user's holding the line as its first command, in a file a shell runs (husky's file one folder up)
+//   line      a hook of the user's holding the line as its first command, in a file a shell runs (husky's file one folder up), read
+//             through a link: install writes no link, and a link that does not hold the line stays chained
 //   add       a hook of the user's that can take the line and does not hold it there
 //   declined  a hook whose line or chain the user declined at install
 //   missing   own or line, while install's file under .xworkflows/git that the line runs is not there
-//   outside   the hooks folder is outside the repository, and its hook does not hold the guarded line first
+//   changed   own or line, while that file holds neither the package's text nor the one install recorded
+//   outside   the hooks folder is outside the repository, and its hook does not hold the line first, or holds the line an earlier
+//             version gave for such a folder, which handed the rest of the hook no pushed refs
 function hookState(manifest, root, record, name) {
   const path = relative(root, resolve(hooksFolder(root), name)), key = hookKey(root, name);
+  const g = `.xworkflows/git/${name}`;
+  let gt = null;
+  try { gt = readFileSync(join(root, g), "utf8"); } catch {}
+  // hash() drops the CR of a CRLF, and the shell cannot run a text that holds one: such a text is never the recorded one
+  const ran = (state) => !["own", "line"].includes(state) ? state : !existsSync(join(root, g)) ? "missing" : gt === gitText(name) || (gt !== null && !gt.includes("\r") && hash(gt) === record.files[g]?.sha256) ? state : "changed";
   if (ownHooks(root) === null) {
     let t = null;
     try { t = readFileSync(join(root, path), "utf8"); } catch {}
-    return { path, key, outside: true, state: t !== null && SHELL.test(t) && firstCommand(t) === GUARDED ? "line" : "outside" };
+    const guarded = !!t?.split("\n").some((l) => l.trim() === GUARDED);
+    return { path, key, outside: true, guarded, state: ran(t !== null && !guarded && SHELL.test(t) && firstCommand(t) === hookLine(name) ? "line" : "outside") };
   }
   const now = lstatSync(join(root, path), { throwIfNoEntry: false });
   const own = now?.isFile() ? read(root, path) : null;
@@ -378,16 +388,18 @@ function hookState(manifest, root, record, name) {
   const at = husky ? lstatSync(join(root, file), { throwIfNoEntry: false }) : lst;
   const text = !husky ? cur : !at ? "" : at.isFile() ? textOf(join(root, file)) : null;
   const linked = husky && !(plain(file) && clean(root, file)), takes = !linked && text !== null && SHELL.test(text);
+  const link = !pair && !!(husky ? at : lst)?.isSymbolicLink();
+  let seen = text;
+  if (link) try { seen = statSync(join(root, file)).isFile() ? textOf(join(root, file)) : null; } catch { seen = null; }
+  const holds = seen !== null && (husky || SHELL.test(seen)) && firstCommand(seen) === hookLine(name);
   // the old pair moves to the line only when the hook can take it: the user's file gets its name back, and the line with no question,
   // since its owner said yes then. Else the pair stays as it is, and works
   const back = pair && !chain && (!husky || takes) ? before : undefined;
   const declined = record.declined.some((d) => d.file === key && d.what === "chain");
   // husky runs its file with sh, whatever its #! line says
   const state = !now ? "none" : pair ? (!back && own === chainText(name) ? "chained" : "old") : mine ? (own === hookText(name) ? "own" : "old")
-    : chain ? (old ? "blocked" : declined ? "declined" : "chain")
-    : text !== null && (husky || takes) && firstCommand(text) === hookLine(name) ? "line" : declined && takes ? "declined" : "add";
-  const gone = ["own", "line"].includes(state) && !existsSync(join(root, `.xworkflows/git/${name}`));
-  return { path, key, before, old, pair, unread, mine, lst, chain, husky, file, fkey, at, text, takes, linked, back, declined, state: gone ? "missing" : state };
+    : holds && (link || !chain) ? "line" : chain ? (old ? "blocked" : declined ? "declined" : "chain") : declined && takes ? "declined" : "add";
+  return { path, key, before, old, pair, unread, mine, lst, chain, husky, file, fkey, at, text, takes, linked, back, declined, link, holds, state: ran(state) };
 }
 
 export function agentsBlock() {
@@ -507,9 +519,10 @@ export function plan(manifest, root, record, ans = {}) {
   const hookMerges = [];
   const mine_ = ownHooks(root) !== null;
   if (!mine_) notes.push(`hooks folder ${relative(root, hooksDir)} is outside this repository: no hook installed, doctor will say so`);
+  // the files the line runs live in the repository: a hook of a folder outside it runs them once its owner puts the line there
+  for (const name of HOOKS) writes.push({ path: `.xworkflows/git/${name}`, text: gitText(name), piece: "checks", src: `git/${name}` });
   for (const name of mine_ ? HOOKS : []) {
-    writes.push({ path: `.xworkflows/git/${name}`, text: gitText(name), piece: "checks", src: `git/${name}` });
-    const { path, key, before, old, pair, unread, mine, lst, chain, husky, file, fkey, at, text, takes, linked, back, declined: no } = hookState(manifest, root, record, name);
+    const { path, key, before, old, pair, unread, mine, lst, chain, husky, file, fkey, at, text, takes, linked, back, declined: no, link, holds } = hookState(manifest, root, record, name);
     if (!pair && (!lst || mine)) { writes.push({ path, key, text: hookText(name), piece: "checks", src: name, mode: 0o755 }); continue; }
     if (pair && !back) {
       if (unread) notes.push(`not migrated (${unread}): ${path} stays chained the old way`);
@@ -518,8 +531,11 @@ export function plan(manifest, root, record, ans = {}) {
       continue;
     }
     // the user's hook keeps its name and its place: it gets the line, or nothing, and the line is printed
-    if (!back && no) continue;
-    const line = hookLine(name), declined = { path, text: null, rec: { declined: [{ file: key, what: "chain" }] } };
+    // a link that holds the line runs the check, and install writes through no link; a declined hook is looked at only for a line
+    // its owner added by hand, which is recorded so uninstall takes it out
+    const line = hookLine(name), has = !chain && !linked && !!text?.split("\n").includes(line);
+    if (!back && ((no && !has) || (link && holds))) continue;
+    const declined = { path, text: null, rec: { declined: [{ file: key, what: "chain" }] } };
     // a migration is one merge, done whole or not at all; a line that cannot be written leaves the old pair, or declines a first one
     const merge = (t, rec) => hookMerges.push({ path: file, text: t, hook: !husky, rec, back, to: path, key, fail: back ? {} : declined.rec });
     if (chain) {
@@ -530,11 +546,12 @@ export function plan(manifest, root, record, ans = {}) {
       hookMerges.push({ path, text: null, rec: { chained: [{ file: key, to: `${key}.before-xworkflows` }] } });
       writes.push({ path, key, text: chainText(name), piece: "checks", src: name, mode: 0o755, rename: before });
     } else if (linked) notes.push(`not written (symlink): ${file}`);
-    else if (!takes) {
+    // husky runs its file with sh, whatever its #! line says: there the line works also in a file that is not a shell script
+    else if (has) {
+      if (back || !record.imports.some((i) => i.file === fkey && i.line === line)) merge(null, { imports: [{ file: fkey, line }] });
+    } else if (!takes) {
       notes.push(`${file} is not a shell script: nothing written; to run the check, call this line from it as its first command: ${line}`);
       hookMerges.push(declined);
-    } else if (text.split("\n").includes(line)) {
-      if (back || !record.imports.some((i) => i.file === fkey && i.line === line)) merge(null, { imports: [{ file: fkey, line }] });
     } else if (text.split("\n").some((l) => l.endsWith(" # xworkflows"))) {
       notes.push(`kept (changed locally): ${file}`);
       if (back) merge(null, {});
@@ -703,10 +720,14 @@ async function install(flags) {
   if (linked) die(1, linked);
   const ans = {}, auto = [];
   const rl = pl.questions.length && !flags.yes && !flags["dry-run"] && process.stdin.isTTY ? createInterface({ input: process.stdin, output: process.stdout }) : null;
+  // Ctrl-C at a question stops install: every write comes after the questions; 130 is a shell's code for a stop by Ctrl-C
+  rl?.on("SIGINT", () => die(130, "\ninstall stopped: nothing written"));
   for (const q of pl.questions) {
     if (flags.yes) ans[q.id] = q.labels[q.yes];
     else if (rl) {
-      const r = (await rl.question(`${q.text} (${q.labels.join(" / ")}) `)).trim().toLowerCase();
+      // end of input rejects the question, and closes it for the ones after: an empty answer, as Enter is
+      let r = "";
+      try { r = (await rl.question(`${q.text} (${q.labels.join(" / ")}) `)).trim().toLowerCase(); } catch {}
       ans[q.id] = r && q.labels[1].toLowerCase().startsWith(r) ? q.labels[1] : q.labels[0];
     } else { ans[q.id] = q.labels[0]; auto.push(`answered for you: ${q.text} -> ${q.labels[0]}`); }
   }
@@ -772,8 +793,8 @@ async function doctor(flags) {
     // the record names the three git hooks under .git/, which is a file in a linked worktree: git says where they are
     try { t = readFileSync(f.startsWith(".git/hooks/") ? join(hooksFolder(ROOT), f.slice(".git/hooks/".length)) : join(ROOT, f), "utf8"); } catch { say("fail", `missing or unreadable: ${f}: ${INSTALL}`); continue; }
     // a git hook that holds no text of the package is the project's own: install records it as such, and nothing of it is deleted
-    const n = gitHooks.get(f), theirs = n && t !== hookText(n) && t !== chainText(n) && !earlierHook(readManifest(), n, t);
-    say(hash(t) === sha256 ? "ok" : "warn", hash(t) === sha256 ? f : theirs ? `changed locally: ${f}, the project's own hook now: ${INSTALL}` : `changed locally: ${f}; to put the package's copy back, delete it, then ${INSTALL} (install keeps a changed file)`);
+    const n = gitHooks.get(f), same = hash(t) === sha256;
+    say(same ? "ok" : "warn", same ? f : n && !hookState(readManifest(), ROOT, rec, n).mine ? `changed locally: ${f}, the project's own hook now: ${INSTALL}` : `changed locally: ${f}; to put the package's copy back, delete it, then ${INSTALL} (install keeps a changed file)`);
   }
   for (const k of rec.kept) {
     const gs = k === ".claude/skills/grill" && rec.pieces["design-first"] ? read(ROOT, `${k}/SKILL.md`) : null;
@@ -915,6 +936,7 @@ async function doctor(flags) {
     let exec = false;
     try { accessSync(join(ROOT, hook.path), constants.X_OK); exec = true; } catch {}
     const of = hook.outside ? " of the folder outside this repository" : "";
+    const UNDECLINE = `take the entry of ${hook.key} out of "declined" in .xworkflows/installed.json`;
     const ours = [exec ? "ok" : "fail", exec ? `${P} is ours` : `${P} is ours but not executable, so git ignores it: chmod +x ${at(hook.path)}`];
     const SAY = {
       none: ["fail", `${P} is missing or not ours: ${INSTALL}`],
@@ -922,12 +944,13 @@ async function doctor(flags) {
       chained: ours,
       old: ["warn", `${P} holds an earlier text of the package: ${INSTALL} replaces it`],
       missing: ["fail", `${P} runs .xworkflows/git/pre-push, which is missing: ${INSTALL}`],
+      changed: ["fail", `${P} runs .xworkflows/git/pre-push, which no longer holds the package's text: delete .xworkflows/git/pre-push, then ${INSTALL}`],
       line: [exec ? "ok" : "fail", exec ? `${P}${of} runs the check` : `${P}${of} holds the check but is not executable, so git ignores it: chmod +x ${at(hook.path)}`],
       add: ["fail", `${P} does not run the check: add this line to ${at(hook.file)} as its first command: ${hookLine("pre-push")}`],
       chain: ["fail", `${P} cannot take the xworkflows line and is not chained: ${INSTALL} and answer yes to chain it`],
-      blocked: ["fail", `${P} cannot take the xworkflows line, and ${at(hook.before)} is in the way of chaining it: move that file out of the hooks folder, then ${INSTALL} and answer yes to chain it`],
-      declined: ["fail", `${P} does not run the check: its line or its chain was declined at install; to be asked again, take the entry of ${hook.key} out of "declined" in .xworkflows/installed.json, then ${INSTALL} and answer yes`],
-      outside: ["fail", `${P}: core.hooksPath points outside this repository, where install writes no hook; either add this line to the pre-push hook of that folder as its first command, which then runs it in every repository that uses the folder, and runs the check only where the file is: ${GUARDED} ; or point this repository at its own hooks folder, after which the hooks of the other folder no longer run here: run: git config core.hooksPath "$(git rev-parse --path-format=absolute --git-common-dir)/hooks"; then ${INSTALL}`],
+      blocked: ["fail", `${P} cannot take the xworkflows line, and ${at(hook.before)} is in the way of chaining it: move that file out of the hooks folder, ${hook.declined ? `${UNDECLINE}, ` : ""}then ${INSTALL} and answer yes to chain it`],
+      declined: ["fail", `${P} does not run the check: its line or its chain was declined at install; to be asked again, ${UNDECLINE}, then ${INSTALL} and answer yes${hook.takes && !hook.chain ? `; or add this line to ${at(hook.file)} as its first command: ${hookLine("pre-push")}` : ""}`],
+      outside: ["fail", `${P}: core.hooksPath points outside this repository, where install writes no hook; either add this line to ${at(hook.path)} as its first command${hook.guarded ? ", in place of the line an earlier xworkflows gave, which hands the rest of the hook no pushed refs" : ""}: ${hookLine("pre-push")} ; it runs in every repository that uses the folder, silent where xworkflows is not installed, and is yours to take out after uninstall; or point this repository at its own hooks folder, after which the hooks of the other folder no longer run here: run: git config core.hooksPath "$(git rev-parse --path-format=absolute --git-common-dir)/hooks"; then ${INSTALL}`],
     };
     say(...SAY[hook.state]);
     let st = {}, local = {};
@@ -1121,7 +1144,9 @@ function uninstall() {
     if (i < 0) continue;
     ls.splice(i, 1);
     const out2 = ls.join("\n");
-    write(file, addedNewline && out2.endsWith("\n") ? out2.slice(0, -1) : out2);
+    // a hook uninstall cannot write keeps its line, said in one line without a stack, as apply does for install
+    try { write(file, addedNewline && out2.endsWith("\n") ? out2.slice(0, -1) : out2); }
+    catch (e) { if (line !== hookLine(basename(key))) throw e; out.push(`not written (${e.code}): ${key}: the xworkflows line stays in it; take it out yourself`); }
   }
   for (const p of rec.created) {
     if (p === md) {

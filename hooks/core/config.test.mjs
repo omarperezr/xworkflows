@@ -10,6 +10,7 @@ test("DEFAULTS has the product defaults and none of the project keys", () => {
   assert.equal(DEFAULTS.mainBranch, "main");
   assert.equal(DEFAULTS.git.rules.length, 4);
   assert.deepEqual(DEFAULTS.brakes.changeSize, { warn: 400, max: 800 });
+  assert.equal(DEFAULTS.brakes.fixHasTest.seconds, 120);
   assert.deepEqual(missing(DEFAULTS, PROJECT_KEYS), PROJECT_KEYS);
   assert.equal(PROJECT_KEYS.length, 10);
 });
