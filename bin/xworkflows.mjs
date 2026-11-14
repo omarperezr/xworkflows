@@ -324,16 +324,8 @@ const withLine = (t, line) => {
   const i = t.startsWith("#!") ? t.indexOf("\n") : -1;
   return !t.startsWith("#!") ? `${line}\n${t}` : i < 0 ? `${t}\n${line}` : `${t.slice(0, i + 1)}${line}\n${t.slice(i + 1)}`;
 };
-// With `chain` the project's own hook, renamed <name>.before-xworkflows, runs first.
-function hookText(name, chain) {
-  if (!chain) return `#!/bin/sh\n${hookLine(name)}\n`;
-  const old = `old="$(dirname "$0")/${name}.before-xworkflows"\n`;
-  if (name === "pre-push") {
-    // git feeds the pushed refs on stdin once: keep them for both runs
-    return `#!/bin/sh\nin=$(mktemp) || exit 1\ncat > "$in"\n${old}if [ -x "$old" ]; then "$old" "$@" < "$in" || { c=$?; rm -f "$in"; exit $c; }; fi\n${CHECK} < "$in"\nc=$?\nrm -f "$in"\nexit $c\n`;
-  }
-  return `#!/bin/sh\nc=0\n${old}[ -x "$old" ] && { "$old" "$@"; c=$?; }\ncd "$(git rev-parse --show-toplevel)" || exit $c\nmain=$(${MAIN}) || main=main\n[ "$(git symbolic-ref --short -q HEAD)" = "$main" ] || exit $c\ntool=$(${TOOL}) || tool=graphify\nfolder=$(${FOLDER}) || folder=graphify-out\ncommand -v "$tool" >/dev/null 2>&1 || exit $c\nmkdir -p "$folder"\n{ "$tool" update . && touch -c -h -- "$folder/graph.json"; } > "$folder/.update.log" 2>&1 < /dev/null &\nexit $c\n`;
-}
+// install's own hook, where the project has none: the #! line and the marked line
+const hookText = (name) => `#!/bin/sh\n${hookLine(name)}\n`;
 
 export function agentsBlock() {
   return `${START}\n${readFileSync(join(PKG, "templates/AGENTS.md"), "utf8").replace(/\n+$/, "")}\n${END}\n`;
@@ -445,42 +437,43 @@ export function plan(manifest, root, record, ans = {}) {
   for (const name of mine_ ? HOOKS : []) {
     writes.push({ path: `.xworkflows/git/${name}`, text: gitText(name), piece: "checks", src: `git/${name}` });
     const path = relative(root, resolve(hooksDir, name)), key = hookKey(root, name);
-    const lst = lstatSync(join(root, path), { throwIfNoEntry: false });
-    const cur = lst?.isFile() ? read(root, path) : null;
-    const mine = cur !== null && ([false, true].some((c) => cur === hookText(name, c)) || earlierHook(manifest, name, cur) || (!!record.files[key] && hash(cur) === record.files[key].sha256));
-    let chain = record.chained.some((c) => c.file === key) || (cur !== null && cur === hookText(name, true));
-    const before = `${path}.before-xworkflows`;
-    // the user's hook renamed by an install that never recorded it: ours is the only code that makes this name
-    if ((!lst || mine) && lstatSync(join(root, before), { throwIfNoEntry: false }) && !record.chained.some((c) => c.file === key)) {
-      chain = true;
-      hookMerges.push({ path, text: null, rec: { chained: [{ file: key, to: `${key}.before-xworkflows` }] } });
+    const now = lstatSync(join(root, path), { throwIfNoEntry: false });
+    const own = now?.isFile() ? read(root, path) : null;
+    const mine = own !== null && (own === hookText(name) || earlierHook(manifest, name, own) || (!!record.files[key] && hash(own) === record.files[key].sha256));
+    // an install made before the line renamed the user's hook to <name>.before-xworkflows and ran it from its own, recorded or not:
+    // ours is the only code that makes this name. The user's file gets its name back, and the line with no question: its owner said yes then
+    const before = `${path}.before-xworkflows`, old = lstatSync(join(root, before), { throwIfNoEntry: false });
+    const back = old && (mine || !now) ? before : undefined;
+    if (back) hookMerges.push({ path, key, back, text: null, hook: true, rec: {} });
+    const lst = back ? old : now, cur = back ? (old.isFile() ? read(root, before) : null) : own;
+    if (!back && (!lst || mine)) { writes.push({ path, key, text: hookText(name), piece: "checks", src: name, mode: 0o755 }); continue; }
+    // the user's hook keeps its name and its place: it gets the line, or nothing, and the line is printed
+    if (!back && record.declined.some((d) => d.file === key && d.what === "chain")) continue;
+    const line = hookLine(name), declined = { path, text: null, rec: { declined: [{ file: key, what: "chain" }] } };
+    const was = back ? `migrated ${name}: ${path} has its name back; ` : "";
+    // husky's shim runs the file of its own name one folder up: that file is the user's hook, made by a yes when it is not there
+    const tool = cur === null ? null : manager(cur), husky = tool === "husky";
+    const file = husky ? join(dirname(dirname(path)), name) : path, fkey = husky ? file : key;
+    const at = husky ? lstatSync(join(root, file), { throwIfNoEntry: false }) : lst;
+    const text = !husky ? cur : !at ? "" : at.isFile() ? read(root, file) : null;
+    if (tool && !husky) {
+      notes.push(`${was}${path} is ${tool}'s: nothing written; to run the check, add this line as a command of ${tool} for ${name}: ${line}`);
+      hookMerges.push(declined);
+    } else if (husky && !(plain(file) && clean(root, file))) notes.push(`${was}not written (symlink): ${file}`);
+    else if (text === null || !SHELL.test(text)) {
+      notes.push(`${was}${file} is not a shell script: nothing written; to run the check, call this line from it as its first command: ${line}`);
+      hookMerges.push(declined);
+    } else if (text.split("\n").includes(line)) {
+      if (back) notes.push(`${was}${file} holds the xworkflows line`);
+      if (!record.imports.some((i) => i.file === fkey && i.line === line)) hookMerges.push({ path: file, text: null, rec: { imports: [{ file: fkey, line }] } });
+    } else if (text.split("\n").some((l) => l.endsWith(" # xworkflows"))) notes.push(`${was}kept (changed locally): ${file}`);
+    else if (!back && ask(`chain:${name}`, `A ${name} hook exists. Add the xworkflows line to ${file}? The line runs first, then the rest of the hook.`, ["no", "yes"]) === "no") {
+      notes.push(`${file} left as it is; to run the check, add this line to it as its first command: ${line}`);
+      hookMerges.push(declined);
+    } else {
+      if (back) notes.push(`${was}${file} holds the xworkflows line`);
+      hookMerges.push({ path: file, text: withLine(text, line), hook: !husky, rec: { imports: [{ file: fkey, line }], created: at ? [] : [file] } });
     }
-    if (lst && !mine) {
-      // the user's hook keeps its name and its place: it gets the line, or nothing, and the line is printed
-      if (record.declined.some((d) => d.file === key && d.what === "chain")) continue;
-      const line = hookLine(name), declined = { path, text: null, rec: { declined: [{ file: key, what: "chain" }] } };
-      // husky's shim runs the file of its own name one folder up: that file is the user's hook, made by a yes when it is not there
-      const tool = cur === null ? null : manager(cur), husky = tool === "husky";
-      const file = husky ? join(dirname(dirname(path)), name) : path, fkey = husky ? file : key;
-      const at = husky ? lstatSync(join(root, file), { throwIfNoEntry: false }) : lst;
-      const text = !at ? "" : at.isFile() ? read(root, file) : null;
-      if (tool && !husky) {
-        notes.push(`${path} is ${tool}'s: nothing written; to run the check, add this line as a command of ${tool} for ${name}: ${line}`);
-        hookMerges.push(declined);
-      } else if (husky && !(plain(file) && clean(root, file))) notes.push(`not written (symlink): ${file}`);
-      else if (text === null || !SHELL.test(text)) {
-        notes.push(`${file} is not a shell script: nothing written; to run the check, call this line from it as its first command: ${line}`);
-        hookMerges.push(declined);
-      } else if (text.split("\n").includes(line)) {
-        if (!record.imports.some((i) => i.file === fkey && i.line === line)) hookMerges.push({ path: file, text: null, rec: { imports: [{ file: fkey, line }] } });
-      } else if (text.split("\n").some((l) => l.endsWith(" # xworkflows"))) notes.push(`kept (changed locally): ${file}`);
-      else if (ask(`chain:${name}`, `A ${name} hook exists. Add the xworkflows line to ${file}? The line runs first, then the rest of the hook.`, ["no", "yes"]) === "no") {
-        notes.push(`${file} left as it is; to run the check, add this line to it as its first command: ${line}`);
-        hookMerges.push(declined);
-      } else hookMerges.push({ path: file, text: withLine(text, line), hook: !husky, rec: { imports: [{ file: fkey, line }], created: at ? [] : [file] } });
-      continue;
-    }
-    writes.push({ path, key, text: hookText(name, chain), piece: "checks", src: name, mode: 0o755 });
   }
   // install and uninstall share one test: a path with a symlink component is never written or merged
   const hookPaths = new Set(writes.filter((w) => w.src && HOOKS.includes(w.src)).map((w) => w.path));
@@ -575,6 +568,7 @@ export function apply(pl, root, manifest, record) {
   for (const m of pl.merges) {
     try {
       if (m.dir) { linked(m.path); mk(m.path); mkdirSync(join(root, m.path), { recursive: true }); out.push(m.path); }
+      if (m.back) { renameSync(join(root, m.back), join(root, m.path)); out.push(`renamed ${m.back} to ${m.path}`); }
       if (m.text !== null) { put(root, m.path, m.text, undefined, m.hook); out.push(m.path); }
     } catch (e) {
       // the new writes of the memory folder and the yml: say so, record nothing, go on
@@ -590,6 +584,8 @@ export function apply(pl, root, manifest, record) {
       for (const x of list) if (!next[k].some((y) => (k === "merged" ? x.file === y.file && isDeepStrictEqual(x.key, y.key) && isDeepStrictEqual(x.entry, y.entry) : (k === "blocks" || k === "imports" ? x.file === y.file && x.line === y.line : isDeepStrictEqual(x, y))))) next[k].push(x);
     }
   }
+  // a hook migrated from the old way is chained no more
+  next.chained = next.chained.filter((c) => !pl.merges.some((m) => m.back && m.key === c.file));
   // a unit whose folder or agent file is gone leaves its line of .graphifyignore, and the record its entry
   for (const line of new Set(pl.retired.map(giLine).filter((l) => l && !existsSync(join(root, l))))) {
     const t = read(root, GI), ls = t?.split("\n") ?? [];
@@ -648,7 +644,10 @@ async function install(flags) {
   if (flags["dry-run"]) {
     for (const w of pl.writes) if (!w.keep && differs(ROOT, w)) console.log(`would write ${w.path}`);
     for (const p of pl.retired) console.log(`would remove ${p}`);
-    for (const m of pl.merges) if (m.text !== null || m.dir) console.log(`would ${m.verb ?? "merge"} ${m.path}`);
+    for (const m of pl.merges) {
+      if (m.back) console.log(`would rename ${m.back} to ${m.path}`);
+      if (m.text !== null || m.dir) console.log(`would ${m.verb ?? "merge"} ${m.path}`);
+    }
   } else {
     const done = apply(pl, ROOT, m, record);
     console.log(done.length ? done.join("\n") : "nothing to do");
@@ -843,7 +842,9 @@ async function doctor() {
       accessSync(theirs.path, constants.X_OK); theirs.exec = true;
     } catch {}
     const of = inside ? "" : " of the folder outside this repository";
-    if (cur !== null && [false, true].some((c) => cur === hookText("pre-push", c))) say(theirs.exec ? "ok" : "fail", theirs.exec ? "pre-push hook is ours" : `pre-push hook is ours but not executable, so git ignores it: chmod +x ${sh(theirs.path)}`);
+    if (cur === hookText("pre-push")) say(theirs.exec ? "ok" : "fail", theirs.exec ? "pre-push hook is ours" : `pre-push hook is ours but not executable, so git ignores it: chmod +x ${sh(theirs.path)}`);
+    // an install made the old way, or its record: install puts the present text in its place
+    else if (cur !== null && (earlierHook(readManifest(), "pre-push", cur) || hash(cur) === rec.files[hookKey(ROOT, "pre-push")]?.sha256)) say("warn", `pre-push hook holds an earlier text of the package: ${INSTALL} replaces it`);
     else if (theirs.live) say(theirs.exec ? "ok" : "fail", theirs.exec ? `pre-push hook${of} runs the check` : `pre-push hook${of} holds the check but is not executable, so git ignores it: chmod +x ${sh(theirs.path)}`);
     else if (!inside) say("fail", `pre-push hook: core.hooksPath points outside this repository, where install writes no hook; either add this line to the pre-push hook of that folder as its first command, which then runs it in every repository that uses the folder, and runs the check only where the file is: ${GUARDED} ; or point this repository at its own hooks folder, after which the hooks of the other folder no longer run here: run: git config core.hooksPath "$(git rev-parse --path-format=absolute --git-common-dir)/hooks"; then ${INSTALL}`);
     else if (!existsSync(theirs.path)) say("fail", `pre-push hook is missing or not ours: ${INSTALL}`);
@@ -968,7 +969,7 @@ function uninstall() {
     const abs = join(hooksDir, name), before = abs + ".before-xworkflows";
     if (!lstatSync(abs, { throwIfNoEntry: false })?.isFile()) continue;
     const cur = readFileSync(abs, "utf8");
-    if (![false, true].some((c) => cur === hookText(name, c)) && !earlierHook(manifest, name, cur)) { if (recFiles.has(p)) out.push(hash(cur) === rec.files[p].sha256 ? `kept (not ours): ${p}` : `kept (changed locally): ${p}`); continue; }
+    if (cur !== hookText(name) && !earlierHook(manifest, name, cur)) { if (recFiles.has(p)) out.push(hash(cur) === rec.files[p].sha256 ? `kept (not ours): ${p}` : `kept (changed locally): ${p}`); continue; }
     rmSync(abs); out.push(`deleted ${p}`);
     if (lstatSync(before, { throwIfNoEntry: false })) { renameSync(before, abs); out.push(`restored ${p}`); }
   }

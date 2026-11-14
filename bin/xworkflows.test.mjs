@@ -1131,25 +1131,66 @@ test("a linked worktree installs into the shared hooks folder and uninstall remo
   for (const h of ["pre-push", "post-merge", "post-commit"]) assert.ok(!existsSync(join(shared, h)), h);
 });
 
-test("a chained hook found again after installed.json was lost is chained and restored", () => {
-  const { r } = chained();
-  assert.equal(cliAt(oldPackage(), r, ["install", "--yes"]).status, 0);
-  rmSync(join(r, ".xworkflows/installed.json"));
-  assert.equal(cli(r, ["install", "--yes"]).status, 0);
-  assert.deepEqual(readJson(r, ".xworkflows/installed.json").chained, [{ file: ".git/hooks/pre-push", to: ".git/hooks/pre-push.before-xworkflows" }]);
-  cli(r, ["uninstall"]);
-  assert.equal(readFileSync(join(r, ".git/hooks/pre-push"), "utf8"), OLD);
-  assert.ok(!existsSync(join(r, ".git/hooks/pre-push.before-xworkflows")));
-});
-test("an interrupted install that left the user's hook renamed still chains it", () => {
+// with the record lost, the hooks of an install made the old way are known by the earlier texts the manifest lists
+for (const [what, theirs] of [["the user's three hooks chained", true], ["its own hooks only", false]]) {
+  test(`an install made the old way, ${what}, whose installed.json was lost, ends in the new form, and uninstall leaves the user's hooks as they were`, () => {
+    const { r } = chained();
+    const names = ["pre-push", "post-merge", "post-commit"], at = (n) => join(r, ".git/hooks", n);
+    if (theirs) for (const n of names.slice(1)) { writeFileSync(at(n), OLD); chmodSync(at(n), 0o755); }
+    else rmSync(at("pre-push"));
+    assert.equal(cliAt(oldPackage(), r, ["install", "--yes"]).status, 0);
+    rmSync(join(r, ".xworkflows/installed.json"));
+    const out = cli(r, ["install"]);
+    assert.equal(out.status, 0, out.stderr);
+    assert.doesNotMatch(out.stdout, /answered for you/);
+    for (const n of names) {
+      const t = readFileSync(at(n), "utf8");
+      assert.equal(marked(t).length, 1, n);
+      assert.equal(t.replace(`${marked(t)[0]}\n`, ""), theirs ? OLD : "#!/bin/sh\n", n);
+      assert.ok(!existsSync(`${at(n)}.before-xworkflows`), n);
+    }
+    assert.equal(cli(r, ["uninstall"]).status, 0);
+    for (const n of names) assert.equal(existsSync(at(n)) && readFileSync(at(n), "utf8"), theirs && OLD, n);
+  });
+}
+test("an interrupted install that left the user's hook renamed gives it its name back, with the line", () => {
   const r = repo();
   mkdirSync(join(r, ".git/hooks"), { recursive: true });
   writeFileSync(join(r, ".git/hooks/pre-push.before-xworkflows"), OLD);
   chmodSync(join(r, ".git/hooks/pre-push.before-xworkflows"), 0o755);
   cli(r, ["install", "--yes"]);
-  assert.match(readFileSync(join(r, ".git/hooks/pre-push"), "utf8"), /before-xworkflows/);
+  const t = readFileSync(join(r, ".git/hooks/pre-push"), "utf8");
+  assert.equal(t.replace(`${marked(t)[0]}\n`, ""), OLD);
+  assert.ok(!existsSync(join(r, ".git/hooks/pre-push.before-xworkflows")));
   cli(r, ["uninstall"]);
   assert.equal(readFileSync(join(r, ".git/hooks/pre-push"), "utf8"), OLD);
+});
+test("an install chained the old way is migrated with no question: the user's hook has its name back and holds the line, the check runs first, and uninstall gives the hook back byte for byte", () => {
+  const { r } = chained();
+  assert.equal(cliAt(oldPackage(), r, ["install", "--yes"]).status, 0);
+  const hook = join(r, ".git/hooks/pre-push");
+  assert.equal(readFileSync(`${hook}.before-xworkflows`, "utf8"), OLD);
+  assert.match(doctor(r).stdout, /^warn pre-push hook holds an earlier text of the package: run xworkflows install replaces it$/m);
+  const out = cli(r, ["install"]);
+  assert.equal(out.status, 0, out.stderr);
+  assert.doesNotMatch(out.stdout, /answered for you/);
+  assert.equal(out.stdout.split("\n").filter((l) => l.startsWith("migrated ")).length, 1, out.stdout);
+  const t = readFileSync(hook, "utf8");
+  assert.equal(marked(t).length, 1);
+  assert.equal(t.replace(`${marked(t)[0]}\n`, ""), OLD);
+  assert.ok(!existsSync(`${hook}.before-xworkflows`));
+  assert.ok(statSync(hook).mode & 0o100);
+  assert.deepEqual(readJson(r, ".xworkflows/installed.json").chained, []);
+  assert.match(doctor(r).stdout, /^ok +pre-push hook runs the check$/m);
+  config(r, BAD);
+  commit(r, "a.txt", "fine\n");
+  assert.equal(pushed(r).status, 0);
+  assert.equal(readFileSync(join(r, ".git/old-name"), "utf8"), "pre-push\n");
+  commit(r, "b.txt", "BADWORD\n");
+  assert.match(pushed(r).stderr, /patterns: /);
+  assert.match(cli(r, ["install"]).stdout, /^nothing to do$/m);
+  cli(r, ["uninstall"]);
+  assert.equal(readFileSync(hook, "utf8"), OLD);
 });
 
 test("another clone's own pre-push gets the line even when the record lists the path", () => {
