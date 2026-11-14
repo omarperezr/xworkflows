@@ -2433,6 +2433,24 @@ test("install: the SKILL.md of a renamed unit and a renamed agent, retired, are 
   assert.equal(cliAt(copy, r, ["uninstall"]).status, 0);
   assert.equal(git(r, "status --porcelain"), "");
 });
+// P-130: a retired unit's line of .graphifyignore is install's line, also when the unit's folder stays for a changed file
+for (const [what, own] of [["install made", null], ["the project had", "mine/\n"]]) {
+  test(`uninstall: after an upgrade that retires changed units, a .graphifyignore ${what} holds no line of install's`, () => {
+    const r = repo(own === null ? {} : { ".graphifyignore": own }), skill = ".claude/skills/next-step/SKILL.md", agent = ".claude/agents/explore.md";
+    assert.equal(cli(r, ["install", "--yes"]).status, 0);
+    assert.ok(lines(r).includes(".claude/skills/next-step/") && lines(r).includes(agent));
+    appendFileSync(join(r, skill), "mine\n"); appendFileSync(join(r, agent), "mine\n");
+    const copy = retireReal(["skills/next-step/SKILL.md", "agents/explore.md"]);
+    const up = cliAt(copy, r, ["install", "--yes"]);
+    assert.equal(up.status, 0, up.stderr);
+    assert.ok(existsSync(join(r, skill)) && existsSync(join(r, agent)), up.stdout);
+    const un = cliAt(copy, r, ["uninstall"]);
+    assert.equal(un.status, 0, un.stderr);
+    assert.doesNotMatch(un.stdout, /kept \(not ours\): \.graphifyignore/);
+    if (own === null) assert.ok(!existsSync(join(r, ".graphifyignore")), "the .graphifyignore install made is left");
+    else assert.equal(readFileSync(join(r, ".graphifyignore"), "utf8"), own);
+  });
+}
 test("install: a skill the user put under kept is not judged: an upgrade that retires its file removes nothing in that folder", () => {
   const r = repo(), f = ".claude/skills/next-step/SKILL.md";
   assert.equal(cli(r, ["install", "--yes"]).status, 0);

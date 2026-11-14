@@ -389,6 +389,16 @@ function published(p, text, tiers) {
   return [t, ...ks.map((k) => t.replace(/^model: .*$/m, `tier: ${k}`))];
 }
 
+// path -> the hashes the manifest lists for a retired file, at every place install may have written it, the xwf- one included
+function retiredPaths(manifest) {
+  const listed = new Map();
+  for (const [f, hashes] of manifest.pieces.flatMap((p) => Object.entries(p.retired ?? {}))) {
+    const t = target(f), u = t?.match(UNIT)?.[0];
+    if (t) for (const p of u ? [t, renameWrite({ path: t, text: "" }, u).path] : [t]) listed.set(p, hashes);
+  }
+  return listed;
+}
+
 export function plan(manifest, root, record, ans = {}) {
   let writes = pkgWrites(manifest);
   const questions = [], kept = [], renamed = {}, notes = [];
@@ -468,11 +478,7 @@ export function plan(manifest, root, record, ans = {}) {
   }
   // a file install wrote that this version no longer ships: found from the record, removed only when the manifest lists it as retired
   // with the hash of the text on disk as the package published it, kept and named once when edited, and then out of the record; the record's hash never decides
-  const listed = new Map();
-  for (const [f, hashes] of manifest.pieces.flatMap((p) => Object.entries(p.retired ?? {}))) {
-    const t = target(f), u = t?.match(UNIT)?.[0];
-    if (t) for (const p of u ? [t, renameWrite({ path: t, text: "" }, u).path] : [t]) listed.set(p, hashes);
-  }
+  const listed = retiredPaths(manifest);
   const shipped = new Set(writes.map((w) => w.key ?? w.path));
   const retired = [], tiers = JSON.parse(readFileSync(join(PKG, "tiers.json"), "utf8"));
   for (const p of Object.keys(record.files)) {
@@ -898,7 +904,8 @@ function uninstall() {
     if (u) { const x = renameWrite(w, u); wanted.set(x.path, x.text); }
   }
   const wants = settingsWants(manifest);
-  const giLines = new Set([".xworkflows/", ...[...wanted.keys()].map(giLine).filter(Boolean)]);
+  // a retired unit's line too: install wrote it, and it stays while a changed file keeps the unit's folder
+  const giLines = new Set([".xworkflows/", ...[...wanted.keys(), ...retiredPaths(manifest).keys()].map(giLine).filter(Boolean)]);
   let md = null;
   try { md = memoryFolder(loadConfig(ROOT), ROOT).dir; } catch {}
 
