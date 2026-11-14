@@ -71,6 +71,12 @@ What did not block, one card each: P-158 (the sentence for the guarded line of t
 - For `ran`, a text that holds a carriage return is never the package's or the record's text. Two rows of the table test: every line end CRLF, and one carriage return added.
 - Done: `node --test bin/xworkflows.test.mjs skills/day-one.test.mjs` passes.
 
+### Batch 1, confirmation at `a554c98`
+
+No blocking finding stands, and the three findings are fixed as F1 says. Ctrl-C at each of the six questions, and after one to five answers, ends install with code 130, no record and every path and byte of the project as before; the questions are closed before the first write, so the words "nothing written" hold. uninstall with a read-only hook that holds a recorded line ends with code 0 and its one line in 12 cases (a shell hook and husky's file, the three hooks, the two ways in), the hook's bytes unchanged and the pushes after it silent. A carriage return in `.xworkflows/git/pre-push` is told as changed in 9 cases with real pushes, and the step ends in doctor's ok and a refused bad push; an older recorded text is not called changed. install, doctor and uninstall give the same output and files as at `6b8dd85` for a clean project and for one with a user's pre-push. The confirmation ran on opus.
+
+What did not block, one card each, all three as on the main branch: P-167 (doctor's ok line for the file beside the fail line of the hook), P-168 (uninstall and a hook it cannot read, or a read-only file that is not a hook), P-169 (uninstall and a hooks folder that is read-only as a whole).
+
 ## Review Focus
 
 - A user's hook is the user's: after `install` and `uninstall` it must be byte for byte what it was, and nothing outside the repository is written.
