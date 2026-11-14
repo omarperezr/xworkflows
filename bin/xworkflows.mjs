@@ -368,7 +368,10 @@ function hookState(manifest, root, record, name) {
   // ours is the only code that makes this name
   const before = `${path}.before-xworkflows`, old = lstatSync(join(root, before), { throwIfNoEntry: false });
   const pair = !!old && (mine || !now);
-  const lst = pair ? old : now, cur = lst?.isFile() ? textOf(join(root, pair ? before : path)) : null;
+  const lst = pair ? old : now;
+  // the user's renamed file of an old pair that cannot be read is taken as one that cannot take the line: the pair stays, and works
+  let cur = null, unread;
+  try { cur = lst?.isFile() ? textOf(join(root, pair ? before : path)) : null; } catch (e) { if (!pair) throw e; unread = e.code; }
   // husky's shim runs the file of its own name one folder up: that file is the user's hook, made by a yes when it is not there
   const husky = cur !== null && manager(cur) === "husky", chain = chains(lst, cur);
   const file = husky ? join(dirname(dirname(path)), name) : path, fkey = husky ? file : key;
@@ -384,7 +387,7 @@ function hookState(manifest, root, record, name) {
     : chain ? (old ? "blocked" : declined ? "declined" : "chain")
     : text !== null && (husky || takes) && firstCommand(text) === hookLine(name) ? "line" : declined && takes ? "declined" : "add";
   const gone = ["own", "line"].includes(state) && !existsSync(join(root, `.xworkflows/git/${name}`));
-  return { path, key, before, old, pair, mine, lst, chain, husky, file, fkey, at, text, takes, linked, back, declined, state: gone ? "missing" : state };
+  return { path, key, before, old, pair, unread, mine, lst, chain, husky, file, fkey, at, text, takes, linked, back, declined, state: gone ? "missing" : state };
 }
 
 export function agentsBlock() {
@@ -506,9 +509,10 @@ export function plan(manifest, root, record, ans = {}) {
   if (!mine_) notes.push(`hooks folder ${relative(root, hooksDir)} is outside this repository: no hook installed, doctor will say so`);
   for (const name of mine_ ? HOOKS : []) {
     writes.push({ path: `.xworkflows/git/${name}`, text: gitText(name), piece: "checks", src: `git/${name}` });
-    const { path, key, before, old, pair, mine, lst, chain, husky, file, fkey, at, text, takes, linked, back, declined: no } = hookState(manifest, root, record, name);
+    const { path, key, before, old, pair, unread, mine, lst, chain, husky, file, fkey, at, text, takes, linked, back, declined: no } = hookState(manifest, root, record, name);
     if (!pair && (!lst || mine)) { writes.push({ path, key, text: hookText(name), piece: "checks", src: name, mode: 0o755 }); continue; }
     if (pair && !back) {
+      if (unread) notes.push(`not migrated (${unread}): ${path} stays chained the old way`);
       writes.push({ path, key, text: chainText(name), piece: "checks", src: name, mode: 0o755 });
       if (!record.chained.some((c) => c.file === key)) hookMerges.push({ path, text: null, rec: { chained: [{ file: key, to: `${key}.before-xworkflows` }] } });
       continue;

@@ -1462,6 +1462,25 @@ test("a migration that cannot write the user's hook leaves the old pair whole, s
   assert.match(pushed(r).stderr, /patterns: /);
   assert.equal(git(bare, "rev-list --count main"), "1");
 });
+test("a migration that cannot read the user's renamed hook leaves the old pair whole, says so in one line, and goes on", { skip: ROOT_WRITES }, () => {
+  const { r, bare } = chained(), hook = join(r, ".git/hooks/pre-push");
+  oldInstall(r);
+  chmodSync(`${hook}.before-xworkflows`, 0o000);
+  const out = cli(r, ["install"]), doc = doctor(r);
+  chmodSync(`${hook}.before-xworkflows`, 0o755);
+  assert.equal(out.status, 0, out.stderr);
+  assert.equal(out.stderr, "");
+  assert.match(out.stdout, /^not migrated \(EACCES\): \.git\/hooks\/pre-push stays chained the old way$/m);
+  assert.match(doc.stdout, /^ok +pre-push hook is ours$/m);
+  assert.equal(readFileSync(hook, "utf8"), OLD_TEXT("chained", "pre-push"));
+  assert.equal(readFileSync(`${hook}.before-xworkflows`, "utf8"), OLD);
+  config(r, BAD);
+  commit(r, "a.txt", "fine\n");
+  assert.equal(pushed(r).status, 0);
+  commit(r, "b.txt", "BADWORD\n");
+  assert.match(pushed(r).stderr, /patterns: /);
+  assert.equal(git(bare, "rev-list --count main"), "1");
+});
 test("a first install over a hook it cannot write says so in one line for that hook, writes the rest, and records the hook as declined", { skip: ROOT_WRITES }, () => {
   const { r } = chained(), hook = join(r, ".git/hooks/pre-push");
   chmodSync(hook, 0o555);
