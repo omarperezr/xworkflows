@@ -4,7 +4,9 @@ import { readFileSync, readdirSync, statSync, mkdirSync, mkdtempSync, writeFileS
 import { homedir, tmpdir } from "node:os";
 import { join, resolve, relative, isAbsolute } from "node:path";
 import { pathToFileURL } from "node:url";
-import { DEFAULTS, load, memoryDir } from "../../hooks/core/config.mjs";
+import { shared } from "./shared.mjs";
+
+const { DEFAULTS, load, memoryDir } = await shared("hooks/core/config.mjs");
 
 // NOISE and REPORT are copied from hooks/core/memory.mjs (typed), which does not export them
 const NOISE = /<(system-reminder|local-command-[\w-]+|command-[\w-]+|bash-stdout|bash-stderr)>[\s\S]*?<\/\1>/g;

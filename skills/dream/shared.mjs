@@ -2,7 +2,7 @@
 import { existsSync } from "node:fs";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-export function shared(rel) {
+export async function shared(rel) {
   const here = (p) => fileURLToPath(new URL(p, import.meta.url));
   const pkg = here(`../../${rel}`), proj = here(`../../../.xworkflows/${rel}`);
   const hit = [pkg, proj].find(existsSync);

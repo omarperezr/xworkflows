@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, utimesSync, cpSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, utimesSync, cpSync, rmSync, realpathSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -200,7 +200,7 @@ test("without --sessions the folder is under home, named after the repository ro
 
 test("installed in a project, the script finds the method's shared code and prints its JSON", () => {
   const pkg = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
-  const proj = tmp(), sessions = tmp(), out = tmp();
+  const proj = realpathSync(tmp()), sessions = tmp(), out = tmp(); // real path: the script's main guard compares URLs
   try {
     cpSync(join(pkg, "skills/dream"), join(proj, ".claude/skills/dream"), { recursive: true });
     for (const d of ["hooks", "checks"]) cpSync(join(pkg, d), join(proj, ".xworkflows", d), { recursive: true });
