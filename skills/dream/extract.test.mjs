@@ -185,6 +185,16 @@ test("shapes: each key of a known form goes, the text around stays, the count is
   for (const form of FORMS) assert.deepEqual(shapes(form), [form, 0], form);
 });
 
+test("shapes: a BEGIN line with no END line is masked to the next blank line, never to the end of the text", () => {
+  const lines = Array.from({ length: 20 }, (_, i) => `Fact ${i + 1} of the note.`);
+  lines[0] = "The key file must start with the line -----BEGIN OPENSSH PRIVATE " + "KEY----- or ssh refuses it.";
+  const [out, n] = shapes(lines.join("\n\n"));
+  assert.equal(n, 1);
+  assert.deepEqual(out.split("\n\n"), ["The key file must start with the line [masked]", ...lines.slice(1)]); // nineteen stay
+  const cut = "-----BEGIN RSA PRIVATE " + "KEY-----\nabc\ndef";
+  assert.deepEqual(shapes(`${cut}\n\nafter`), ["[masked]\n\n\n\nafter", 1]); // a cut block: its lines go, the line numbers hold
+});
+
 test("mask: every form a review found is masked, and every key of a known form", () => {
   for (const form of FORMS) {
     const [out, n] = mask(form);
