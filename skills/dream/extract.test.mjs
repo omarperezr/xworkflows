@@ -194,31 +194,69 @@ test("mask: every form a review found is masked, and every key of a known form",
   assert.deepEqual(mask("sk-" + "a1".repeat(12)), ["[masked]", 1]);
   assert.deepEqual(mask(`Staging password: \`${v}\` ok`), ["Staging password: `[masked]` ok", 1]);
   assert.deepEqual(mask(`DB_PASSWORD=${v}`), ["DB_PASSWORD=[masked]", 1]);
-  assert.deepEqual(mask(`"Authorization": "Bearer ${v}"`), ['"Authorization": "[masked] [masked]"', 2]);
+  assert.deepEqual(mask(`"Authorization": "Bearer ${v}"`), ['"Authorization": "[masked]"', 1]);
+});
+
+test("mask: after a credential word the value goes whole, however short and whatever it holds; with none on its line, the next line that is not empty goes", () => {
+  const sym = "kX9&" + "mQ2*" + "abcdEFGH";
+  for (const [from, to] of [
+    [`here is the db password:\n${v}\nthanks`, "here is the db password:\n[masked]\nthanks"],
+    [`password:\n\n   ${v}`, "password:\n\n[masked]"],
+    [`DB_PASSWORD="${sym}"`, 'DB_PASSWORD="[masked]"'],
+    [`DB_PASSWORD=${sym};x`, "DB_PASSWORD=[masked]"],
+    ["pwd=abc", "pwd=[masked]"],
+  ]) assert.deepEqual(mask(from), [to, 1], from);
+});
+
+test("mask: the value of a flag goes: -u name:value, -p value and -pvalue", () => {
+  for (const [from, to] of [
+    [`curl -u admin:${v} https://api.example`, "curl -u admin:[masked] https://api.example"],
+    [`mysql -uroot -p${v} app`, "mysql -uroot -p[masked] app"],
+    [`docker login -u app -p ${v}`, "docker login -u app -p [masked]"],
+  ]) assert.deepEqual(mask(from), [to, 1], from);
+});
+
+test("mask: of 200 made-up passwords of 20 characters from the full symbol set, none leaves a character after password=", () => {
+  let seed = 7;
+  const pick = () => String.fromCharCode(33 + ((seed = (Math.imul(seed, 1103515245) + 12345) >>> 0) >>> 16) % 94); // ! to ~
+  for (let i = 0; i < 200; i++) {
+    const pw = Array.from({ length: 20 }, pick).join("");
+    assert.deepEqual(mask(`password=${pw}`), ["password=[masked]", 1], pw);
+  }
+});
+
+test("forms the mask does not see: the declared limit", () => {
+  for (const form of [`pw: ${v}`, `creds: user:${v}`, `login: user / ${v}`, `ADMIN_PW=${v}`, `${v} is the password`, `contraseña: ${v}`, `clave: ${v}`])
+    assert.deepEqual(mask(form), [form, 0], form);
 });
 
 test("mask: a long random-looking run goes anywhere; a placeholder, a type word, a short run and a masked value stay", () => {
   const random = "q7Wx2Rt9" + "Kp4Ld8Vm" + "3Hs6"; // 20 characters, letters beside digits
   assert.deepEqual(mask(`commit ${random} is the one`), ["commit [masked] is the one", 1]);
-  for (const keep of ["Authorization: <token>", "token: string", "`token: string`", "password: <your password>", '"secret": null',
-    "apiKey: undefined", "token=true", "access_key: false", "passwordLength: number", "hasToken: boolean", 'password=""', "pwd=abc",
+  for (const keep of ["Authorization: <token>", "token: string", "password: <your password>", '"secret": null',
+    "apiKey: undefined", "token=true", "access_key: false", "passwordLength: number", "hasToken: boolean", 'password=""',
     "a_long_snake_case_name_without_digits", "version 2 of the 20 page manual", "token: [masked]"]) assert.deepEqual(mask(keep), [keep, 0], keep);
 });
 
 test("suspect: the numbers of the lines the wide rule would touch beyond shapes", () => {
   const text = ["plain line", `DB_PASSWORD=${v}`, "sk-" + "a1".repeat(12), "token: string", `id ${"q7Wx2Rt9" + "Kp4Ld8Vm" + "3Hs6"}`, pk, `secret: ${v}`].join("\n");
   assert.deepEqual(suspect(text), [2, 5, 9]); // the key block is lines 6 to 8
-  // the wide rule's cost on ordinary text: these lines are named for a look, not rewritten
-  assert.deepEqual(suspect(ORDINARY.join("\n")).map((n) => ORDINARY[n - 1]), ["Authorization: Bearer <token>",
-    "the summarizer uses max_tokens: 4096 and tokens: 1500 per call", "maxTokens = 1000", "token_type: bearer",
+  // the wide rule's cost on ordinary text: these lines are named for a look, not rewritten; a value goes whole whatever it holds
+  // (the closing backtick and bracket too) and however short, and the line after password="" goes as a value on the next line
+  assert.deepEqual(suspect(ORDINARY.join("\n")).map((n) => ORDINARY[n - 1]), ["Authorization: Bearer <token>", "`token: string`",
+    "(token: string)", "token: str", "https://example.com:8080/a@b",
+    "the summarizer uses max_tokens: 4096 and tokens: 1500 per call", "maxTokens = 1000", "token_type: bearer", "secretName: x",
     "const token = await getToken(req)", "password === confirm", "Tokens: how they work"]);
   assert.deepEqual(suspect(""), []);
+  // the next line after a credential word with no value, and a flag's value
+  assert.deepEqual(suspect(`here is the db password:\n\n${v}\nplain`), [3]);
+  assert.deepEqual(suspect(`plain\ncurl -u admin:${v} https://api.example`), [2]);
 });
 
 test("the mask's time grows with the length of the text, not its square", () => {
   const run = "a1B2".repeat(50000); // 200,000 letters and digits
   const texts = [run, `password: ${run}`, `${run} token`, "a.b-".repeat(50000), "eyJ-".repeat(50000), "-----BEGIN ".repeat(20000),
-    "x://y:".repeat(30000), "pass=a1 ".repeat(25000), Array.from({ length: 20000 }, (_, i) => `token ${i}: line ${i}`).join("\n")];
+    "x://y:".repeat(30000), "pass=a1 ".repeat(25000), `password="${"<a'&*;`".repeat(33334)}`, "-u a:-p ".repeat(25000), Array.from({ length: 20000 }, (_, i) => `token ${i}: line ${i}`).join("\n")];
   for (const t of texts) {
     const t0 = performance.now();
     mask(t); suspect(t); shapes(t);

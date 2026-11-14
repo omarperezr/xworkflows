@@ -23,12 +23,22 @@ const SHAPES = [
   [/\bxox[baprs]-[\w-]+/g, () => M],
   [/\beyJ\w+\.[\w-]+\.[\w-]+/g, () => M],
 ];
-// the wide rule, one line at a time: after a credential word (also inside a longer name), every value-like run; anywhere, a random-looking run
+// the wide rule, one line at a time: after a credential word (also inside a longer name), its value whole and every value-like run; a flag's value; anywhere, a random-looking run
 const WORD = /pass|pwd|secret|token|key|auth|credential|bearer/i;
 const NAME = /[\w-]*/y; // the rest of the name that holds the word
 const RUN = /\[masked\]|<[^<>\n]*>|[^\s"'`\\*,;=:<>(){}[\]|&][^\s"'`\\*,;<>(){}[\]|&]*/g;
 const TYPE = /^(?:string|number|boolean|null|undefined|true|false)$/i;
 const value = (r) => r !== M && r[0] !== "<" && r.length >= 4 && !TYPE.test(r);
+// a value taken whole: quoted parts and any other characters up to the next space outside quotes
+const CHUNKS = String.raw`(?:"[^"\n]*"|'[^'\n]*'|${"`"}[^${"`"}\n]*${"`"}|<[^<>\n]*>|\S)+`;
+const VALUE = new RegExp(String.raw`(?:["'${"`"}]?[ \t]*[=:][ \t]*|[ \t]+(?=["'${"`"}]))(${CHUNKS})`, "y"); // right after the name
+const FLAG = new RegExp(String.raw`(?<!\S)(-u[ \t]*[^\s:]+:|-p[ \t]*)(${CHUNKS})`, "g"); // -u name:value, -p value, -pvalue
+// the masked form of a whole value, or null for a placeholder, a type word, a masked value or nothing; one pair of quotes stays
+function whole(s) {
+  const q = /^(["'`])([^\n]*)\1$/.exec(s), inner = q && !q[2].includes(q[1]) ? q[2] : null, r = inner ?? s;
+  if (!r || r === M || /^<[^<>\n]*>$/.test(r) || TYPE.test(r)) return null;
+  return inner === null ? M : q[1] + M + q[1];
+}
 // random-looking: 20 or more letters, digits and + / = _ - in a row, with a letter right beside a digit in at least three places
 const LONG = /[A-Za-z0-9+/=_-]{20,}/g;
 const random = (r) => (r.match(/[A-Za-z](?=\d)|\d(?=[A-Za-z])/g)?.length ?? 0) >= 3;
@@ -38,31 +48,53 @@ const each = (text, rules) => {
   for (const [re, to] of rules) text = text.replace(re, (...a) => (n++, to(...a)));
   return [text, n];
 };
+// one line: [masked line, count, whether a credential word has no value after it on the line]
 function wide(line) {
-  let n = 0, head = line, tail = "";
-  const w = WORD.exec(line);
+  let n = 0, tail = "", open = false;
+  let head = line.replace(FLAG, (all, flag, s) => { const m = whole(s); return m ? (n++, flag + m) : all; });
+  const w = WORD.exec(head);
   if (w) {
     NAME.lastIndex = w.index + w[0].length;
-    NAME.exec(line);
-    head = line.slice(0, NAME.lastIndex);
-    tail = line.slice(NAME.lastIndex).replace(RUN, (r) => (value(r) ? (n++, M) : r));
+    NAME.exec(head);
+    tail = head.slice(NAME.lastIndex);
+    head = head.slice(0, NAME.lastIndex);
+    let first = "", t = 0;
+    VALUE.lastIndex = 0;
+    const v = VALUE.exec(tail);
+    if (v) {
+      const m = whole(v[1]);
+      if (m) t++;
+      first = v[0].slice(0, v[0].length - v[1].length) + (m ?? v[1]);
+      tail = tail.slice(v[0].length);
+    }
+    tail = first + tail.replace(RUN, (r) => (value(r) ? (t++, M) : r));
+    open = !t && !/[\p{L}\p{N}]/u.test(tail);
+    n += t;
   }
   head = head.replace(LONG, (r) => (random(r) ? (n++, M) : r));
-  return [head + tail, n];
+  return [head + tail, n, open];
+}
+// the wide rule on each line of a shaped text: [line, count] each; after a credential word with no value, the next line that is not empty goes whole
+function widen(shaped) {
+  let open = false;
+  return shaped.split("\n").map((l) => {
+    if (!l.trim()) return [l, 0];
+    const [m, n, o] = wide(l), r = open ? [M, 1] : [m, n];
+    open = o;
+    return r;
+  });
 }
 
 // what is a secret by its own form: safe to write back into a file. Returns [text, count]
 export const shapes = (text) => each(text, SHAPES);
 
 // the numbers (from 1) of the lines the wide rule would touch beyond shapes
-export const suspect = (text) => shapes(text)[0].split("\n").flatMap((l, i) => (wide(l)[1] ? [i + 1] : []));
+export const suspect = (text) => widen(shapes(text)[0]).flatMap(([, n], i) => (n ? [i + 1] : []));
 
 // shapes plus the wide rule, for the extract, where a wrong hit costs nothing. Returns [text, count]
 export function mask(text) {
-  const [shaped, n] = shapes(text);
-  let total = n;
-  const out = shaped.split("\n").map((l) => { const [m, c] = wide(l); total += c; return m; });
-  return [out.join("\n"), total];
+  const [shaped, n] = shapes(text), lines = widen(shaped);
+  return [lines.map(([l]) => l).join("\n"), lines.reduce((s, [, c]) => s + c, n)];
 }
 
 // one line of a session file: its kept text ("user: ..." / "assistant: ..."), its timestamp, and whether it was not JSON
