@@ -13,21 +13,28 @@ const NOISE = /<(system-reminder|local-command-[\w-]+|command-[\w-]+|bash-stdout
 const REPORT = /^(<task-notification>|Another Claude session sent a message)/;
 
 const M = "[masked]";
+// a placeholder, a type or an empty value is no secret
+const SAFE = /^(?:<[^<>]*>|string|number|boolean|null|undefined|true|false|)[,;]?$/i;
+// key: what stays before the value; q: its quote, if any; v: the value
+const keep = (key, q, v) => (SAFE.test(v) ? null : `${key}${q}${M}${q}`);
 const RULES = [
-  [/-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----/g, M],
-  [/(Authorization:\s*Bearer\s+)[^\s"']+/gi, `$1${M}`],
-  [/\b(password|passwd|secret|token|api_key|apikey)(["']?\s*[=:]\s*)(["']?)[^\s"']+\3/gi, `$1$2$3${M}$3`],
-  [/\bsk-\w{20,}/g, M],
-  [/\b(?:gh[pos]_|github_pat_)\w{20,}/g, M],
-  [/\bAKIA[A-Z0-9]{16}\b/g, M],
-  [/\bxox[baprs]-[\w-]+/g, M],
-  [/\beyJ[\w-]+\.[\w-]+\.[\w-]+/g, M],
+  [/-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----/g, () => M],
+  [/(Authorization:\s*Bearer\s+)(<[^<>\n]*>|[^\s"'`]+)/gi, (_, key, v) => keep(key, "", v)],
+  [/([\w-]*(?:password|passwd|secret|token|api[_-]?key|access_key)[\w-]*["']?\s*[=:]\s*)(?:(["'])(.*?)\2|(<[^<>\n]*>|[^\s"'`]+))/gi,
+    (_, key, q, qv, bare) => keep(key, q ?? "", q ? qv : bare)],
+  [/(\b[a-z][\w+.-]*:\/\/[^\s:@/]+:)[^\s@/]+(?=@)/gi, (_, key) => key + M],
+  [/\bsk-[\w-]{20,}/g, () => M],
+  [/\b[sr]k_(?:live|test)_\w{10,}/g, () => M],
+  [/\b(?:gh[pousr]_|github_pat_)\w{20,}/g, () => M],
+  [/\bAKIA[A-Z0-9]{16}\b/g, () => M],
+  [/\bxox[baprs]-[\w-]+/g, () => M],
+  [/\beyJ[\w-]+\.[\w-]+\.[\w-]+/g, () => M],
 ];
 
 // returns [masked text, count of replacements]
 export function mask(text) {
   let n = 0;
-  for (const [re, to] of RULES) text = text.replace(re, (...a) => { n++; return to.replace(/\$(\d)/g, (_, i) => a[i]); });
+  for (const [re, to] of RULES) text = text.replace(re, (...a) => { const r = to(...a); if (r === null) return a[0]; n++; return r; });
   return [text, n];
 }
 

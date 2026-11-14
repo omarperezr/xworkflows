@@ -79,6 +79,8 @@ test("both sides' text is kept; tools, notices, meta, summaries and reports are 
 
 test("mask: each shape goes, the key name stays, the count is returned", () => {
   const pk = "-----BEGIN RSA PRIVATE " + "KEY-----\nabc\n-----END RSA PRIVATE " + "KEY-----";
+  const v = "Zq7" + "Wx2" + "Rt9"; // a made-up value
+  const long = "A1".repeat(12);
   const cases = [
     [pk, "[masked]"],
     ["Authorization: Bearer abc.def-1", "Authorization: Bearer [masked]"],
@@ -88,17 +90,40 @@ test("mask: each shape goes, the key name stays, the count is returned", () => {
     ["token='hunter2'", "token='[masked]'"],
     ["api_key=hunter2", "api_key=[masked]"],
     ["apikey=hunter2", "apikey=[masked]"],
+    // a name inside a longer name, any case, = or :, bare or quoted
+    [`DB_PASSWORD=${v}`, "DB_PASSWORD=[masked]"],
+    [`client_secret=${v}`, "client_secret=[masked]"],
+    [`AWS_SECRET_ACCESS_KEY=${v}`, "AWS_SECRET_ACCESS_KEY=[masked]"],
+    [`aws_access_key_id: ${v}`, "aws_access_key_id: [masked]"],
+    [`x-api-key: ${v}`, "x-api-key: [masked]"],
+    [`"accessToken": "${v}"`, '"accessToken": "[masked]"'],
+    [`ANTHROPIC_API_KEY=sk-` + `ant-api03-${long}`, "ANTHROPIC_API_KEY=[masked]"],
+    [`password: "correct horse ${v}" done`, 'password: "[masked]" done'],
+    [`PASSWORD='two words' done`, "PASSWORD='[masked]' done"],
+    // keys by their own shape
     ["sk-" + "a1".repeat(12), "[masked]"],
-    ["gh" + "p_" + "A1".repeat(12), "[masked]"],
-    ["gh" + "o_" + "A1".repeat(12), "[masked]"],
-    ["gh" + "s_" + "A1".repeat(12), "[masked]"],
-    ["github" + "_pat_" + "A1".repeat(12), "[masked]"],
+    ["sk-" + "ant-api03-" + long + "-x_y", "[masked]"],
+    ["sk-" + "proj-" + long + "_z-1", "[masked]"],
+    ["sk" + "_live_" + long, "[masked]"],
+    ["sk" + "_test_" + long, "[masked]"],
+    ["rk" + "_live_" + long, "[masked]"],
+    ["gh" + "p_" + long, "[masked]"],
+    ["gh" + "o_" + long, "[masked]"],
+    ["gh" + "u_" + long, "[masked]"],
+    ["gh" + "s_" + long, "[masked]"],
+    ["gh" + "r_" + long, "[masked]"],
+    ["github" + "_pat_" + long, "[masked]"],
     ["AK" + "IA" + "ABCDEFGH12345678", "[masked]"],
     ["xo" + "xb-123-abc", "[masked]"],
     ["ey" + "Jhbg.ey" + "Jzdw.sig_-9", "[masked]"],
+    // the password of a URL goes, its user stays
+    [`postgres://admin:${v}@db.example:5432/app`, "postgres://admin:[masked]@db.example:5432/app"],
   ];
   for (const [from, to] of cases) assert.deepEqual(mask(from), [to, 1], from);
-  assert.deepEqual(mask("plain words"), ["plain words", 0]);
+  // a placeholder, a type or an empty value is no secret
+  for (const keep of ["plain words", "Authorization: Bearer <token>", "token: string", "`token: string`", "password: <your password>",
+    '"secret": null', "apiKey: undefined", "token=true", "access_key: false", "passwordLength: number", "hasToken: boolean", 'password=""',
+    "https://example.com:8080/a@b"]) assert.deepEqual(mask(keep), [keep, 0], keep);
   assert.equal(mask("password=a token=b")[1], 2);
 });
 
