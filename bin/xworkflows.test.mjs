@@ -2294,7 +2294,7 @@ test("doctor: with core.hooksPath outside the repository the pre-push line names
   assert.ok(line, "doctor fails on it");
   assert.doesNotMatch(line, /: run xworkflows install$/);
   // both ways out, each with what it costs
-  assert.ok(line.includes('node "$(git rev-parse --show-toplevel)/.xworkflows/checks/run.mjs" --pre-push "$1"'), line);
+  assert.ok(line.includes('if [ -f "$f" ]; then node "$f" --pre-push "$1" || exit $?; fi'), line);
   assert.match(line, /add this line to the pre-push hook of that folder/);
   assert.match(line, /runs it in every repository that uses the folder/);
   assert.match(line, /after which the hooks of the other folder no longer run here/);
@@ -2416,4 +2416,24 @@ test("install: a retired entry naming a file this tool's adapter never installs 
   const copy = retiringCopy({ "hooks/adapters/other.mjs": [sha("old\n")] });
   const out = cliAt(copy, repo(), ["install", "--yes"]);
   assert.equal(out.status, 0, out.stderr);
+});
+
+test("doctor: for a hooks folder outside the repository the line it prints runs the check only where the file is, and then doctor says ok", () => {
+  const g = tmp("xwf-ghooks-");
+  const env = { GIT_CONFIG_GLOBAL: outside(g) };
+  const r = repo();
+  assert.equal(cli(r, ["install", "--yes"], { env }).status, 0);
+  const first = doctor(r, env).stdout;
+  const line = first.match(/^fail pre-push hook: core\.hooksPath points outside.*file is: (.+?) ; or point/m)?.[1];
+  assert.ok(line, first);
+  writeFileSync(join(g, "pre-push"), `#!/bin/sh\n${line}\n`, { mode: 0o755 });
+  assert.doesNotMatch(doctor(r, env).stdout, /^fail pre-push hook/m);
+  // a repository that uses the folder and has no xworkflows: the push goes on
+  const other = repo();
+  const run = (cwd) => spawnSync(join(g, "pre-push"), ["origin"], { cwd, env: { ...process.env, ...ISO }, encoding: "utf8" });
+  assert.equal(run(other).status, 0);
+  // where the check is, its exit code stops the push
+  mkdirSync(join(other, ".xworkflows/checks"), { recursive: true });
+  writeFileSync(join(other, ".xworkflows/checks/run.mjs"), "process.exit(3);\n");
+  assert.equal(run(other).status, 3);
 });
