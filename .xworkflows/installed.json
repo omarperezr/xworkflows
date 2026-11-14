@@ -6,7 +6,7 @@
   "pieces": {
     "hook-runtime": {
       "version": "0.1.0",
-      "sha256": "30fa70a5772c70ff7961391cd8ef7740bf5e21898c2244ebc66bd5425c15298a"
+      "sha256": "0a1149508b77b8ae4a35985bae4e61ea072dc75438434e9104cffc19b93545f3"
     },
     "design-first": {
       "version": "0.1.0",
@@ -130,7 +130,7 @@
     },
     "checks": {
       "version": "0.1.0",
-      "sha256": "f5b9ddbb244303f8a07339057ef66c65cb79e3148088bcff04df26157e27a3af"
+      "sha256": "97b1d3e13d1969d8b60a2ae975608f1e1daef9c83024b5cd3ff9ca00e9dcca51"
     },
     "lint": {
       "version": "0.1.0",
@@ -168,7 +168,7 @@
     },
     ".xworkflows/hooks/core/config.mjs": {
       "piece": "hook-runtime",
-      "sha256": "59254d6463e68a6d225b2d4068a68856d772fdd82609d4a189c69c437a40a3b9"
+      "sha256": "ea58516b21df776580b0424bc94adc09d3527c1f384e86b3fc583629fbc40068"
     },
     ".xworkflows/hooks/core/ctx.mjs": {
       "piece": "hook-runtime",
@@ -236,7 +236,7 @@
     },
     ".xworkflows/checks/fix-has-test.mjs": {
       "piece": "checks",
-      "sha256": "f4f4e4f0e56f73bdeb8fa13d3624ec81cc95394e6b07eeb943112f40c17c526b"
+      "sha256": "0cb0dbc57227be360e44671ab7ad5feb218758f00ece5102d4abddedcb6518d8"
     },
     ".xworkflows/checks/change-size.mjs": {
       "piece": "checks",
@@ -470,21 +470,21 @@
       "piece": "checks",
       "sha256": "096d349400afc039392699cdfa8ebc6fb507531d3d051e08bd36a47110adbaa3"
     },
-    ".git/hooks/pre-push": {
-      "piece": "checks",
-      "sha256": "df9169167f7b11029bcff4e440005a9f112904093187e2646359b2ce78696902"
-    },
     ".xworkflows/git/post-merge": {
       "piece": "checks",
       "sha256": "c5bd136544e108c68d14f5498ca7c269439d404eb4e8a4f2bab0e74c2e2530a1"
     },
-    ".git/hooks/post-merge": {
-      "piece": "checks",
-      "sha256": "62068fcad35fc3aa0408871013c03bc71f938a8511c427a058e8634a37665096"
-    },
     ".xworkflows/git/post-commit": {
       "piece": "checks",
       "sha256": "c5bd136544e108c68d14f5498ca7c269439d404eb4e8a4f2bab0e74c2e2530a1"
+    },
+    ".git/hooks/pre-push": {
+      "piece": "checks",
+      "sha256": "df9169167f7b11029bcff4e440005a9f112904093187e2646359b2ce78696902"
+    },
+    ".git/hooks/post-merge": {
+      "piece": "checks",
+      "sha256": "62068fcad35fc3aa0408871013c03bc71f938a8511c427a058e8634a37665096"
     },
     ".git/hooks/post-commit": {
       "piece": "checks",
