@@ -499,7 +499,8 @@ testing and capturing screens is part of the flow, not a habit outside it.
 ### 7.9 The `dream` skill
 
 A pass that runs apart from the work, reads past sessions with hindsight and
-improves the memory future sessions read. It copies the method of Anthropic's
+improves the memory future sessions read. It is built, for Claude Code, and
+started by hand. It copies the method of Anthropic's
 Dreams, not the service: Dreams is a research preview of their paid API, it
 needs an access request, and it reads cloud sessions, not the sessions of a
 coding tool on the owner's machine.
@@ -516,9 +517,12 @@ not tested**.
    keeps the text both sides wrote and drops tool output, strips harness
    noise, and masks secrets. One plain-text file per session, in a private
    temporary folder outside the repository. It prints the size and a token
-   estimate and stops if the total passes `dream.maxExtractBytes`.
+   estimate. It takes the oldest sessions first until the next one would pass
+   `dream.maxExtractBytes`; the rest wait for the next run. Before any agent
+   reads, the skill shows those numbers and asks the owner once.
 2. **Branch.** Creates `dream/<date>` in its own worktree. Nothing below
-   touches `main`.
+   touches `main`. Where the last run reached is the file `dream.json` in the
+   memory folder, on the branch.
 3. **Analyze** (cheap tier, one agent per session file). Each agent reads
    its file once, in full, then does three jobs on the memory files of its
    topics:
@@ -542,9 +546,10 @@ not tested**.
    it.
 
 What only this design adds, and the reason for the skill: a correction the
-owner gave in two or more sessions becomes a proposed rule, written as
-feedback memory with the sessions that support it. Turning it into a rule in
-`AGENTS.md` stays the owner's act, because that file is curated.
+owner gave in two or more sessions becomes a proposed rule, which goes into
+the report only, with the sessions that support it. Turning it into a rule in
+`AGENTS.md` stays the owner's act, because that file is curated. The moment
+that suggests a run is not built (card P-120).
 
 Rules every agent in the run holds, taken from the recipe:
 
