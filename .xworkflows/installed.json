@@ -6,7 +6,7 @@
   "pieces": {
     "hook-runtime": {
       "version": "0.1.0",
-      "sha256": "1dd1a56566bedbc4de8815d97c2969f157c19ad3ed70a63af928f6438bf11228"
+      "sha256": "6426ad27ef806ba64f829b12d84897ab655b79ccb25be8c25af0500905d0f0b5"
     },
     "design-first": {
       "version": "0.1.0",
@@ -50,7 +50,7 @@
     },
     "adapt": {
       "version": "0.1.0",
-      "sha256": "be317615c41dd95703ea8a31c5b6108f4e1c3dc67be4698612278d60dbf2cdff"
+      "sha256": "a98213c681bce828eda07d51eeaecf7991759d7a3eebda155cda65d0a42d54e3"
     },
     "full-review": {
       "version": "0.1.0",
@@ -70,7 +70,7 @@
     },
     "memory": {
       "version": "0.1.0",
-      "sha256": "bf8411385bf6914e0f8e46c5889a4442b9723d808754a4d15cfe992033d8f2d4"
+      "sha256": "c672232a09aa1f16408a242c05127f45af6c3a958b3a75a54817b325d9e43bc5"
     },
     "modes": {
       "version": "0.1.0",
@@ -86,7 +86,7 @@
     },
     "review": {
       "version": "0.1.0",
-      "sha256": "244c129220da386ae3c84d1670d20d2226b0490ac18db984e6c88a59e74cff06"
+      "sha256": "f01aa761e0696d3848e3d3578a72664924288c7fcc10cc6c4ad3b62636771ef5"
     },
     "deepen": {
       "version": "0.1.0",
@@ -98,7 +98,7 @@
     },
     "orchestrate": {
       "version": "0.1.0",
-      "sha256": "c08df093fa9a9a47425ab51ed66194453ab281be9f68bc4a416659f6a41ffa90"
+      "sha256": "e3abe85db45467a06dea053ed2050bae4555befc14f54afe7396f2a07a3e3a75"
     },
     "pending": {
       "version": "0.1.0",
@@ -118,7 +118,7 @@
     },
     "checks": {
       "version": "0.1.0",
-      "sha256": "eecb422e157fd2cf380228af0092991616bfd8be5f0711124a9a1eccea85fdc3"
+      "sha256": "f5b9ddbb244303f8a07339057ef66c65cb79e3148088bcff04df26157e27a3af"
     },
     "lint": {
       "version": "0.1.0",
@@ -140,7 +140,7 @@
     },
     ".xworkflows/hooks/run.mjs": {
       "piece": "hook-runtime",
-      "sha256": "e507832f0975fba80bdf8389374d84b23850709d71c77fee1880cf4220b8dcdd"
+      "sha256": "cf9ecf76c88fc39449b299ea6bb379af132a3d7d3b0163b8281eb0599831008a"
     },
     ".xworkflows/mark.mjs": {
       "piece": "hook-runtime",
@@ -156,7 +156,7 @@
     },
     ".xworkflows/hooks/core/config.mjs": {
       "piece": "hook-runtime",
-      "sha256": "deade648cc594d3e0a79a8c018a63e41d24b6896118a85cb68e4c1c9b3e58c57"
+      "sha256": "d145dac7dbf7d8d9c2efc08e9c55cc97d0d6ffec582426f14b9f8a34b6eac559"
     },
     ".xworkflows/hooks/core/ctx.mjs": {
       "piece": "hook-runtime",
@@ -184,7 +184,7 @@
     },
     ".xworkflows/hooks/core/memory.mjs": {
       "piece": "memory",
-      "sha256": "906f423d73f6ace5b772347c5f2fb926311e00cf4663930049b6417612ffb32a"
+      "sha256": "388960217a0ded780e015db6ab0cc2d6edac4812112c86ab3ba177e826bd6194"
     },
     ".xworkflows/hooks/core/memory-index.mjs": {
       "piece": "memory",
@@ -200,7 +200,7 @@
     },
     ".xworkflows/checks/run.mjs": {
       "piece": "checks",
-      "sha256": "76aa3b26c99f21037fb2bb85d4cd369b8d4b6bf912a7ba25bda7306139977626"
+      "sha256": "a9e8ea271375853592858420ae6386cf383bf22827f52be2cf977f9a8b5c18d0"
     },
     ".xworkflows/checks/comment-lines.mjs": {
       "piece": "checks",
@@ -328,7 +328,7 @@
     },
     ".claude/skills/adapt/SKILL.md": {
       "piece": "adapt",
-      "sha256": "2dcc7b45518703641ae77d5c5a6932c6e826737ca905530dc045d437122509e9"
+      "sha256": "e6eff403a630a283f5a7e0125900049ebcbe125c8da190019be37c41601410e8"
     },
     ".claude/skills/adapt/scan.mjs": {
       "piece": "adapt",
@@ -344,7 +344,7 @@
     },
     ".claude/skills/adapt/research.mjs": {
       "piece": "adapt",
-      "sha256": "fc2540ae234ca560fa4d14f1adf01664ffb4fae157e226dbf29af1a430d82927"
+      "sha256": "b2bdb932ebd801d51760c168c6750132baa82fff51b8a1fce50cdad91b6be60a"
     },
     ".claude/skills/adapt/screens.mjs": {
       "piece": "adapt",
@@ -368,7 +368,7 @@
     },
     ".claude/agents/review.md": {
       "piece": "review",
-      "sha256": "3e55a48f2406d8ef6175baf9149fdc8ea39baf072a49b8147f4e720cc38a0c3c"
+      "sha256": "56e15d044c1962e9ce435f0f0742f0be5ed33386c0815dfba88eada5ce7b9f81"
     },
     ".claude/skills/deepen/SKILL.md": {
       "piece": "deepen",
@@ -380,7 +380,7 @@
     },
     ".claude/skills/orchestrate/SKILL.md": {
       "piece": "orchestrate",
-      "sha256": "07f40bc19128e9635b43b23fdf5648821a6f5669e99f4f4a5042cb97ea44ed96"
+      "sha256": "1f506c458d579ad4ab331c698340738b7811a964f1d370c910e2774714f12b02"
     },
     ".claude/skills/pending/SKILL.md": {
       "piece": "pending",

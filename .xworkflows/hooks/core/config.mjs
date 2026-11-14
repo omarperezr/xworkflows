@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join, posix } from "node:path";
+import { outsideLine } from "./ctx.mjs";
 
 export const DEFAULTS = {
   owner: "the owner",
@@ -54,7 +55,20 @@ export function memoryDir(d) {
   return n === "" || n === "." || n.startsWith("/") || n === ".." || n.startsWith("../") ? null : n;
 }
 
+// the memory folder every reader uses, { dir, line: null }, or the line that refuses it, { dir: null, line }
+// a value that is not a text is the default; a text outside is refused even when memory.outside lists it: that list is only for a link inside
+export function memoryFolder(config, root) {
+  const value = config.memory?.dir;
+  const dir = typeof value === "string" ? memoryDir(value) : DEFAULTS.memory.dir;
+  if (dir === null) return { dir: null, line: `memory.dir ${JSON.stringify(value)} must be a folder inside the repository` };
+  const line = outsideLine(root, join(dir, "MEMORY.md"), config.memory?.outside);
+  return line ? { dir: null, line } : { dir, line: null };
+}
+
 const isObj = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
+
+// the sections read as objects: one edited by hand into anything else is refused by its name
+const SECTIONS = new Set([...Object.keys(DEFAULTS).filter((k) => isObj(DEFAULTS[k])), ...PROJECT_KEYS.map((k) => k.split(".")[0])]);
 
 export function merge(base, over) {
   if (!isObj(base) || !isObj(over)) return structuredClone(over);
@@ -67,9 +81,9 @@ const readOrNull = (p) => {
   try { return readFileSync(p, "utf8"); } catch (e) { if (e.code === "ENOENT") return null; throw e; }
 };
 
-export function load(root, read = readOrNull) {
+function parse(root, read) {
   const text = read(join(root, ".xworkflows", "config.json"));
-  if (text === null) return structuredClone(DEFAULTS);
+  if (text === null) return {};
   let user;
   try {
     user = JSON.parse(text);
@@ -77,7 +91,24 @@ export function load(root, read = readOrNull) {
   } catch (e) {
     throw new Error(`.xworkflows/config.json does not parse: ${e.message}`);
   }
+  return user;
+}
+
+const badSections = (user) => Object.keys(user).filter((k) => SECTIONS.has(k) && !isObj(user[k]));
+
+export function load(root, read = readOrNull) {
+  const user = parse(root, read);
+  const bad = badSections(user)[0];
+  if (bad) throw new Error(`.xworkflows/config.json: ${bad} must be an object`);
   return merge(DEFAULTS, user);
+}
+
+// for the hooks: a section that is not an object takes its default, and the names of those sections come back
+export function loadLenient(root, read = readOrNull) {
+  const user = parse(root, read);
+  const replaced = badSections(user);
+  for (const k of replaced) delete user[k];
+  return { config: merge(DEFAULTS, user), replaced };
 }
 
 export const get = (config, key) => key.split(".").reduce((o, k) => (isObj(o) ? o[k] : undefined), config);

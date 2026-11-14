@@ -263,18 +263,18 @@ test("sessionStart: a memory.dir that is not a text is read as the default and d
   }
 });
 
-test("sessionStart: a memory.dir outside the repository, absolute or ../, says to ask the owner", () => {
+test("sessionStart: a memory.dir outside the repository, absolute or ../, says it must be a folder inside", () => {
   for (const sub of ["abs", "../notes"]) {
     const top = realpathSync(mkdtempSync(join(tmpdir(), "xwf-mem-"))), root = join(top, "repo");
     mkdirSync(root);
     mkdirSync(join(top, "notes"));
     const dir = sub === "abs" ? join(top, "notes") : sub;
     const r = decide(ev("sessionStart", { source: "startup", root }), makeCtx({ root, session: "s" }, { env: {}, config: { ...DEFAULTS, memory: { dir, outside: [] } }, stateDir: root }));
-    assert.match(r.context, /ask the owner/, sub);
+    assert.match(r.context, /must be a folder inside the repository/, sub);
   }
 });
 
-test("sessionStart: a memory.dir outside the repository names the value, asks the owner, and speaks of no list or link", () => {
+test("sessionStart: a memory.dir outside the repository names the value, says it must be inside, and speaks of no list or link", () => {
   for (const sub of ["../notes", "/nowhere-xwf/notes", "abs-made"]) {
     const top = realpathSync(mkdtempSync(join(tmpdir(), "xwf-mem-"))), root = join(top, "repo");
     mkdirSync(root);
@@ -282,7 +282,7 @@ test("sessionStart: a memory.dir outside the repository names the value, asks th
     if (sub === "abs-made") mkdirSync(dir);
     const r = decide(ev("sessionStart", { source: "startup", root }), makeCtx({ root, session: "s" }, { env: {}, config: { ...DEFAULTS, memory: { dir, outside: [] } }, stateDir: root }));
     assert.ok(r.context.includes(dir), sub);
-    assert.match(r.context, /ask the owner/, sub);
+    assert.match(r.context, /must be a folder inside the repository/, sub);
     assert.doesNotMatch(r.context, /memory\.outside|link/, sub);
     assert.ok(!r.context.includes(top + "\n") && !/ \/ /.test(r.context), sub);
   }
@@ -298,7 +298,7 @@ test("a memory.dir outside the repository, absolute or ../, is refused by the ho
     const ctx = (outside) => makeCtx({ root, session: "s" }, { env: { XWORKFLOWS_DRY: "1" }, config: { ...DEFAULTS, memory: { dir, outside } }, stateDir: root });
     for (const outside of [[], [join(top, "notes")]]) {
       const r = decide(ev("sessionStart", { source: "startup", root }), ctx(outside));
-      assert.ok(r.context.includes(dir) && /ask the owner.*inside the repository/.test(r.context), sub);
+      assert.ok(r.context.includes(dir) && /must be a folder inside the repository/.test(r.context), sub);
       assert.doesNotMatch(r.context, /memory\.outside|link/, sub);
       for (const event of ["sessionEnd", "preCompact"]) {
         decide(ev(event, { root }), ctx(outside));
@@ -316,4 +316,42 @@ test("a memory.dir that is a number or a list is read as the default at session 
     const r = decide({ ...write(`${DEFAULTS.memory.dir}/n.md`, note("user")), root }, ctx());
     assert.equal(r.decision, "deny", JSON.stringify(dir));
   }
+});
+
+test("a memory.dir empty, . or ./ is refused: no index is written in the root, over a MEMORY.md or without one, and session start says so", () => {
+  for (const dir of ["", ".", "./"]) {
+    const own = mkdtempSync(join(tmpdir(), "xwf-mem-")), bare = mkdtempSync(join(tmpdir(), "xwf-mem-"));
+    const before = Buffer.from("# Our own notes\r\n\n- keep me\n");
+    writeFileSync(join(own, "MEMORY.md"), before);
+    for (const root of [own, bare]) writeFileSync(join(root, "AGENTS.md"), "---\nname: Agents\n---\n");
+    const ctx = (root) => makeCtx({ root, session: "s" }, { env: { XWORKFLOWS_DRY: "1" }, config: { ...DEFAULTS, memory: { dir, outside: [] } }, stateDir: root });
+    for (const event of ["sessionEnd", "preCompact"]) {
+      for (const root of [own, bare]) decide(ev(event, { root }), ctx(root));
+      assert.deepEqual(readFileSync(join(own, "MEMORY.md")), before, `${JSON.stringify(dir)} ${event}`);
+      assert.throws(() => readFileSync(join(bare, "MEMORY.md")), /ENOENT/, `${JSON.stringify(dir)} ${event}`);
+    }
+    const r = decide(ev("sessionStart", { source: "startup", root: own }), ctx(own));
+    assert.equal(r.context, `memory.dir ${JSON.stringify(dir)} must be a folder inside the repository`);
+  }
+});
+
+test("a refused memory.dir is not the memory folder at a note's write: a feedback note elsewhere is allowed", () => {
+  for (const dir of ["", ".", "..", "/"]) {
+    const c = fake({ config: { ...base, memory: { dir } } }).ctx;
+    assert.equal(decide(write("/r/src/guide.md", note("feedback")), c).decision, "allow", JSON.stringify(dir));
+  }
+});
+
+test("through the real runner: a config whose memory section is not an object is judged by the default memory folder: the feedback note is denied, and the warning names the section", () => {
+  const root = mkdtempSync(join(tmpdir(), "xwf-mem-"));
+  const state = mkdtempSync(join(tmpdir(), "xwf-state-"));
+  mkdirSync(join(root, ".xworkflows"));
+  writeFileSync(join(root, ".xworkflows", "config.json"), '{"memory":null}');
+  const env = { ...process.env, XWORKFLOWS_STATE_DIR: state, PATH: "/nonexistent" };
+  delete env.XWORKFLOWS_FREE; delete env.CLAUDE_PROJECT_DIR;
+  const input = { session_id: "s", cwd: root, hook_event_name: "PreToolUse", tool_name: "Write", tool_input: { file_path: join(root, "docs", "memory", "n.md"), content: note("feedback") } };
+  const r = spawnSync(process.execPath, [run, "claude", "memory"], { input: JSON.stringify(input), env, encoding: "utf8" });
+  assert.equal(r.status, 0);
+  assert.match(r.stdout, /deny/);
+  assert.equal(r.stderr, "xworkflows: .xworkflows/config.json: memory must be an object; using its default\n");
 });

@@ -3,7 +3,8 @@
 // Standalone: node: built-ins only (it is copied into projects).
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, readFileSync, writeFileSync, mkdirSync, rmSync, copyFileSync, statSync, lstatSync, realpathSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync, appendFileSync, mkdirSync, rmSync, copyFileSync, statSync, lstatSync, realpathSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 import { screens, render, details, mechanism, seen, MAX_RULES, MAX_MORE } from "./screens.mjs";
@@ -117,6 +118,12 @@ const git = (root, args) => execFileSync("git", args, { cwd: root, encoding: "ut
 const readJson = (p) => JSON.parse(readFileSync(p, "utf8"));
 // Same match as the adapt-gates hook: quotes and any case accepted.
 const statusOf = (f) => (existsSync(f) ? (readFileSync(f, "utf8").match(/^status:\s*["']?(\w+)/mi) || [])[1]?.toLowerCase() : null) || null;
+// The summary's sha256, as the adapt-gates hook keeps it from a Write; null when there is none.
+const shaOf = (f) => { try { return createHash("sha256").update(readFileSync(f)).digest("hex"); } catch { return null; } };
+// The same hash of the summary git holds at HEAD; null when HEAD has none.
+const headSha = (root) => { try { return createHash("sha256").update(execFileSync("git", ["cat-file", "blob", "HEAD:.xworkflows/summary.md"], { cwd: root, stdio: ["ignore", "pipe", "ignore"] })).digest("hex"); } catch { return null; } };
+// A run file start wrote with the hash of the summary it found; one an earlier version wrote, or any other JSON, has none.
+const marked = (r) => r !== null && typeof r === "object" && "startSha" in r;
 
 // A tracked symlink under .xworkflows would send the write outside the project.
 const isLink = (f) => { try { return lstatSync(f).isSymbolicLink(); } catch { return false; } };
@@ -182,24 +189,34 @@ function cli(cmd, root) {
       try { for (const l of readFileSync(join(dir, "interview.log.jsonl"), "utf8").split("\n")) try { last = JSON.parse(l).run || last; } catch {} } catch {}
       if (last && (status === "draft" || last.startsWith(commit.slice(0, 8) + "-"))) old = { run: last, mismatches: 0 };
     }
-    const run = resume && old ? { ...old, commit, startedAt: Date.now() }
-      : { run: `${commit.slice(0, 8)}-${Date.now().toString(36)}`, commit, startedAt: Date.now(), mismatches: 0 };
+    // done tells the summary of before this run from one written in it; an open run keeps its mark, only done clears it,
+    // unless the summary on disk is the one the gate judged in that run: then it is the summary of before this one
+    const startSha = marked(old) && old.summarySha !== shaOf(summary) ? old.startSha : shaOf(summary);
+    const run = resume && old ? { ...old, commit, startedAt: Date.now(), startSha }
+      : { run: `${commit.slice(0, 8)}-${Date.now().toString(36)}`, commit, startedAt: Date.now(), mismatches: 0, startSha };
     if (!status) { rmSync(prev, { force: true }); rmSync(join(dir, "research.answered.json"), { force: true }); }
     put(runFile, JSON.stringify(run, null, 2) + "\n");
     console.log(run.run);
   } else if (cmd === "done") {
-    // The approved summary written in this run makes its research the base of the next re-adapt (2 s slack for coarse file times).
+    // The approved summary written in this run makes its research the base of the next re-adapt.
+    // Written in this run: a Write of this run gave it, or (in a run with a start mark) its hash is neither the one start found nor the one git holds at HEAD.
     let r = null;
     try { r = readJson(runFile); } catch {}
-    if (r && statusOf(summary) === "approved" && statSync(summary).mtimeMs + 2000 >= r.startedAt && existsSync(join(dir, "research.json"))) {
+    const h = shaOf(summary);
+    if (r && statusOf(summary) === "approved" && (h === r.summarySha || (marked(r) && h !== r.startSha && h !== headSha(root)))) {
       // the adapt-gates hook kept the hash of the last summary Write it allowed; any other text on disk came another way
-      if (process.env.XWORKFLOWS_FREE) process.stderr.write("xworkflows: research.mjs done: the summary check skipped by XWORKFLOWS_FREE\n");
-      else if (r.summarySha !== createHash("sha256").update(readFileSync(summary)).digest("hex")) {
+      if (h !== r.summarySha && process.env.XWORKFLOWS_FREE) {
+        process.stderr.write("xworkflows: research.mjs done: the summary check skipped by XWORKFLOWS_FREE\n");
+        // the hooks' log, where hooks/run.mjs writes a hook's skip; a log failure never changes the answer
+        try { appendFileSync(join(process.env.XWORKFLOWS_STATE_DIR ?? tmpdir(), "xwf-hooks.log"), `${new Date().toISOString()} - research.mjs free done: the summary check\n`); } catch {}
+      } else if (h !== r.summarySha) {
         console.error("adapt: the summary on disk is not the one written with the Write tool; write it again with Write, then run research.mjs done again");
         process.exit(1);
       }
-      putCopy(join(dir, "research.json"), prev);
-      keepAnswered(dir, r.run);
+      if (existsSync(join(dir, "research.json"))) {
+        putCopy(join(dir, "research.json"), prev);
+        keepAnswered(dir, r.run);
+      }
     }
     rmSync(runFile, { force: true });
   } else if (cmd === "render") {

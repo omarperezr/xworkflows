@@ -1,6 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { DEFAULTS, PROJECT_KEYS, merge, load, get, missing, inPaths, memoryDir } from "./config.mjs";
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { DEFAULTS, PROJECT_KEYS, merge, load, loadLenient, get, missing, inPaths, memoryDir, memoryFolder } from "./config.mjs";
+import { outsideLine } from "./ctx.mjs";
 
 test("DEFAULTS has the product defaults and none of the project keys", () => {
   assert.equal(DEFAULTS.mainBranch, "main");
@@ -49,6 +53,14 @@ test("load: reads <root>/.xworkflows/config.json and merges", () => {
 test("load: broken JSON and a JSON array throw", () => {
   assert.throws(() => load("/r", () => "{nope"), /^Error: .xworkflows\/config.json does not parse: /);
   assert.throws(() => load("/r", () => "[]"), /does not parse/);
+});
+
+test("load: a section that is not an object is refused by its name; the whole file that is not an object does not parse", () => {
+  for (const [text, name] of [['{"memory":null}', "memory"], ['{"paths":5}', "paths"], ['{"packs":[]}', "packs"], ['{"lookup":"x"}', "lookup"], ['{"tests":"node --test"}', "tests"], ['{"owner":"Ana","checks":false}', "checks"]]) {
+    assert.throws(() => load("/r", () => text), { message: `.xworkflows/config.json: ${name} must be an object` }, text);
+  }
+  assert.throws(() => load("/r", () => "null"), { message: ".xworkflows/config.json does not parse: not a JSON object" });
+  assert.equal(load("/r", () => '{"owner":"Ana","zones":[],"memory":{"dir":"n"},"tests":{"run":"x"}}').memory.dir, "n");
 });
 
 test("get: dotted lookup, undefined when a step is absent", () => {
@@ -100,4 +112,53 @@ test("memoryDir: a folder name inside the repository comes back plain, anything 
 test("memory.outside is an empty list by default", () => {
   assert.deepEqual(DEFAULTS.memory.outside, []);
   assert.deepEqual(merge(DEFAULTS, { memory: { dir: "n" } }).memory, { dir: "n", outside: [] });
+});
+
+test("memoryFolder: the folder every reader uses, or the line that refuses it", () => {
+  const top = realpathSync(mkdtempSync(join(tmpdir(), "xwf-cfg-")));
+  try {
+    const root = join(top, "repo"), away = join(top, "away"), linkedRoot = join(top, "linked-repo");
+    mkdirSync(root); mkdirSync(away); mkdirSync(join(linkedRoot, "docs"), { recursive: true });
+    symlinkSync(away, join(root, "linked"));
+    symlinkSync(away, join(linkedRoot, "docs", "memory"));
+    const inside = (v) => ({ dir: null, line: `memory.dir ${JSON.stringify(v)} must be a folder inside the repository` });
+    const link = (r, file) => ({ dir: null, line: outsideLine(r, file, []) });
+    assert.ok(link(root, "linked/MEMORY.md").line);
+    for (const [r, dir, outside, want] of [
+      [root, undefined, [], { dir: "docs/memory", line: null }],
+      [root, 5, [], { dir: "docs/memory", line: null }],
+      [root, null, [], { dir: "docs/memory", line: null }],
+      [root, ["notes"], [], { dir: "docs/memory", line: null }],
+      [root, "notes", [], { dir: "notes", line: null }],
+      [root, " ./notes/ ", [], { dir: "notes", line: null }],
+      [root, "", [], inside("")],
+      [root, ".", [], inside(".")],
+      [root, "./", [], inside("./")],
+      [root, "..", [], inside("..")],
+      [root, "a/../..", [], inside("a/../..")],
+      [root, "../away", [], inside("../away")],
+      [root, "../away", [away], inside("../away")],
+      [root, away, [away], inside(away)],
+      [root, "linked", [], link(root, "linked/MEMORY.md")],
+      [root, "linked", [away], { dir: "linked", line: null }],
+      [linkedRoot, 5, [], link(linkedRoot, "docs/memory/MEMORY.md")],
+    ]) {
+      assert.deepEqual(memoryFolder({ memory: { dir, outside } }, r), want, `${JSON.stringify(dir)} ${JSON.stringify(outside)}`);
+    }
+  } finally { rmSync(top, { recursive: true, force: true }); }
+});
+
+test("loadLenient: a section that is not an object takes its default and is named; the strict load still throws", () => {
+  const text = '{"owner":"Ana","packs":["semgrep"],"tokens":5,"roles":null,"memory":{"dir":"n"}}';
+  const { config, replaced } = loadLenient("/r", () => text);
+  assert.deepEqual(replaced, ["packs", "tokens", "roles"]);
+  assert.deepEqual([config.packs, config.tokens, config.roles, config.owner, config.memory.dir], [DEFAULTS.packs, DEFAULTS.tokens, DEFAULTS.roles, "Ana", "n"]);
+  assert.throws(() => load("/r", () => text), { message: ".xworkflows/config.json: packs must be an object" });
+});
+
+test("loadLenient: a healthy or absent file replaces nothing; a file that does not parse still throws", () => {
+  assert.deepEqual(loadLenient("/r", () => '{"packs":{}}').replaced, []);
+  assert.deepEqual(loadLenient("/r", () => null), { config: DEFAULTS, replaced: [] });
+  assert.throws(() => loadLenient("/r", () => "{"), /does not parse/);
+  assert.throws(() => loadLenient("/r", () => "null"), /does not parse: not a JSON object/);
 });
