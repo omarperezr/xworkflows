@@ -1569,6 +1569,19 @@ for (const [what, dir] of [["absolute", (o) => join(o, "mem")], ["climbing out w
     assert.ok(out.stdout.split("\n").includes(`not written: memory.dir must be a folder inside the repository: ${dir(o)}`));
   });
 }
+// P-125: settings.local.json gets the folder the memory.dir rule names, and nothing for a value that names none
+test("install: a memory.dir that is not text writes no autoMemoryDirectory and says why; a padded one is written and taken back as the folder it names", () => {
+  const r = repo({ ".xworkflows/config.json": JSON.stringify({ memory: { dir: 5 } }) });
+  const out = inst(r);
+  assert.equal(out.status, 0, out.stderr);
+  assert.ok(out.stdout.split("\n").includes("not written: memory.dir must be a folder inside the repository: 5"), out.stdout);
+  assert.ok(!existsSync(join(r, ".claude/settings.local.json")));
+  const q = repo({ ".xworkflows/config.json": JSON.stringify({ memory: { dir: " docs/memory " } }) });
+  assert.equal(inst(q).status, 0);
+  assert.equal(readJson(q, ".claude/settings.local.json").autoMemoryDirectory, join(top(q), "docs/memory"));
+  assert.equal(cli(q, ["uninstall"]).status, 0);
+  assert.ok(!existsSync(join(q, ".claude/settings.local.json")));
+});
 test("install: a repository path with a space, # and : gives the JSON string of the folder", () => {
   const d = join(tmp("xwf-"), "a b#c:d");
   mkdirSync(d);

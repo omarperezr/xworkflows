@@ -233,10 +233,12 @@ function mergeLocal(root) {
   let dir;
   try { dir = loadConfig(root).memory.dir; } catch (e) { die(1, e.message); }
   const none = { path, text: null, rec: { scalars: [], created: [] } };
-  if (key in s) return none;
+  // a memory.dir that names no folder inside the repository gets no key, as it gets no folder: plan() says why
+  const md = memName(dir);
+  if (!md || key in s) return none;
   if (spawnSync("git", ["ls-files", "--error-unmatch", path], { cwd: root, stdio: "ignore" }).status === 0) return { ...none, note: `${path} is tracked: ${key} not written, set it yourself` };
-  const value = JSON.stringify(resolve(root, dir));
-  if (old === null) return { path, text: json({ [key]: resolve(root, dir) }), rec: { scalars: [{ file: path, key: [key], dir }], created: [path] } };
+  const value = JSON.stringify(resolve(root, md));
+  if (old === null) return { path, text: json({ [key]: resolve(root, md) }), rec: { scalars: [{ file: path, key: [key], dir }], created: [path] } };
   const nl = old.includes("\r\n") ? "\r\n" : "\n";
   const at = old.slice(0, old.lastIndexOf("}")).trimEnd().length;
   const multi = old.includes("\n");
@@ -959,7 +961,8 @@ function uninstall() {
     }
   }
   let memory;
-  try { memory = resolve(ROOT, loadConfig(ROOT).memory.dir); } catch {}
+  // the folder install wrote there; a record of an earlier version may hold a value that names none
+  try { memory = resolve(ROOT, md ?? loadConfig(ROOT).memory.dir); } catch {}
   for (const [file, key, was] of [[SETTINGS, "attribution", ATTRIBUTION], [LOCAL, LOCAL_KEY, memory]]) {
     const x = rec.scalars.find((e) => e.file === file);
     if (!x) continue;
