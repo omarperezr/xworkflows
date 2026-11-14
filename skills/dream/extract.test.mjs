@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { execFileSync, spawnSync } from "node:child_process";
-import { mask, run } from "./extract.mjs";
+import { mask, shapes, suspect, run } from "./extract.mjs";
 import { shared } from "./shared.mjs";
 
 const made = [];
@@ -120,54 +120,94 @@ test("both sides' text is kept; tools, notices, meta, summaries and reports are 
   assert.equal(text, "user: typed by the owner\nassistant: written by the model\nuser: after the tag");
 });
 
-test("mask: each shape goes, the key name stays, the count is returned", () => {
-  const pk = "-----BEGIN RSA PRIVATE " + "KEY-----\nabc\n-----END RSA PRIVATE " + "KEY-----";
-  const v = "Zq7" + "Wx2" + "Rt9"; // a made-up value
-  const long = "A1".repeat(12);
-  const cases = [
-    [pk, "[masked]"],
-    ["Authorization: Bearer abc.def-1", "Authorization: Bearer [masked]"],
-    ["password=hunter2 ok", "password=[masked] ok"],
-    ['"passwd": "hunter2"', '"passwd": "[masked]"'],
-    ["secret: hunter2", "secret: [masked]"],
-    ["token='hunter2'", "token='[masked]'"],
-    ["api_key=hunter2", "api_key=[masked]"],
-    ["apikey=hunter2", "apikey=[masked]"],
-    // a name inside a longer name, any case, = or :, bare or quoted
-    [`DB_PASSWORD=${v}`, "DB_PASSWORD=[masked]"],
-    [`client_secret=${v}`, "client_secret=[masked]"],
-    [`AWS_SECRET_ACCESS_KEY=${v}`, "AWS_SECRET_ACCESS_KEY=[masked]"],
-    [`aws_access_key_id: ${v}`, "aws_access_key_id: [masked]"],
-    [`x-api-key: ${v}`, "x-api-key: [masked]"],
-    [`"accessToken": "${v}"`, '"accessToken": "[masked]"'],
-    [`ANTHROPIC_API_KEY=sk-` + `ant-api03-${long}`, "ANTHROPIC_API_KEY=[masked]"],
-    [`password: "correct horse ${v}" done`, 'password: "[masked]" done'],
-    [`PASSWORD='two words' done`, "PASSWORD='[masked]' done"],
-    // keys by their own shape
-    ["sk-" + "a1".repeat(12), "[masked]"],
-    ["sk-" + "ant-api03-" + long + "-x_y", "[masked]"],
-    ["sk-" + "proj-" + long + "_z-1", "[masked]"],
-    ["sk" + "_live_" + long, "[masked]"],
-    ["sk" + "_test_" + long, "[masked]"],
-    ["rk" + "_live_" + long, "[masked]"],
-    ["gh" + "p_" + long, "[masked]"],
-    ["gh" + "o_" + long, "[masked]"],
-    ["gh" + "u_" + long, "[masked]"],
-    ["gh" + "s_" + long, "[masked]"],
-    ["gh" + "r_" + long, "[masked]"],
-    ["github" + "_pat_" + long, "[masked]"],
-    ["AK" + "IA" + "ABCDEFGH12345678", "[masked]"],
-    ["xo" + "xb-123-abc", "[masked]"],
-    ["ey" + "Jhbg.ey" + "Jzdw.sig_-9", "[masked]"],
-    // the password of a URL goes, its user stays
-    [`postgres://admin:${v}@db.example:5432/app`, "postgres://admin:[masked]@db.example:5432/app"],
-  ];
-  for (const [from, to] of cases) assert.deepEqual(mask(from), [to, 1], from);
-  // a placeholder, a type or an empty value is no secret
-  for (const keep of ["plain words", "Authorization: Bearer <token>", "token: string", "`token: string`", "password: <your password>",
-    '"secret": null', "apiKey: undefined", "token=true", "access_key: false", "passwordLength: number", "hasToken: boolean", 'password=""',
-    "https://example.com:8080/a@b"]) assert.deepEqual(mask(keep), [keep, 0], keep);
-  assert.equal(mask("password=a token=b")[1], 2);
+const v = "Zq7" + "Wx2" + "Rt9"; // a made-up value
+const long = "A1".repeat(12);
+const pk = "-----BEGIN RSA PRIVATE " + "KEY-----\nabc\n-----END RSA PRIVATE " + "KEY-----";
+// keys by their own shape, wherever they stand
+const SHAPES = [
+  [pk, "[masked]\n\n"], // the lines of the block stay, so a line number after it still holds
+  ["sk-" + "a1".repeat(12), "[masked]"],
+  ["sk-" + "ant-api03-" + long + "-x_y", "[masked]"],
+  ["sk-" + "proj-" + long + "_z-1", "[masked]"],
+  ["sk" + "_live_" + long, "[masked]"],
+  ["sk" + "_test_" + long, "[masked]"],
+  ["rk" + "_live_" + long, "[masked]"],
+  ["gh" + "p_" + long, "[masked]"],
+  ["gh" + "o_" + long, "[masked]"],
+  ["gh" + "u_" + long, "[masked]"],
+  ["gh" + "s_" + long, "[masked]"],
+  ["gh" + "r_" + long, "[masked]"],
+  ["github" + "_pat_" + long, "[masked]"],
+  ["AK" + "IA" + "ABCDEFGH12345678", "[masked]"],
+  ["xo" + "xb-123-abc", "[masked]"],
+  ["ey" + "Jhbg.ey" + "Jzdw.sig_-9", "[masked]"],
+  // the password of a URL goes, its user stays; also with no user
+  [`postgres://admin:${v}@db.example:5432/app`, "postgres://admin:[masked]@db.example:5432/app"],
+  [`redis://:${v}@cache.example:6379`, "redis://:[masked]@cache.example:6379"],
+  [`see ANTHROPIC_API_KEY=sk-` + `ant-api03-${long} here`, "see ANTHROPIC_API_KEY=[masked] here"],
+];
+// ordinary text both reviews named: no shape of its own, so shapes leaves it alone
+const ORDINARY = ["plain words", "Authorization: Bearer <token>", "token: string", "`token: string`", "(token: string)", "token: str",
+  "password: <your password>", '"secret": null', "apiKey: undefined", "token=true", "access_key: false", "passwordLength: number",
+  "hasToken: boolean", 'password=""', "https://example.com:8080/a@b", "the summarizer uses max_tokens: 4096 and tokens: 1500 per call",
+  "maxTokens = 1000", "token_type: bearer", "secretName: x", "const token = await getToken(req)", "password === confirm",
+  "Tokens: how they work", "already [masked] once", "postgres://admin:[masked]@db.example/app"];
+// each a form a review saw pass a mask, with v as its secret
+const FORMS = [
+  `Staging password: \`${v}\``, `**Password:** ${v}`, `'password' => '${v}'`, `DB_PASS=${v}`, `SMTP_PASS=${v}`, `MYSQL_PWD=${v}`,
+  `Server=db;Uid=sa;Pwd=${v};`, `curl -d "{\\"password\\":\\"${v}\\"}" https://api.example`, `"Authorization": "Bearer ${v}"`,
+  `Authorization: 'Bearer ${v}'`, `Authorization: Basic ${v}`, `--password ${v}`, `API key: ${v}`, `password=${v} ok`, `"passwd": "${v}"`,
+  `secret: ${v}`, `token='${v}'`, `api_key=${v}`, `apikey=${v}`, `DB_PASSWORD=${v}`, `client_secret=${v}`, `AWS_SECRET_ACCESS_KEY=${v}`,
+  `aws_access_key_id: ${v}`, `x-api-key: ${v}`, `"accessToken": "${v}"`, `password: "correct horse ${v}" done`, `PASSPHRASE ${v}`,
+  `the credential is ${v}`, `Authorization: Bearer ${v}`,
+];
+
+test("shapes: each key of a known form goes, the text around stays, the count is returned", () => {
+  for (const [from, to] of SHAPES) assert.deepEqual(shapes(from), [to, 1], from);
+  for (const keep of ORDINARY) assert.deepEqual(shapes(keep), [keep, 0], keep);
+  for (const form of FORMS) assert.deepEqual(shapes(form), [form, 0], form);
+});
+
+test("mask: every form a review found is masked, and every key of a known form", () => {
+  for (const form of FORMS) {
+    const [out, n] = mask(form);
+    assert.ok(!out.includes(v) && n >= 1, `${form} -> ${out}`);
+  }
+  for (const [from, to] of SHAPES) assert.equal(mask(from)[0], mask(to)[0], from); // the shape goes first, then the wide rule
+  assert.deepEqual(mask("sk-" + "a1".repeat(12)), ["[masked]", 1]);
+  assert.deepEqual(mask(`Staging password: \`${v}\` ok`), ["Staging password: `[masked]` ok", 1]);
+  assert.deepEqual(mask(`DB_PASSWORD=${v}`), ["DB_PASSWORD=[masked]", 1]);
+  assert.deepEqual(mask(`"Authorization": "Bearer ${v}"`), ['"Authorization": "[masked] [masked]"', 2]);
+});
+
+test("mask: a long random-looking run goes anywhere; a placeholder, a type word, a short run and a masked value stay", () => {
+  const random = "q7Wx2Rt9" + "Kp4Ld8Vm" + "3Hs6"; // 20 characters, letters beside digits
+  assert.deepEqual(mask(`commit ${random} is the one`), ["commit [masked] is the one", 1]);
+  for (const keep of ["Authorization: <token>", "token: string", "`token: string`", "password: <your password>", '"secret": null',
+    "apiKey: undefined", "token=true", "access_key: false", "passwordLength: number", "hasToken: boolean", 'password=""', "pwd=abc",
+    "a_long_snake_case_name_without_digits", "version 2 of the 20 page manual", "token: [masked]"]) assert.deepEqual(mask(keep), [keep, 0], keep);
+});
+
+test("suspect: the numbers of the lines the wide rule would touch beyond shapes", () => {
+  const text = ["plain line", `DB_PASSWORD=${v}`, "sk-" + "a1".repeat(12), "token: string", `id ${"q7Wx2Rt9" + "Kp4Ld8Vm" + "3Hs6"}`, pk, `secret: ${v}`].join("\n");
+  assert.deepEqual(suspect(text), [2, 5, 9]); // the key block is lines 6 to 8
+  // the wide rule's cost on ordinary text: these lines are named for a look, not rewritten
+  assert.deepEqual(suspect(ORDINARY.join("\n")).map((n) => ORDINARY[n - 1]), ["Authorization: Bearer <token>",
+    "the summarizer uses max_tokens: 4096 and tokens: 1500 per call", "maxTokens = 1000", "token_type: bearer",
+    "const token = await getToken(req)", "password === confirm", "Tokens: how they work"]);
+  assert.deepEqual(suspect(""), []);
+});
+
+test("the mask's time grows with the length of the text, not its square", () => {
+  const run = "a1B2".repeat(50000); // 200,000 letters and digits
+  const texts = [run, `password: ${run}`, `${run} token`, "a.b-".repeat(50000), "eyJ-".repeat(50000), "-----BEGIN ".repeat(20000),
+    "x://y:".repeat(30000), "pass=a1 ".repeat(25000), Array.from({ length: 20000 }, (_, i) => `token ${i}: line ${i}`).join("\n")];
+  for (const t of texts) {
+    const t0 = performance.now();
+    mask(t); suspect(t); shapes(t);
+    const ms = performance.now() - t0;
+    assert.ok(ms < 1500, `${t.slice(0, 12)}... took ${Math.round(ms)} ms`);
+  }
 });
 
 test("a session's masked count is reported and the text on disk is masked", () => {

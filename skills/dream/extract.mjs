@@ -10,29 +10,58 @@ const { DEFAULTS, load, memoryDir } = await shared("hooks/core/config.mjs");
 const { NOISE, REPORT } = await shared("hooks/core/memory.mjs");
 
 const M = "[masked]";
-// a placeholder, a type or an empty value is no secret
-const SAFE = /^(?:<[^<>]*>|string|number|boolean|null|undefined|true|false|)[,;]?$/i;
-// key: what stays before the value; q: its quote, if any; v: the value
-const keep = (key, q, v) => (SAFE.test(v) ? null : `${key}${q}${M}${q}`);
-const RULES = [
-  [/-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----/g, () => M],
-  [/(Authorization:\s*Bearer\s+)(<[^<>\n]*>|[^\s"'`]+)/gi, (_, key, v) => keep(key, "", v)],
-  [/([\w-]*(?:password|passwd|secret|token|api[_-]?key|access_key)[\w-]*["']?\s*[=:]\s*)(?:(["'])(.*?)\2|(<[^<>\n]*>|[^\s"'`]+))/gi,
-    (_, key, q, qv, bare) => keep(key, q ?? "", q ? qv : bare)],
-  [/(\b[a-z][\w+.-]*:\/\/[^\s:@/]+:)[^\s@/]+(?=@)/gi, (_, key) => key + M],
+// Every pattern here matches in time proportional to the text: each repeat is bounded or cannot be retried from inside a run it failed on.
+// a secret by its own form; a key block keeps its line breaks, so the line numbers after it hold (an end-less block goes to the end)
+const SHAPES = [
+  [/-----BEGIN [A-Z ]{0,20}PRIVATE KEY-----(?:[\s\S]*?-----END [A-Z ]{0,20}PRIVATE KEY-----|[\s\S]*)/g, (b) => M + "\n".repeat(b.split("\n").length - 1)],
+  [/(\b[a-z][\w+.-]{0,19}:\/\/[^\s:@/]*:)(?!\[masked\]@)[^\s@/]+(?=@)/gi, (_, key) => key + M],
   [/\bsk-[\w-]{20,}/g, () => M],
   [/\b[sr]k_(?:live|test)_\w{10,}/g, () => M],
   [/\b(?:gh[pousr]_|github_pat_)\w{20,}/g, () => M],
   [/\bAKIA[A-Z0-9]{16}\b/g, () => M],
   [/\bxox[baprs]-[\w-]+/g, () => M],
-  [/\beyJ[\w-]+\.[\w-]+\.[\w-]+/g, () => M],
+  [/\beyJ\w+\.[\w-]+\.[\w-]+/g, () => M],
 ];
+// the wide rule, one line at a time: after a credential word (also inside a longer name), every value-like run; anywhere, a random-looking run
+const WORD = /pass|pwd|secret|token|key|auth|credential|bearer/i;
+const NAME = /[\w-]*/y; // the rest of the name that holds the word
+const RUN = /\[masked\]|<[^<>\n]*>|[^\s"'`\\*,;=:<>(){}[\]|&][^\s"'`\\*,;<>(){}[\]|&]*/g;
+const TYPE = /^(?:string|number|boolean|null|undefined|true|false)$/i;
+const value = (r) => r !== M && r[0] !== "<" && r.length >= 4 && !TYPE.test(r);
+// random-looking: 20 or more letters, digits and + / = _ - in a row, with a letter right beside a digit in at least three places
+const LONG = /[A-Za-z0-9+/=_-]{20,}/g;
+const random = (r) => (r.match(/[A-Za-z](?=\d)|\d(?=[A-Za-z])/g)?.length ?? 0) >= 3;
 
-// returns [masked text, count of replacements]
-export function mask(text) {
+const each = (text, rules) => {
   let n = 0;
-  for (const [re, to] of RULES) text = text.replace(re, (...a) => { const r = to(...a); if (r === null) return a[0]; n++; return r; });
+  for (const [re, to] of rules) text = text.replace(re, (...a) => (n++, to(...a)));
   return [text, n];
+};
+function wide(line) {
+  let n = 0, head = line, tail = "";
+  const w = WORD.exec(line);
+  if (w) {
+    NAME.lastIndex = w.index + w[0].length;
+    NAME.exec(line);
+    head = line.slice(0, NAME.lastIndex);
+    tail = line.slice(NAME.lastIndex).replace(RUN, (r) => (value(r) ? (n++, M) : r));
+  }
+  head = head.replace(LONG, (r) => (random(r) ? (n++, M) : r));
+  return [head + tail, n];
+}
+
+// what is a secret by its own form: safe to write back into a file. Returns [text, count]
+export const shapes = (text) => each(text, SHAPES);
+
+// the numbers (from 1) of the lines the wide rule would touch beyond shapes
+export const suspect = (text) => shapes(text)[0].split("\n").flatMap((l, i) => (wide(l)[1] ? [i + 1] : []));
+
+// shapes plus the wide rule, for the extract, where a wrong hit costs nothing. Returns [text, count]
+export function mask(text) {
+  const [shaped, n] = shapes(text);
+  let total = n;
+  const out = shaped.split("\n").map((l) => { const [m, c] = wide(l); total += c; return m; });
+  return [out.join("\n"), total];
 }
 
 // one line of a session file: its kept text ("user: ..." / "assistant: ..."), its timestamp, and whether it was not JSON
