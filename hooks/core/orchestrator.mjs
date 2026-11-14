@@ -1,6 +1,4 @@
 import path from "node:path";
-import { existsSync, lstatSync, readFileSync, realpathSync } from "node:fs";
-import { tmpdir } from "node:os";
 import { get, inPaths, memoryDir, DEFAULTS } from "./config.mjs";
 
 const MARKS = ["orchestrate", "adapt", "full-review", "next-step", "dream"];
@@ -8,19 +6,16 @@ const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const list = (v) => (Array.isArray(v) && v.length ? v : null);
 const allow = { decision: "allow" };
 const lines = (s) => new Set(String(s ?? "").split("\n").map((l) => l.trim()));
-// the real path; one that does not exist yet is its nearest existing parent's (lstat: a dangling link exists, and its realpath throws)
-const realOf = (p) => { const rest = []; while (p !== path.dirname(p)) { try { lstatSync(p); break; } catch { rest.unshift(path.basename(p)); p = path.dirname(p); } } return path.join(realpathSync(p), ...rest); };
-// under the memory folder of dream-<x> directly in the temp folder, whose .git file names a git folder that holds open's mark; files read only, no git
-function inRun(config, root, p) {
-  if (/(^|[\\/])\.\.([\\/]|$)/.test(p)) return false; // `..` after a link is not where path.resolve says
-  const abs = path.resolve(root, p.replaceAll("\\", "/"));
-  try {
-    const tmp = realpathSync(tmpdir()), parts = path.relative(tmp, realOf(abs)).split(path.sep);
-    const mem = (memoryDir(config.memory?.dir) ?? DEFAULTS.memory.dir).split("/");
-    if (!/^dream-./.test(parts[0]) || parts.length <= mem.length + 1 || mem.some((m, i) => parts[i + 1] !== m)) return false;
-    const gitdir = /^gitdir:\s*(.+?)\s*$/m.exec(readFileSync(path.join(tmp, parts[0], ".git"), "utf8"))?.[1];
-    return Boolean(gitdir) && existsSync(path.join(path.resolve(tmp, parts[0], gitdir), "dream-open"));
-  } catch { return false; }
+// the real memory folders of the worktrees open marked, listed from the project's common git folder (a linked root names it in its .git file and commondir); read through ctx only
+function runs(ctx, root, config) {
+  const own = /^gitdir:\s*(.+?)\s*$/m.exec(ctx.readFile(path.join(root, ".git")) ?? "")?.[1];
+  const common = own ? path.resolve(root, own, (ctx.readFile(path.resolve(root, own, "commondir")) ?? ".").trim()) : path.join(root, ".git");
+  const mem = memoryDir(config.memory?.dir) ?? DEFAULTS.memory.dir, wts = path.join(common, "worktrees");
+  return ctx.listDir(wts).flatMap((n) => {
+    const at = path.join(wts, n), gitdir = ctx.readFile(path.join(at, "gitdir"))?.trim();
+    const wt = gitdir && ctx.readFile(path.join(at, "dream-open")) !== null && ctx.realPath(path.dirname(path.resolve(at, gitdir)));
+    return wt ? [path.join(wt, mem)] : [];
+  });
 }
 
 export function decide(ev, ctx) {
@@ -32,8 +27,17 @@ export function decide(ev, ctx) {
   if (ev.isSubagent) {
     // the installed name is the id or xwf-<id>: an agent whose name ends otherwise costs no read
     const dream = ["dream-analyzer", "dream-organizer"].some((id) => String(ev.agent ?? "").endsWith(id) && ev.agent === (ctx.agentName?.(id) ?? id));
-    const away = dream && (ev.writes ?? []).find((w) => typeof w?.path === "string" && !inRun(config, ev.root, w.path));
-    if (away) return deny(`${away.path}: ${ev.agent} writes only in the memory folder of the run's branch.`);
+    const writes = dream ? (ev.writes ?? []).filter((w) => typeof w?.path === "string") : [];
+    if (writes.length) {
+      const mems = runs(ctx, ev.root, config);
+      if (!mems.length) return deny(`${ev.agent} writes only in the memory folder of the run's branch, and no run is open: the main session must run \`branch.mjs open\` first.`);
+      const away = writes.find((w) => {
+        if (/(^|[\\/])\.\.([\\/]|$)/.test(w.path)) return true; // `..` after a link is not where path.resolve says
+        const real = ctx.realPath(path.resolve(ev.root, w.path.replaceAll("\\", "/")));
+        return !(real && mems.some((m) => real.startsWith(m + path.sep)));
+      });
+      if (away) return deny(`${away.path} is outside the memory folder of the run's branch: ${ev.agent} writes only under ${mems.join(" or ")}.`);
+    }
     const bad = (ev.writes ?? []).find((w) => under(w.path, config.paths.curated));
     return bad ? deny(`${bad.path} is curated by ${config.owner}: report the change you wanted instead.`) : allow;
   }

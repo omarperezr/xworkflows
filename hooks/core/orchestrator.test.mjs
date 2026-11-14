@@ -1,9 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync as makeTmp, mkdirSync, writeFileSync, rmSync, realpathSync, symlinkSync } from "node:fs";
+import { mkdtempSync as makeTmp, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, posix } from "node:path";
 import { decide } from "./orchestrator.mjs";
 import { load } from "./config.mjs";
 const madeTmp = [];
@@ -27,6 +27,8 @@ function mk({ marks = ["orchestrate"], files = { [SUMMARY]: "status: approved\n"
     readFile: (p) => files[p] ?? null,
     exists: (p) => exist.includes(p) || (p.startsWith(".claude/agents/") && exist.includes(".claude/agents/")),
     git: () => head,
+    listDir: () => [],
+    realPath: (p) => p,
     state: (k) => st.get(k) ?? null,
     save: (k, v) => st.set(k, v),
     now: () => T0,
@@ -98,39 +100,68 @@ test("subagent passes everything except a write under curated", () => {
   assert.ok(allowed(decide(ev("write", { writes: [{ path: "/r/CLAUDE.md", content: "x" }] }), mk())));
 });
 
-test("the two dream agents write only in the memory folder of a worktree that open made", () => {
-  const tmp = realpathSync(tmpdir());
-  const mark = (wt, made = true) => { // the shape open leaves: .git is a file naming a git folder that holds dream-open
-    const gd = mkdtempSync(join(tmp, "xwf-orch-gitdir-"));
-    if (made) writeFileSync(join(gd, "dream-open"), "dream/x\n");
-    writeFileSync(join(wt, ".git"), `gitdir: ${gd}\n`);
+// a stand-in file system for the dream rule: files by absolute path; links by absolute path, null for one that leads nowhere (dangling, a loop)
+function fsCtx({ files = {}, links = {}, config = cfg, names = {} } = {}) {
+  const real = (p) => { for (const [k, v] of Object.entries(links)) if (p === k || p.startsWith(k + "/")) return v === null ? null : real(v + p.slice(k.length)); return p; };
+  return {
+    ...mk({ config }), ...names,
+    readFile: (p) => files[p] ?? null,
+    listDir: (p) => [...new Set(Object.keys(files).filter((f) => f.startsWith(p + "/")).map((f) => f.slice(p.length + 1).split("/")[0]))],
+    realPath: (p) => (typeof p !== "string" || p.length > 4096 ? null : real(posix.resolve("/r", p))),
   };
-  const run = (mem) => { const wt = mkdtempSync(join(tmp, "dream-")); mkdirSync(join(wt, mem), { recursive: true }); mkdirSync(join(wt, "src")); return wt; };
-  const other = mkdtempSync(join(tmp, "xwf-orch-other-"));
+}
+// the shape open leaves: <common>/worktrees/<name>/gitdir names the worktree's .git file; dream-open beside it is the mark
+const worktree = (common, name, gitdir, made = true) => ({ [`${common}/worktrees/${name}/gitdir`]: `${gitdir}\n`, ...(made && { [`${common}/worktrees/${name}/dream-open`]: "dream/x\n" }) });
+const dreamWrite = (type, p, o = { content: "x" }, root = "/r") => ev("write", { root, isSubagent: true, agent: type, writes: [{ path: p, ...o }] });
+
+test("the two dream agents write only in the memory folder of a worktree that open marked, found from the project's git folder", () => {
   for (const mem of ["docs/memory", "notes/kept"]) {
     const config = mem === "docs/memory" ? cfg : { ...cfg, memory: { ...cfg.memory, dir: mem } };
-    const x = run(mem), y = run(mem), z = run(mem);
-    mark(x);
-    mark(y, false);
-    mkdirSync(join(z, ".git")); writeFileSync(join(z, ".git", "dream-open"), ""); // .git a folder: not a worktree
-    symlinkSync(other, join(x, mem, "out"));
-    symlinkSync(join(other, "x.md"), join(x, mem, "l.md"));
-    symlinkSync(join(other, "missing.md"), join(x, mem, "gone.md")); // a link to a file not there yet
-    writeFileSync(join(other, "real.md"), "x");
-    symlinkSync(join(other, "real.md"), join(x, mem, "r.md"));
-    const w = (type, p, o = { content: "x" }) => decide(ev("write", { isSubagent: true, agent: type, writes: [{ path: p, ...o }] }), { ...mk({ config }), ...(type?.startsWith("xwf-") && { agentName: (r) => `xwf-${r}` }) }); // xwf-: ours was renamed
-    const yes = [join(x, mem, "note.md"), join(x, mem, "new", "deeper", "n.md")];
-    const no = ["/r/src/a.mjs", `/r/${mem}/n.md`, ".git/hooks/pre-push", ".claude/settings.json", join(other, "x.md"), join(x, "src", "a.mjs"), join(y, mem, "n.md"), join(z, mem, "n.md"), join(x, mem, "out", "x.md"), join(x, mem, "l.md"), `${x}/${mem}/out/../x.md`, `${x}/${mem}/../../src/a.mjs`, join(x, mem, "gone.md"), join(x, mem, "r.md"), join(x, mem)];
-    for (const type of ["dream-analyzer", "dream-organizer", "xwf-dream-analyzer", "xwf-dream-organizer"]) {
-      for (const p of yes) assert.ok(allowed(w(type, p)), `${type} ${p}`);
-      assert.ok(allowed(w(type, join(x, mem, "note.md"), { old: "a", new: "b" })));
-      for (const p of no) assert.ok(denied(w(type, p), /only in the memory folder of the run's branch/), `${type} ${p}`);
+    const files = {
+      ...worktree("/r/.git", "a", "/t/run-a/.git"),
+      ...worktree("/r/.git", "b", "/t/run-b/.git", false), // not marked: not a run
+      ...worktree("/r/.git", "c", "../../../../t/run-c/.git"), // a gitdir relative to its folder
+      ...worktree("/r/.git", "d", "/t/run-d/.git"),
+      "/r/.git/worktrees/e/dream-open": "", // marked, with no gitdir: names no worktree
+    };
+    const links = { "/t": "/pt", [`/pt/run-a/${mem}/out`]: "/o", [`/pt/run-a/${mem}/l.md`]: "/o/x.md", [`/pt/run-a/${mem}/gone.md`]: null, [`/pt/run-a/${mem}/loop`]: null, [`/pt/run-d/${mem}`]: "/notes" };
+    const yes = [`/t/run-a/${mem}/note.md`, `/t/run-a/${mem}/new/deeper/n.md`, `/pt/run-a/${mem}/n.md`, `/t/run-c/${mem}/n.md`];
+    const long = "/t/run-a/" + Array(10000).fill("x").join("/");
+    const no = ["/r/src/a.mjs", `/r/${mem}/n.md`, ".git/hooks/pre-push", ".claude/settings.json", "/o/x.md", "/t/run-a/src/a.mjs", `/t/run-b/${mem}/n.md`, `/t/run-d/${mem}/n.md`,
+      `/t/run-a/${mem}/out/x.md`, `/t/run-a/${mem}/l.md`, `/t/run-a/${mem}/gone.md`, `/t/run-a/${mem}/loop/n.md`, `/t/run-a/${mem}/out/../x.md`, `/t/run-a/${mem}/../../src/a.mjs`,
+      `/t/run-a/${mem}`, `/t/run-a/${mem}x/n.md`, "/r/.git/worktrees/docs/memory/n.md", "", ".", "/", long];
+    for (const [type, names] of [["dream-analyzer", {}], ["dream-organizer", {}], ["xwf-dream-analyzer", { agentName: (r) => `xwf-${r}` }]]) {
+      const c = fsCtx({ files, links, config, names });
+      for (const p of yes) assert.ok(allowed(decide(dreamWrite(type, p), c)), `${type} ${p}`);
+      assert.ok(allowed(decide(dreamWrite(type, `/t/run-a/${mem}/note.md`, { old: "a", new: "b" }), c)));
+      for (const p of no) assert.ok(denied(decide(dreamWrite(type, p), c), /is outside the memory folder of the run's branch/), `${type} ${p.slice(0, 80)}`);
     }
-    for (const type of ["explore", "dream-other", undefined]) for (const p of [...yes, ...no]) assert.ok(allowed(w(type, p)), `${type} ${p}`);
-    assert.ok(allowed(decide(ev("write", { writes: [{ path: join(other, "x.md"), content: "x" }] }), mk({ config }))));
+    const c = fsCtx({ files, links, config });
+    for (const type of ["explore", "dream-other", undefined]) for (const p of [...yes, ...no]) assert.ok(allowed(decide(dreamWrite(type, p), c)), `${type} ${p.slice(0, 80)}`);
+    assert.ok(allowed(decide(ev("write", { writes: [{ path: "/o/x.md", content: "x" }] }), c)));
   }
   for (const e of [{}, { writes: [{}] }, { writes: [{ path: 3 }] }])
-    assert.ok(allowed(decide({ event: "preTool", kind: "write", root: "/r", isSubagent: true, agent: "dream-organizer", ...e }, mk())), JSON.stringify(e));
+    assert.ok(allowed(decide({ event: "preTool", kind: "write", root: "/r", isSubagent: true, agent: "dream-organizer", ...e }, fsCtx())), JSON.stringify(e));
+});
+
+test("a project whose root is a linked worktree finds the runs in its common git folder", () => {
+  const files = { "/p/.git": "gitdir: ../m/.git/worktrees/p\n", "/m/.git/worktrees/p/commondir": "../..\n", ...worktree("/m/.git", "p", "/p/.git", false), ...worktree("/m/.git", "a", "/t/run-a/.git") };
+  const c = fsCtx({ files });
+  assert.ok(allowed(decide(dreamWrite("dream-analyzer", "/t/run-a/docs/memory/n.md", undefined, "/p"), c)));
+  assert.ok(denied(decide(dreamWrite("dream-analyzer", "/p/docs/memory/n.md", undefined, "/p"), c), /is outside the memory folder/));
+});
+
+test("with no marked worktree the deny says no run is open and the main session must run open first", () => {
+  for (const files of [{}, worktree("/r/.git", "b", "/t/run-b/.git", false), { "/r/.git": "gitdir: /m/.git/worktrees/r\n" }])
+    for (const p of ["/t/run-b/docs/memory/n.md", "/r/src/a.mjs", ""])
+      assert.ok(denied(decide(dreamWrite("dream-organizer", p), fsCtx({ files })), /no run is open: the main session must run `branch\.mjs open` first/), `${JSON.stringify(files)} ${p}`);
+});
+
+test("for any other agent and for the main session the dream rule reads nothing", () => {
+  const boom = () => { throw new Error("read"); };
+  const c = { ...fsCtx(), readFile: boom, listDir: boom, realPath: boom, agentName: boom };
+  for (const type of ["explore", "dream-other", "analyzer", undefined]) assert.ok(allowed(decide(dreamWrite(type, "/t/run-a/docs/memory/n.md"), c)), String(type));
+  assert.ok(denied(decide(dreamWrite("explore", "/r/CLAUDE.md"), c), /curated/));
 });
 
 test("the dream rule knows the two agents by their installed names only", () => {
