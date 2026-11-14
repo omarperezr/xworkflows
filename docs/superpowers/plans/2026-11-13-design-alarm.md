@@ -44,6 +44,30 @@ One blocking finding and five that do not block; a first review, so none is a re
 - Role: implement
 - Done: `node --test skills/design-alarm.test.mjs` passes.
 
+### Batch 1, confirmation at `064a11c` and second round
+
+The confirmation left no blocking finding and four that do not block; two are repeats.
+
+Possible design error in `skills/design-alarm.test.mjs`, the test of the hold
+- Cause: the test pins chosen sentences one by one, and not the ones that release the work; with the rule turned into "every repeat stops", it still passes.
+- Design: pin the whole repeat block of step 3 as one exact text, as the test does for step 6, and keep the order check.
+
+Possible design error in `skills/orchestrate/SKILL.md`, section Review, steps 3 and 6
+- Cause: the limit of rounds stands in step 6, after the steps it limits, and step 3 has its own question to the owner with no word about rounds. After the second round the text reads two ways: one question or two.
+- Design: one clause in step 3's bullet about the design: after the second round, this question joins the one of step 6.
+
+The owner, 2026-11-14:
+- The hold stands once: "Una sola vez, en el paso 3". The copy in step 4 goes.
+- `agents/review.md` says the rule once: "Una vez, en el formato".
+- The two repeats: "Aplicar los dos diseños ahora".
+
+The main session had decided the second point alone in the first round, though the review gave it as a question for the owner; it was put to the owner in this round.
+
+**G2: the hold stands once, the question after the second round is one, and the test pins the whole block**
+- Files: `skills/orchestrate/SKILL.md`, `skills/design-alarm.test.mjs`
+- Role: implement
+- Done: `node --test skills/design-alarm.test.mjs` passes, and it fails when the rule is changed so that every repeat stops the work.
+
 ## Review Focus
 
 - Every main session follows the `orchestrate` text to the letter: a sentence that reads two ways is followed the wrong way. A repeat must never read as a stop by itself; only the owner's answer holds a fix back.
