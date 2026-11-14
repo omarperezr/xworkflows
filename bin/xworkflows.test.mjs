@@ -744,8 +744,29 @@ test("a real push goes through the installed pre-push hook", () => {
   assert.equal(git(bare, "rev-list --count main"), "2");
   assert.ok(statSync(join(r, ".git/hooks/pre-push")).mode & 0o100);
 });
+// the line install puts in a hook ends with this mark
+const marked = (t) => t.split("\n").filter((l) => l.endsWith(" # xworkflows"));
+test("install's own git hook is the #! line and one marked line that runs its file under .xworkflows/git, and does nothing where that file is not", () => {
+  const { r, bare } = withRemote();
+  cli(r, ["install"]);
+  const rec = readJson(r, ".xworkflows/installed.json");
+  for (const n of ["pre-push", "post-merge", "post-commit"]) {
+    const t = readFileSync(join(r, ".git/hooks", n), "utf8");
+    assert.equal(t, `#!/bin/sh\n${marked(t)[0]}\n`, n);
+    assert.ok(marked(t)[0].includes(`/.xworkflows/git/${n}"`), n);
+    assert.ok(rec.files[`.xworkflows/git/${n}`] && existsSync(join(r, `.xworkflows/git/${n}`)), n);
+  }
+  config(r, BAD);
+  commit(r, "a.txt", "fine\n");
+  assert.equal(pushed(r).status, 0);
+  commit(r, "b.txt", "BADWORD\n");
+  assert.match(pushed(r).stderr, /patterns: /);
+  rmSync(join(r, ".xworkflows/git/pre-push"));
+  assert.equal(pushed(r).status, 0);
+  assert.equal(git(bare, "rev-list --count main"), "2");
+});
 
-const OLD = '#!/bin/sh\nd="$(dirname "$0")/.."\necho "$@" > "$d/old-args"\ncat > "$d/old-in"\n[ -e "$d/old-fail" ] && { echo OLD-FAILED >&2; exit 7; }\nexit 0\n';
+const OLD ='#!/bin/sh\nd="$(dirname "$0")/.."\necho "$@" > "$d/old-args"\ncat > "$d/old-in"\n[ -e "$d/old-fail" ] && { echo OLD-FAILED >&2; exit 7; }\nexit 0\n';
 function chained() {
   const { r, bare } = withRemote();
   mkdirSync(join(r, ".git/hooks"), { recursive: true });
@@ -1306,7 +1327,7 @@ test("uninstall: the user's own pre-push stays whatever hash the record holds", 
   const out = cli(r, ["uninstall"]);
   assert.equal(readFileSync(join(r, ".git/hooks/pre-push"), "utf8"), OLD);
   assert.ok(!existsSync(join(r, ".git/hooks/post-merge")));
-  assert.doesNotMatch(out.stdout, /deleted .*pre-push/);
+  assert.doesNotMatch(out.stdout, /deleted \.git\/hooks\/pre-push/);
   notOurs(out, ".git/hooks/pre-push");
   assert.doesNotMatch(out.stdout, /changed locally.*pre-push/);
 });
@@ -2121,9 +2142,11 @@ test("git hooks: the text that followed the config and followed the link is repl
   const r = repo();
   cli(r, ["install"]);
   const now = GRAPH_HOOKS.map((n) => readFileSync(hookFile(r, n), "utf8"));
-  for (const [i, n] of GRAPH_HOOKS.entries()) {
-    assert.ok(now[i].includes('touch -c -h -- "$folder/graph.json"'), n);
-    writeFileSync(hookFile(r, n), now[i].replace('touch -c -h -- "$folder/graph.json"', 'touch -c "$folder/graph.json"'));
+  // the graph script was the hook's whole text until it moved under .xworkflows/git
+  for (const n of GRAPH_HOOKS) {
+    const graph = readFileSync(join(r, ".xworkflows/git", n), "utf8");
+    assert.ok(graph.includes('touch -c -h -- "$folder/graph.json"'), n);
+    writeFileSync(hookFile(r, n), graph.replace('touch -c -h -- "$folder/graph.json"', 'touch -c "$folder/graph.json"'));
   }
   const out = cli(r, ["install"]);
   assert.doesNotMatch(out.stdout, /Chain it|answered for you/);

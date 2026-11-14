@@ -304,15 +304,26 @@ const TOOL = CFG(`(${CONF}.lookup.index.command||"graphify query").split(" ")[0]
 const FOLDER = CFG(`${CONF}.lookup.index.folder`, "graphify-out");
 // a git hook on disk that is an earlier text the package published: the manifest holds their hashes per hook
 const earlierHook = (manifest, name, cur) => (manifest.pieces.find((p) => p.id === "checks")?.earlierHooks?.[name] ?? []).includes(hash(cur));
+// The file of install's own that a hook's marked line runs. pre-push's is read into the hook's shell: a failed check ends the hook
+// with its code; after a passed one the rest of the hook reads the same refs, from the saved file, whose name goes at once.
+function gitText(name) {
+  if (name === "pre-push") return `xwf_in=$(mktemp) || exit 1\ncat > "$xwf_in"\n${CHECK} < "$xwf_in" || { xwf_c=$?; rm -f "$xwf_in"; exit $xwf_c; }\nexec < "$xwf_in"\nrm -f "$xwf_in"\nunset xwf_in xwf_c\n`;
+  return `#!/bin/sh\nc=0\ncd "$(git rev-parse --show-toplevel)" || exit $c\nmain=$(${MAIN}) || main=main\n[ "$(git symbolic-ref --short -q HEAD)" = "$main" ] || exit $c\ntool=$(${TOOL}) || tool=graphify\nfolder=$(${FOLDER}) || folder=graphify-out\ncommand -v "$tool" >/dev/null 2>&1 || exit $c\nmkdir -p "$folder"\n{ "$tool" update . && touch -c -h -- "$folder/graph.json"; } > "$folder/.update.log" 2>&1 < /dev/null &\nexit $c\n`;
+}
+// The one line install puts in a hook: it does nothing where the file is not; the two post hooks run it as a child that never fails them.
+const hookLine = (name) => {
+  const f = `"$(git rev-parse --show-toplevel)/.xworkflows/git/${name}"`;
+  return `if [ -f ${f} ]; then ${name === "pre-push" ? `. ${f}` : `sh ${f} "$@" || :`}; fi # xworkflows`;
+};
 // With `chain` the project's own hook, renamed <name>.before-xworkflows, runs first.
 function hookText(name, chain) {
+  if (!chain) return `#!/bin/sh\n${hookLine(name)}\n`;
   const old = `old="$(dirname "$0")/${name}.before-xworkflows"\n`;
   if (name === "pre-push") {
-    if (!chain) return `#!/bin/sh\n${CHECK}\nexit $?\n`;
     // git feeds the pushed refs on stdin once: keep them for both runs
     return `#!/bin/sh\nin=$(mktemp) || exit 1\ncat > "$in"\n${old}if [ -x "$old" ]; then "$old" "$@" < "$in" || { c=$?; rm -f "$in"; exit $c; }; fi\n${CHECK} < "$in"\nc=$?\nrm -f "$in"\nexit $c\n`;
   }
-  return `#!/bin/sh\nc=0\n${chain ? `${old}[ -x "$old" ] && { "$old" "$@"; c=$?; }\n` : ""}cd "$(git rev-parse --show-toplevel)" || exit $c\nmain=$(${MAIN}) || main=main\n[ "$(git symbolic-ref --short -q HEAD)" = "$main" ] || exit $c\ntool=$(${TOOL}) || tool=graphify\nfolder=$(${FOLDER}) || folder=graphify-out\ncommand -v "$tool" >/dev/null 2>&1 || exit $c\nmkdir -p "$folder"\n{ "$tool" update . && touch -c -h -- "$folder/graph.json"; } > "$folder/.update.log" 2>&1 < /dev/null &\nexit $c\n`;
+  return `#!/bin/sh\nc=0\n${old}[ -x "$old" ] && { "$old" "$@"; c=$?; }\ncd "$(git rev-parse --show-toplevel)" || exit $c\nmain=$(${MAIN}) || main=main\n[ "$(git symbolic-ref --short -q HEAD)" = "$main" ] || exit $c\ntool=$(${TOOL}) || tool=graphify\nfolder=$(${FOLDER}) || folder=graphify-out\ncommand -v "$tool" >/dev/null 2>&1 || exit $c\nmkdir -p "$folder"\n{ "$tool" update . && touch -c -h -- "$folder/graph.json"; } > "$folder/.update.log" 2>&1 < /dev/null &\nexit $c\n`;
 }
 
 export function agentsBlock() {
@@ -423,6 +434,7 @@ export function plan(manifest, root, record, ans = {}) {
   const mine_ = ownHooks(root) !== null;
   if (!mine_) notes.push(`hooks folder ${relative(root, hooksDir)} is outside this repository: no hook installed, doctor will say so`);
   for (const name of mine_ ? HOOKS : []) {
+    writes.push({ path: `.xworkflows/git/${name}`, text: gitText(name), piece: "checks", src: `git/${name}` });
     const path = relative(root, resolve(hooksDir, name)), key = hookKey(root, name);
     const lst = lstatSync(join(root, path), { throwIfNoEntry: false });
     const cur = lst?.isFile() ? read(root, path) : null;
@@ -884,7 +896,7 @@ function uninstall() {
   const hooksDir = ownHooks(ROOT);
   const hookRel = new Map(hooksDir ? HOOKS.map((n) => [n, hookKey(ROOT, n)]) : []);
   const hookSet = new Set(hookRel.values());
-  const wanted = new Map(); // path -> the text plan() writes there, renamed units included
+  const wanted = new Map(HOOKS.map((n) => [`.xworkflows/git/${n}`, gitText(n)])); // path -> the text plan() writes there, renamed units included
   for (const w of pkgWrites(manifest)) {
     wanted.set(w.path, w.text);
     const u = w.path.match(UNIT)?.[0];
