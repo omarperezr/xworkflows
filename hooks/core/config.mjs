@@ -39,6 +39,7 @@ export const DEFAULTS = {
     marks: { ts: ["//"], tsx: ["//"], js: ["//"], jsx: ["//"], mjs: ["//"], cjs: ["//"], sql: ["--"], sh: ["#"], py: ["#"] },
   },
   memory: { dir: "docs/memory", outside: [] },
+  dream: { maxExtractBytes: 4000000 },
   packs: {},
 };
 
