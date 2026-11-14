@@ -74,9 +74,9 @@
         }
       ],
       "files": {
-        "hooks/core/adapt-gates.mjs": "967f42bf582c1d08702b74348d96f9fe7e9deccc30463b50ed956bf86d2e01e5"
+        "hooks/core/adapt-gates.mjs": "e90a3d1500ce3e59ce8b329a715bfd0cb58aed48313b9c8bc78f06e6f0469b95"
       },
-      "sha256": "9356983522573c20db5b0eda29674211d858077cf84b2bbe4c1f51fb105aa67f"
+      "sha256": "dc8ddb2117d0e1441552d01b4e183b310683836857770c80739be929bbd3bcfd"
     },
     {
       "id": "adapt-record",
@@ -377,10 +377,10 @@
         }
       ],
       "files": {
-        "hooks/core/memory.mjs": "0abf97d0abba3f11ca06fd8eff3991f2407aae072276d8a829a3e87e02af93df",
+        "hooks/core/memory.mjs": "c139f32942f7d853c69c8cee94f1eef8c238e440642ebad416256a934409b0c0",
         "hooks/core/memory-index.mjs": "ed9d990262ae86bfb68b63b7c34e6594e3239460136907fbb376011990898006"
       },
-      "sha256": "27b5b4fa75974cb47794af48a1cca730e9315ceed834aa74e4f319fb0db2545c"
+      "sha256": "793b32d99a8bd7459034cf1f46fc39d8f55580b5ce1058910ced599d3a61ea16"
     },
     {
       "id": "modes",
