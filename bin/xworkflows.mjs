@@ -762,11 +762,14 @@ async function doctor(flags) {
   const g = spawnSync("git", ["--version"], { encoding: "utf8" });
   say(g.status === 0 ? "ok" : "fail", g.status === 0 ? g.stdout.trim() : "git does not answer: install git and put it on PATH");
   // 2
+  const gitHooks = new Map(HOOKS.map((n) => [hookKey(ROOT, n), n]));
   for (const [f, { sha256 }] of Object.entries(rec.files)) {
     let t;
     // the record names the three git hooks under .git/, which is a file in a linked worktree: git says where they are
     try { t = readFileSync(f.startsWith(".git/hooks/") ? join(hooksFolder(ROOT), f.slice(".git/hooks/".length)) : join(ROOT, f), "utf8"); } catch { say("fail", `missing or unreadable: ${f}: ${INSTALL}`); continue; }
-    say(hash(t) === sha256 ? "ok" : "warn", hash(t) === sha256 ? f : `changed locally: ${f}; to put the package's copy back, delete it, then ${INSTALL} (install keeps a changed file)`);
+    // a git hook that holds no text of the package is the project's own: install records it as such, and nothing of it is deleted
+    const n = gitHooks.get(f), theirs = n && t !== hookText(n) && t !== chainText(n) && !earlierHook(readManifest(), n, t);
+    say(hash(t) === sha256 ? "ok" : "warn", hash(t) === sha256 ? f : theirs ? `changed locally: ${f}, the project's own hook now: ${INSTALL}` : `changed locally: ${f}; to put the package's copy back, delete it, then ${INSTALL} (install keeps a changed file)`);
   }
   for (const k of rec.kept) {
     const gs = k === ".claude/skills/grill" && rec.pieces["design-first"] ? read(ROOT, `${k}/SKILL.md`) : null;

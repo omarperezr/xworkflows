@@ -2613,6 +2613,22 @@ test("doctor: a git hook changed by hand comes back when the line's action is do
   assert.equal(lineOf(doctor(r), re), undefined);
 });
 
+test("doctor: a recorded git hook that is now the project's own is never to be deleted: install alone clears the line and keeps the hook", () => {
+  const { r } = chained(), hook = join(r, ".git/hooks/pre-push");
+  oldInstall(r);
+  // a branch whose tracked record is older than the migration: the record names the old chained hook, the disk holds the user's
+  const before = readFileSync(join(r, ".xworkflows/installed.json"));
+  cli(r, ["install"]);
+  writeFileSync(join(r, ".xworkflows/installed.json"), before);
+  const re = /^warn changed locally: \.git\/hooks\/pre-push\b/, line = lineOf(doctor(r), re);
+  assert.ok(line, "the line shows");
+  assert.doesNotMatch(line, /delete/);
+  assert.ok(line.endsWith(`: ${FIX}`), line);
+  assert.equal(cli(r, ["install"]).status, 0);
+  assert.equal(lineOf(doctor(r), re), undefined);
+  const t = readFileSync(hook, "utf8");
+  assert.equal(t.replace(`${marked(t)[0]}\n`, ""), OLD);
+});
 // the text of the post-merge and post-commit hooks that main's install wrote, before the graph hooks read the config
 const MAIN_CMD = `node -e 'try{process.stdout.write(JSON.parse(require("fs").readFileSync(".xworkflows/config.json","utf8")).mainBranch||"main")}catch{process.stdout.write("main")}'`;
 const mainHook = (name, chain) => `#!/bin/sh\nc=0\n${chain ? `old="$(dirname "$0")/${name}.before-xworkflows"\n[ -x "$old" ] && { "$old" "$@"; c=$?; }\n` : ""}cd "$(git rev-parse --show-toplevel)" || exit $c\nmain=$(${MAIN_CMD}) || main=main\n[ "$(git symbolic-ref --short -q HEAD)" = "$main" ] || exit $c\ncommand -v graphify >/dev/null 2>&1 || exit $c\nmkdir -p graphify-out\n{ graphify update . && touch -c graphify-out/graph.json; } > graphify-out/.update.log 2>&1 < /dev/null &\nexit $c\n`;
