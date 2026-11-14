@@ -152,6 +152,6 @@ test("the limit of the mask is said in the report step, in design 7.9 and in the
   const report = read("./SKILL.md").split("\n").find((l) => l.startsWith("8."));
   assert.match(report, LIMIT);
   const d = read("../../docs/design.md");
-  assert.match(d.slice(d.indexOf("### 7.9")), /The limit of the mask[\s\S]*?not seen/);
+  assert.match(d.slice(d.indexOf("### 7.9")), /The limit of the mask[\s\S]*?not\sseen/);
   assert.match(read("../../docs/gaps.md"), /dream[^\n]*mask[^\n]*password[^\n]*(?:no|without) (?:credential )?word[^\n]*not seen/i);
 });
