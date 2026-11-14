@@ -6,7 +6,7 @@
   "pieces": {
     "hook-runtime": {
       "version": "0.1.0",
-      "sha256": "6426ad27ef806ba64f829b12d84897ab655b79ccb25be8c25af0500905d0f0b5"
+      "sha256": "a4aa7488de052080c112b1e19a72fabc56b187f47b6970eff4b4a551308a41d6"
     },
     "design-first": {
       "version": "0.1.0",
@@ -62,7 +62,7 @@
     },
     "orchestrator": {
       "version": "0.1.0",
-      "sha256": "80541a702bc5cf7a03a763fec328d809e5cff2d345db100f632491a22f41209b"
+      "sha256": "971cf80ee4b39d921b3bc62a05559543e72070aee27614ddc7d43d53fb85810e"
     },
     "handback": {
       "version": "0.1.0",
@@ -70,7 +70,7 @@
     },
     "memory": {
       "version": "0.1.0",
-      "sha256": "c672232a09aa1f16408a242c05127f45af6c3a958b3a75a54817b325d9e43bc5"
+      "sha256": "2c40fb708181a40e13b9534f49791107287c475d2f42a7d5de535cdce3e8f9ff"
     },
     "modes": {
       "version": "0.1.0",
@@ -87,6 +87,14 @@
     "review": {
       "version": "0.1.0",
       "sha256": "f01aa761e0696d3848e3d3578a72664924288c7fcc10cc6c4ad3b62636771ef5"
+    },
+    "dream-analyzer": {
+      "version": "0.1.0",
+      "sha256": "57382a984675e0f05467eac5e568bd367b2b290f09d2aff3c56eb9261b2121ef"
+    },
+    "dream-organizer": {
+      "version": "0.1.0",
+      "sha256": "6ec37033f2894b399c575ae07da49d4dc658efe485c85e272ee3e6231c608526"
     },
     "deepen": {
       "version": "0.1.0",
@@ -115,6 +123,10 @@
     "ponytail-review": {
       "version": "09c434ab73ca43761c5d8b0c5d341926c2fba710",
       "sha256": "668b7e9812764f990234ac58cf21e2d816e16cb8584e8130234da5e23fc7e4ff"
+    },
+    "dream": {
+      "version": "0.1.0",
+      "sha256": "520b5e070a7d831af5e04f1a05a88a0eb27e966f63497a8912c122188683e67b"
     },
     "checks": {
       "version": "0.1.0",
@@ -152,15 +164,15 @@
     },
     ".xworkflows/hooks/adapters/claude.mjs": {
       "piece": "hook-runtime",
-      "sha256": "dcba638334e4447a339907005f6723580b64517b5278af047c0cce64c5e6ad80"
+      "sha256": "8693cd79efe0043cf8afb96553daa4e9b5122c1ee2c820a2def91224abbb31aa"
     },
     ".xworkflows/hooks/core/config.mjs": {
       "piece": "hook-runtime",
-      "sha256": "d145dac7dbf7d8d9c2efc08e9c55cc97d0d6ffec582426f14b9f8a34b6eac559"
+      "sha256": "4be92661c437aa5c6f638de1dbfc6b8e841862786dfc7037344504fa9e823e20"
     },
     ".xworkflows/hooks/core/ctx.mjs": {
       "piece": "hook-runtime",
-      "sha256": "07fd3d9b2172fee59ef333d4c3f7d0a0bbe681d099afcecd78827d2bbf95f99d"
+      "sha256": "c467ec88a800a1b3df3193922b7bd1377e12d610b6c75e2a7becc81cdd848138"
     },
     ".xworkflows/hooks/core/design-first.mjs": {
       "piece": "design-first",
@@ -176,7 +188,7 @@
     },
     ".xworkflows/hooks/core/orchestrator.mjs": {
       "piece": "orchestrator",
-      "sha256": "5462dd6a5df1c93dd77956880884ca1eeac6113c6d1b07ea8445577a12f42da4"
+      "sha256": "fdceac0529c0e41d6a32611691d8a96c50dceaf631628d1d5b152b0a5a0dc82b"
     },
     ".xworkflows/hooks/core/handback.mjs": {
       "piece": "handback",
@@ -184,7 +196,7 @@
     },
     ".xworkflows/hooks/core/memory.mjs": {
       "piece": "memory",
-      "sha256": "388960217a0ded780e015db6ab0cc2d6edac4812112c86ab3ba177e826bd6194"
+      "sha256": "6ad9d4b75477afa18423245118def7f7d93ebb50837feb5f129b53af4ac5b829"
     },
     ".xworkflows/hooks/core/memory-index.mjs": {
       "piece": "memory",
@@ -370,6 +382,14 @@
       "piece": "review",
       "sha256": "56e15d044c1962e9ce435f0f0742f0be5ed33386c0815dfba88eada5ce7b9f81"
     },
+    ".claude/agents/dream-analyzer.md": {
+      "piece": "dream-analyzer",
+      "sha256": "3e071a7cb7f8fbb22ab8215cc1371cf68e87563eb2fe54c367cdc24539aade08"
+    },
+    ".claude/agents/dream-organizer.md": {
+      "piece": "dream-organizer",
+      "sha256": "ea20a67e4e4f7386b26a5d1617111f5ea2d2fb25051263f55c61c7984d8bfd60"
+    },
     ".claude/skills/deepen/SKILL.md": {
       "piece": "deepen",
       "sha256": "a8a8ff83c0755e86879e027661d96c57b8ad74781105fef19a29c22b94f5948b"
@@ -425,6 +445,26 @@
     ".claude/skills/ponytail-review/SOURCE.md": {
       "piece": "ponytail-review",
       "sha256": "efc2bad9ff85270a0ea9f55890b4ad7b63680bf66fa07ba1b41bb9e044388f7c"
+    },
+    ".claude/skills/dream/SKILL.md": {
+      "piece": "dream",
+      "sha256": "f9be909739445b685957296eb5b173b9feafaf2041f1527dc7c670ed0eef2724"
+    },
+    ".claude/skills/dream/extract.mjs": {
+      "piece": "dream",
+      "sha256": "5f260e58025ec15e6179265c3977958c171b16230f05bce60e1db850c4fe2af5"
+    },
+    ".claude/skills/dream/branch.mjs": {
+      "piece": "dream",
+      "sha256": "cae0613cf4d7cd7a7995185adcc3644236d02eaf21d7c5262bd4f300103bcb45"
+    },
+    ".claude/skills/dream/shared.mjs": {
+      "piece": "dream",
+      "sha256": "6055f40386bf830bb0453b36e10dc55b87930825053ce3df4906aa99e356d02d"
+    },
+    ".claude/skills/dream/dream.workflow.js": {
+      "piece": "dream",
+      "sha256": "1e54b3ce3104638a2ecd3a231560cfb17b4832659057a053c69757c4ce34e5ea"
     },
     ".git/hooks/pre-push": {
       "piece": "checks",
@@ -737,6 +777,18 @@
     {
       "file": ".graphifyignore",
       "line": ".claude/skills/ponytail-review/"
+    },
+    {
+      "file": ".graphifyignore",
+      "line": ".claude/agents/dream-analyzer.md"
+    },
+    {
+      "file": ".graphifyignore",
+      "line": ".claude/agents/dream-organizer.md"
+    },
+    {
+      "file": ".graphifyignore",
+      "line": ".claude/skills/dream/"
     }
   ],
   "created": [
@@ -746,7 +798,9 @@
     "CLAUDE.md",
     ".graphifyignore"
   ],
-  "dirs": [],
+  "dirs": [
+    ".claude/skills/dream"
+  ],
   "declined": [],
   "kept": [],
   "renamed": {},
