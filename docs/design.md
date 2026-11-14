@@ -437,6 +437,9 @@ a valid answer. The reference column is not the default (owner, 2026-11-11).
 | `tokens.alwaysLoadedBytes` | The budget of section 13 | 24000 |
 | `memory.dir` | The one memory folder | `docs/memory` |
 | `dream.maxExtractBytes` | Most session text one `dream` run may read | proposal: 4000000 |
+| `dream.suggest` | Whether the method suggests a `dream` run | true |
+| `dream.suggestAfterDays` | Days since the last adopted run after which a run is suggested | 7 |
+| `dream.suggestAfterSessions` | Sessions with new text since the last adopted run after which a run is suggested | 10 |
 | `research.askSourceFor` | Topics where the owner names the source before any search | legal and tax |
 | `screens.widths` | Widths every visual change is captured at | 360, 1280 |
 | `tests.writeTargets` | Where a test that writes may write | one named test instance |
@@ -616,6 +619,21 @@ this product's numbers.
 
 Keys: `dream.maxExtractBytes` (proposal: 4,000,000, above the reference's
 whole 3.6 MB), `memory.dir`. Where sessions live is an adapter fact.
+
+#### When the method suggests a run
+
+A run is due when at least `dream.suggestAfterDays` days (7) have passed since
+the last adopted run, or at least `dream.suggestAfterSessions` sessions (10)
+have new text since it, whichever comes first; by days only when at least one
+session is newer than the last run; where it never ran, when the
+project has that many sessions. The suggestion is one line among the lines the
+memory hook gives at the start of a session; the agent tells the owner, and
+nothing runs by itself. It appears at the start of every new session while a
+run is due, and ends when a run is adopted; `dream.suggest: false` turns it
+off. It does not appear after a compact or a resume, in a sub-agent's session,
+in a tool other than Claude Code, in a project with no memory note, or where
+the memory folder is a link (`dream` refuses to run there). The last
+adopted run is the field `ran` that `close` writes into `dream.json`.
 
 Grade: `tested` on Claude Code only, once it runs. Codex and Cursor give a
 transcript path whose format is declared unstable or was not found, and

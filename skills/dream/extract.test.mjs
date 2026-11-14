@@ -406,6 +406,19 @@ test("a dream.json on main that does not parse or has another form is refused wi
   }
 });
 
+test("a dream.json with the time of the run is read as one without it; a ran that is not a string is refused", () => {
+  const w = world();
+  w.put("s1", user("t1", day(1)), user("t1 more", day(5)));
+  w.state({ sessions: { s1: 1 }, ran: "2030-01-02T03:04:05.000Z" });
+  assert.deepEqual(w.go().json.sessions.map((s) => [s.name, s.lines]), [["s1", 2]]);
+  for (const ran of [5, null, {}, ["x"]]) {
+    const v = world();
+    v.state({ sessions: {}, ran });
+    v.put("s1", user("t1", day(1)));
+    refused(v.go());
+  }
+});
+
 test("the state is read from the main branch: the working folder's copy and the branch checked out are not read", () => {
   const w = world();
   w.put("s1", user("t1", day(1)), user("t1 more", day(1)));
