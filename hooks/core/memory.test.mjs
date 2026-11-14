@@ -262,3 +262,24 @@ test("sessionStart: a memory.dir that is not a text is read as the default and d
     assert.doesNotThrow(run, JSON.stringify(dir));
   }
 });
+
+test("sessionStart: a memory.dir outside the repository, absolute or ../, says to ask the owner", () => {
+  for (const sub of ["abs", "../notes"]) {
+    const top = realpathSync(mkdtempSync(join(tmpdir(), "xwf-mem-"))), root = join(top, "repo");
+    mkdirSync(root);
+    mkdirSync(join(top, "notes"));
+    const dir = sub === "abs" ? join(top, "notes") : sub;
+    const r = decide(ev("sessionStart", { source: "startup", root }), makeCtx({ root, session: "s" }, { env: {}, config: { ...DEFAULTS, memory: { dir, outside: [] } }, stateDir: root }));
+    assert.match(r.context, /ask the owner/, sub);
+  }
+});
+
+test("a memory.dir that is a number or a list is read as the default at session end and at a note's write, and does not throw", () => {
+  for (const dir of [5, ["docs/memory"]]) {
+    const root = mkdtempSync(join(tmpdir(), "xwf-mem-"));
+    const ctx = () => makeCtx({ root, session: "s" }, { env: { XWORKFLOWS_DRY: "1" }, config: { ...DEFAULTS, memory: { dir, outside: [] } }, stateDir: root });
+    assert.doesNotThrow(() => decide(ev("sessionEnd", { root }), ctx()), JSON.stringify(dir));
+    const r = decide({ ...write(`${DEFAULTS.memory.dir}/n.md`, note("user")), root }, ctx());
+    assert.equal(r.decision, "deny", JSON.stringify(dir));
+  }
+});
