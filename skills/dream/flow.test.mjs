@@ -120,6 +120,16 @@ test("a run whose branch waits unmerged is named in waiting, and the next extrac
   assert.deepEqual(w.read(again), taken);
 });
 
+test("look names the line the run wrote and not the old line of the same note that the wide rule would touch", () => {
+  const w = world();
+  const old = "---\nname: k\ndescription: kept\n---\nthe author passes the keyboard\n";
+  writeFileSync(join(w.root, "docs/memory/k.md"), old);
+  git(w.root, "add", "-A"); git(w.root, "commit", "-q", "-m", "k");
+  w.put("s1", user("one", 1));
+  const c = w.round(w.extract(), (memory) => writeFileSync(join(memory, "k.md"), `${old}${"pass" + "word=" + "hunter" + "2"}\n`));
+  assert.deepEqual(c.look, [{ file: "docs/memory/k.md", line: 6 }]);
+});
+
 test("a session named in --not-read, whose analyzer returned nothing, is read again by the next run", () => {
   const w = world();
   w.put("s1", user("one", 1));

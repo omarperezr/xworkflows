@@ -112,7 +112,8 @@ test("close masks the sure shapes in every file the commit takes, at any depth a
   const c = json(r);
   assert.deepEqual(c.masked.map((m) => m.file).sort(), ["docs/memory/api/keys.md", "docs/memory/scratch.txt"]);
   assert.ok(c.masked.every((m) => m.count === 1));
-  assert.deepEqual(c.look, [{ file: "docs/memory/api/keys.md", line: 6 }, { file: "docs/memory/scratch.txt", line: 2 }]);
+  // line 3: "name: keys" ends on a credential word with no value, so the wide rule takes the next line
+  assert.deepEqual(c.look, [{ file: "docs/memory/api/keys.md", line: 3 }, { file: "docs/memory/api/keys.md", line: 6 }, { file: "docs/memory/scratch.txt", line: 2 }]);
   assert.equal(git(root, "show", `${o.branch}:docs/memory/api/keys.md`), `---\nname: keys\ndescription: k\n---\n[masked]\n${pw}`);
   assert.equal(git(root, "show", `${o.branch}:docs/memory/scratch.txt`), `[masked]\n${bearer}`);
   assert.deepEqual(c.outside, ["docs/memory/pic.bin"]);
@@ -130,6 +131,17 @@ test("a note the run did not change is not read again nor rewritten", () => {
   assert.equal(git(root, "show", `${o.branch}:docs/memory/k.md`) + "\n", kept);
   assert.equal(c.masked.some((m) => m.file === "docs/memory/k.md"), false);
   assert.deepEqual(c.look, []);
+});
+
+test("look names only the lines the run added or changed, not an old line of the same note that the wide rule would touch", () => {
+  const root = repo();
+  writeFileSync(join(root, "docs/memory/k.md"), "---\nname: k\ndescription: kept\n---\nthe author passes the keyboard\nplain\n");
+  git(root, "add", "-A"); git(root, "commit", "-q", "-m", "k");
+  const o = opened(root);
+  writeFileSync(join(o.memory, "k.md"), `---\nname: k\ndescription: kept\n---\nthe author passes the keyboard\nplain, edited\n${pw}\n`);
+  const r = run(["close", "--worktree", o.worktree, "--out", extracted()], root);
+  assert.equal(r.code, 0, r.stdout);
+  assert.deepEqual(json(r).look, [{ file: "docs/memory/k.md", line: 7 }]);
 });
 
 test("a note of type user or feedback that the run added or changed is not committed, nor in the index, and is named in outside", () => {

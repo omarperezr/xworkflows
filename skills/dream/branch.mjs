@@ -105,7 +105,7 @@ export function run(argv, root) {
       const date = /^dream\/(\d{4}-\d\d-\d\d)/.exec(branch)?.[1] ?? branch;
       git(real, "reset", "-q"); // the index holds only what this close stages
       git(real, "add", "-A", "--", dir);
-      // what the commit takes against main: sure shapes are masked, the lines the wide rule would touch are named in look; a binary file cannot be
+      // what the commit takes against main: sure shapes are masked, the lines the run wrote that the wide rule would touch are named in look; a binary file cannot be
       // masked, a link is not followed and a note of type user or feedback is the owner's alone, so they stay out and are named in outside
       const masked = [], look = [], index = `${dir}/MEMORY.md`;
       for (const l of git(real, "diff", "--cached", "--merge-base", main, "--no-renames", "--diff-filter=AMT", "--numstat", "-z", "--", dir).split("\0").filter(Boolean)) {
@@ -116,7 +116,11 @@ export function run(argv, root) {
         if (file.endsWith(".md") && ["user", "feedback"].includes(header(raw).type)) { git(real, "reset", "-q", "--", file); continue; }
         const [text, count] = shapes(raw);
         if (count) { writeFileSync(join(real, file), text); git(real, "add", "--", file); masked.push({ file, count }); }
-        if (file !== `${dir}/dream.json`) look.push(...suspect(text).map((line) => ({ file, line }))); // close's own: the sessions' names
+        if (file === `${dir}/dream.json`) continue; // close's own: the sessions' names
+        // only the lines the run added or changed: the added side of each hunk of the staged diff against main, with no context
+        const added = new Set(), hunks = git(real, "diff", "--cached", "--merge-base", main, "--no-ext-diff", "--no-textconv", "--no-color", "-U0", "--", file);
+        for (const [, from, n = "1"] of hunks.matchAll(/^@@ -\S+ \+(\d+)(?:,(\d+))? @@/gm)) for (let i = 0; i < Number(n); i++) added.add(Number(from) + i);
+        look.push(...suspect(text).filter((line) => added.has(line)).map((line) => ({ file, line })));
       }
       if (mine(real, join(real, index))) { // the index of the notes as the commit takes them
         const files = git(real, "ls-files", "-s", "-z", "--", dir).split("\0").filter(Boolean).map((l) => l.split("\t"))
