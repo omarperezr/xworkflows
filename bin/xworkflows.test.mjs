@@ -998,15 +998,19 @@ test("doctor: a tool that hangs does not hang doctor", () => {
   assert.match(out.stdout, /^warn qmd did not answer/m);
   assert.match(out.stdout, /^warn pack semgrep: version unknown/m);
 });
-test("doctor: the pre-push hook must be ours; a declined one warns", () => {
+// the fail line for a hook of the project that does not run the check: the file, then the line to put in it
+const ADD = /^fail pre-push hook does not run the check: add this line to (\S+) as its first command: (.+ # xworkflows)$/m;
+test("doctor: the pre-push hook must be ours or run the line first; a declined one fails with the line and the file, and doing what it says makes it ok", () => {
   const r = repo(); cli(r, ["install"]);
   assert.match(doctor(r).stdout, /^ok +pre-push hook is ours$/m);
   rmSync(join(r, ".git/hooks/pre-push"));
   assert.match(doctor(r).stdout, /^fail pre-push hook is missing or not ours: /m);
   const d = repo({ ".git/hooks/pre-push": "#!/bin/sh\nexit 0\n" }); chmodSync(join(d, ".git/hooks/pre-push"), 0o755);
   cli(d, ["install"]);
-  const out = doctor(d);
-  assert.match(out.stdout, /^warn pre-push hook is yours: chaining declined at install; /m);
+  const [, file, line] = doctor(d).stdout.match(ADD) ?? [];
+  assert.equal(file, join(realpathSync(d), ".git/hooks/pre-push"));
+  writeFileSync(file, `#!/bin/sh\n${line}\nexit 0\n`);
+  assert.match(doctor(d).stdout, /^ok +pre-push hook runs the check$/m);
 });
 test("doctor: install's own pre-push hook that is not executable is a fail that says chmod +x", () => {
   const r = repo(); cli(r, ["install"]);
@@ -1265,8 +1269,8 @@ test("doctor does not call a recorded hook ours when it no longer holds our text
   writeFileSync(join(r, ".git/hooks/pre-push"), "#!/bin/sh\nexit 0\n");
   const out = doctor(r);
   assert.doesNotMatch(out.stdout, /^ok +pre-push hook is ours$/m);
-  assert.match(out.stdout, /^warn pre-push hook changed locally/m);
-  assert.equal(out.status, 0, out.stdout);
+  assert.match(out.stdout, ADD);
+  assert.equal(out.status, 1, out.stdout);
 });
 
 test("installed.json holds no absolute path: the memory dir is recorded as configured", () => {
@@ -2030,8 +2034,8 @@ const DOCTOR_LINES = [
   ["no memory folder", (r) => { cli(r, ["install"]); rmSync(join(r, "docs"), { recursive: true }); }, {}, `warn no memory folder yet: docs/memory: ${FIX}`],
   ["qmd does not answer a list", (r) => cli(r, ["install"]), () => ({ PATH: tools({ qmd: "case \"$*\" in *--version*) echo 'qmd 2.8.3 (facd35e)';; *) exec sleep 30;; esac" }), XWORKFLOWS_PROBE_TIMEOUT_MS: "400" }), "warn qmd did not answer: collections of docs/memory not checked: run qmd collection list to see why"],
   ["no collection, no yml", (r) => { cli(r, ["install"]); rmSync(join(r, ".qmd"), { recursive: true }); }, () => ({ PATH: tools({ qmd: "exit 0" }) }), `fail no qmd collection covers docs/memory: ${FIX}`],
-  ["pre-push changed", (r) => { cli(r, ["install"]); appendFileSync(join(r, ".git/hooks/pre-push"), "echo hi\n"); }, {}, 'warn pre-push hook changed locally: it may no longer run the check; make it run: node "$(git rev-parse --show-toplevel)/.xworkflows/checks/run.mjs" --pre-push "$1"'],
-  ["pre-push declined", (r) => cli(r, ["install"]), {}, 'warn pre-push hook is yours: chaining declined at install; add this line to it: node "$(git rev-parse --show-toplevel)/.xworkflows/checks/run.mjs" --pre-push "$1"', { ".git/hooks/pre-push": "#!/bin/sh\nexit 0\n" }],
+  ["pre-push changed", (r) => { cli(r, ["install"]); writeFileSync(join(r, ".git/hooks/pre-push"), "#!/bin/sh\necho hi\n"); }, {}, /^fail pre-push hook does not run the check: add this line to \S+\/\.git\/hooks\/pre-push as its first command: if \[ -f .+ # xworkflows$/],
+  ["pre-push declined", (r) => cli(r, ["install"]), {}, /^fail pre-push hook does not run the check: add this line to \S+\/\.git\/hooks\/pre-push as its first command: if \[ -f .+ # xworkflows$/, { ".git/hooks/pre-push": "#!/bin/sh\nexit 0\n" }],
   ["pre-push missing", (r) => { cli(r, ["install"]); rmSync(join(r, ".git/hooks/pre-push")); }, {}, `fail pre-push hook is missing or not ours: ${FIX}`],
   ["session-start over", (r) => { cli(r, ["install"]); withConfig(r, { tokens: { sessionStartBytes: 10 } }); }, () => { const home = tmp("xwf-home-"); mkdirSync(join(home, ".xworkflows")); writeFileSync(join(home, ".xworkflows/owner.md"), "Replies: short and direct.\n"); return { HOME: home }; }, /^fail session-start text: \d+ bytes of 10: raise tokens\.sessionStartBytes in \.xworkflows\/config\.json or cut what the hook prints$/],
   ["attribution", (r) => { cli(r, ["install"]); settingsEdit(r, (s) => { s.attribution = { commit: "Co-Authored-By: someone", pr: "" }; }); }, {}, 'warn attribution in .claude/settings.json shows an AI line: set "attribution" to {"commit": "", "pr": ""} there'],
@@ -2047,6 +2051,32 @@ for (const [name, setup, env, want, files] of DOCTOR_LINES) test(`doctor line: $
   if (name === "file kept") return assert.ok(lineOf(out, /^warn kept theirs: \.claude\/agents\/explore\.md/)?.endsWith(`; to use the package's copy, delete .claude/agents/explore.md, take it out of "kept" in .xworkflows/installed.json and ${FIX}`), out.stdout);
   const w = typeof want === "function" ? want(r) : want;
   assert.ok(out.stdout.split("\n").some((l) => (w instanceof RegExp ? w.test(l) : l === w)), `${w}\n${out.stdout}`);
+});
+test("doctor: a hook of the project that got the line at install is ok, and only while the line is its first command and the file is executable", () => {
+  const { r } = chained();
+  cli(r, ["install", "--yes"]);
+  const hook = join(r, ".git/hooks/pre-push"), t = readFileSync(hook, "utf8"), line = marked(t)[0];
+  assert.match(doctor(r).stdout, /^ok +pre-push hook runs the check$/m);
+  for (const body of [`#!/bin/sh\nexit 0\n${line}\n`, `#!/bin/sh\ncat >/dev/null\n${line}\n`, `#!/bin/sh\n# ${line}\n`]) {
+    writeFileSync(hook, body);
+    assert.match(doctor(r).stdout, ADD, body);
+  }
+  writeFileSync(hook, t); chmodSync(hook, 0o644);
+  assert.match(doctor(r).stdout, /^fail pre-push hook holds the check but is not executable, so git ignores it: chmod \+x \S*\/\.git\/hooks\/pre-push$/m);
+});
+test("doctor: for husky's shim it looks in the file one folder up, and names that file", () => {
+  const { r } = husky({ "pre-push": "echo mine\n" });
+  cli(r, ["install"]);
+  const [, file, line] = doctor(r).stdout.match(ADD) ?? [];
+  assert.equal(file, join(top(r), ".husky/pre-push"));
+  writeFileSync(file, `${line}\necho mine\n`);
+  assert.match(doctor(r).stdout, /^ok +pre-push hook runs the check$/m);
+});
+test("doctor: a hook of lefthook fails with the line to add as a command of lefthook", () => {
+  const r = repo({ ".git/hooks/pre-push": '#!/bin/sh\nlefthook run "pre-push" "$@"\n' });
+  chmodSync(join(r, ".git/hooks/pre-push"), 0o755);
+  cli(r, ["install"]);
+  assert.match(doctor(r).stdout, /^fail pre-push hook is lefthook's and does not run the check: add this line as a command of lefthook for pre-push: .+ # xworkflows$/m);
 });
 
 const QMD_V = "qmd 2.8.3 (facd35e)";

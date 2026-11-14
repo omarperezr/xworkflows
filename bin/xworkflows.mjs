@@ -828,22 +828,26 @@ async function doctor() {
     }
     const hp = relative(ROOT, resolve(hooksFolder(ROOT), "pre-push"));
     const cur = lstatSync(join(ROOT, hp), { throwIfNoEntry: false })?.isFile() ? read(ROOT, hp) : null;
-    // the record's key for it: .git/hooks/pre-push whichever checkout this is, unless core.hooksPath moved the folder
-    const key = hookKey(ROOT, "pre-push");
-    // the hook git runs, ours or of the folder outside the repository (read through a link there): git runs only an executable file; outside, the line must be its first command, since a command before it may use up the refs on standard input
-    const theirs = { path: resolve(hooksFolder(ROOT), "pre-push"), live: false, exec: false };
+    // the hook git runs (read through a link): git runs only an executable file, and the line must be its first command, since a command
+    // before it may use up the refs on standard input or end the hook; inside the repository it is install's line, in husky's file one folder up
+    const inside = ownHooks(ROOT) !== null, LINE = hookLine("pre-push");
+    const theirs = { path: resolve(hooksFolder(ROOT), "pre-push"), live: false, exec: false, tool: null };
+    theirs.file = theirs.path;
     try {
-      const ls = readFileSync(theirs.path, "utf8").split("\n").map((l) => l.trim());
-      theirs.live = ls.find((l) => l !== "" && !l.startsWith("#")) === GUARDED;
+      const t = readFileSync(theirs.path, "utf8");
+      theirs.tool = manager(t);
+      if (theirs.tool === "husky") theirs.file = join(dirname(dirname(theirs.path)), "pre-push");
+      const ls = (theirs.tool === "husky" ? readFileSync(theirs.file, "utf8") : t).split("\n").map((l) => l.trim());
+      theirs.live = ls.find((l) => l !== "" && !l.startsWith("#")) === (inside ? LINE : GUARDED);
       accessSync(theirs.path, constants.X_OK); theirs.exec = true;
     } catch {}
+    const of = inside ? "" : " of the folder outside this repository";
     if (cur !== null && [false, true].some((c) => cur === hookText("pre-push", c))) say(theirs.exec ? "ok" : "fail", theirs.exec ? "pre-push hook is ours" : `pre-push hook is ours but not executable, so git ignores it: chmod +x ${sh(theirs.path)}`);
-    else if (cur !== null && rec.files[key]) say("warn", `pre-push hook changed locally: it may no longer run the check; make it run: ${CHECK}`);
-    else if (rec.declined.some((d) => d.file === key && d.what === "chain")) say("warn", `pre-push hook is yours: chaining declined at install; add this line to it: ${CHECK}`);
-    else if (ownHooks(ROOT) === null && theirs.live && theirs.exec) say("ok", "pre-push hook of the folder outside this repository runs the check");
-    else if (ownHooks(ROOT) === null && theirs.live) say("fail", `pre-push hook of the folder outside this repository holds the check but is not executable, so git ignores it: chmod +x ${sh(theirs.path)}`);
-    else if (ownHooks(ROOT) === null) say("fail", `pre-push hook: core.hooksPath points outside this repository, where install writes no hook; either add this line to the pre-push hook of that folder as its first command, which then runs it in every repository that uses the folder, and runs the check only where the file is: ${GUARDED} ; or point this repository at its own hooks folder, after which the hooks of the other folder no longer run here: run: git config core.hooksPath "$(git rev-parse --path-format=absolute --git-common-dir)/hooks"; then ${INSTALL}`);
-    else say("fail", `pre-push hook is missing or not ours: ${INSTALL}`);
+    else if (theirs.live) say(theirs.exec ? "ok" : "fail", theirs.exec ? `pre-push hook${of} runs the check` : `pre-push hook${of} holds the check but is not executable, so git ignores it: chmod +x ${sh(theirs.path)}`);
+    else if (!inside) say("fail", `pre-push hook: core.hooksPath points outside this repository, where install writes no hook; either add this line to the pre-push hook of that folder as its first command, which then runs it in every repository that uses the folder, and runs the check only where the file is: ${GUARDED} ; or point this repository at its own hooks folder, after which the hooks of the other folder no longer run here: run: git config core.hooksPath "$(git rev-parse --path-format=absolute --git-common-dir)/hooks"; then ${INSTALL}`);
+    else if (!existsSync(theirs.path)) say("fail", `pre-push hook is missing or not ours: ${INSTALL}`);
+    else if (theirs.tool && theirs.tool !== "husky") say("fail", `pre-push hook is ${theirs.tool}'s and does not run the check: add this line as a command of ${theirs.tool} for pre-push: ${LINE}`);
+    else say("fail", `pre-push hook does not run the check: add this line to ${sh(theirs.file)} as its first command: ${LINE}`);
     let st = {}, local = {};
     try { st = JSON.parse(readFileSync(join(ROOT, ".claude/settings.json"), "utf8")); } catch {}
     try { local = JSON.parse(readFileSync(join(ROOT, ".claude/settings.local.json"), "utf8")); } catch {}
