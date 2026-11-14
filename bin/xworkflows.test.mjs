@@ -1316,6 +1316,29 @@ test("a hook that is not a shell script is left byte for byte: install prints th
   assert.match(cli(r, ["install", "--yes"]).stdout, /^nothing to do$/m);
   assert.equal(readFileSync(join(r, ".git/hooks/pre-push"), "utf8"), body);
 });
+// a hook whose bytes are not the UTF-8 bytes of a text: one Latin-1 byte in a comment, and a copy of a small program
+const LATIN1 = Buffer.concat([Buffer.from("#!/bin/sh\n# caf"), Buffer.from([0xe9]), Buffer.from("\necho ok\n")]);
+const PROGRAM = readFileSync(existsSync("/usr/bin/true") ? "/usr/bin/true" : "/bin/true");
+test("a hook whose bytes are not text is not a shell script: after install and after uninstall it is byte for byte what it was", () => {
+  for (const body of [LATIN1, PROGRAM]) {
+    const r = repo(), hook = join(r, ".git/hooks/pre-push");
+    mkdirSync(dirname(hook), { recursive: true });
+    writeFileSync(hook, body); chmodSync(hook, 0o755);
+    assert.equal(cli(r, ["install", "--yes"]).status, 0);
+    assert.ok(readFileSync(hook).equals(body), `${body.length} bytes after install`);
+    assert.equal(cli(r, ["uninstall"]).status, 0);
+    assert.ok(readFileSync(hook).equals(body), `${body.length} bytes after uninstall`);
+  }
+});
+test("uninstall never rewrites a hook whose bytes are no longer text: the line stays and is named", () => {
+  const r = repo({ ".git/hooks/pre-push": "#!/bin/sh\necho ok\n" }), hook = join(r, ".git/hooks/pre-push");
+  chmodSync(hook, 0o755);
+  cli(r, ["install", "--yes"]);
+  appendFileSync(hook, Buffer.from([0x23, 0xe9, 0x0a]));
+  const was = readFileSync(hook);
+  assert.match(cli(r, ["uninstall"]).stdout, /^kept \(not text\): \.git\/hooks\/pre-push$/m);
+  assert.ok(readFileSync(hook).equals(was));
+});
 test("doctor does not call a recorded hook ours when it no longer holds our text", () => {
   const r = repo(); cli(r, ["install"]);
   writeFileSync(join(r, ".git/hooks/pre-push"), "#!/bin/sh\nexit 0\n");

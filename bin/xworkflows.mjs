@@ -317,8 +317,10 @@ const hookLine = (name) => {
 };
 // a hook manager is known by its hook's text: husky's shim reads the file h beside it; lefthook's and pre-commit's hooks name their tool
 const manager = (t) => (/^\.\s+"?(\$\{0%\/\*\}|\$\(dirname "\$0"\))\/h"?\s*$/m.test(t) ? "husky" : /lefthook/i.test(t) ? "lefthook" : /pre-commit\.com/.test(t) ? "pre-commit" : null);
-// a shell runs the hook: its #! line names one, or it has none
-const SHELL = /^(?!#!)|^#!\s*(\S*\/)?(env\s+(-\S+\s+)*)?(sh|bash|dash|zsh|ksh)(\s|$)/;
+// a hook's text, or null when its bytes are not the UTF-8 bytes of that text or hold a NUL: such a hook is never rewritten as text
+const textOf = (abs) => { const b = readFileSync(abs), t = b.toString(); return b.includes(0) || !Buffer.from(t).equals(b) ? null : t; };
+// a shell runs the hook: its #! line names one, or it has none and is text
+const SHELL =/^(?!#!)|^#!\s*(\S*\/)?(env\s+(-\S+\s+)*)?(sh|bash|dash|zsh|ksh)(\s|$)/;
 // the line goes after the #! line, else first; uninstall takes that line out alone, which gives every one of these bytes back
 const withLine = (t, line) => {
   const i = t.startsWith("#!") ? t.indexOf("\n") : -1;
@@ -445,7 +447,7 @@ export function plan(manifest, root, record, ans = {}) {
     const before = `${path}.before-xworkflows`, old = lstatSync(join(root, before), { throwIfNoEntry: false });
     const back = old && (mine || !now) ? before : undefined;
     if (back) hookMerges.push({ path, key, back, text: null, hook: true, rec: {} });
-    const lst = back ? old : now, cur = back ? (old.isFile() ? read(root, before) : null) : own;
+    const lst = back ? old : now, cur = lst?.isFile() ? textOf(join(root, back ?? path)) : null;
     if (!back && (!lst || mine)) { writes.push({ path, key, text: hookText(name), piece: "checks", src: name, mode: 0o755 }); continue; }
     // the user's hook keeps its name and its place: it gets the line, or nothing, and the line is printed
     if (!back && record.declined.some((d) => d.file === key && d.what === "chain")) continue;
@@ -455,7 +457,7 @@ export function plan(manifest, root, record, ans = {}) {
     const tool = cur === null ? null : manager(cur), husky = tool === "husky";
     const file = husky ? join(dirname(dirname(path)), name) : path, fkey = husky ? file : key;
     const at = husky ? lstatSync(join(root, file), { throwIfNoEntry: false }) : lst;
-    const text = !husky ? cur : !at ? "" : at.isFile() ? read(root, file) : null;
+    const text = !husky ? cur : !at ? "" : at.isFile() ? textOf(join(root, file)) : null;
     if (tool && !husky) {
       notes.push(`${was}${path} is ${tool}'s: nothing written; to run the check, add this line as a command of ${tool} for ${name}: ${line}`);
       hookMerges.push(declined);
@@ -1031,7 +1033,10 @@ function uninstall() {
     // the line of a hook is in the hooks folder git uses, which a linked worktree has under the common git dir; a link there is not followed
     const file = hookSet.has(key) ? relative(ROOT, join(hooksDir, basename(key))) : key;
     if (hookSet.has(key) && !lstatSync(join(ROOT, file), { throwIfNoEntry: false })?.isFile()) continue;
-    const t = read(ROOT, file), ls = t?.split("\n") ?? [], i = ls.lastIndexOf(line);
+    // a hook's bytes are never rewritten as text
+    const there = existsSync(join(ROOT, file)), t = there && line === hookLine(basename(key)) ? textOf(join(ROOT, file)) : read(ROOT, file);
+    if (there && t === null) { out.push(`kept (not text): ${key}`); continue; }
+    const ls = t?.split("\n") ?? [], i = ls.lastIndexOf(line);
     // a line of a hook that the user changed still holds the mark: it stays, and is named
     if (i < 0 && line === hookLine(basename(key)) && ls.some((l) => l.endsWith(" # xworkflows"))) out.push(`kept (changed locally): ${key}`);
     if (i < 0) continue;
