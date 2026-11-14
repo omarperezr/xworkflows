@@ -98,7 +98,7 @@
     },
     "orchestrate": {
       "version": "0.1.0",
-      "sha256": "a8e765d8addf85568cbafb16f1b87bc8db9533a809b1fd10a199364d7b686a3c"
+      "sha256": "e3abe85db45467a06dea053ed2050bae4555befc14f54afe7396f2a07a3e3a75"
     },
     "pending": {
       "version": "0.1.0",
@@ -380,7 +380,7 @@
     },
     ".claude/skills/orchestrate/SKILL.md": {
       "piece": "orchestrate",
-      "sha256": "3ebe45fd7c66e0a6d9efaa0fee7c241d071cf28c13f966821bf8217e3aaf564b"
+      "sha256": "1f506c458d579ad4ab331c698340738b7811a964f1d370c910e2774714f12b02"
     },
     ".claude/skills/pending/SKILL.md": {
       "piece": "pending",
