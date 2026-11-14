@@ -323,6 +323,15 @@ const manager = (t) => (/^\.\s+"?(\$\{0%\/\*\}|\$\(dirname "\$0"\))\/h"?\s*$/m.t
 const textOf = (abs) => { const b = readFileSync(abs), t = b.toString(); return b.includes(0) || !Buffer.from(t).equals(b) ? null : t; };
 // a shell runs the hook: its #! line names one, or it has none and is text
 const SHELL =/^(?!#!)|^#!\s*(\S*\/)?(env\s+(-\S+\s+)*)?(sh|bash|dash|zsh|ksh)(\s|$)/;
+// a hook that cannot take the line, and is chained as before it: a link, a file whose bytes are not a shell script, lefthook's or pre-commit's
+const chains = (st, t) => !st?.isFile() || t === null || !SHELL.test(t) || ["lefthook", "pre-commit"].includes(manager(t));
+// The chain of before the line, text for text: the project's hook, renamed <name>.before-xworkflows, runs first.
+function chainText(name) {
+  const old = `old="$(dirname "$0")/${name}.before-xworkflows"\n`;
+  // git feeds the pushed refs on stdin once: keep them for both runs
+  if (name === "pre-push") return `#!/bin/sh\nin=$(mktemp) || exit 1\ncat > "$in"\n${old}if [ -x "$old" ]; then "$old" "$@" < "$in" || { c=$?; rm -f "$in"; exit $c; }; fi\n${CHECK} < "$in"\nc=$?\nrm -f "$in"\nexit $c\n`;
+  return gitText(name).replace("c=0\n", `c=0\n${old}[ -x "$old" ] && { "$old" "$@"; c=$?; }\n`);
+}
 // the line goes after the #! line, else first; uninstall takes that line out alone, which gives every one of these bytes back
 const withLine = (t, line) => {
   const i = t.startsWith("#!") ? t.indexOf("\n") : -1;
@@ -443,29 +452,41 @@ export function plan(manifest, root, record, ans = {}) {
     const path = relative(root, resolve(hooksDir, name)), key = hookKey(root, name);
     const now = lstatSync(join(root, path), { throwIfNoEntry: false });
     const own = now?.isFile() ? read(root, path) : null;
-    const mine = own !== null && (own === hookText(name) || earlierHook(manifest, name, own) || (!!record.files[key] && hash(own) === record.files[key].sha256));
+    const mine = own !== null && (own === hookText(name) || own === chainText(name) || earlierHook(manifest, name, own) || (!!record.files[key] && hash(own) === record.files[key].sha256));
     // an install made before the line renamed the user's hook to <name>.before-xworkflows and ran it from its own, recorded or not:
-    // ours is the only code that makes this name. The user's file gets its name back, and the line with no question: its owner said yes then
+    // ours is the only code that makes this name
     const before = `${path}.before-xworkflows`, old = lstatSync(join(root, before), { throwIfNoEntry: false });
-    const back = old && (mine || !now) ? before : undefined;
+    const pair = !!old && (mine || !now);
+    const lst = pair ? old : now, cur = lst?.isFile() ? textOf(join(root, pair ? before : path)) : null;
+    if (!pair && (!lst || mine)) { writes.push({ path, key, text: hookText(name), piece: "checks", src: name, mode: 0o755 }); continue; }
+    // husky's shim runs the file of its own name one folder up: that file is the user's hook, made by a yes when it is not there
+    const tool = cur === null ? null : manager(cur), husky = tool === "husky", chain = chains(lst, cur);
+    const file = husky ? join(dirname(dirname(path)), name) : path, fkey = husky ? file : key;
+    const at = husky ? lstatSync(join(root, file), { throwIfNoEntry: false }) : lst;
+    const text = !husky ? cur : !at ? "" : at.isFile() ? textOf(join(root, file)) : null;
+    // the old pair moves to the line only when the hook can take it: the user's file gets its name back, and the line with no question,
+    // since its owner said yes then. Else the pair stays as it is, and works
+    const back = pair && !chain && (!husky || (plain(file) && clean(root, file) && text !== null && SHELL.test(text))) ? before : undefined;
+    if (pair && !back) {
+      writes.push({ path, key, text: chainText(name), piece: "checks", src: name, mode: 0o755 });
+      if (!record.chained.some((c) => c.file === key)) hookMerges.push({ path, text: null, rec: { chained: [{ file: key, to: `${key}.before-xworkflows` }] } });
+      continue;
+    }
     if (back) hookMerges.push({ path, key, back, text: null, hook: true, rec: {} });
-    const lst = back ? old : now, cur = lst?.isFile() ? textOf(join(root, back ?? path)) : null;
-    if (!back && (!lst || mine)) { writes.push({ path, key, text: hookText(name), piece: "checks", src: name, mode: 0o755 }); continue; }
     // the user's hook keeps its name and its place: it gets the line, or nothing, and the line is printed
     if (!back && record.declined.some((d) => d.file === key && d.what === "chain")) continue;
     const line = hookLine(name), declined = { path, text: null, rec: { declined: [{ file: key, what: "chain" }] } };
     const was = back ? `migrated ${name}: ${path} has its name back; ` : "";
-    // husky's shim runs the file of its own name one folder up: that file is the user's hook, made by a yes when it is not there
-    const tool = cur === null ? null : manager(cur), husky = tool === "husky";
-    const file = husky ? join(dirname(dirname(path)), name) : path, fkey = husky ? file : key;
-    const at = husky ? lstatSync(join(root, file), { throwIfNoEntry: false }) : lst;
-    const text = !husky ? cur : !at ? "" : at.isFile() ? textOf(join(root, file)) : null;
-    if (tool && !husky) {
-      notes.push(`${was}${path} is ${tool}'s: nothing written; to run the check, add this line as a command of ${tool} for ${name}: ${line}`);
-      hookMerges.push(declined);
-    } else if (husky && !(plain(file) && clean(root, file))) notes.push(`${was}not written (symlink): ${file}`);
+    if (chain) {
+      // a hook that cannot take the line is chained as before it: renamed, and run first from install's hook
+      if (ask(`chain:${name}`, `A ${name} hook exists. Chain it (it runs first, then ours)?`, ["no", "yes"]) === "no") { hookMerges.push(declined); continue; }
+      if (old) die(1, `exists and is not ours: ${before}`);
+      notes.push(`chained ${name}: a hook which depends on its own file name will not work chained`);
+      hookMerges.push({ path, text: null, rec: { chained: [{ file: key, to: `${key}.before-xworkflows` }] } });
+      writes.push({ path, key, text: chainText(name), piece: "checks", src: name, mode: 0o755, rename: before });
+    } else if (husky && !(plain(file) && clean(root, file))) notes.push(`not written (symlink): ${file}`);
     else if (text === null || !SHELL.test(text)) {
-      notes.push(`${was}${file} is not a shell script: nothing written; to run the check, call this line from it as its first command: ${line}`);
+      notes.push(`${file} is not a shell script: nothing written; to run the check, call this line from it as its first command: ${line}`);
       hookMerges.push(declined);
     } else if (text.split("\n").includes(line)) {
       if (back) notes.push(`${was}${file} holds the xworkflows line`);
@@ -489,7 +510,7 @@ export function plan(manifest, root, record, ans = {}) {
   writes = writes.filter((w) => !off(w.path));
   for (const w of writes) {
     const cur = read(root, w.path);
-    if (cur === null || cur === w.text || (w.key && earlierHook(manifest, w.src, cur))) continue;
+    if (cur === null || cur === w.text || w.rename || (w.key && earlierHook(manifest, w.src, cur))) continue;
     const rec = record.files[w.key ?? w.path];
     if (!rec) {
       // --yes answers with label 0 here: a file that is not ours is never written over without a typed answer
@@ -565,6 +586,7 @@ export function apply(pl, root, manifest, record) {
   for (const w of pl.writes) if (!w.keep && differs(root, w)) {
     const hook = HOOKS.includes(w.src);
     linked(w.path, hook);
+    if (w.rename) renameSync(join(root, w.path), join(root, w.rename));
     put(root, w.path, w.text, w.mode, hook);
     out.push(w.path);
   }
@@ -646,7 +668,7 @@ async function install(flags) {
   if (pl.questions.length) pl = plan(m, ROOT, record, ans);
   for (const n of pl.notes) console.log(n);
   if (flags["dry-run"]) {
-    for (const w of pl.writes) if (!w.keep && differs(ROOT, w)) console.log(`would write ${w.path}`);
+    for (const w of pl.writes) if (!w.keep && differs(ROOT, w)) console.log(`${w.rename ? `would rename ${w.path} to ${w.rename}\n` : ""}would write ${w.path}`);
     for (const p of pl.retired) console.log(`would remove ${p}`);
     for (const m of pl.merges) {
       if (m.back) console.log(`would rename ${m.back} to ${m.path}`);
@@ -846,9 +868,13 @@ async function doctor() {
       accessSync(theirs.path, constants.X_OK); theirs.exec = true;
     } catch {}
     const of = inside ? "" : " of the folder outside this repository";
+    // the chain of before the line, for a hook that cannot take it, is ours as it was; install moves any other to the line
+    const bp = join(ROOT, `${hp}.before-xworkflows`), bst = lstatSync(bp, { throwIfNoEntry: false });
+    let ours = cur === hookText("pre-push");
+    try { ours ||= cur === chainText("pre-push") && chains(bst, bst?.isFile() ? textOf(bp) : null); } catch {}
     // the line refuses every push while install's file for it is missing
     if (inside && (cur === hookText("pre-push") || theirs.live) && !existsSync(join(ROOT, ".xworkflows/git/pre-push"))) say("fail", `pre-push hook runs .xworkflows/git/pre-push, which is missing: ${INSTALL}`);
-    else if (cur === hookText("pre-push")) say(theirs.exec ? "ok" : "fail", theirs.exec ? "pre-push hook is ours" : `pre-push hook is ours but not executable, so git ignores it: chmod +x ${sh(theirs.path)}`);
+    else if (ours) say(theirs.exec ? "ok" : "fail", theirs.exec ? "pre-push hook is ours" : `pre-push hook is ours but not executable, so git ignores it: chmod +x ${sh(theirs.path)}`);
     // an install made the old way, or its record: install puts the present text in its place
     else if (cur !== null && (earlierHook(readManifest(), "pre-push", cur) || hash(cur) === rec.files[hookKey(ROOT, "pre-push")]?.sha256)) say("warn", `pre-push hook holds an earlier text of the package: ${INSTALL} replaces it`);
     else if (theirs.live) say(theirs.exec ? "ok" : "fail", theirs.exec ? `pre-push hook${of} runs the check` : `pre-push hook${of} holds the check but is not executable, so git ignores it: chmod +x ${sh(theirs.path)}`);
@@ -975,7 +1001,7 @@ function uninstall() {
     const abs = join(hooksDir, name), before = abs + ".before-xworkflows";
     if (!lstatSync(abs, { throwIfNoEntry: false })?.isFile()) continue;
     const cur = readFileSync(abs, "utf8");
-    if (cur !== hookText(name) && !earlierHook(manifest, name, cur)) { if (recFiles.has(p)) out.push(hash(cur) === rec.files[p].sha256 ? `kept (not ours): ${p}` : `kept (changed locally): ${p}`); continue; }
+    if (cur !== hookText(name) && cur !== chainText(name) && !earlierHook(manifest, name, cur)) { if (recFiles.has(p)) out.push(hash(cur) === rec.files[p].sha256 ? `kept (not ours): ${p}` : `kept (changed locally): ${p}`); continue; }
     rmSync(abs); out.push(`deleted ${p}`);
     if (lstatSync(before, { throwIfNoEntry: false })) { renameSync(before, abs); out.push(`restored ${p}`); }
   }
