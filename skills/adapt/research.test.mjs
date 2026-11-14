@@ -137,6 +137,56 @@ test("done refuses an approved summary when no Write of it was kept", () => {
   assert.ok(!existsSync(X(d, "research.prev.json")));
 });
 
+// A re-adapt started and left: the approved summary of before is tracked, research.json is there.
+function leftRun() {
+  const d = repo();
+  writeFileSync(X(d, "summary.md"), "---\nstatus: approved\n---\n");
+  execFileSync("git", ["add", ".xworkflows/summary.md"], { cwd: d });
+  execFileSync("git", [...G, "commit", "-qm", "adapt"], { cwd: d });
+  writeFileSync(X(d, "research.json"), '{"x":1}');
+  cli(d, "start");
+  return d;
+}
+test("a left re-adapt whose tracked summary git rewrote with the same approved text is cleared by done", () => {
+  const d = leftRun();
+  rmSync(X(d, "summary.md"));
+  execFileSync("git", ["checkout", "--", ".xworkflows/summary.md"], { cwd: d });
+  const r = cli(d, "done");
+  assert.deepEqual([r.status, r.stderr], [0, ""]);
+  assert.ok(!existsSync(X(d, "adapt-run.json")));
+  assert.ok(!existsSync(X(d, "research.prev.json")));
+});
+test("an unchanged approved summary of before the run passes done, also with a new file time, and copies nothing", () => {
+  const d = leftRun();
+  utimesSync(X(d, "summary.md"), new Date(Date.now() + 60000), new Date(Date.now() + 60000));
+  const r = cli(d, "done");
+  assert.deepEqual([r.status, r.stderr], [0, ""]);
+  assert.ok(!existsSync(X(d, "adapt-run.json")));
+  assert.ok(!existsSync(X(d, "research.prev.json")));
+});
+test("an approved summary copied in with an old file time, never written with Write, is refused", () => {
+  const d = repo();
+  writeFileSync(X(d, "research.json"), '{"x":1}');
+  cli(d, "start");
+  const from = join(d, "elsewhere.md");
+  writeFileSync(from, "---\nstatus: approved\n---\n");
+  utimesSync(from, new Date(Date.now() - 3600e3), new Date(Date.now() - 3600e3));
+  execFileSync("cp", ["-p", from, X(d, "summary.md")]);
+  const r = cli(d, "done");
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, NOT_WRITTEN);
+  assert.ok(existsSync(X(d, "adapt-run.json")));
+});
+test("with research.json absent, a changed approved summary no Write gave is refused", () => {
+  const d = leftRun();
+  rmSync(X(d, "research.json"));
+  writeFileSync(X(d, "summary.md"), "---\nstatus: approved\n---\nchanged by a shell\n");
+  const r = cli(d, "done");
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, NOT_WRITTEN);
+  assert.ok(existsSync(X(d, "adapt-run.json")));
+});
+
 test("with XWORKFLOWS_FREE, done skips the summary check as the gate does and says so", () => {
   const d = repo();
   writeFileSync(X(d, "research.json"), '{"x":1}');
