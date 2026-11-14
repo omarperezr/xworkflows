@@ -323,7 +323,7 @@ const manager = (t) => (/^\.\s+"?(\$\{0%\/\*\}|\$\(dirname "\$0"\))\/h"?\s*$/m.t
 // a hook's text, or null when its bytes are not the UTF-8 bytes of that text or hold a NUL: such a hook is never rewritten as text
 const textOf = (abs) => { const b = readFileSync(abs), t = b.toString(); return b.includes(0) || !Buffer.from(t).equals(b) ? null : t; };
 // a shell runs the hook: its #! line names one, or it has none and is text
-const SHELL =/^(?!#!)|^#!\s*(\S*\/)?(env\s+(-\S+\s+)*)?(sh|bash|dash|zsh|ksh)(\s|$)/;
+const SHELL = /^(?!#!)|^#!\s*(\S*\/)?(env\s+(-\S+\s+)*)?(sh|bash|dash|zsh|ksh)(\s|$)/;
 // a hook that cannot take the line, and is chained as before it: a link, a file whose bytes are not a shell script, lefthook's or pre-commit's
 const chains = (st, t) => !st?.isFile() || t === null || !SHELL.test(t) || ["lefthook", "pre-commit"].includes(manager(t));
 // The chain of before the line, text for text: the project's hook, renamed <name>.before-xworkflows, runs first.
