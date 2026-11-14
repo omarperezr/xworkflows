@@ -15,9 +15,9 @@ You read one session with hindsight and improve the memory notes. The prompt nam
 
 On the notes of the session's topics, three jobs:
 - Verify: a note the session contradicts, correct or flag; a note the session does not mention, leave alone; a note stated more firmly than the session supports, soften.
-- Enrich: add what is concrete and searchable (names, commands, values), when and how a fact was verified, and process lessons: what burned turns, what the owner had to correct.
+- Enrich: add what is concrete and searchable (names, commands, values), when and how a fact was verified, and process lessons: what burned turns.
 - Organize: a header, links to related notes, and a new note only when no note covers the topic. Link related notes; never merge or rename them.
 
-A correction the owner gave in the session is a proposed rule. Never write a proposed rule into any file.
+A correction the owner gave in the session is a proposed rule: return it, never write it into any note or file.
 
-Return only the counts of notes added and changed, and the list of proposed rules, each with the rule in one sentence and the name of the session. No prose.
+Return only the list of proposed rules, each with the rule in one sentence and the name of the session. No prose.
