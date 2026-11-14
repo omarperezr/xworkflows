@@ -12,9 +12,9 @@ const { NOISE, REPORT } = await shared("hooks/core/memory.mjs");
 
 const M = "[masked]";
 // Every pattern here matches in time proportional to the text: each repeat is bounded or cannot be retried from inside a run it failed on.
-// a secret by its own form; a key block keeps its line breaks, so the line numbers after it hold (an end-less block goes to the next blank line)
+// a secret by its own form; a key block keeps its line breaks, so the line numbers after it hold (an end-less block takes only the lines of key material that follow)
 const SHAPES = [
-  [/-----BEGIN [A-Z ]{0,20}PRIVATE KEY-----(?:[\s\S]*?-----END [A-Z ]{0,20}PRIVATE KEY-----|[^\n]*(?:\n(?![ \t]*(?:\n|$))[^\n]*)*)/g, (b) => M + "\n".repeat(b.split("\n").length - 1)],
+  [/-----BEGIN [A-Z ]{0,20}PRIVATE KEY-----(?:[\s\S]*?-----END [A-Z ]{0,20}PRIVATE KEY-----|[^\r\n]*(?:\r?\n[A-Za-z0-9+/=]+(?=\r?\n|\r$|$))*)/g, (b) => M + "\n".repeat(b.split("\n").length - 1)],
   [/(\b[a-z][\w+.-]{0,19}:\/\/[^\s:@/]*:)(?!\[masked\]@)[^\s@/]+(?=@)/gi, (_, key) => key + M],
   [/\bsk-[\w-]{20,}/g, () => M],
   [/\b[sr]k_(?:live|test)_\w{10,}/g, () => M],

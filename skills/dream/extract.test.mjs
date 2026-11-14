@@ -195,6 +195,31 @@ test("shapes: a BEGIN line with no END line is masked to the next blank line, ne
   assert.deepEqual(shapes(`${cut}\n\nafter`), ["[masked]\n\n\n\nafter", 1]); // a cut block: its lines go, the line numbers hold
 });
 
+test("shapes: a BEGIN line with no END line takes only the lines of key material that follow it", () => {
+  const prose = Array.from({ length: 20 }, (_, i) => `Fact ${i + 1} of the note.`);
+  const head = "The key file must start with the line -----BEGIN OPENSSH PRIVATE " + "KEY----- or ssh refuses it.";
+  for (const eol of ["\n", "\r\n"]) {
+    const [out, n] = shapes([head, ...prose].join(eol));
+    assert.equal(n, 1);
+    assert.deepEqual(out.split(eol), ["The key file must start with the line [masked]", ...prose]); // the twenty stay
+  }
+  const b64 = Array.from({ length: 6 }, (_, i) => "MIIEvQIBADANBgkq+/" + i + "=");
+  const cut = ["-----BEGIN RSA PRIVATE " + "KEY-----", ...b64, "Then some prose.", "More prose."];
+  assert.deepEqual(shapes(cut.join("\n")), ["[masked]\n\n\n\n\n\n\nThen some prose.\nMore prose.", 1]); // the six go, the prose stays
+  const crlf = shapes(cut.join("\r\n"));
+  assert.equal(crlf[1], 1);
+  assert.ok(crlf[0].endsWith("Then some prose.\r\nMore prose."));
+  assert.ok(!crlf[0].includes("MIIEv"));
+});
+
+test("shapes: many BEGIN lines with no END line take time proportional to the text", () => {
+  const t = "-----BEGIN RSA PRIVATE KEY-----\n".repeat(2000);
+  const t0 = performance.now();
+  shapes(t);
+  const ms = performance.now() - t0;
+  assert.ok(ms < 1500, `took ${Math.round(ms)} ms`);
+});
+
 test("mask: every form a review found is masked, and every key of a known form", () => {
   for (const form of FORMS) {
     const [out, n] = mask(form);
