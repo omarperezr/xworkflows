@@ -209,15 +209,16 @@ The installer owns only what it wrote. `installed.json` is the list.
 | JSON settings (`.claude/settings.json`, `.codex/hooks.json`, `.cursor/hooks.json`, Gemini `settings.json`) | **Merged**: its hook entries are appended to the existing arrays; no existing key or entry is changed or reordered. Its entries are recognized by their command path under `.xworkflows/` |
 | `AGENTS.md` exists | **Merged**: one block between `<!-- xworkflows:start -->` and `<!-- xworkflows:end -->`; text outside the block is never touched |
 | `CLAUDE.md` or `GEMINI.md` exists | **Asked**: add one line that imports `AGENTS.md`. On no, the file is left alone and `doctor` warns that this tool does not load the rules (owner, 2026-11-11) |
-| `core.hooksPath` is set, or a `pre-push` hook exists | **Asked**: chain (the existing hook runs first, then `xworkflows check`). Never replaced |
+| `core.hooksPath` is set, or a `pre-push` hook exists | **Asked**: add one marked line to the existing hook, which runs `xworkflows check` first and then the rest of the hook. Nothing is renamed, moved or replaced. husky's own file gets the line; for lefthook and pre-commit `install` prints it. An install made the old way (the hook renamed `<name>.before-xworkflows`) is migrated by the next `install` |
 | An agent, skill or rule with the same name exists | **Asked** per file: keep theirs, or install under a prefixed name |
 | The working tree has uncommitted changes | Proceeds, and prints the list of files it wrote so they can be committed apart |
 
 `uninstall` reverses this and nothing else: it deletes each file in
 `installed.json` whose hash still matches, lists the ones that changed and
 leaves them, removes its entries from the merged JSON files, removes its
-block from `AGENTS.md`, removes the import line it added, and restores the
-git hook chain. It never deletes what the interview wrote (`docs/BUSINESS.md`,
+block from `AGENTS.md`, removes the import line it added, and removes
+the marked line from the git hook (and restores a hook chained the old way
+that was never migrated). It never deletes what the interview wrote (`docs/BUSINESS.md`,
 the pending list, memory, rules): that is project content.
 
 Running `install` twice must change nothing the second time.

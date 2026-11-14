@@ -73,6 +73,7 @@ Good to know:
 
 - Nothing is committed or pushed for you. You decide when to commit what the installer wrote.
 - The installer asks a question only when something of yours is already there: a skill or agent with the same name, a git hook, a file it did not write.
+- A git hook you already have is never renamed or moved. With a yes, `install` adds one marked line to it, which runs the check first and then the rest of your hook; `uninstall` removes that line. For a hook manager, husky's file gets the line, and for lefthook or pre-commit `install` prints the line for you to add.
 - `install --dry-run` shows what would be written and writes nothing.
 - `uninstall` takes back what `install` added and leaves your files.
 - Each clone or worktree runs `install` once for itself: the index of the notes (`.qmd/index.yml`) holds a path of that machine, so it is not tracked.
