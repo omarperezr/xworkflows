@@ -79,11 +79,11 @@ const packed = spawnSync("node", [join(SHARED, "bin/xworkflows.mjs"), "pack"], {
 assert.equal(packed.status, 0, `pack of the shared copy failed, every install test depends on it:\n${packed.stdout}${packed.stderr}`);
 const BIN = join(SHARED, "bin/xworkflows.mjs");
 
-function cliAt(pkg, cwd, args) {
+function cliAt(pkg, cwd, args, extra = {}) {
   const env = { ...process.env };
   delete env.XWORKFLOWS_FREE;
   delete env.XWORKFLOWS_RECORD;
-  const r = spawnSync("node", [join(pkg, "bin/xworkflows.mjs"), ...args], { cwd, env: { ...env, ...ISO }, input: "", encoding: "utf8" });
+  const r = spawnSync("node", [join(pkg, "bin/xworkflows.mjs"), ...args], { cwd, env: { ...env, ...ISO, ...extra }, input: "", encoding: "utf8" });
   return { status: r.status, stdout: r.stdout, stderr: r.stderr };
 }
 
@@ -1569,6 +1569,19 @@ for (const [what, dir] of [["absolute", (o) => join(o, "mem")], ["climbing out w
     assert.ok(out.stdout.split("\n").includes(`not written: memory.dir must be a folder inside the repository: ${dir(o)}`));
   });
 }
+// P-125: settings.local.json gets the folder the memory.dir rule names, and nothing for a value that names none
+test("install: a memory.dir that is not text writes no autoMemoryDirectory and says why; a padded one is written and taken back as the folder it names", () => {
+  const r = repo({ ".xworkflows/config.json": JSON.stringify({ memory: { dir: 5 } }) });
+  const out = inst(r);
+  assert.equal(out.status, 0, out.stderr);
+  assert.ok(out.stdout.split("\n").includes("not written: memory.dir must be a folder inside the repository: 5"), out.stdout);
+  assert.ok(!existsSync(join(r, ".claude/settings.local.json")));
+  const q = repo({ ".xworkflows/config.json": JSON.stringify({ memory: { dir: " docs/memory " } }) });
+  assert.equal(inst(q).status, 0);
+  assert.equal(readJson(q, ".claude/settings.local.json").autoMemoryDirectory, join(top(q), "docs/memory"));
+  assert.equal(cli(q, ["uninstall"]).status, 0);
+  assert.ok(!existsSync(join(q, ".claude/settings.local.json")));
+});
 test("install: a repository path with a space, # and : gives the JSON string of the folder", () => {
   const d = join(tmp("xwf-"), "a b#c:d");
   mkdirSync(d);
@@ -2230,7 +2243,7 @@ test("install removes only a file the record holds that the manifest lists as re
   assert.equal(out.stdout.split("\n").filter((l) => l === `kept (no longer shipped, changed locally): ${edited}`).length, 1, out.stdout);
   const files = readJson(r, ".xworkflows/installed.json").files;
   assert.ok(!(gone in files) && !(mine in files) && !(conf in files) && !(stray in files));
-  assert.ok(edited in files, "the kept file stays in the record, so the next install judges it again");
+  assert.ok(!(edited in files), "the kept file is named once and leaves the record");
   assert.match(cliAt(copy, r, ["install", "--yes"]).stdout, /nothing to do/);
 });
 test("install does not throw on a null entry of the record's files: it counts as not recorded", () => {
@@ -2315,13 +2328,13 @@ test("install: a retired agent the record holds, unchanged, is removed on an upg
   assert.doesNotMatch(un.stdout, /gone\.md|kept \(not ours\)/);
   assert.ok(!existsSync(join(r, AGENT)) && !(existsSync(join(r, ".graphifyignore")) && lines(r).includes(AGENT)));
 });
-test("install: a retired agent the record holds, changed locally, is kept, named once and stays in the record", () => {
+test("install: a retired agent the record holds, changed locally, is kept, named once and leaves the record", () => {
   const { copy, r } = upgradeWithAgent("a\nmine\n");
   const out = cliAt(copy, r, ["install", "--yes"]);
   assert.equal(out.status, 0, out.stderr);
   assert.equal(readFileSync(join(r, AGENT), "utf8"), "a\nmine\n");
   assert.equal(out.stdout.split("\n").filter((l) => l === `kept (no longer shipped, changed locally): ${AGENT}`).length, 1, out.stdout);
-  assert.ok(AGENT in readJson(r, ".xworkflows/installed.json").files);
+  assert.ok(!(AGENT in readJson(r, ".xworkflows/installed.json").files));
 });
 test("install: a first install into a project with its own files at retired paths, with the published text, leaves them and names nothing", () => {
   const r = repo({ [AGENT]: "a\n", [LOOSE]: "a\n" });
@@ -2341,8 +2354,79 @@ test("install: a record edited by hand to name the user's files at retired paths
   for (const f of [AGENT, LOOSE]) {
     assert.equal(readFileSync(join(r, f), "utf8"), "mine\n", f);
     assert.match(out.stdout, new RegExp(`^kept \\(no longer shipped, changed locally\\): ${f.replaceAll(".", "\\.")}$`, "m"));
-    assert.ok(f in files, f);
+    assert.ok(!(f in files), f);
   }
+});
+
+// P-123: the manifest holds the hash of the text the package published; install changed some on the way to the disk
+// the package's copy, the given files of its own retired with the hash of the text it ships
+function retireReal(files) {
+  const copy = packedCopy();
+  const m = JSON.parse(readFileSync(join(copy, "manifest.json"), "utf8"));
+  for (const f of files) {
+    const p = m.pieces.find((q) => f in q.files);
+    p.retired = { ...p.retired, [f]: [p.files[f]] };
+    delete p.files[f];
+  }
+  writeFileSync(join(copy, "manifest.json"), JSON.stringify(m, null, 2) + "\n");
+  return copy;
+}
+const committed = (setup) => { const r = repo(setup); git(r, "add -A"); git(r, "commit -q --allow-empty -m base"); return r; };
+test("install: a retired agent whose tier line install wrote as a model line is removed on the upgrade, and uninstall leaves git status empty", () => {
+  const r = committed(), a = ".claude/agents/explore.md";
+  assert.equal(cli(r, ["install", "--yes"]).status, 0);
+  assert.match(readFileSync(join(PKG_ROOT, "agents/explore.md"), "utf8"), /^tier: /m);
+  assert.match(readFileSync(join(r, a), "utf8"), /^model: /m);
+  const copy = retireReal(["agents/explore.md"]);
+  const up = cliAt(copy, r, ["install", "--yes"]);
+  assert.equal(up.status, 0, up.stderr);
+  assert.ok(!existsSync(join(r, a)), up.stdout);
+  assert.match(up.stdout, /^removed \.claude\/agents\/explore\.md$/m);
+  assert.equal(cliAt(copy, r, ["uninstall"]).status, 0);
+  assert.equal(git(r, "status --porcelain"), "");
+});
+test("install: the SKILL.md of a renamed unit and a renamed agent, retired, are removed on the upgrade; the user's own stay and uninstall leaves git status empty", () => {
+  const own = { ".claude/skills/next-step/SKILL.md": "mine\n", ".claude/agents/explore.md": "mine\n" };
+  const r = committed(own), skill = ".claude/skills/xwf-next-step/SKILL.md", agent = ".claude/agents/xwf-explore.md";
+  assert.equal(cli(r, ["install", "--yes"]).status, 0);
+  assert.match(readFileSync(join(r, skill), "utf8"), /^name: xwf-next-step$/m);
+  assert.match(readFileSync(join(r, agent), "utf8"), /^name: xwf-explore$/m);
+  const copy = retireReal(["skills/next-step/SKILL.md", "agents/explore.md"]);
+  const up = cliAt(copy, r, ["install", "--yes"]);
+  assert.equal(up.status, 0, up.stderr);
+  assert.ok(!existsSync(join(r, ".claude/skills/xwf-next-step")) && !existsSync(join(r, agent)), up.stdout);
+  assert.doesNotMatch(up.stdout, /kept/);
+  for (const [p, t] of Object.entries(own)) assert.equal(readFileSync(join(r, p), "utf8"), t, p);
+  assert.equal(cliAt(copy, r, ["uninstall"]).status, 0);
+  assert.equal(git(r, "status --porcelain"), "");
+});
+test("install: a skill the user put under kept is not judged: an upgrade that retires its file removes nothing in that folder", () => {
+  const r = repo(), f = ".claude/skills/next-step/SKILL.md";
+  assert.equal(cli(r, ["install", "--yes"]).status, 0);
+  const text = readFileSync(join(r, f), "utf8");
+  withRecord(r, (rec) => { rec.kept.push(".claude/skills/next-step"); });
+  const out = cliAt(retireReal(["skills/next-step/SKILL.md"]), r, ["install", "--yes"]);
+  assert.equal(out.status, 0, out.stderr);
+  assert.ok(existsSync(join(r, f)), out.stdout);
+  assert.equal(readFileSync(join(r, f), "utf8"), text);
+  assert.doesNotMatch(out.stdout, /next-step/);
+});
+test("install: a changed retired file is named once, at the upgrade, and leaves the record: doctor and a second install say nothing of it", () => {
+  const r = repo(), f = ".claude/skills/next-step/SKILL.md";
+  assert.equal(cli(r, ["install", "--yes"]).status, 0);
+  appendFileSync(join(r, f), "mine\n");
+  const text = readFileSync(join(r, f), "utf8"), copy = retireReal(["skills/next-step/SKILL.md"]);
+  const up = cliAt(copy, r, ["install", "--yes"]);
+  assert.equal(up.status, 0, up.stderr);
+  assert.equal(up.stdout.split("\n").filter((l) => l === `kept (no longer shipped, changed locally): ${f}`).length, 1, up.stdout);
+  assert.ok(!(f in readJson(r, ".xworkflows/installed.json").files));
+  const again = cliAt(copy, r, ["install", "--yes"]);
+  assert.equal(again.status, 0, again.stderr);
+  assert.doesNotMatch(again.stdout, /next-step/);
+  assert.match(again.stdout, /nothing to do/);
+  const doc = cliAt(copy, r, ["doctor"], { PATH: GOOD, HOME: EMPTY_HOME });
+  assert.doesNotMatch(doc.stdout, /next-step/);
+  assert.equal(readFileSync(join(r, f), "utf8"), text);
 });
 
 // P-46: until the chaining is designed apart, install says what a chained hook cannot do
@@ -2478,6 +2562,31 @@ test("doctor: a memory.dir that is not text gives one fail line naming the key a
     assert.equal(out.stdout.split("\n").filter((l) => /^fail memory\.dir must be text: .*\.xworkflows\/config\.json/.test(l)).length, 1, out.stdout);
     assert.match(out.stdout, /^ok +qmd collection covers docs\/memory$/m);
     assert.match(out.stdout, /^doctor: \d+ fail/m);
+  }
+});
+
+// P-125: doctor never throws; a throw anywhere in it is one fail line, and doctor ends with its count
+const ENDS = /\ndoctor: [1-9]\d* fail, \d+ warn\n$/;
+test("doctor: a pre-push hook it cannot read gives a fail line and doctor ends with its count, no stack trace", { skip: process.getuid?.() === 0 && "root reads a file of mode 000" }, () => {
+  const r = repo(); cli(r, ["install"]);
+  const hook = join(r, ".git/hooks/pre-push");
+  chmodSync(hook, 0o000);
+  const out = doctor(r);
+  chmodSync(hook, 0o755);
+  assert.equal(out.stderr, "");
+  assert.equal(out.status, 1);
+  assert.match(out.stdout, /^fail doctor stopped: EACCES/m);
+  assert.match(out.stdout, ENDS);
+});
+test("doctor: a config section set to null, or a config file holding null, gives fail lines and doctor ends with its count, no stack trace", () => {
+  const r = repo(); cli(r, ["install"]);
+  for (const text of ['{"memory":null}', '{"paths":null}', '{"tokens":null}', '{"packs":null}', "null"]) {
+    writeFileSync(join(r, ".xworkflows/config.json"), text);
+    const out = doctor(r);
+    assert.equal(out.stderr, "", text);
+    assert.equal(out.status, 1, text);
+    assert.match(out.stdout, /^fail doctor stopped: /m, text);
+    assert.match(out.stdout, ENDS, text);
   }
 });
 

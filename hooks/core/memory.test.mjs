@@ -288,6 +288,26 @@ test("sessionStart: a memory.dir outside the repository names the value, asks th
   }
 });
 
+test("a memory.dir outside the repository, absolute or ../, is refused by the hooks also when memory.outside lists it", () => {
+  for (const sub of ["abs", "../notes"]) {
+    const top = realpathSync(mkdtempSync(join(tmpdir(), "xwf-mem-"))), root = join(top, "repo");
+    mkdirSync(root);
+    mkdirSync(join(top, "notes"));
+    writeFileSync(join(top, "notes", "a.md"), "---\nname: A\ndescription: first\n---\n");
+    const dir = sub === "abs" ? join(top, "notes") : sub;
+    const ctx = (outside) => makeCtx({ root, session: "s" }, { env: { XWORKFLOWS_DRY: "1" }, config: { ...DEFAULTS, memory: { dir, outside } }, stateDir: root });
+    for (const outside of [[], [join(top, "notes")]]) {
+      const r = decide(ev("sessionStart", { source: "startup", root }), ctx(outside));
+      assert.ok(r.context.includes(dir) && /ask the owner.*inside the repository/.test(r.context), sub);
+      assert.doesNotMatch(r.context, /memory\.outside|link/, sub);
+      for (const event of ["sessionEnd", "preCompact"]) {
+        decide(ev(event, { root }), ctx(outside));
+        assert.throws(() => readFileSync(join(top, "notes", "MEMORY.md")), /ENOENT/, `${sub} ${event}`);
+      }
+    }
+  }
+});
+
 test("a memory.dir that is a number or a list is read as the default at session end and at a note's write, and does not throw", () => {
   for (const dir of [5, ["docs/memory"]]) {
     const root = mkdtempSync(join(tmpdir(), "xwf-mem-"));
