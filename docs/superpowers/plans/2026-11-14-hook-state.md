@@ -47,6 +47,30 @@ About 170 code lines. One file holds every change of T1 and T2, so T2 starts whe
 - After T3 the main session sets the key for this repository in `.xworkflows/config.json`, above the time the installer's test file takes.
 - Done: `node --test checks/fix-has-test.test.mjs hooks/core/config.test.mjs checks/run.test.mjs` passes.
 
+### Batch 1, fix round after the risk review of `6b8dd85`
+
+Three blocking findings, each reproduced by the review with real pushes. It is the first round of this batch, so none is a repeat.
+
+- `bin/xworkflows.mjs:727` (install, the question loop): Ctrl-C at a question is now taken as Enter, and install goes on and writes. The change for P-149 caused it: the catch that makes end of input an empty answer takes every rejection. On the main branch Ctrl-C stopped install with nothing written.
+- `bin/xworkflows.mjs:1144` (uninstall, the loop over the record's lines): uninstall throws and stops half way when the hook that holds a recorded line is read-only. The changes for P-145 and P-147 opened a new way into it: the line added by hand to a hook install could not write is now recorded.
+- `bin/xworkflows.mjs:366` (`hookState`, `ran`): doctor says ok while the push check does not run, when `.xworkflows/git/pre-push` differs from the package's text only by carriage returns, because the hash drops them. The state `changed` of P-142 misses that case; the main branch says ok there too.
+
+What the review found sound: no step of the package wrote outside the temp project in 17 kinds of hook; a user's files came back byte for byte except as the findings say; the shared hook gets the refs and its arguments; a project without xworkflows pushes in silence; Ctrl-D equals Enter at each of the six questions; every bad value of the key is exit 2 and never no limit.
+
+The owner, 2026-11-14:
+- On the line left in a shared hook after uninstall, which refuses pushes when uninstall kept a changed `.xworkflows/checks/run.mjs`: "Dejarlo como tarjeta" (P-157).
+- On the model of this repository's risk reviewer, which ran on the session's model because its file held a tier line: "Opus (Recommended)". The file names `opus` from this batch on.
+
+What did not block, one card each: P-158 (the sentence for the guarded line of the earlier version), P-159 (the key has no upper end), P-160 (a null or missing `fixHasTest` does not name the key), P-161 (a line behind a link stays after uninstall without a word), P-162 (the questions after end of input are not listed), P-163 (three sentences with no row), P-164 (doctor's older line for a file that is a folder), P-165 (a detached child of a test outlives the time limit), P-166 (the line does not refuse the push when the shell cannot read its file). This repository's own installed check still holds the 120 s until the merge updates its own copy, so the 600 s count from the push of the main branch on.
+
+**F1: Ctrl-C at a question stops install with nothing written, uninstall names a hook it cannot write and goes on, and a file of the package changed by a carriage return is told as changed**
+- Files: `bin/xworkflows.mjs`, `bin/xworkflows.test.mjs`
+- Role: implement
+- Ctrl-C at any question: nothing written, no record, an exit code that is not zero, no stack. Ctrl-D stays an empty answer.
+- uninstall and a read-only hook that holds a recorded line: one line names the file and says the line stays for the user to take out; uninstall goes on to its end. Two tests with a real uninstall: the line added by hand and recorded, and a line install wrote in a hook made read-only after.
+- For `ran`, a text that holds a carriage return is never the package's or the record's text. Two rows of the table test: every line end CRLF, and one carriage return added.
+- Done: `node --test bin/xworkflows.test.mjs skills/day-one.test.mjs` passes.
+
 ## Review Focus
 
 - A user's hook is the user's: after `install` and `uninstall` it must be byte for byte what it was, and nothing outside the repository is written.
