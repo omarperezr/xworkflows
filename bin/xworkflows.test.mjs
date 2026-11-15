@@ -3341,6 +3341,32 @@ test("doctor: a config section that is not an object, or a config file holding n
     assert.match(out.stdout, ENDS, text);
   }
 });
+// P-133: a value one level down whose default is an object stops the checks that read it: doctor names it and does not say 0 fail
+test("doctor: a value one level down in a section that is not an object gives a line naming it and the fix", () => {
+  const r = repo(); cli(r, ["install"]);
+  for (const [c, k] of [[{ lookup: { index: null } }, "lookup.index"], [{ brakes: { fixHasTest: 5 } }, "brakes.fixHasTest"]]) {
+    withConfig(r, c);
+    const out = doctor(r);
+    assert.equal(out.status, 1, out.stdout);
+    assert.ok(out.stdout.split("\n").includes(`fail config: .xworkflows/config.json: ${k} must be an object: make it an object, or take it out of .xworkflows/config.json`), out.stdout);
+  }
+});
+test("doctor: for a config that does not parse, the probe's fail line names the fix of the config", () => {
+  const r = repo(); cli(r, ["install"]);
+  writeFileSync(join(r, ".xworkflows/config.json"), "{");
+  const out = doctor(r);
+  assert.ok(out.stdout.split("\n").includes("fail probe: expected deny, got no valid output: fix the JSON of .xworkflows/config.json"), out.stdout);
+  assert.doesNotMatch(out.stdout, /changed locally/);
+});
+test("uninstall: with a section of the config that is not an object, install's autoMemoryDirectory and memory folder still go", () => {
+  const r = repo(); cli(r, ["install"]);
+  writeFileSync(join(r, ".xworkflows/config.json"), '{"tokens":5}\n');
+  const out = cli(r, ["uninstall"]);
+  assert.equal(out.status, 0, out.stderr);
+  assert.doesNotMatch(out.stdout, /kept/);
+  assert.ok(!existsSync(join(r, ".claude/settings.local.json")));
+  assert.ok(!existsSync(join(r, "docs/memory")));
+});
 
 test("install --yes: a retired file is removed under the xwf- name the record holds, and with no record nothing is removed", () => {
   const published = spawnSync("git", ["show", "f467f65~1:skills/adapt/topics.md"], { cwd: PKG_ROOT, encoding: "utf8" }).stdout;

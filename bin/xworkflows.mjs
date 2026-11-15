@@ -104,6 +104,8 @@ const EMPTY = { xworkflows: "", tools: ["claude"], pieces: {}, files: {}, merged
 // the file's own indent, so install and uninstall leave a project's layout as it was
 const indentOf = (text) => text?.match(/^([ \t]+)\S/m)?.[1] ?? 2;
 const json = (v, text) => JSON.stringify(v, null, indentOf(text)) + "\n";
+const isObj = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
+const SECTION_FIX = "make it an object, or take it out of .xworkflows/config.json";
 
 function target(f) {
   if (f === "hooks/mark.mjs") return ".xworkflows/mark.mjs";
@@ -827,9 +829,11 @@ async function doctor() {
   else if (rec.declined.some((d) => d.file === "CLAUDE.md" && d.what === "import")) say("warn", "CLAUDE.md does not import AGENTS.md: add the line @AGENTS.md");
   else say("fail", "CLAUDE.md does not import AGENTS.md: add the line @AGENTS.md");
   // config
-  let cfg = {};
+  let cfg = {}, unparsed = false;
   // a file holding null is said by the config line below
-  try { cfg = JSON.parse(readFileSync(join(ROOT, ".xworkflows/config.json"), "utf8")) ?? {}; } catch {}
+  try { cfg = JSON.parse(readFileSync(join(ROOT, ".xworkflows/config.json"), "utf8")) ?? {}; } catch (e) { unparsed = e.code !== "ENOENT"; }
+  const FIXJSON = "fix the JSON of .xworkflows/config.json";
+  unparsed ||= !isObj(cfg);
   const specs = cfg.paths?.specs ?? "docs/superpowers/specs";
   // a memory.dir that is not a text reads as the default, as the hooks read it
   const memSet = cfg.memory?.dir === undefined ? DEFAULTS.memory.dir : cfg.memory.dir;
@@ -850,7 +854,7 @@ async function doctor() {
     const event = { session_id: `doctor-${process.pid}`, cwd: ROOT, hook_event_name: "PreToolUse", tool_name: "Write", tool_input: { file_path: join(ROOT, specs, "xwf-doctor-probe.md"), content: "# probe\n" } };
     const r = fire(command, event);
     let d; try { d = JSON.parse(r.stdout).hookSpecificOutput?.permissionDecision; } catch {}
-    say(d === "deny" ? "ok" : "fail", d === "deny" ? "probe: design-first denies a spec write" : `probe: expected deny, got ${d ?? "no valid output"}: delete the files named "changed locally" above, then ${INSTALL}`);
+    say(d === "deny" ? "ok" : "fail", d === "deny" ? "probe: design-first denies a spec write" : `probe: expected deny, got ${d ?? "no valid output"}: ${unparsed ? FIXJSON : `delete the files named "changed locally" above, then ${INSTALL}`}`);
   }
   // 6
   const seen = new Set();
@@ -884,9 +888,11 @@ async function doctor() {
       const gone = missing(conf, PROJECT_KEYS);
       for (const k of gone) say("fail", `not configured: ${k}${needs[k] ? ` (needed by ${needs[k].join(", ")})` : ""}, run /adapt`);
       if (!gone.length) say("ok", "config: every project key is set");
+      // a value one level down whose default is an object stops the checks that read it, as a section does
+      for (const [sec, d] of Object.entries(DEFAULTS)) for (const k in isObj(d) ? d : {}) if (isObj(d[k]) && cfg[sec]?.[k] !== undefined && !isObj(cfg[sec][k])) say("fail", `config: .xworkflows/config.json: ${sec}.${k} must be an object: ${SECTION_FIX}`);
     } catch (e) {
       const m = e.message;
-      say("fail", `config: ${m}: ${m.startsWith(".xworkflows/config.json does not parse") ? "fix the JSON of .xworkflows/config.json" : /^\.xworkflows\/config\.json: \S+ must be an object$/.test(m) ? "make it an object, or take it out of .xworkflows/config.json" : `if a file of the package is named "changed locally" above, delete it; then ${INSTALL}`}`);
+      say("fail", `config: ${m}: ${m.startsWith(".xworkflows/config.json does not parse") ? FIXJSON : /^\.xworkflows\/config\.json: \S+ must be an object$/.test(m) ? SECTION_FIX : `if a file of the package is named "changed locally" above, delete it; then ${INSTALL}`}`);
     }
     if (conf.paths.code?.length) {
       const dir = conf.lookup.index.folder;
@@ -1030,8 +1036,10 @@ function uninstall() {
   const wants = settingsWants(manifest);
   // a retired unit's line too: install wrote it, and it stays while a changed file keeps the unit's folder
   const giLines = new Set([".xworkflows/", ...[...wanted.keys(), ...retiredPaths(manifest).keys()].map(giLine).filter(Boolean)]);
-  let md = null;
-  try { md = memoryFolder(loadConfig(ROOT), ROOT).dir; } catch {}
+  // the raw value: a section the loader refuses must not keep what install wrote for the memory folder
+  let raw = {};
+  try { raw = JSON.parse(readFileSync(join(ROOT, ".xworkflows/config.json"), "utf8")) ?? {}; } catch {}
+  const md = memoryFolder(raw, ROOT).dir;
 
   // the marker, not the record, says this checkout's install wrote the yml: only install's exact text is the marker
   let marked = false;
@@ -1101,7 +1109,7 @@ function uninstall() {
   }
   let memory;
   // the folder install wrote there; a record of an earlier version may hold a value that names none
-  try { memory = resolve(ROOT, md ?? loadConfig(ROOT).memory.dir); } catch {}
+  try { memory = resolve(ROOT, md ?? raw.memory?.dir); } catch {}
   for (const [file, key, was] of [[SETTINGS, "attribution", ATTRIBUTION], [LOCAL, LOCAL_KEY, memory]]) {
     const x = rec.scalars.find((e) => e.file === file);
     if (!x) continue;
