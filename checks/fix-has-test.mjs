@@ -7,6 +7,21 @@ import { inPaths } from "../hooks/core/config.mjs";
 export const needs = ["paths.code", "tests.files", "tests.run", "tests.notRunnable"];
 
 const quote = (s) => `'${s.replace(/'/g, `'\\''`)}'`;
+const esc = (s) => s.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&");
+const START = /(?:^|[^\w.$])(?:test|it|describe|suite)(?:\.(?:only|skip|todo))?\(\s*(["'`])((?:\\.|(?!\1).)*)\1/;
+
+// the tests of a file as name pattern -> text up to the next test; a template's ${...} matches any text
+// shortcut: a test made by a helper of another name is not seen, its lines count to the test above; the whole file then decides at the parent
+const testsOf = (text) => {
+  const tests = new Map();
+  let key = null;
+  for (const line of (text ?? "").split(/(?<=\n)/)) {
+    const m = START.exec(line);
+    if (m) key = `^${(m[1] === "`" ? m[2].split(/\$\{[^}]*\}/) : [m[2]]).map(esc).join(".*")}$`;
+    if (key) tests.set(key, (tests.get(key) ?? "") + line);
+  }
+  return tests;
+};
 
 export async function run(range, ctx) {
   const { paths: { code }, tests } = ctx.config;
@@ -24,21 +39,27 @@ export async function run(range, ctx) {
   const onSig = (s) => { signal ??= s; try { process.kill(-child.pid, "SIGKILL"); } catch {} };
   for (const s of sigs) process.on(s, onSig);
 
-  // exit: 0 pass, 1 red, null could not run
-  const runTests = async (files) => {
+  // exit: 0 pass, 1 red, null could not run, undefined a run by names that ran no test
+  const runTests = async (files, names) => {
     if (signal) return null;
     const list = files.map(quote).join(" ");
-    const cmd = tests.run.includes("<files>") ? tests.run.split("<files>").join(list) : `${tests.run} ${list}`;
+    const run = names ? tests.run.replace(/^\s*node --test/, () => `node --test --test-reporter=tap ${names.map((n) => quote(`--test-name-pattern=${n}`)).join(" ")}`) : tests.run;
+    const cmd = run.includes("<files>") ? run.split("<files>").join(list) : `${run} ${list}`;
     const env = { ...process.env };
     delete env.NODE_TEST_CONTEXT; // a nested `node --test` would report to the outer run and always pass
     for (const k of ["GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE"]) delete env[k];
     // own process group, so a timeout kills the tests the shell started too
-    child = spawn("sh", ["-c", cmd], { cwd: wt, env, stdio: "ignore", detached: true });
+    child = spawn("sh", ["-c", cmd], { cwd: wt, env, stdio: ["ignore", names ? "pipe" : "ignore", "ignore"], detached: true });
+    let out = "";
+    child.stdout?.on("data", (d) => { out += d; });
     let timedOut = false;
     const timer = setTimeout(() => { timedOut = true; try { process.kill(-child.pid, "SIGKILL"); } catch {} }, limitMs);
     const code = await new Promise((res) => { child.on("error", () => res(null)); child.on("close", (c) => res(c)); });
     clearTimeout(timer);
-    return signal || timedOut || code === null || code === 127 ? null : code === 0 ? 0 : 1;
+    if (signal || timedOut || code === null || code === 127) return null;
+    // a file none of whose tests matched is reported as one passing test named by the file
+    if (names && code === 0 && [...out.matchAll(/^ok \d+ - (.*)$/gm)].every((m) => files.includes(m[1]))) return undefined;
+    return code === 0 ? 0 : 1;
   };
 
   try {
@@ -76,11 +97,19 @@ export async function run(range, ctx) {
         if (existsSync(join(ctx.root, n)) && !existsSync(join(wt, n))) symlinkSync(join(ctx.root, n), join(wt, n));
       }
       wtGit("checkout", "-q", c, "--", ...runnable);
-      const atParent = await runTests(runnable);
+      // with node --test, only the tests the fix adds or changes run; a red of those decides at the parent
+      // a pass or no test run there goes to the whole file, as before, so no verdict is stricter than before
+      let names = /^\s*node --test(?: <files>)?\s*$/.test(tests.run) ? runnable.flatMap((f) => {
+        const before = testsOf(ctx.show(`${c}^`, f));
+        return [...testsOf(ctx.show(c, f))].filter(([k, text]) => before.get(k) !== text).map(([k]) => k);
+      }) : [];
+      let atParent = names.length ? await runTests(runnable, names) : 0;
+      if (atParent === 0 || atParent === undefined) { names = null; atParent = await runTests(runnable); }
       if (atParent === null) { cannot = `${label}: its tests did not end within ${seconds}s or could not start at the parent; raise brakes.fixHasTest.seconds`; return; }
       if (atParent === 0) { bad.push(`${label}: its tests also pass at the parent, so they prove nothing; make them fail without the fix`); return; }
       wtGit("checkout", "-q", "--detach", "-f", c);
-      const atFix = await runTests(runnable);
+      let atFix = await runTests(runnable, names);
+      if (atFix === undefined) atFix = await runTests(runnable);
       if (atFix === null) { cannot = `${label}: its tests did not end within ${seconds}s or could not start at the fix; raise brakes.fixHasTest.seconds`; return; }
       if (atFix !== 0) bad.push(`${label}: its tests still fail at the fix commit`);
     })();
