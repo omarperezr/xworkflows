@@ -424,7 +424,7 @@ a valid answer. The reference column is not the default (owner, 2026-11-11).
 | `paths.reviews` | Where review notes live | new; default `docs/superpowers/reviews` |
 | `git.rules` | The git rules the owner confirmed (section 7.6) | new |
 | `brakes.changeSize.warn`, `brakes.changeSize.max` | Code lines changed on a branch: warn, fail | new; defaults 400, 800 |
-| `brakes.fixHasTest.seconds` | The seconds the check `fix-has-test` gives the tests of a fix at the parent and at the fix | new; default 120 |
+| `brakes.fixHasTest.seconds` | The seconds the check `fix-has-test` gives the tests of a fix at the parent (the push runs the whole suite on the last commit) | new; default 120 |
 | `tokens.sessionStartBytes` | Budget for text the session-start hooks inject (section 13) | new |
 | `limits.inlineReadLines` | Longest read in the main session | 40 |
 | `limits.agentsBeforeWorkflow` | Agents in a row before a scripted run is required | 2 |
