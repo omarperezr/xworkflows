@@ -72,13 +72,15 @@ test("no memory files at all passes", withRepo({}, async (repo) => {
   assert.deepEqual(await repo.run(mod), { ok: true, lines: [] });
 }));
 
-test("wrong-shaped memory.dir cannot run", withRepo({}, async (repo) => {
-  const r = await repo.run(mod);
-  assert.equal(r.ok, false);
-  assert.equal(r.cannotRun, true);
-}, { memory: { dir: { a: 1 } } }));
-
 const stale = { "docs/memory/a.md": "see `src/gone.js`\n" };
+for (const dir of [{ a: 1 }, 5, null, ["mem"]]) {
+  test(`a memory.dir that is not a text, ${JSON.stringify(dir)}, is the default folder`, withRepo({ ...stale, "mem/n.md": "`src/gone2.js`\n" }, async (repo) => {
+    const r = await repo.run(mod);
+    assert.equal(r.cannotRun, undefined);
+    assert.equal(r.ok, false);
+    assert.deepEqual(r.lines.slice(1, -1), ["docs/memory/a.md:1: src/gone.js"]);
+  }, { memory: { dir } }));
+}
 test("memory.dir written ./docs/memory is still checked", withRepo(stale, async (repo) => {
   assert.equal((await repo.run(mod)).ok, false);
 }, { memory: { dir: "./docs/memory" } }));
@@ -88,10 +90,11 @@ test("memory.dir written docs//memory is still checked", withRepo(stale, async (
 }, { memory: { dir: "docs//memory" } }));
 
 test("absolute or escaping memory.dir cannot run", async () => {
-  for (const dir of ["/docs/memory", "../x", ".", "./"]) {
+  for (const dir of ["/docs/memory", "../x", ".", "./", "", " "]) {
     await withRepo({}, async (repo) => {
       const r = await repo.run(mod);
       assert.equal(r.cannotRun, true, dir);
+      assert.deepEqual(r.lines, [`memory.dir ${JSON.stringify(dir)} must be a folder inside the repository`], dir);
     }, { memory: { dir } })();
   }
 });

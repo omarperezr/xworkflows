@@ -1,4 +1,4 @@
-import { memoryDir } from "../hooks/core/config.mjs";
+import { memoryFolder } from "../hooks/core/config.mjs";
 
 const NOT_PATH = /[\s*<>$]|:\/\//;
 
@@ -7,8 +7,8 @@ function looksLikePath(s) {
 }
 
 export function run(range, ctx) {
-  const d = memoryDir(ctx.config.memory?.dir);
-  if (d === null) return { ok: false, cannotRun: true, lines: ["memory.dir must be a folder name"] };
+  const { dir: d, line } = memoryFolder(ctx.config, ctx.root, () => null); // the commit is read, not the disk: no link to judge
+  if (line) return { ok: false, cannotRun: true, lines: [line] };
   const prefix = `${d}/`;
   const entries = ctx.git("ls-tree", "-r", "-z", range.head).split("\0").filter(Boolean).map((e) => ({ mode: e.slice(0, 6), name: e.slice(e.indexOf("\t") + 1) }));
   const files = entries.map((e) => e.name);

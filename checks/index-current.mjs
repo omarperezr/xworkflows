@@ -1,11 +1,9 @@
-import { memoryDir } from "../hooks/core/config.mjs";
+import { memoryFolder } from "../hooks/core/config.mjs";
 import { buildIndex } from "../hooks/core/memory-index.mjs";
 
 export function run(range, ctx) {
-  const dir = ctx.config.memory?.dir;
-  if (typeof dir !== "string" || !dir.trim()) return { ok: false, cannotRun: true, lines: ["memory.dir must be a folder name"] };
-  const d = memoryDir(dir);
-  if (d === null) return { ok: false, cannotRun: true, lines: ["memory.dir must be a folder inside the repository"] };
+  const { dir: d, line } = memoryFolder(ctx.config, ctx.root, () => null); // the commit is read, not the disk: no link to judge
+  if (line) return { ok: false, cannotRun: true, lines: [line] };
   // a real git failure throws; an absent folder prints nothing
   const names = ctx.git("ls-tree", "-z", range.head, "--", d + "/").split("\0").filter(Boolean)
     .map((e) => /^\d+ blob \w+\t(.*)$/s.exec(e)?.[1]?.slice(d.length + 1)).filter((n) => n?.endsWith(".md") && !n.includes("/") && n !== "MEMORY.md");

@@ -88,7 +88,7 @@ batch merges. A fix is confirmed by a fresh reviewer of the same role, never
 the one that asked for it; it reads only the diff of the fix (owner,
 2026-11-11). Two rounds at most; if findings that
 block still remain, the owner decides: fix, accept, or revert.
-A finding in the same place as a finding of an earlier round of the batch is a repeat; the place is its file and the function or section it names, its file alone when it names none. The main session then writes `Possible design error in <place>` in the plan with the root cause and the best design that removes it at the root, and when one exists asks the owner: redesign or patch once more. This holds through the second round; after it the review's last step decides.
+A finding in the same place as a finding of an earlier round of the batch is a repeat; the place is its file and the function or section it names, its file alone when it names none. The main session then writes `Possible design error in <place>` in the plan with the root cause and the best design that removes it at the root, and when one exists asks the owner: redesign or patch once more. The question to the owner holds through the second round, not the writing of the line, which is made in any round; after it the review's last step decides.
 
 ## 4. Source layout (the `xworkflows` repository)
 
@@ -558,8 +558,8 @@ not tested**.
 What only this design adds, and the reason for the skill: a correction the
 owner gave in two or more sessions becomes a proposed rule, which goes into
 the report only, with the sessions that support it. Turning it into a rule in
-`AGENTS.md` stays the owner's act, because that file is curated. The moment
-that suggests a run is not built (card P-120).
+`AGENTS.md` stays the owner's act, because that file is curated. The memory
+hook suggests a run at the start of a new session (section 7.9 says when).
 
 The limit of the mask. The report says each time: the mask is proven only on a private key
 block, the password inside a URL, and a key that begins with sk-, sk_live_, sk_test_, rk_live_, rk_test_, ghp_,

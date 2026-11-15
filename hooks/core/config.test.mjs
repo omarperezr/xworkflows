@@ -128,7 +128,7 @@ test("memoryFolder: the folder every reader uses, or the line that refuses it", 
     symlinkSync(away, join(root, "linked"));
     symlinkSync(away, join(linkedRoot, "docs", "memory"));
     const inside = (v) => ({ dir: null, line: `memory.dir ${JSON.stringify(v)} must be a folder inside the repository` });
-    const link = (r, file) => ({ dir: null, line: outsideLine(r, file, []) });
+    const link = (r, file) => ({ dir: null, line: outsideLine(r, file, []), linked: file.replace(/\/MEMORY\.md$/, "") });
     assert.ok(link(root, "linked/MEMORY.md").line);
     for (const [r, dir, outside, want] of [
       [root, undefined, [], { dir: "docs/memory", line: null }],
@@ -152,6 +152,17 @@ test("memoryFolder: the folder every reader uses, or the line that refuses it", 
       assert.deepEqual(memoryFolder({ memory: { dir, outside } }, r), want, `${JSON.stringify(dir)} ${JSON.stringify(outside)}`);
     }
   } finally { rmSync(top, { recursive: true, force: true }); }
+});
+
+test("memoryFolder: the link test passed in is the one asked, with the index file of the folder; it is not asked for a value that names no folder", () => {
+  const asked = [];
+  const refuse = (file) => (asked.push(file), `${file} is written outside the repository`);
+  assert.deepEqual(memoryFolder({ memory: { dir: "notes" } }, "/nowhere", refuse), { dir: null, line: "notes/MEMORY.md is written outside the repository", linked: "notes" });
+  assert.deepEqual(memoryFolder({ memory: { dir: 5 } }, "/nowhere", refuse), { dir: null, line: "docs/memory/MEMORY.md is written outside the repository", linked: "docs/memory" });
+  assert.deepEqual(asked, ["notes/MEMORY.md", "docs/memory/MEMORY.md"]);
+  assert.deepEqual(memoryFolder({ memory: { dir: ".." } }, "/nowhere", refuse), { dir: null, line: 'memory.dir ".." must be a folder inside the repository' });
+  assert.equal(asked.length, 2);
+  assert.deepEqual(memoryFolder({ memory: { dir: "notes" } }, "/nowhere", () => null), { dir: "notes", line: null });
 });
 
 test("loadLenient: a section that is not an object takes its default and is named; the strict load still throws", () => {

@@ -159,6 +159,20 @@ test("an open run with a draft keeps its start mark: a shell's approved summary 
   assert.match(r.stderr, NOT_WRITTEN);
 });
 
+test("start keeps the mark of an open run whose kept hash differs from the summary on disk: a shell's text is refused at done", () => {
+  const d = repo();
+  writeFileSync(X(d, "research.json"), '{"x":1}');
+  writeFileSync(X(d, "summary.md"), "---\nstatus: approved\n---\nof before\n");
+  cli(d, "start");
+  writeSummary(d, "---\nstatus: draft\n---\n" + ["What it is", "Who pays", "Aspirations at about", "Risks, the costliest", "What must not change", "Zones and which", "How the owner works", "About you"].map((h, i) => `## ${i + 1}. ${h}\n`).join(""));
+  writeFileSync(X(d, "summary.md"), "---\nstatus: approved\n---\nby a shell\n");
+  cli(d, "start");
+  const r = cli(d, "done");
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, NOT_WRITTEN);
+});
+
+const AT_HEAD = /^xworkflows: research\.mjs done: the summary equals the one at HEAD; nothing was checked or copied\n$/;
 // A re-adapt started and left: the approved summary of before is tracked, research.json is there.
 function leftRun() {
   const d = repo();
@@ -171,18 +185,22 @@ function leftRun() {
 }
 test("a left re-adapt whose tracked summary git rewrote with the same approved text is cleared by done", () => {
   const d = leftRun();
+  const state = mkdtempSync(join(tmpdir(), "res-state-"));
   rmSync(X(d, "summary.md"));
   execFileSync("git", ["checkout", "--", ".xworkflows/summary.md"], { cwd: d });
-  const r = cli(d, "done");
-  assert.deepEqual([r.status, r.stderr], [0, ""]);
+  const r = cli(d, "done", { XWORKFLOWS_STATE_DIR: state });
+  assert.equal(r.status, 0);
+  assert.match(r.stderr, AT_HEAD);
+  assert.match(readFileSync(join(state, "xwf-hooks.log"), "utf8"), /^\d{4}-\d\d-\d\dT\S+ - research\.mjs done: the summary equals the one at HEAD\n$/);
   assert.ok(!existsSync(X(d, "adapt-run.json")));
   assert.ok(!existsSync(X(d, "research.prev.json")));
 });
 test("an unchanged approved summary of before the run passes done, also with a new file time, and copies nothing", () => {
   const d = leftRun();
   utimesSync(X(d, "summary.md"), new Date(Date.now() + 60000), new Date(Date.now() + 60000));
-  const r = cli(d, "done");
-  assert.deepEqual([r.status, r.stderr], [0, ""]);
+  const r = cli(d, "done", { XWORKFLOWS_STATE_DIR: mkdtempSync(join(tmpdir(), "res-state-")) });
+  assert.equal(r.status, 0);
+  assert.match(r.stderr, AT_HEAD);
   assert.ok(!existsSync(X(d, "adapt-run.json")));
   assert.ok(!existsSync(X(d, "research.prev.json")));
 });
@@ -213,8 +231,9 @@ test("a left re-adapt whose tracked summary a pull or a branch switch changed to
   execFileSync("git", ["checkout", "-q", "-b", "other"], { cwd: d });
   writeFileSync(X(d, "summary.md"), "---\nstatus: approved\n---\nanother adaptation\n");
   execFileSync("git", [...G, "commit", "-qm", "adapt again", "--", ".xworkflows/summary.md"], { cwd: d });
-  const r = cli(d, "done");
-  assert.deepEqual([r.status, r.stderr], [0, ""]);
+  const r = cli(d, "done", { XWORKFLOWS_STATE_DIR: mkdtempSync(join(tmpdir(), "res-state-")) });
+  assert.equal(r.status, 0);
+  assert.match(r.stderr, AT_HEAD);
   assert.ok(!existsSync(X(d, "adapt-run.json")));
   assert.ok(!existsSync(X(d, "research.prev.json")));
 });
@@ -239,8 +258,9 @@ test("a re-adapt started again after a pull brought another committed summary is
   writeFileSync(X(d, "summary.md"), "---\nstatus: approved\n---\nanother adaptation\n");
   execFileSync("git", [...G, "commit", "-qm", "pulled", "--", ".xworkflows/summary.md"], { cwd: d });
   assert.equal(cli(d, "start").status, 0);
-  const r = cli(d, "done");
-  assert.deepEqual([r.status, r.stderr], [0, ""]);
+  const r = cli(d, "done", { XWORKFLOWS_STATE_DIR: mkdtempSync(join(tmpdir(), "res-state-")) });
+  assert.equal(r.status, 0);
+  assert.match(r.stderr, AT_HEAD);
   assert.ok(!existsSync(X(d, "adapt-run.json")));
 });
 test("a run file with no start mark is cleared by done, its approved summary not compared", () => {
@@ -496,6 +516,14 @@ const MODEL_ROWS = [
   ["a text by hand that is a tier's name", { given: "top", answer: "fable" }, "opus"],
   ["a text by hand that names no model", { given: "I don't know", answer: "opus" }, "opus"],
   ["a table with neither entry", { tiers: { cheap: "haiku", medium: "sonnet" } }, null],
+  ["a re-adapt whose file starts with a BOM", { readapt: true, file: "\uFEFF" + FM("model: sonnet") }, "sonnet"],
+  ["a re-adapt whose file holds the model in quotes", { readapt: true, file: FM('model: "sonnet"') }, "sonnet"],
+  ["a re-adapt whose file holds a tier's name in quotes", { readapt: true, file: FM("model: 'top'") }, "opus"],
+  ["a re-adapt whose file holds a comment after the model", { readapt: true, file: FM("model: sonnet # the owner's pick") }, "sonnet"],
+  ["a re-adapt whose file holds a quoted model and a comment", { readapt: true, file: FM('model: "claude-made-up-9"  # kept') }, "claude-made-up-9"],
+  ["a re-adapt whose file holds only a comment after model:", { readapt: true, file: FM("model: # none yet") }, "fable"],
+  ["a re-adapt whose file has Windows line ends", { readapt: true, file: FM("model: sonnet").replace(/\n/g, "\r\n") }, "sonnet"],
+  ["a quoted answer", { answer: '"opus"' }, "opus"],
 ];
 for (const [name, args, want] of MODEL_ROWS) test(`riskModel: ${name}`, () => {
   assert.equal(riskModel({ tiers: TIERS, answer: null, readapt: false, file: null, given: null, ...args }), want);
@@ -551,6 +579,18 @@ test("research.mjs model: neither strongest nor top and nothing else names a mod
   assert.equal(r.status, 1);
   assert.equal(r.stdout, "");
   assert.match(r.stderr, /^[^\n]*\.xworkflows\/tiers\.json[^\n]*\n$/);
+});
+
+test("research.mjs model: the argument names a tier the table lacks: exit 1, the tier named, nothing printed", () => {
+  const { d, run } = modelRun(NO_STRONGEST);
+  writeFileSync(X(d, "interview.log.jsonl"), JSON.stringify(L("H6-model", "opus", run)) + "\n");
+  for (const arg of ["strongest", "Strongest", '"strongest"']) {
+    const r = model(d, arg);
+    assert.equal(r.status, 1, arg);
+    assert.equal(r.stdout, "");
+    assert.match(r.stderr, /^[^\n]*strongest[^\n]*\.xworkflows\/tiers\.json[^\n]*\n$/, arg);
+  }
+  assert.equal(model(d, "top").stdout, "opus\n");
 });
 
 test("a re-adaptation keeps of the shipped questions only the config keys still without a value", () => {

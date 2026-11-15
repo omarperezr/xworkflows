@@ -130,14 +130,26 @@ test("with no value in the config the limit is the default 120 seconds: a slow f
   assert.deepEqual(await repo.run(brake), { ok: true, lines: [] });
 }));
 
-for (const bad of [0, -5, "ten", 1.5]) {
+for (const bad of [0, -5, "ten", 1.5, 2147484]) {
   test(`brakes.fixHasTest.seconds = ${JSON.stringify(bad)} cannot run and is named`, withRepo(withSeconds(bad), async (repo) => {
     repo.commit("fix: x returns 2", { files: { ...FIXED, ...NODE_TEST } });
     const r = await repo.run(brake);
     assert.equal(r.ok, false);
     assert.equal(r.cannotRun, true);
     assert.match(r.lines[0], /brakes\.fixHasTest\.seconds/);
+    assert.doesNotMatch(r.lines[0], /did not end/, "refused before any run, not as a timeout");
     assert.match(r.lines[0], new RegExp(JSON.stringify(bad).replace(/[.]/g, "\\.")));
+  }));
+}
+
+// the loader fills the defaults, so a config module older than the check is made by dropping the section
+for (const [name, drop] of [["null", (c) => { c.brakes.fixHasTest = null; }], ["missing", (c) => { delete c.brakes; }]]) {
+  test(`brakes.fixHasTest ${name} cannot run and names the key, never a TypeError`, withRepo({}, async (repo) => {
+    repo.commit("fix: x returns 2", { files: { ...FIXED, ...NODE_TEST } });
+    const r = await repo.run({ run: (range, ctx) => { drop(ctx.config); return brake.run(range, ctx); } });
+    assert.equal(r.cannotRun, true);
+    assert.match(r.lines[0], /brakes\.fixHasTest\.seconds/);
+    assert.doesNotMatch(r.lines[0], /Cannot read/);
   }));
 }
 
