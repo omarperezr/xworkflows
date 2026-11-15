@@ -50,11 +50,9 @@ test("a test that also passes at the parent: fail", withRepo({}, async (repo) =>
   assert.match(r.lines.join("\n"), /parent/);
 }));
 
-test("a test that still fails at the fix: fail", withRepo({}, async (repo) => {
+test("nothing runs at the fix commit: a test that fails there too passes this check, the push's whole run catches it", withRepo({}, async (repo) => {
   repo.commit("fix: x returns 2", { files: { ...FIXED, ...ALWAYS_FAILS } });
-  const r = await repo.run(brake);
-  assert.equal(r.ok, false);
-  assert.match(r.lines.join("\n"), /still fail/);
+  assert.deepEqual(await repo.run(brake), { ok: true, lines: [] });
 }));
 
 test("no-test: in the body escapes", withRepo({}, async (repo) => {
@@ -240,18 +238,20 @@ await brake.run(rangeFor(ctx, { base: first, head }), ctx);
 
 test("a test in a package with its own node_modules sees it", withRepo({ files: { ...BUG, "pkg/package.json": "{}\n", ".gitignore": "node_modules\n" } }, async (repo) => {
   repo.write("pkg/node_modules/dep.txt", "here\n");
-  const t = { "test/x.test.mjs": `import { test } from "node:test";\nimport assert from "node:assert/strict";\nimport { existsSync } from "node:fs";\nimport { x } from "../src/x.mjs";\ntest("x", () => { assert.ok(existsSync(new URL("../pkg/node_modules/dep.txt", import.meta.url))); assert.equal(x(), 2); });\n` };
+  const log = join(mkdtempSync(join(tmpdir(), "xwf-ran-")), "ran");
+  const t = { "test/x.test.mjs": `import { test } from "node:test";\nimport assert from "node:assert/strict";\nimport { existsSync, appendFileSync } from "node:fs";\nimport { x } from "../src/x.mjs";\ntest("x", () => { appendFileSync(${JSON.stringify(log)}, String(existsSync(new URL("../pkg/node_modules/dep.txt", import.meta.url)))); assert.equal(x(), 2); });\n` };
   repo.commit("fix: x returns 2", { files: { ...FIXED, ...t } });
-  const r = await repo.run(brake);
-  assert.doesNotMatch(r.lines.join("\n"), /pass at the parent/);
-  assert.deepEqual(r, { ok: true, lines: [] });
+  assert.deepEqual(await repo.run(brake), { ok: true, lines: [] });
+  assert.equal(readFileSync(log, "utf8"), "true");
 }));
 
 test("the test command does not inherit GIT_DIR", withRepo({}, async (repo) => {
-  const t = { "test/x.test.mjs": `import { test } from "node:test";\nimport assert from "node:assert/strict";\nimport { x } from "../src/x.mjs";\ntest("x", () => { assert.equal(process.env.GIT_DIR, undefined); assert.equal(x(), 2); });\n` };
+  const log = join(mkdtempSync(join(tmpdir(), "xwf-ran-")), "ran");
+  const t = { "test/x.test.mjs": `import { test } from "node:test";\nimport assert from "node:assert/strict";\nimport { appendFileSync } from "node:fs";\nimport { x } from "../src/x.mjs";\ntest("x", () => { appendFileSync(${JSON.stringify(log)}, String(process.env.GIT_DIR)); assert.equal(x(), 2); });\n` };
   repo.commit("fix: x returns 2", { files: { ...FIXED, ...t } });
   process.env.GIT_DIR = "/nonexistent";
   try { assert.deepEqual(await repo.run(brake), { ok: true, lines: [] }); } finally { delete process.env.GIT_DIR; }
+  assert.equal(readFileSync(log, "utf8"), "undefined");
 }));
 
 // each test of the file logs its name, so the log says which tests ran
@@ -260,14 +260,14 @@ const HEAD = `import { test } from "node:test";\nimport assert from "node:assert
 const slowTests = (log) => [1, 2, 3, 4].map((i) => logged(log, `slow ${i}`, "await new Promise((r) => setTimeout(r, 2000));")).join("");
 const newLog = () => join(mkdtempSync(join(tmpdir(), "xwf-ran-")), "ran");
 
-test("a fix that adds one test to a file of many slow tests runs only that one, at the parent and at the fix", withRepo({}, async (repo) => {
+test("a fix that adds one test to a file of many slow tests runs only that one, and only at the parent", withRepo({}, async (repo) => {
   const log = newLog();
   repo.commit("test: slow tests", { files: { "test/x.test.mjs": HEAD + slowTests(log) } });
   repo.commit("fix: x returns 2", { files: { ...FIXED, "test/x.test.mjs": HEAD + slowTests(log) + logged(log, "x is 2", "assert.equal(x(), 2);") } });
   const t0 = Date.now();
   assert.deepEqual(await repo.run(brake), { ok: true, lines: [] });
   const ms = Date.now() - t0;
-  assert.equal(readFileSync(log, "utf8"), "x is 2\nx is 2\n");
+  assert.equal(readFileSync(log, "utf8"), "x is 2\n");
   assert.ok(ms < 8000, `took ${ms} ms; one whole run of the file takes 8000`);
 }));
 
@@ -276,7 +276,7 @@ test("a test whose text the fix changes is run, the unchanged ones are not", wit
   repo.commit("test: slow tests", { files: { "test/x.test.mjs": HEAD + logged(log, "x", "assert.equal(x(), 1);") + slowTests(log) } });
   repo.commit("fix: x returns 2", { files: { ...FIXED, "test/x.test.mjs": HEAD + logged(log, "x", "assert.equal(x(), 2);") + slowTests(log) } });
   assert.deepEqual(await repo.run(brake), { ok: true, lines: [] });
-  assert.equal(readFileSync(log, "utf8"), "x\nx\n");
+  assert.equal(readFileSync(log, "utf8"), "x\n");
 }));
 
 test("a test named by a template runs by its pattern", withRepo({}, async (repo) => {
@@ -285,7 +285,7 @@ test("a test named by a template runs by its pattern", withRepo({}, async (repo)
   repo.commit("test: slow tests", { files: { "test/x.test.mjs": HEAD + slowTests(log) } });
   repo.commit("fix: x returns 2", { files: { ...FIXED, "test/x.test.mjs": HEAD + slowTests(log) + t } });
   assert.deepEqual(await repo.run(brake), { ok: true, lines: [] });
-  assert.equal(readFileSync(log, "utf8"), "x\nx\n");
+  assert.equal(readFileSync(log, "utf8"), "x\n");
 }));
 
 test("when the changed tests pass at the parent, the whole file decides as before", withRepo({}, async (repo) => {
@@ -296,13 +296,13 @@ test("when the changed tests pass at the parent, the whole file decides as befor
   assert.deepEqual(await repo.run(brake), { ok: true, lines: [] });
 }));
 
-test("a filtered run at the fix that ran no test is not a pass: the whole file decides", withRepo({}, async (repo) => {
-  // y is missing at the parent, so the file fails to load there; at the fix the escaped name matches no test
-  const t = `import { y } from "../src/y.mjs";\ntest("y\\u0020is 2", () => assert.equal(y(), 2));\n`;
-  repo.commit("fix: y", { files: { "src/y.mjs": "export const y = () => 3;\n", "test/x.test.mjs": HEAD + t } });
-  const r = await repo.run(brake);
-  assert.equal(r.ok, false);
-  assert.match(r.lines.join("\n"), /still fail/);
+test("a filtered run at the parent that ran no test is not a pass: the whole file decides", withRepo({}, async (repo) => {
+  const log = newLog();
+  // the escaped name matches no test by its pattern
+  const t = `test("x\\u0020is 2", () => { appendFileSync(${JSON.stringify(log)}, "ran\\n"); assert.equal(x(), 2); });\n`;
+  repo.commit("fix: x returns 2", { files: { ...FIXED, "test/x.test.mjs": HEAD + t } });
+  assert.deepEqual(await repo.run(brake), { ok: true, lines: [] });
+  assert.equal(readFileSync(log, "utf8"), "ran\n");
 }));
 
 test("needs names the four keys", () => {
