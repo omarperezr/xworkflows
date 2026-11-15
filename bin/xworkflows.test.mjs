@@ -3646,3 +3646,13 @@ test("doctor: an installed folder made a file gives its line and doctor does not
   assert.equal(readFileSync(d, "utf8"), "x\n");
   rmSync(r, { recursive: true, force: true });
 });
+test("install: a folder under .xworkflows made a file stops install with one line and leaves it as it is", () => {
+  const r = repo(); mkdirSync(join(r, ".xworkflows")); writeFileSync(join(r, ".xworkflows/hooks"), "x\n");
+  const o = cli(r, ["install"]), all = o.stdout + o.stderr;
+  assert.equal(o.status, 1, all);
+  assert.equal(all.split("\n").filter((l) => l.includes(".xworkflows")).length, 1, all);
+  assert.ok(!/\n\s+at /.test(all), all);
+  assert.equal(readFileSync(join(r, ".xworkflows/hooks"), "utf8"), "x\n");
+  assert.ok(!existsSync(join(r, ".claude/skills/grill/SKILL.md")), all);
+  rmSync(r, { recursive: true, force: true });
+});

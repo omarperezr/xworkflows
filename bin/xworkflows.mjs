@@ -729,8 +729,8 @@ async function install(flags) {
     }
   }
   let pl = plan(m, ROOT, record);
-  // a linked folder under .xworkflows would leave the hooks wired to files that were not written
-  const linked = pl.notes.find((n) => n.startsWith("not written (symlink): .xworkflows/"));
+  // a linked folder, or a file or unreadable folder in the way, under .xworkflows would leave the hooks wired to files that were not written
+  const linked = pl.notes.find((n) => /^not written \((symlink\)|not a folder, or not readable\)): \.xworkflows\//.test(n));
   if (linked) die(1, linked);
   const ans = {}, auto = [];
   const rl = pl.questions.length && !flags.yes && !flags["dry-run"] && process.stdin.isTTY ? createInterface({ input: process.stdin, output: process.stdout }) : null;
