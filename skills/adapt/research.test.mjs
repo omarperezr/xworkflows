@@ -231,7 +231,7 @@ test("a left re-adapt whose tracked summary a pull or a branch switch changed to
   execFileSync("git", ["checkout", "-q", "-b", "other"], { cwd: d });
   writeFileSync(X(d, "summary.md"), "---\nstatus: approved\n---\nanother adaptation\n");
   execFileSync("git", [...G, "commit", "-qm", "adapt again", "--", ".xworkflows/summary.md"], { cwd: d });
-  const r = cli(d, "done");
+  const r = cli(d, "done", { XWORKFLOWS_STATE_DIR: mkdtempSync(join(tmpdir(), "res-state-")) });
   assert.equal(r.status, 0);
   assert.match(r.stderr, AT_HEAD);
   assert.ok(!existsSync(X(d, "adapt-run.json")));
@@ -258,7 +258,7 @@ test("a re-adapt started again after a pull brought another committed summary is
   writeFileSync(X(d, "summary.md"), "---\nstatus: approved\n---\nanother adaptation\n");
   execFileSync("git", [...G, "commit", "-qm", "pulled", "--", ".xworkflows/summary.md"], { cwd: d });
   assert.equal(cli(d, "start").status, 0);
-  const r = cli(d, "done");
+  const r = cli(d, "done", { XWORKFLOWS_STATE_DIR: mkdtempSync(join(tmpdir(), "res-state-")) });
   assert.equal(r.status, 0);
   assert.match(r.stderr, AT_HEAD);
   assert.ok(!existsSync(X(d, "adapt-run.json")));
