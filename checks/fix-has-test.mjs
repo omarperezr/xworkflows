@@ -8,7 +8,7 @@ export const needs = ["paths.code", "tests.files", "tests.run", "tests.notRunnab
 
 const quote = (s) => `'${s.replace(/'/g, `'\\''`)}'`;
 const esc = (s) => s.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&");
-const START = /(?:^|[^\w.$])(?:test|it|describe|suite)(?:\.(?:only|skip|todo))?\(\s*(["'`])((?:\\.|(?!\1).)*)\1/;
+const START = /(?:^|[^\w.$])(?:test|it|describe|suite)(?:\.(?:only|skip|todo))?\(\s*(["'`])((?:\\.|(?!\1)[^\\])*)\1/;
 
 // the tests of a file as name pattern -> text up to the next test; a template's ${...} matches any text
 // shortcut: a test made by a helper of another name is not seen, its lines count to the test above; the whole file then decides at the parent

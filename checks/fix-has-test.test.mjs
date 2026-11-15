@@ -285,6 +285,14 @@ test("names too long for one command line: the whole file runs, no E2BIG", withR
   assert.deepEqual(await repo.run(brake), { ok: true, lines: [] });
 }));
 
+test("a name that opens and does not close, with many backslashes, is read in linear time", withRepo({}, async (repo) => {
+  const t = `// test("${"\\".repeat(42)}\ntest("x", () => assert.equal(x(), 2));\n`;
+  repo.commit("fix: x returns 2", { files: { ...FIXED, "test/x.test.mjs": HEAD + t } });
+  const t0 = Date.now();
+  assert.deepEqual(await repo.run(brake), { ok: true, lines: [] });
+  assert.ok(Date.now() - t0 < 4000, "the pattern took too long");
+}));
+
 test("a test named by a template runs by its pattern", withRepo({}, async (repo) => {
   const log = newLog();
   const t = `for (const n of [2]) test(\`x is \${n}\`, () => { appendFileSync(${JSON.stringify(log)}, "x\\n"); assert.equal(x(), n); });\n`;
