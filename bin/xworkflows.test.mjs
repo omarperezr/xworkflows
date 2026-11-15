@@ -3641,6 +3641,7 @@ test("doctor: an installed folder made a file gives its line and doctor does not
   cli(r, ["install"]); rmSync(d, { recursive: true }); writeFileSync(d, "x\n");
   const o = doctor(r);
   assert.ok(!/\n\s+at /.test(o.stdout + o.stderr), o.stderr);
+  assert.doesNotMatch(o.stdout, /^fail doctor stopped/m);
   assert.match(o.stdout, /^fail missing or unreadable: \.claude\/skills\/tdd\/SKILL\.md: .*$/m);
   assert.equal(o.status, 1);
   assert.equal(readFileSync(d, "utf8"), "x\n");
