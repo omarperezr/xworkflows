@@ -12,6 +12,8 @@ One living list. The `pending` brake checks these rules:
 
 ## Adapt: render, queue, run
 
+- **P-197** — `/adapt` rules are worded wider than the code: in the exam of 2026-11-15, checked against the code, 14 of 43 rules said "never", "all" or "only" where the code does less, and 6 of 43 citations pointed at a neighbouring or wrong line. Only the prompt holds the width rule (`skills/adapt/research.workflow.js:295`), `screens.mjs:101` gates a sentence on word count and verification only, and `verifyCitation` proves the quote is near the line, not that it shows the rule. Mark on the screen, before the owner says Right, a rule with never/always/all/every/only that cites no place enforcing it for every case, and check that the cited line is the one that shows the rule. Origin: exam of /adapt and read-only diagnosis, 2026-11-15. Status: unscheduled.
+
 
 
 ## Adapt: hooks
@@ -48,7 +50,12 @@ One living list. The `pending` brake checks these rules:
 
 ## Check runner and brakes
 
+- **P-194** — The pre-push took about 11.5 minutes with 23 fix commits (2026-11-14), and the whole suite alone takes 4.9 minutes (293 s wall, 1485 tests, measured 2026-11-15), so about 6.6 minutes is `checks/fix-has-test.mjs` (`run`, the serial loop at `:66`) and the other brakes. Measure the share of each brake on that range before any speed-up; a pool of worktrees was judged unsafe as is (`child` is one variable at `:35` and `onSig` kills only it at `:39`, and `node --test` already uses every core). Origin: read-only diagnosis, 2026-11-15. Status: unscheduled.
+
 
 
 ## Hooks
+
+- **P-195** — `hooks/run.mjs:41` (the catch that lets the call through when a hook throws) writes the error only to stderr; `log` is called only at `:31` and `:39`, so `xwf-hooks.log` has no line for a pass by error and a dead hook goes unseen. Add one log line in that catch, keeping the let-through; `hooks/run.test.mjs:102` asserts only stderr today. Origin: read-only diagnosis, 2026-11-15. Status: unscheduled.
+- **P-196** — `hooks/core/memory.mjs:91` (SessionStart after a compaction, the `qmd query` recall): when qmd exits non-zero or passes its 8000 ms timeout, nothing is said, so the session goes on without its recalled notes and nobody knows. Add one short line pointing to the memory index in those two cases only; a run with no hits stays silent. `hooks/core/memory.test.mjs:90` pins today's silence. Origin: read-only diagnosis, 2026-11-15. Status: unscheduled.
 
