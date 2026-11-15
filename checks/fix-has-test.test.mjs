@@ -279,6 +279,12 @@ test("a test whose text the fix changes is run, the unchanged ones are not", wit
   assert.equal(readFileSync(log, "utf8"), "x\n");
 }));
 
+test("names too long for one command line: the whole file runs, no E2BIG", withRepo({}, async (repo) => {
+  const many = Array.from({ length: 30 }, (_, i) => `test("${String(i).padStart(2, "0")}${"a".repeat(40000)}", () => assert.equal(x(), 2));\n`).join("");
+  repo.commit("fix: x returns 2", { files: { ...FIXED, "test/x.test.mjs": HEAD + many } });
+  assert.deepEqual(await repo.run(brake), { ok: true, lines: [] });
+}));
+
 test("a test named by a template runs by its pattern", withRepo({}, async (repo) => {
   const log = newLog();
   const t = `for (const n of [2]) test(\`x is \${n}\`, () => { appendFileSync(${JSON.stringify(log)}, "x\\n"); assert.equal(x(), n); });\n`;

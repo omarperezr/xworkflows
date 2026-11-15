@@ -95,11 +95,14 @@ export async function run(range, ctx) {
       // only the parent runs: the push runs the whole suite on the last commit
       // with node --test, only the tests the fix adds or changes run; a red of those decides
       // a pass or no test run goes to the whole file, as before, so no verdict is stricter than before
-      const names = /^\s*node --test(?: <files>)?\s*$/.test(tests.run) ? runnable.flatMap((f) => {
+      // Linux caps one argument at 128 KB: past that many characters of names the whole file runs
+      const names0 = /^\s*node --test(?: <files>)?\s*$/.test(tests.run) ? runnable.flatMap((f) => {
         const before = testsOf(ctx.show(`${c}^`, f));
         return [...testsOf(ctx.show(c, f))].filter(([k, text]) => before.get(k) !== text).map(([k]) => k);
       }) : [];
+      const names = names0.join("").length > 100000 ? [] : names0;
       let atParent = names.length ? await runTests(runnable, names) : 0;
+      // shortcut: a test that needs an earlier test of its file passes at the parent when only the changed names run, then the whole file decides; a gap, see docs/gaps.md
       if (atParent === 0) atParent = await runTests(runnable);
       if (atParent === null) { cannot = `${label}: its tests did not end within ${seconds}s or could not start at the parent; raise brakes.fixHasTest.seconds`; return; }
       if (atParent === 0) bad.push(`${label}: its tests also pass at the parent, so they prove nothing; make them fail without the fix`);
