@@ -490,13 +490,13 @@ test("doctor passes on a fresh install, in a path with a space, inside a Claude 
   assert.match(out.stdout, /always-loaded: \d+ bytes of 24000/);
   assert.match(out.stdout, /Claude Code: tested/);
 });
-test("doctor goes on when a recorded file cannot be read for a reason other than a missing path", () => {
+test("doctor goes on when a recorded file cannot be read for a reason other than a missing path", { skip: process.getuid?.() === 0 && "root reads a file of mode 000" }, () => {
   const r = repo(); cli(r, ["install", "--yes"]);
   const dir = join(r, ".claude/skills/tdd");
   chmodSync(dir, 0o000);
   let out;
-  try { out = cli(r, ["doctor"]); } finally { chmodSync(dir, 0o755); }
-  assert.doesNotMatch(out.stderr, /doctor stopped/);
+  try { out = doctor(r); } finally { chmodSync(dir, 0o755); }
+  assert.doesNotMatch(out.stdout, /doctor stopped/);
   assert.match(out.stdout, /missing or unreadable: \.claude\/skills\/tdd\/SKILL\.md: delete .*, then /);
   assert.match(out.stdout, /installed\.json parses/);
 });
