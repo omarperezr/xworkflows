@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdtempSync as makeTmp, mkdirSync, writeFileSync, existsSync, rmSync, utimesSync, symlinkSync } from "node:fs";
+import { appendFileSync, mkdtempSync as makeTmp, mkdirSync, writeFileSync, existsSync, rmSync, utimesSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { sum, verifyCitation, buildQueue, missing } from "./research.mjs";
@@ -431,6 +431,44 @@ test("the queue is S1-<n>, X<n>, the nine ids of screen 3, then the shipped ques
   assert.equal(by["C1"].style, "open");
   for (const i of q) { assert.ok(["open", "choice", "confirm"].includes(i.style)); assert.ok(!i.options || (i.options.length >= 2 && i.options.length <= 4), i.id); }
   assert.ok(!ids(q).some((i) => /^(H2-refused|H3-|H4-|H5-)/.test(i)));
+});
+
+const TIERS = { cheap: "haiku", medium: "sonnet", top: "opus", strongest: "fable" };
+
+test("H6-model: after the H6-r<n> items, two options (strongest first, then top), a question naming both", () => {
+  const q = buildQueue(SC(), { topics }, { zones: [{ key: "src" }, { key: "lib" }] }, null, {}, null, TIERS);
+  const i = ids(q);
+  assert.equal(i[i.indexOf("H6-r2") + 1], "H6-model");
+  const m = q.find((x) => x.id === "H6-model");
+  assert.equal(m.heading, "6");
+  assert.equal(m.style, "choice");
+  assert.deepEqual(m.options, ["fable", "opus"]);
+  assert.match(m.text, /fable/);
+  assert.match(m.text, /opus/);
+});
+
+test("H6-model: a tiers table without strongest, or none, leaves it out", () => {
+  for (const t of [{ cheap: "haiku", top: "opus" }, null, undefined]) assert.ok(!ids(buildQueue(SC(), { topics }, { zones: [] }, null, {}, null, t)).includes("H6-model"));
+});
+
+test("H6-model: queue reads .xworkflows/tiers.json of the project; check lists it until answered; an interview begun before is asked only it", () => {
+  const d = repo();
+  cli(d, "start");
+  const run = rj(d, "adapt-run.json").run;
+  writeFileSync(X(d, "screens.json"), JSON.stringify(SC())); put(d, sample());
+  writeFileSync(X(d, "tiers.json"), JSON.stringify({ claude: TIERS }));
+  assert.equal(cli(d, "queue").status, 0);
+  const q = rj(d, "interview.json");
+  assert.ok(ids(q).includes("H6-model"));
+  writeFileSync(X(d, "interview.log.jsonl"), q.filter((i) => i.id !== "H6-model").map((i) => JSON.stringify(L(i.id, "Right", run))).join("\n") + "\n");
+  let r = cli(d, "check");
+  assert.equal(r.status, 1);
+  assert.equal(r.stdout, "H6-model\n");
+  appendFileSync(X(d, "interview.log.jsonl"), JSON.stringify(L("H6-model", "opus", run)) + "\n");
+  assert.equal(cli(d, "check").status, 0);
+  writeFileSync(X(d, "tiers.json"), JSON.stringify({ claude: { top: "opus" } }));
+  cli(d, "queue");
+  assert.ok(!ids(rj(d, "interview.json")).includes("H6-model"));
 });
 
 test("a re-adaptation keeps of the shipped questions only the config keys still without a value", () => {

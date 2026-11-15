@@ -45,9 +45,10 @@ const NEG = /\b(not|never|nunca|refuses?|won't|doesn't|don't)\b|\bno\s/i; // wha
 
 // The interview queue: S1-<n> a sentence, X<n> a screen 2 question, the nine ids of screen 3 (all from screens.json `s`),
 // then the shipped questions no screen asks. `prev` is research.prev.json on a re-adapt (then only the config keys still without a value in `cfg`, .xworkflows/config.json).
+// `tiers` is the `claude` table of .xworkflows/tiers.json: with a `strongest` entry the queue asks `H6-model`.
 // `earlier` ({ root, answered, docs }: the sentences the approved run answered, as research.answered.json keeps them, and the texts of the specs and plans added or changed since that adaptation's commit) lets a re-adapt skip a screen 1 sentence already answered.
 // A sentence keeps its number (S1-<n>, n its place on screen 1 and in research.md) whether or not it is asked.
-export function buildQueue(s, research = {}, scan = {}, prev = null, cfg = {}, earlier = null) {
+export function buildQueue(s, research = {}, scan = {}, prev = null, cfg = {}, earlier = null, tiers = null) {
   const item = (id, heading, text, options, style = "choice") => ({ id, heading, style, text, ...(options ? { options } : {}) });
   const confirm = (id, h, text) => item(id, h, text, ["Yes", "No", "I don't know"], "confirm");
   const lines = Object.keys(research.topics || {}).sort().flatMap((t) => research.topics[t]?.lines || []);
@@ -63,6 +64,7 @@ export function buildQueue(s, research = {}, scan = {}, prev = null, cfg = {}, e
     item("H2-pays", "2", "Who pays for this, and what is sold?", o.length ? [...o, OPEN[0]] : OPEN),
     item("H6-zones", "6", "Does this split of the code into zones match how you think about it?"),
     ...(scan.zones || []).map((z, i) => item(`H6-r${i + 1}`, "6", `What does a mistake in ${z.key} risk? If more than one applies, type them all in Type something.`, ["Money", "Data", "Access", "No risk"])),
+    ...(tiers?.strongest && tiers.top ? [item("H6-model", "6", `Which model should run the risk reviewer of this project: ${tiers.strongest}, the strongest, or ${tiers.top}, the one of the plain reviewer? If another, type it in Type something.`, [tiers.strongest, tiers.top])] : []),
     ...["Keep one branch per batch, merged with --no-ff and never rebased after review?", "Push only when you say so?", "Add files by explicit path, never `git add .` or `-A`?", "No commit, PR or comment names an AI as author or co-author?"].map((t, i) => confirm(`H7-g${i + 1}`, "7", t)),
     item("H7-depth", "7", "How deep should a review go on a normal change?"),
     item("H7-push", "7", "Who may push?"),
@@ -246,7 +248,7 @@ function cli(cmd, root) {
     if (cmd === "queue") {
       const opt = (f) => { try { return readJson(join(dir, f)); } catch { return null; } };
       const prevRun = opt("research.prev.json"), cfg = opt("config.json") || {};
-      const q = buildQueue(need("screens.json"), need("research.json"), need("scan.json"), prevRun, cfg, prevRun && earlier(root, dir, cfg));
+      const q = buildQueue(need("screens.json"), need("research.json"), need("scan.json"), prevRun, cfg, prevRun && earlier(root, dir, cfg), opt("tiers.json")?.claude);
       put(join(dir, "interview.json"), JSON.stringify(q, null, 2) + "\n");
     } else {
       const { run } = need("adapt-run.json");
