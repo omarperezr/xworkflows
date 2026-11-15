@@ -43,8 +43,13 @@ export async function run(range, ctx) {
   const runTests = async (files, names) => {
     if (signal) return null;
     const list = files.map(quote).join(" ");
-    const run = names ? tests.run.replace(/^\s*node --test/, () => `node --test ${names.map((n) => quote(`--test-name-pattern=${n}`)).join(" ")}`) : tests.run;
-    const cmd = run.includes("<files>") ? run.split("<files>").join(list) : `${run} ${list}`;
+    const build = (ns) => {
+      const run = ns ? tests.run.replace(/^\s*node --test/, () => `node --test ${ns.map((n) => quote(`--test-name-pattern=${n}`)).join(" ")}`) : tests.run;
+      return run.includes("<files>") ? run.split("<files>").join(list) : `${run} ${list}`;
+    };
+    // Linux caps one argument at 128 KB: past 100000 bytes of command the whole file runs
+    let cmd = build(names);
+    if (names && Buffer.byteLength(cmd) > 100000) cmd = build(null);
     const env = { ...process.env };
     delete env.NODE_TEST_CONTEXT; // a nested `node --test` would report to the outer run and always pass
     for (const k of ["GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE"]) delete env[k];
@@ -95,14 +100,12 @@ export async function run(range, ctx) {
       // only the parent runs: the push runs the whole suite on the last commit
       // with node --test, only the tests the fix adds or changes run; a red of those decides
       // a pass or no test run goes to the whole file, as before, so no verdict is stricter than before
-      // Linux caps one argument at 128 KB: past that many characters of names the whole file runs
-      const names0 = /^\s*node --test(?: <files>)?\s*$/.test(tests.run) ? runnable.flatMap((f) => {
+      const names = /^\s*node --test(?: <files>)?\s*$/.test(tests.run) ? runnable.flatMap((f) => {
         const before = testsOf(ctx.show(`${c}^`, f));
         return [...testsOf(ctx.show(c, f))].filter(([k, text]) => before.get(k) !== text).map(([k]) => k);
       }) : [];
-      const names = names0.join("").length > 100000 ? [] : names0;
       let atParent = names.length ? await runTests(runnable, names) : 0;
-      // shortcut: a test that needs an earlier test of its file passes at the parent when only the changed names run, then the whole file decides; a gap, see docs/gaps.md
+      // shortcut: a test that needs an earlier test of its file fails alone at the parent, and that red counts as proof, though the whole file passes there; a gap, see docs/gaps.md
       if (atParent === 0) atParent = await runTests(runnable);
       if (atParent === null) { cannot = `${label}: its tests did not end within ${seconds}s or could not start at the parent; raise brakes.fixHasTest.seconds`; return; }
       if (atParent === 0) bad.push(`${label}: its tests also pass at the parent, so they prove nothing; make them fail without the fix`);

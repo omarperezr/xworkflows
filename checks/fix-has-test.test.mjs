@@ -285,8 +285,18 @@ test("names too long for one command line: the whole file runs, no E2BIG", withR
   assert.deepEqual(await repo.run(brake), { ok: true, lines: [] });
 }));
 
+test("many short names, a command over the byte limit: the whole file runs, no spawn error", withRepo({}, async (repo) => {
+  const log = newLog();
+  const unchanged = `test("unchanged", () => { appendFileSync(${JSON.stringify(log)}, "u\\n"); });\n`;
+  const many = Array.from({ length: 4500 }, (_, i) => `test("t${String(i).padStart(4, "0")}", () => assert.equal(x(), 2));\n`).join("");
+  repo.commit("test: unchanged", { files: { "test/x.test.mjs": HEAD + unchanged } });
+  repo.commit("fix: x returns 2", { files: { ...FIXED, "test/x.test.mjs": HEAD + unchanged + many } });
+  assert.deepEqual(await repo.run(brake), { ok: true, lines: [] });
+  assert.match(readFileSync(log, "utf8"), /u\n/, "only the changed names ran, not the whole file");
+}));
+
 test("a name that opens and does not close, with many backslashes, is read in linear time", withRepo({}, async (repo) => {
-  const t = `// test("${"\\".repeat(42)}\ntest("x", () => assert.equal(x(), 2));\n`;
+  const t = `// test("${"\\".repeat(46)}\ntest("x", () => assert.equal(x(), 2));\n`;
   repo.commit("fix: x returns 2", { files: { ...FIXED, "test/x.test.mjs": HEAD + t } });
   const t0 = Date.now();
   assert.deepEqual(await repo.run(brake), { ok: true, lines: [] });
