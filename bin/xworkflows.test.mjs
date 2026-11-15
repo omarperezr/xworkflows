@@ -2638,6 +2638,30 @@ test("doctor: the line it offers for husky's file that is a link is the user's t
   assert.match(lineOf(doctor(r), /^fail +pre-push hook/) ?? "", /: if \[ -f .+ # xworkflows ; it is a link, which uninstall does not write through: the line is yours to take out after uninstall$/);
 });
 
+// P-168, P-169: a file uninstall cannot read or write is named in one line, and the rest of uninstall is done
+const noStack = (out) => { assert.equal(out.status, 0, out.stderr); assert.doesNotMatch(out.stdout + out.stderr, /Error|\n\s+at /); assert.match(out.stdout, /\nuninstalled\n$/); };
+test("uninstall: a recorded line in a read-only CLAUDE.md, and a hook holding the line it cannot read, are named in one line each", { skip: ROOT_WRITES }, () => {
+  const { r } = withRemote(); hookAt(r, OLD); yes(r);
+  const hook = join(r, ".git/hooks/pre-push");
+  chmodSync(join(r, "CLAUDE.md"), 0o444); chmodSync(hook, 0o000);
+  const out = cli(r, ["uninstall"]);
+  chmodSync(hook, 0o755);
+  noStack(out);
+  assert.match(out.stdout, /^not written \(EACCES\): CLAUDE\.md: the line @AGENTS\.md stays in it; take it out yourself$/m);
+  assert.match(out.stdout, /^not written \(EACCES\): \.git\/hooks\/pre-push: the xworkflows line stays in it; take it out yourself$/m);
+  assert.ok(!existsSync(join(r, ".xworkflows")));
+});
+test("uninstall: install's own hooks in a hooks folder it cannot write stay, one line names each, and uninstall goes on", { skip: ROOT_WRITES }, () => {
+  const r = repo(); cli(r, ["install"]);
+  const dir = join(r, ".git/hooks");
+  chmodSync(dir, 0o555);
+  const out = cli(r, ["uninstall"]);
+  chmodSync(dir, 0o755);
+  noStack(out);
+  for (const n of ["pre-push", "post-merge", "post-commit"]) assert.match(out.stdout, new RegExp(`^not deleted \\(EACCES\\): \\.git/hooks/${n}$`, "m"));
+  assert.ok(!existsSync(join(r, ".xworkflows")));
+});
+
 const QMD_V = "qmd 2.8.3 (facd35e)";
 test("doctor prints the version qmd answers; a qmd that does not answer it warns", () => {
   const r = repo(); cli(r, ["install"]);

@@ -1085,10 +1085,13 @@ function uninstall() {
   for (const [name, p] of hookRel) {
     const abs = join(hooksDir, name), before = abs + ".before-xworkflows";
     if (!lstatSync(abs, { throwIfNoEntry: false })?.isFile()) continue;
-    const cur = readFileSync(abs, "utf8");
-    if (cur !== hookText(name) && cur !== chainText(name) && !earlierHook(manifest, name, cur)) { if (recFiles.has(p)) out.push(hash(cur) === rec.files[p].sha256 ? `kept (not ours): ${p}` : `kept (changed locally): ${p}`); continue; }
-    rmSync(abs); out.push(`deleted ${p}`);
-    if (lstatSync(before, { throwIfNoEntry: false })) { renameSync(before, abs); out.push(`restored ${p}`); }
+    // a hook it cannot read or delete stays, said in one line without a stack; a hook of the user's is named by the loop of the lines
+    try {
+      const cur = readFileSync(abs, "utf8");
+      if (cur !== hookText(name) && cur !== chainText(name) && !earlierHook(manifest, name, cur)) { if (recFiles.has(p)) out.push(hash(cur) === rec.files[p].sha256 ? `kept (not ours): ${p}` : `kept (changed locally): ${p}`); continue; }
+      rmSync(abs); out.push(`deleted ${p}`);
+      if (lstatSync(before, { throwIfNoEntry: false })) { renameSync(before, abs); out.push(`restored ${p}`); }
+    } catch (e) { if (recFiles.has(p)) out.push(`not deleted (${e.code}): ${p}`); }
   }
   const merged = rec.merged;
   const text = merged.length ? read(ROOT, SETTINGS) : null;
@@ -1146,25 +1149,26 @@ function uninstall() {
   }
   for (const { file: key, line, addedNewline } of rec.imports) {
     // the line of a hook is in the hooks folder git uses, which a linked worktree has under the common git dir; a link there is not followed
-    const file = hookSet.has(key) ? relative(ROOT, join(hooksDir, basename(key))) : key;
-    if (hookSet.has(key)) {
-      const st = lstatSync(join(ROOT, file), { throwIfNoEntry: false });
-      // no link is written through: install's line behind one stays, and is named
-      if (st?.isSymbolicLink() && statSync(join(ROOT, file), { throwIfNoEntry: false })?.isFile() && read(ROOT, file).split("\n").includes(line)) out.push(`not written (symlink): ${key}: the xworkflows line stays in it; take it out yourself`);
-      if (!st?.isFile()) continue;
-    }
-    // a hook's bytes are never rewritten as text
-    const there = existsSync(join(ROOT, file)), t = there && line === hookLine(basename(key)) ? textOf(join(ROOT, file)) : read(ROOT, file);
-    if (there && t === null) { out.push(`kept (not text): ${key}`); continue; }
-    const ls = t?.split("\n") ?? [], i = ls.lastIndexOf(line);
-    // a line of a hook that the user changed still holds the mark: it stays, and is named
-    if (i < 0 && line === hookLine(basename(key)) && ls.some((l) => l.endsWith(" # xworkflows"))) out.push(`kept (changed locally): ${key}`);
-    if (i < 0) continue;
-    ls.splice(i, 1);
-    const out2 = ls.join("\n");
-    // a hook uninstall cannot write keeps its line, said in one line without a stack, as apply does for install
-    try { write(file, addedNewline && out2.endsWith("\n") ? out2.slice(0, -1) : out2); }
-    catch (e) { if (line !== hookLine(basename(key))) throw e; out.push(`not written (${e.code}): ${key}: the xworkflows line stays in it; take it out yourself`); }
+    const file = hookSet.has(key) ? relative(ROOT, join(hooksDir, basename(key))) : key, hook = line === hookLine(basename(key));
+    // a file uninstall cannot read or write keeps its line, said in one line without a stack, as apply does for install
+    try {
+      if (hookSet.has(key)) {
+        const st = lstatSync(join(ROOT, file), { throwIfNoEntry: false });
+        // no link is written through: install's line behind one stays, and is named
+        if (st?.isSymbolicLink() && statSync(join(ROOT, file), { throwIfNoEntry: false })?.isFile() && read(ROOT, file).split("\n").includes(line)) out.push(`not written (symlink): ${key}: the xworkflows line stays in it; take it out yourself`);
+        if (!st?.isFile()) continue;
+      }
+      // a hook's bytes are never rewritten as text
+      const there = existsSync(join(ROOT, file)), t = there && hook ? textOf(join(ROOT, file)) : read(ROOT, file);
+      if (there && t === null) { out.push(`kept (not text): ${key}`); continue; }
+      const ls = t?.split("\n") ?? [], i = ls.lastIndexOf(line);
+      // a line of a hook that the user changed still holds the mark: it stays, and is named
+      if (i < 0 && hook && ls.some((l) => l.endsWith(" # xworkflows"))) out.push(`kept (changed locally): ${key}`);
+      if (i < 0) continue;
+      ls.splice(i, 1);
+      const out2 = ls.join("\n");
+      write(file, addedNewline && out2.endsWith("\n") ? out2.slice(0, -1) : out2);
+    } catch (e) { out.push(`not written (${e.code}): ${key}: ${hook ? "the xworkflows line" : `the line ${line}`} stays in it; take it out yourself`); }
   }
   for (const p of rec.created) {
     if (p === md) {
