@@ -2373,6 +2373,7 @@ const DOCTOR_LINES = [
   ["old node", (r) => cli(r, ["install"]), () => ({ NODE_OPTIONS: `--require ${old22()}` }), "fail node 20.1.0: install Node 22 or newer"],
   ["git does not answer", (r) => cli(r, ["install"]), () => ({ PATH: noGitVersion() }), "fail git does not answer: install git and put it on PATH"],
   ["file missing", (r) => { cli(r, ["install"]); rmSync(join(r, ".xworkflows/hooks/run.mjs")); }, {}, `fail missing or unreadable: .xworkflows/hooks/run.mjs: ${FIX}`],
+  ["file made a link with no target", (r) => { cli(r, ["install"]); rmSync(join(r, ".xworkflows/hooks/run.mjs")); symlinkSync("nowhere", join(r, ".xworkflows/hooks/run.mjs")); }, {}, `fail missing or unreadable: .xworkflows/hooks/run.mjs: delete .xworkflows/hooks/run.mjs, then ${FIX}`],
   ["file changed", (r) => { cli(r, ["install"]); appendFileSync(join(r, ".claude/agents/explore.md"), "x\n"); }, {}, "warn changed locally: .claude/agents/explore.md; to put the package's copy back, delete it, then run xworkflows install (install keeps a changed file)"],
   ["file kept", (r) => cli(r, ["install"]), {}, null, { ".claude/agents/explore.md": "mine\n" }],
   ["merged entry changed", (r) => { cli(r, ["install"]); settingsEdit(r, (s) => { for (const e of s.hooks.PreToolUse) for (const h of e.hooks) h.timeout = 99; }); }, {}, "warn .claude/settings.json hooks.PreToolUse hook adapt-gates differs from every text the package published; to get the package's entry, delete it and run xworkflows install"],
