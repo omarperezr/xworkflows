@@ -3442,10 +3442,12 @@ test("doctor: a value one level down in a section that is not an object gives a 
 });
 test("doctor: for a config that does not parse, the probe's fail line names the fix of the config", () => {
   const r = repo(); cli(r, ["install"]);
-  writeFileSync(join(r, ".xworkflows/config.json"), "{");
-  const out = doctor(r);
-  assert.ok(out.stdout.split("\n").includes("fail probe: expected deny, got no valid output: fix the JSON of .xworkflows/config.json"), out.stdout);
-  assert.doesNotMatch(out.stdout, /changed locally/);
+  for (const text of ["{", "null"]) {
+    writeFileSync(join(r, ".xworkflows/config.json"), text);
+    const out = doctor(r);
+    assert.ok(out.stdout.split("\n").includes("fail probe: expected deny, got no valid output: fix the JSON of .xworkflows/config.json"), `${text}\n${out.stdout}`);
+    assert.doesNotMatch(out.stdout, /changed locally/, text);
+  }
 });
 test("uninstall: with a section of the config that is not an object, install's autoMemoryDirectory and memory folder still go", () => {
   const r = repo(); cli(r, ["install"]);

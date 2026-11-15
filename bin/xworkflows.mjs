@@ -835,9 +835,8 @@ async function doctor() {
   // config
   let cfg = {}, unparsed = false;
   // a file holding null is said by the config line below
-  try { cfg = JSON.parse(readFileSync(join(ROOT, ".xworkflows/config.json"), "utf8")) ?? {}; } catch (e) { unparsed = e.code !== "ENOENT"; }
+  try { cfg = JSON.parse(readFileSync(join(ROOT, ".xworkflows/config.json"), "utf8")); unparsed = !isObj(cfg); cfg ??= {}; } catch (e) { unparsed = e.code !== "ENOENT"; }
   const FIXJSON = "fix the JSON of .xworkflows/config.json";
-  unparsed ||= !isObj(cfg);
   const specs = cfg.paths?.specs ?? "docs/superpowers/specs";
   // a memory.dir that is not a text reads as the default, as the hooks read it
   const memSet = cfg.memory?.dir === undefined ? DEFAULTS.memory.dir : cfg.memory.dir;
