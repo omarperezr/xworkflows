@@ -9,9 +9,11 @@ export const needs = ["paths.code", "tests.files", "tests.run", "tests.notRunnab
 const quote = (s) => `'${s.replace(/'/g, `'\\''`)}'`;
 
 export async function run(range, ctx) {
-  const { paths: { code }, tests, brakes: { fixHasTest: { seconds } } } = ctx.config;
+  const { paths: { code }, tests } = ctx.config;
+  const seconds = ctx.config.brakes?.fixHasTest?.seconds; // an older installed config module may lack the section
   // a fix that loops forever on the parent must not hang the push
-  if (!Number.isInteger(seconds) || seconds <= 0) return { ok: false, cannotRun: true, lines: [`brakes.fixHasTest.seconds must be a whole number above zero, it is ${JSON.stringify(seconds)}`] };
+  // the timer of Node takes at most 2^31-1 ms; above 2147483 s it fires at once
+  if (!Number.isInteger(seconds) || seconds <= 0 || seconds > 2147483) return { ok: false, cannotRun: true, lines: [`brakes.fixHasTest.seconds must be a whole number from 1 up to 2147483, it is ${JSON.stringify(seconds)}`] };
   const limitMs = seconds * 1000;
   const isTest = (f) => inPaths(f, tests.files) || inPaths(f, tests.notRunnable);
   const bad = [], notes = [];
