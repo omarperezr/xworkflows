@@ -3461,6 +3461,16 @@ test("uninstall: with a section of the config that is not an object, install's a
   assert.ok(!existsSync(join(r, "docs/memory")));
 });
 
+test("uninstall: with docs/memory made a link out of the repository and no memory.dir, autoMemoryDirectory and the file still go", () => {
+  const r = repo(); cli(r, ["install", "--yes"]);
+  rmSync(join(r, "docs/memory"), { recursive: true });
+  symlinkSync(tmp("xwf-out-"), join(r, "docs/memory"));
+  const out = cli(r, ["uninstall"]);
+  assert.equal(out.status, 0, out.stderr);
+  assert.doesNotMatch(out.stdout, /kept \(changed locally\): \.claude\/settings\.local\.json autoMemoryDirectory/);
+  assert.ok(!existsSync(join(r, ".claude/settings.local.json")));
+});
+
 test("install --yes: a retired file is removed under the xwf- name the record holds, and with no record nothing is removed", () => {
   const published = spawnSync("git", ["show", "f467f65~1:skills/adapt/topics.md"], { cwd: PKG_ROOT, encoding: "utf8" }).stdout;
   const mine = ".claude/skills/adapt/topics.md", ours = ".claude/skills/xwf-adapt/topics.md";

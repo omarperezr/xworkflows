@@ -1047,7 +1047,7 @@ function uninstall() {
   // the raw value: a section the loader refuses must not keep what install wrote for the memory folder
   let raw = {};
   try { raw = JSON.parse(readFileSync(join(ROOT, ".xworkflows/config.json"), "utf8")) ?? {}; } catch {}
-  const md = memoryFolder(raw, ROOT).dir;
+  const mf = memoryFolder(raw, ROOT), md = mf.dir ?? mf.linked; // a default folder made a link out of the repository is still the one install wrote
 
   // the marker, not the record, says this checkout's install wrote the yml: only install's exact text is the marker
   let marked = false;
