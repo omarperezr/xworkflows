@@ -46,6 +46,27 @@ What did not block, and task F1 settles because it rewrites the same sentences: 
 - The two places that say where `(Recommended)` may go agree: the first option of `H6-model` is the one exception.
 - Done: `node --test skills/day-one.test.mjs skills/method.test.mjs skills/adapt/research.test.mjs` passes.
 
+### Batch 1, confirmation at `fa3717c`
+
+A blocking finding stands. The second finding of the review is settled (step 4 takes the model from heading 6 as approved), and so are three of the four points that did not block. The first finding is settled only in part: `skills/adapt/SKILL.md:106` (Playback, step 1) says the model of `top` "when the item is not in the queue" and, in the same sentence, the model the file holds on a re-adapt; on a re-adapt and for a draft saved before this change the item is never in the queue, so both clauses match and two sentences of the skill give two results. It is the finding of the first round in another sentence: a repeat.
+
+Possible design error in skills/adapt/SKILL.md (Playback, step 1)
+
+Root cause: the rule that gives the risk reviewer its model is said as prose in three places of the skill (how the item is asked, heading 6 of the playback, step 4), each with its own list of cases, and the only test of that text holds that the sentences are there, so it cannot see two clauses that overlap. Each round moved the overlap to another sentence.
+
+The design that removes it at the root: the rule is one function of `skills/adapt/research.mjs` with a table test of every case, and the skill says no case at all: heading 6 names the model the script prints, and step 4 writes the model heading 6 names.
+
+The owner, 2026-11-14, asked redesign or one more patch: "Rediseñar: regla en código (Recommended)".
+
+What did not block: the spec's point 5 still said step 4 writes the line from the answer; the same commit as this section corrects it.
+
+**F2: one function of `research.mjs` gives the model of the risk reviewer, with a table test of every case, and the skill names no case**
+- Files: `skills/adapt/research.mjs`, `skills/adapt/research.test.mjs`, `skills/adapt/SKILL.md`, `skills/day-one.test.mjs`
+- Role: implement
+- The command is `research.mjs model [<text>]`; it prints one model name and nothing else. The order of the rule: a text given as argument (a correction at `P-H6`); else the answer of `H6-model` of this run when it names a model; else, on a re-adapt, the model the `model:` line of the existing `.claude/agents/risk-review.md` holds; else the model of `strongest`; else the model of `top`. A tier's name stands for that tier's model, the mark `(Recommended)` is never part of a name, and `I don't know`, a skip and no answer name no model. With neither entry in `.xworkflows/tiers.json` the command exits 1 and names that file.
+- The skill says: heading 6 names the model that command prints; a correction at `P-H6` goes through the same command with the owner's text; step 4 writes the model heading 6 names as approved, and where it names none, the model the command prints. No other sentence of the skill says which model.
+- Done: `node --test skills/adapt/research.test.mjs skills/day-one.test.mjs skills/method.test.mjs` passes.
+
 ## Review Focus
 
 - An interview begun before this change (a draft with its answers) must still end: the new item must not lose an answer or block the approval for ever.

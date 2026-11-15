@@ -45,11 +45,12 @@ Proof:
 2. The interview of `/adapt` gets one item, `H6-model`, under heading 6, asked after the `H6-r<n>` items: which model runs the risk reviewer of this project. Two options, in this order: the model of the `strongest` entry, and the model of the `top` entry, which is the plain reviewer's. The question names both models, read from `.xworkflows/tiers.json`. The first option carries `(Recommended)`: it is the product's default, not a guess of research, and the rule on `(Recommended)` says so for this one item. A model typed in `Type something` is taken as typed.
 3. With no answer, `I don't know` or a skip, the model is the one of `strongest`.
 4. The summary says under heading 6, in one line, which model the risk reviewer runs on, so `P-H6` covers it and a `Wrong` there corrects it.
-5. Step 4 writes the `model:` line of `.claude/agents/risk-review.md` from that answer: the `strongest` entry, the `top` entry, or the model typed.
+5. Step 4 writes the `model:` line of `.claude/agents/risk-review.md` with the model heading 6 names as approved (point 9): the model of `strongest`, the model of `top`, or the model typed.
 6. A project whose `.xworkflows/tiers.json` has no `strongest` entry is not asked, and its risk reviewer gets the `top` entry as today.
 7. To change it afterwards the user edits the `model:` line. `docs/design.md` says so.
 8. A project already adapted keeps its file. A re-adapt does not ask the item, as it does not ask the `H6-r<n>` items: heading 6 names the model the file's `model:` line holds, and step 4 keeps it unless the owner corrects it at `P-H6`.
 9. Step 4 takes the model from heading 6 as approved, never straight from the answer. Where heading 6 names none, the model is the one of `strongest`, or of `top` where the project's tiers file has no `strongest`.
+10. The rule of points 2 to 9 is one function of `skills/adapt/research.mjs`, behind the command `research.mjs model [<text>]`, with a table test of every case (the owner, 2026-11-14, after the rule said as prose contradicted itself in two rounds: "Rediseñar: regla en código (Recommended)"). Its order: a text given as argument, which is a correction at `P-H6`; the answer of `H6-model` when it names a model; on a re-adapt, the model the file's `model:` line holds; the model of `strongest`; the model of `top`. The skill names no case: heading 6 names the model the command prints, and step 4 writes the model heading 6 names.
 
 ## 4. Not in this change
 
