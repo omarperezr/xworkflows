@@ -29,6 +29,23 @@ About 30 code lines.
 - `docs/design.md`: the four tiers, the row of `risk-review`, that the step up on a failure ends at `top`, and that the user changes the model by editing the `model:` line.
 - Done: `node --test skills/adapt/research.test.mjs skills/day-one.test.mjs skills/method.test.mjs bin/xworkflows.test.mjs` passes.
 
+### Batch 1, fix round after the review of `762bcb6`
+
+Two blocking findings, both in the text of step 4 of `skills/adapt/SKILL.md`; the code, the installer and the tests were found sound. It is the first round of this batch, so none is a repeat.
+
+- `skills/adapt/SKILL.md:136` with `:27`: a re-adapt never asks `H6-model`, and step 4 says to write the `top` entry where the item was not asked, so a re-adapt writes over the model the user chose or edited, without a word. The wording came from task T1 of this plan.
+- `skills/adapt/SKILL.md:136` with `:106` and `:110`: step 4 takes the model from the answer of `H6-model` and not from heading 6 as approved, so a correction made at `P-H6` is lost.
+
+What did not block, and task F1 settles because it rewrites the same sentences: a draft saved before this change is resumed without `queue`, so the item is never asked and the reviewer got `top` where the default is `strongest`; the mark `(Recommended)` of the chosen label could be copied into the `model:` line; `skills/adapt/SKILL.md:70` still says the mark goes only on an option backed by a citation; a tier's name typed in `Type something` had no rule.
+
+**F1: step 4 writes the model that heading 6 names as approved, a re-adapt keeps the model the file holds, and the rules of `H6-model` agree with each other**
+- Files: `skills/adapt/SKILL.md`, `skills/day-one.test.mjs`
+- Role: implement
+- Heading 6 names the model in one line. On a first adapt it comes from `H6-model`: the option chosen, without its mark; a model typed, as typed; a tier's name typed stands for that tier's model; no answer, `I don't know` or a skip give the model of `strongest`; with the item not in the queue, the model of `top`. On a re-adapt, where the item is not asked, it is the model the `model:` line of `.claude/agents/risk-review.md` holds now.
+- Step 4 writes the `model:` line with the model heading 6 names as approved, so a `Wrong` at `P-H6` corrects it. When heading 6 names none (a draft saved before this change, a file with no such line): the model of `strongest`, or of `top` where `.xworkflows/tiers.json` has no `strongest`. The line is never left out, never a tier's name and never holds a mark.
+- The two places that say where `(Recommended)` may go agree: the first option of `H6-model` is the one exception.
+- Done: `node --test skills/day-one.test.mjs skills/method.test.mjs skills/adapt/research.test.mjs` passes.
+
 ## Review Focus
 
 - An interview begun before this change (a draft with its answers) must still end: the new item must not lose an answer or block the approval for ever.

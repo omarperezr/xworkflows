@@ -48,7 +48,8 @@ Proof:
 5. Step 4 writes the `model:` line of `.claude/agents/risk-review.md` from that answer: the `strongest` entry, the `top` entry, or the model typed.
 6. A project whose `.xworkflows/tiers.json` has no `strongest` entry is not asked, and its risk reviewer gets the `top` entry as today.
 7. To change it afterwards the user edits the `model:` line. `docs/design.md` says so.
-8. A project already adapted keeps its file. Another run of `/adapt` asks the item as it asks the `H6-r<n>` items.
+8. A project already adapted keeps its file. A re-adapt does not ask the item, as it does not ask the `H6-r<n>` items: heading 6 names the model the file's `model:` line holds, and step 4 keeps it unless the owner corrects it at `P-H6`.
+9. Step 4 takes the model from heading 6 as approved, never straight from the answer. Where heading 6 names none, the model is the one of `strongest`, or of `top` where the project's tiers file has no `strongest`.
 
 ## 4. Not in this change
 
