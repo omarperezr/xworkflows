@@ -673,7 +673,7 @@
         "PreToolUse"
       ],
       "entry": {
-        "matcher": "Write|Edit|MultiEdit|Workflow|Bash",
+        "matcher": "Write|Edit|MultiEdit|Workflow",
         "hooks": [
           {
             "type": "command",
