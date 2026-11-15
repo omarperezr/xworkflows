@@ -261,14 +261,14 @@
         ]
       },
       "files": {
-        "skills/adapt/SKILL.md": "e6eff403a630a283f5a7e0125900049ebcbe125c8da190019be37c41601410e8",
+        "skills/adapt/SKILL.md": "30618afaf84c44e4937bdfc563b341a35b95b51ca91ac1e1df6184c16ea43d58",
         "skills/adapt/scan.mjs": "c7d9a47a268cdf6135057da9eb267826b3d5df6df574b7fc206daccacfe401e9",
         "skills/adapt/rules.mjs": "736bb9ee53874d8c9447ab4107780d9b8f5733cee26597dae96862d43d37bde2",
         "skills/adapt/research.workflow.js": "c7d72c728a5eef056d9a23f56d3334b6f2400fa9730cb96dfcad23dadd579daa",
-        "skills/adapt/research.mjs": "b2bdb932ebd801d51760c168c6750132baa82fff51b8a1fce50cdad91b6be60a",
+        "skills/adapt/research.mjs": "52452961a08b1e0171b9ec1bc00ffedde10e10d65906d04d770c33b73a0df984",
         "skills/adapt/screens.mjs": "0a0f3698ea1e41ebae375416e52eac0df90e8d644f8b452c44e9fe702bc34cdc"
       },
-      "sha256": "a98213c681bce828eda07d51eeaecf7991759d7a3eebda155cda65d0a42d54e3"
+      "sha256": "b6fa0cb86e43396ba9e293e83194706a5311f1e945d22bcf94c4a1a48bf02d72"
     },
     {
       "id": "full-review",
