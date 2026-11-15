@@ -3646,6 +3646,15 @@ test("doctor: an installed folder made a file gives its line and doctor does not
   assert.equal(readFileSync(d, "utf8"), "x\n");
   rmSync(r, { recursive: true, force: true });
 });
+test("install: a skill folder replaced by a link leaves no key of the record under it and doctor says nothing of it", () => {
+  const r = repo(), d = join(r, ".claude/skills/tdd"), out = join(r, "outside");
+  cli(r, ["install"]); mkdirSync(out); rmSync(d, { recursive: true }); symlinkSync(out, d);
+  assert.equal(cli(r, ["install"]).status, 0);
+  const keys = Object.keys(JSON.parse(readFileSync(join(r, ".xworkflows/installed.json"), "utf8")).files);
+  assert.deepEqual(keys.filter((k) => k.startsWith(".claude/skills/tdd/")), []);
+  assert.doesNotMatch(doctor(r).stdout, /skills\/tdd/);
+  rmSync(r, { recursive: true, force: true });
+});
 test("install: a folder under .xworkflows made a file stops install with one line and leaves it as it is", () => {
   const r = repo(); mkdirSync(join(r, ".xworkflows")); writeFileSync(join(r, ".xworkflows/hooks"), "x\n");
   const o = cli(r, ["install"]), all = o.stdout + o.stderr;

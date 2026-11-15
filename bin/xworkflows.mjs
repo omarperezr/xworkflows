@@ -578,9 +578,10 @@ export function plan(manifest, root, record, ans = {}) {
     if (!notes.includes(n)) notes.push(n);
     return true;
   };
-  // a write dropped for a path in the way keeps its record entry: a second install and uninstall still know the file
-  const dropped = writes.filter((w) => off(w.path));
-  writes = writes.filter((w) => !dropped.includes(w));
+  // a write dropped for a folder in the way keeps its record entry (a link does not): a second install and uninstall still know the file
+  const gone = writes.filter((w) => off(w.path));
+  writes = writes.filter((w) => !gone.includes(w));
+  const dropped = gone.filter((w) => plain(w.path) && way(root, w.path)?.folder);
   for (const w of writes) {
     const cur = read(root, w.path);
     if (cur === null || cur === w.text || w.rename || (w.key && earlierHook(manifest, w.src, cur))) continue;
