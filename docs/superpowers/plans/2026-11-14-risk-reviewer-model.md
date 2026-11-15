@@ -67,6 +67,12 @@ What did not block: the spec's point 5 still said step 4 writes the line from th
 - The skill says: heading 6 names the model that command prints; a correction at `P-H6` goes through the same command with the owner's text; step 4 writes the model heading 6 names as approved, and where it names none, the model the command prints. No other sentence of the skill says which model.
 - Done: `node --test skills/adapt/research.test.mjs skills/day-one.test.mjs skills/method.test.mjs` passes.
 
+### Batch 1, confirmation at `bb00ebc`
+
+No blocking finding stands. The rule is the function `riskModel` of `skills/adapt/research.mjs`, in the order of task F2, and the skill names no case: no two of its sentences give two results. The command was run for 46 cases in temp projects: it never printed an empty line, a tier's name, the mark or two lines, and every failure ended in one line and an exit code. The table test holds 21 rows, and seven changes made to the function on purpose each made a test fail. A re-adapt whose file holds `model: sonnet` gives `sonnet`; a draft saved before the item existed gives the model of `strongest`; a correction at `P-H6` reaches the file.
+
+What did not block, one card each: P-171 (the re-adapt line of step 1 does not send the agent to the command), P-172 (no step for the command's exit 1), P-173 (a BOM, quotes or a comment in the file's `model:` line, and no row with Windows line ends), P-174 (a mark translated into another language), P-175 (a correction that names a tier the table lacks is dropped). The spec's point 9 still decided a case; the commit of this section corrects it.
+
 ## Review Focus
 
 - An interview begun before this change (a draft with its answers) must still end: the new item must not lose an answer or block the approval for ever.
