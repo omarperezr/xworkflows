@@ -121,10 +121,11 @@ test("a child the cut command started is not left running", async () => {
   } finally { repo.cleanup(); }
 });
 
+const hang = `sleep 4242.${process.pid}`; // this run's pid is in the command: another run's sleep is never matched
 test("an interrupted check leaves no project command running", () =>
-  withRepo([{ name: "hang", run: "sleep 4242" }], async (repo) => {
+  withRepo([{ name: "hang", run: hang }], async (repo) => {
     const { spawn, spawnSync } = await import("node:child_process");
-    const alive = () => spawnSync("pgrep", ["-f", "sleep 4242"]).status === 0;
+    const alive = () => spawnSync("pgrep", ["-f", hang]).status === 0;
     const run = new URL("./run.mjs", import.meta.url).pathname;
     const child = spawn(process.execPath, [run, "--only", "project"], { cwd: repo.root, detached: true, stdio: "ignore" });
     try {
@@ -134,7 +135,7 @@ test("an interrupted check leaves no project command running", () =>
       await new Promise((r) => setTimeout(r, 1500));
       assert.equal(alive(), false, "the command is left running after SIGINT");
     } finally {
-      spawnSync("pkill", ["-f", "sleep 4242"]);
+      spawnSync("pkill", ["-f", hang]);
       try { process.kill(-child.pid, "SIGKILL"); } catch {}
     }
   }));
