@@ -185,7 +185,7 @@ test("install wires adapt hooks", () => {
   const r = repo();
   cli(r, ["install"]);
   const h = readJson(r, ".claude/settings.json").hooks;
-  const pre = h.PreToolUse.filter((e) => e.matcher === "Write|Edit|MultiEdit|Workflow|Bash");
+  const pre = h.PreToolUse.filter((e) => e.matcher === "Write|Edit|MultiEdit|Workflow");
   const post = h.PostToolUse.filter((e) => e.matcher === "AskUserQuestion");
   assert.equal(pre.length, 1);
   assert.match(pre[0].hooks[0].command, /run\.mjs" claude adapt-gates$/);
@@ -213,7 +213,8 @@ test("an edited entry of ours is not duplicated", () => {
   assert.equal(readJson(r, ".claude/settings.json").hooks.PreToolUse.length, PRE);
 });
 // a project installed before the matcher changed: the entry and the record both hold the old one
-const OLD_MATCHER = "Write|Edit|MultiEdit|Workflow";
+// P-121: adapt-gates reads no shell command since cleanup-b-4, so Bash left its matcher, and the entry with it is an earlier text
+const OLD_MATCHER = "Write|Edit|MultiEdit|Workflow|Bash", CURRENT = "Write|Edit|MultiEdit|Workflow";
 function installedOld(r, onDisk = OLD_MATCHER) {
   cli(r, ["install"]);
   const adapt = (e) => e.hooks?.[0]?.command?.endsWith(" claude adapt-gates");
@@ -233,9 +234,10 @@ test("an entry of ours with the old matcher, as the record holds it, is replaced
   cli(r, ["install"]);
   const pre = readJson(r, ".claude/settings.json").hooks.PreToolUse;
   assert.equal(pre.length, PRE);
-  assert.equal(pre.find(adapt).matcher, "Write|Edit|MultiEdit|Workflow|Bash");
+  assert.equal(pre.find(adapt).matcher, CURRENT);
+  assert.equal(pre.filter((e) => e.matcher === OLD_MATCHER).length, 0);
   const rec = readJson(r, ".xworkflows/installed.json").merged.filter((m) => adapt(m.entry));
-  assert.deepEqual(rec.map((m) => m.entry.matcher), ["Write|Edit|MultiEdit|Workflow|Bash"]);
+  assert.deepEqual(rec.map((m) => m.entry.matcher), [CURRENT]);
 });
 const KEPT_EDIT = /kept: \.claude\/settings\.json hook adapt-gates differs from every text the package published; to get the package's entry, delete it and run xworkflows install\n/;
 test("an entry of ours edited by hand is kept and install says so", () => {
@@ -285,7 +287,7 @@ for (const [name, setup, before, edited] of STATES) {
     assert.equal(matcherOf(r), before);
     const first = cli(r, ["install"]).stdout;
     assert.equal(KEPT_EDIT.test(first), edited, first);
-    assert.equal(matcherOf(r), edited ? "Write" : "Write|Edit|MultiEdit|Workflow|Bash");
+    assert.equal(matcherOf(r), edited ? "Write" : CURRENT);
     const files = [".claude/settings.json", ".xworkflows/installed.json"].map((f) => existsSync(join(r, f)) ? readFileSync(join(r, f), "utf8") : null);
     assert.equal(KEPT_EDIT.test(cli(r, ["install"]).stdout), edited);
     assert.deepEqual([".claude/settings.json", ".xworkflows/installed.json"].map((f) => existsSync(join(r, f)) ? readFileSync(join(r, f), "utf8") : null), files);
@@ -311,7 +313,7 @@ test("a hook entry holding an old text is replaced when the record is lost, and 
   installedOld(r);
   rmSync(join(r, ".xworkflows/installed.json"));
   cli(r, ["install"]);
-  assert.deepEqual(readJson(r, ".xworkflows/installed.json").merged.filter((m) => adaptOf(m.entry)).map((m) => m.entry.matcher), ["Write|Edit|MultiEdit|Workflow|Bash"]);
+  assert.deepEqual(readJson(r, ".xworkflows/installed.json").merged.filter((m) => adaptOf(m.entry)).map((m) => m.entry.matcher), [CURRENT]);
 });
 test("broken settings.json: exit 1, tree unchanged", () => {
   const r = repo({ ".claude/settings.json": "{oops" });
