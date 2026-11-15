@@ -58,15 +58,18 @@ test("a memory file with an accented name and a space is indexed", withRepo(asyn
   assert.equal((await repo.run(mod)).ok, false);
 }));
 
-test("a wrong-shaped memory.dir cannot run", async () => {
-  await withRepo(async (repo) => {
-    const r = await repo.run(mod);
-    assert.equal(r.ok, false);
-    assert.equal(r.cannotRun, true);
-  }, { memory: { dir: ["docs/memory"] } })();
-});
-
 const stale = { "docs/memory/a.md": A, "docs/memory/MEMORY.md": "" };
+for (const dir of [["docs/memory"], 5, null, { a: 1 }]) {
+  test(`a memory.dir that is not a text, ${JSON.stringify(dir)}, is the default folder`, async () => {
+    await withRepo(async (repo) => {
+      repo.commit("mem", { files: stale });
+      const r = await repo.run(mod);
+      assert.equal(r.cannotRun, undefined);
+      assert.equal(r.ok, false);
+      assert.match(r.lines[0], /^docs\/memory\/MEMORY\.md differs/);
+    }, { memory: { dir } })();
+  });
+}
 for (const dir of ["docs//memory", "./docs/memory", "docs/memory//"]) {
   test(`memory.dir ${dir} is normalised and a stale index fails`, async () => {
     await withRepo(async (repo) => {
@@ -75,13 +78,14 @@ for (const dir of ["docs//memory", "./docs/memory", "docs/memory//"]) {
     }, { memory: { dir } })();
   });
 }
-for (const dir of ["/docs/memory", "../memory", ".", "./"]) {
-  test(`memory.dir ${dir} cannot run`, async () => {
+for (const dir of ["/docs/memory", "../memory", ".", "./", "", " "]) {
+  test(`memory.dir ${JSON.stringify(dir)} cannot run and names the key`, async () => {
     await withRepo(async (repo) => {
       repo.commit("mem", { files: stale });
       const r = await repo.run(mod);
       assert.equal(r.ok, false);
       assert.equal(r.cannotRun, true);
+      assert.deepEqual(r.lines, [`memory.dir ${JSON.stringify(dir)} must be a folder inside the repository`]);
     }, { memory: { dir } })();
   });
 }

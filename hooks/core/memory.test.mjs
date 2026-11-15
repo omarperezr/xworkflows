@@ -18,7 +18,7 @@ const base = { owner: "Ana", memory: { dir: "docs/memory" }, paths: {}, lookup: 
 const turn = (n) => JSON.stringify({ type: "user", message: { content: `message-${n}` } });
 const transcript = [1, 2, 3, 4, 5].map(turn).join("\n") + "\n";
 
-function fake({ files = {}, config = base, git = null, mtimes = {}, qmd = { code: 0, out: "x".repeat(9000) } } = {}) {
+function fake({ files = {}, config = base, git = null, mtimes = {}, qmd = { code: 0, out: "x".repeat(9000) }, outside = () => null } = {}) {
   const calls = { bg: [], exec: [], written: {} };
   const ctx = {
     config,
@@ -27,6 +27,7 @@ function fake({ files = {}, config = base, git = null, mtimes = {}, qmd = { code
     mtime: (p) => mtimes[p] ?? null,
     realPath: (p) => "/r/" + p,
     listDir: (p) => Object.keys(files).filter((f) => f.startsWith(p + "/")).map((f) => f.slice(p.length + 1)),
+    outsideLine: outside,
     writeFile: (p, t) => { calls.written[p] = t; },
     now: () => NOW,
     git: (...a) => (a[0] === "log" ? git : null),
@@ -343,6 +344,22 @@ test("a refused memory.dir is not the memory folder at a note's write: a feedbac
   }
 });
 
+test("the link test is ctx's: a folder it refuses is named at session start, and a note about the owner written into it is still denied", () => {
+  const { ctx } = fake({ files: MEM, outside: (file) => `${file} is written outside the repository` });
+  assert.equal(decide(ev("sessionStart", { source: "startup" }), ctx).context, "docs/memory/MEMORY.md is written outside the repository");
+  assert.equal(decide(write("/r/docs/memory/n.md", note("user")), ctx).decision, "deny");
+  assert.equal(decide(write("/r/src/guide.md", note("feedback")), ctx).decision, "allow");
+});
+
+test("a memory folder linked out of the repository and not listed: a note about the owner written into it is denied", () => {
+  const root = mkdtempSync(join(tmpdir(), "xwf-mem-")), away = realpathSync(mkdtempSync(join(tmpdir(), "xwf-mem-")));
+  mkdirSync(join(root, "docs"));
+  symlinkSync(away, join(root, "docs", "memory"));
+  const ctx = makeCtx({ root, session: "s" }, { env: { XWORKFLOWS_DRY: "1" }, config: { ...DEFAULTS, memory: { dir: "docs/memory", outside: [] } }, stateDir: root });
+  assert.equal(decide({ ...write(join(root, "docs", "memory", "n.md"), note("feedback")), root }, ctx).decision, "deny");
+  assert.equal(decide({ ...write(join(root, "docs", "memory", "n.md"), note("project")), root }, ctx).decision, "allow");
+});
+
 test("through the real runner: a config whose memory section is not an object is judged by the default memory folder: the feedback note is denied, and the warning names the section", () => {
   const root = mkdtempSync(join(tmpdir(), "xwf-mem-"));
   const state = mkdtempSync(join(tmpdir(), "xwf-state-"));
@@ -432,9 +449,30 @@ test("dream suggestion: by days it needs at least one session newer than the las
   assert.match(due({ ran: ago(1), sessions: newer(10) }), /10 sessions/);
 });
 
+// a threshold that is not a whole number above zero is its default: 7 days, 10 sessions
+for (const [kind, bad] of [["zero", 0], ["a negative number", -3], ["a fraction", 2.5], ["a text", "3"], ["an empty text", ""], ["null", null], ["false", false], ["an object", { n: 3 }]]) {
+  test(`dream suggestion: suggestAfterDays as ${kind} is 7`, () => {
+    const config = { ...base, dream: { suggestAfterDays: bad } };
+    assert.equal(due({ config, ran: ago(6), sessions: newer(1) }), null);
+    assert.match(due({ config, ran: ago(7), sessions: newer(1) }), /7 days/);
+  });
+  test(`dream suggestion: suggestAfterSessions as ${kind} is 10`, () => {
+    const config = { ...base, dream: { suggestAfterSessions: bad } };
+    assert.equal(due({ config, ran: ago(1), sessions: newer(9) }), null);
+    assert.match(due({ config, ran: ago(1), sessions: newer(10) }), /10 sessions/);
+  });
+}
+// only false turns the line off; any other value is the default, true
+for (const [kind, bad] of [["zero", 0], ["a text", "false"], ["an empty text", ""], ["null", null], ["an object", {}]]) {
+  test(`dream suggestion: suggest as ${kind} is true`, () => {
+    assert.match(due({ config: { ...base, dream: { suggest: bad } }, ran: ago(30), sessions: newer(20) }), /suggest \/dream/i);
+  });
+}
+
 // a memory folder that is a link: dream refuses to run there, so the hook gives no line there
-function linkedProject(target, { outside = false, inside = false } = {}) {
-  const root = realpathSync(mkdtempSync(join(tmpdir(), "xwf-link-")));
+function linkedProject(target, { outside = false, inside = false, via = false } = {}) {
+  let root = realpathSync(mkdtempSync(join(tmpdir(), "xwf-link-")));
+  if (via) { mkdirSync(join(root, "real")); symlinkSync(join(root, "real"), join(root, "via")); root = join(root, "via"); } // the root as given passes through a link
   const dest = inside ? join(root, "elsewhere") : realpathSync(mkdtempSync(join(tmpdir(), "xwf-dest-")));
   mkdirSync(join(root, "docs"), { recursive: true });
   mkdirSync(dest, { recursive: true });
@@ -450,6 +488,9 @@ function linkedProject(target, { outside = false, inside = false } = {}) {
 }
 test("dream suggestion: a real memory folder gives the line", () => {
   assert.match(linkedProject("folder").context, /Dream is due/);
+});
+test("dream suggestion: a repository reached through a link, as the temp folder of macOS, still gives the line", () => {
+  assert.match(linkedProject("folder", { via: true }).context, /Dream is due/);
 });
 test("dream suggestion: a memory folder that is a link to a folder inside the repository gives no line", () => {
   assert.equal(linkedProject("memory", { inside: true }).context, null);
