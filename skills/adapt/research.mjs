@@ -116,6 +116,20 @@ export function missing(queue, log, run, approved = false) {
   return out;
 }
 
+// The model of the risk reviewer, the first that applies: `given` (a correction at P-H6); the `answer` of H6-model of this run;
+// on a re-adapt (`readapt`), the `model:` line of the front matter of the existing reviewer `file`; the model of `strongest`; of `top`.
+// `tiers` is the `claude` table; a tier's name stands for its model; the mark, the open labels and an empty text name none. null: none at all.
+export function riskModel({ tiers, answer = null, readapt = false, file = null, given = null }) {
+  const t = tiers || {};
+  const named = (x) => {
+    const m = collapse(x ?? "").replace(/\s*\(Recommended\)$/, "");
+    if (!m || OPEN.includes(m)) return null;
+    return ["cheap", "medium", "top", "strongest"].includes(m.toLowerCase()) ? t[m.toLowerCase()] || null : m;
+  };
+  const front = readapt && file ? (String(file).match(/^---\r?\n([\s\S]*?)\r?\n---/) || [])[1] : null;
+  return named(given) ?? named(answer) ?? named((front?.match(/^model:(.*)$/m) || [])[1]) ?? (t.strongest || t.top || null);
+}
+
 const git = (root, args) => execFileSync("git", args, { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
 const readJson = (p) => JSON.parse(readFileSync(p, "utf8"));
 // Same match as the adapt-gates hook: quotes and any case accepted.
@@ -243,10 +257,10 @@ function cli(cmd, root) {
     for (const [f] of out) if (isLink(join(dir, f))) refuse(join(dir, f)); // refuse before writing any
     for (const [f, text] of out) put(join(dir, f), text);
     console.log(`screen 1: ${s.drawer1.length} sentence(s), ${s.drawer1LeftOut.length} left out; screen 2: ${s.drawer2.length} question(s), ${s.drawer2LeftOut.length} left out; dropped: ${s.dropped.length}`);
-  } else if (cmd === "queue" || cmd === "check") {
+  } else if (cmd === "queue" || cmd === "check" || cmd === "model") {
     const need = (f) => { try { return readJson(join(dir, f)); } catch { console.error(`adapt: ${f} is missing or unreadable`); process.exit(1); } };
+    const opt = (f) => { try { return readJson(join(dir, f)); } catch { return null; } };
     if (cmd === "queue") {
-      const opt = (f) => { try { return readJson(join(dir, f)); } catch { return null; } };
       const prevRun = opt("research.prev.json"), cfg = opt("config.json") || {};
       const q = buildQueue(need("screens.json"), need("research.json"), need("scan.json"), prevRun, cfg, prevRun && earlier(root, dir, cfg), opt("tiers.json")?.claude);
       put(join(dir, "interview.json"), JSON.stringify(q, null, 2) + "\n");
@@ -256,11 +270,21 @@ function cli(cmd, root) {
       const log = [];
       // a truncated line (killed mid-write) is skipped
       if (existsSync(logFile)) for (const l of readFileSync(logFile, "utf8").split("\n")) try { log.push(JSON.parse(l)); } catch {}
-      const ids = missing(need("interview.json"), log, run, process.argv.includes("--approved"));
-      if (ids.length) { console.log(ids.join("\n")); process.exit(1); }
+      if (cmd === "check") {
+        const ids = missing(need("interview.json"), log, run, process.argv.includes("--approved"));
+        if (ids.length) { console.log(ids.join("\n")); process.exit(1); }
+      } else {
+        // the last answer of this run, as check counts it; a re-adapt is the run queue leaves the kept items out of
+        const answer = log.filter((l) => l.run === run && l.id === "H6-model" && l.answer !== undefined && l.answer !== "").pop()?.answer;
+        let file = null;
+        try { file = readFileSync(join(root, ".claude", "agents", "risk-review.md"), "utf8"); } catch {}
+        const m = riskModel({ tiers: opt("tiers.json")?.claude, answer, readapt: !!opt("research.prev.json"), file, given: process.argv[3] });
+        if (!m) { console.error("adapt: no model for the risk reviewer: .xworkflows/tiers.json has neither strongest nor top under claude"); process.exit(1); }
+        console.log(m);
+      }
     }
   } else {
-    console.error("usage: research.mjs start|done|render|queue|check [--approved]");
+    console.error("usage: research.mjs start|done|render|queue|check [--approved]|model [<text>]");
     process.exit(2);
   }
 }
