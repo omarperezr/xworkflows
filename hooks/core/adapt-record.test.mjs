@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync as makeTmp, mkdirSync, writeFileSync, readFileSync, existsSync, symlinkSync, renameSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { tmpdir } from "../../test-tmp.mjs";
 import { join } from "node:path";
 import { decide } from "./adapt-record.mjs";
 import { normalize } from "../adapters/claude.mjs";

@@ -1,7 +1,7 @@
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync, mkdtempSync, writeFileSync, cpSync, mkdirSync, existsSync, unlinkSync, rmSync, renameSync, symlinkSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { tmpdir } from "../test-tmp.mjs";
 import { join } from "node:path";
 import { grade, stats, kindsFound, noMoneyCheck, recommendedReport } from "./grade.mjs";
 import { spawnSync, execFileSync } from "node:child_process";

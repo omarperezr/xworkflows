@@ -1,6 +1,6 @@
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync, realpathSync } from "node:fs";
 import { execFileSync } from "node:child_process";
-import { tmpdir } from "node:os";
+import { tmpdir } from "../../test-tmp.mjs";
 import { dirname, join } from "node:path";
 import { load } from "../../hooks/core/config.mjs";
 import { makeCtx, rangeFor } from "../../checks/run.mjs";

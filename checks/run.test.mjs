@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync as makeTmp, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { tmpdir } from "../test-tmp.mjs";
 import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { main, PACKS, TABLE } from "./run.mjs";

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { makeRepo } from "../test/helpers/repo.mjs";
 import * as brake from "./ratchet.mjs";
 import { mkdtempSync, rmSync, existsSync, readFileSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { tmpdir } from "../test-tmp.mjs";
 import { join } from "node:path";
 
 const BASE = ".xworkflows/ratchets.json";
