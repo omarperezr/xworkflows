@@ -185,7 +185,7 @@ test("install wires adapt hooks", () => {
   const r = repo();
   cli(r, ["install"]);
   const h = readJson(r, ".claude/settings.json").hooks;
-  const pre = h.PreToolUse.filter((e) => e.matcher === "Write|Edit|MultiEdit|Workflow|Bash");
+  const pre = h.PreToolUse.filter((e) => e.matcher === "Write|Edit|MultiEdit|Workflow");
   const post = h.PostToolUse.filter((e) => e.matcher === "AskUserQuestion");
   assert.equal(pre.length, 1);
   assert.match(pre[0].hooks[0].command, /run\.mjs" claude adapt-gates$/);
@@ -213,7 +213,8 @@ test("an edited entry of ours is not duplicated", () => {
   assert.equal(readJson(r, ".claude/settings.json").hooks.PreToolUse.length, PRE);
 });
 // a project installed before the matcher changed: the entry and the record both hold the old one
-const OLD_MATCHER = "Write|Edit|MultiEdit|Workflow";
+// P-121: adapt-gates reads no shell command since cleanup-b-4, so Bash left its matcher, and the entry with it is an earlier text
+const OLD_MATCHER = "Write|Edit|MultiEdit|Workflow|Bash", CURRENT = "Write|Edit|MultiEdit|Workflow";
 function installedOld(r, onDisk = OLD_MATCHER) {
   cli(r, ["install"]);
   const adapt = (e) => e.hooks?.[0]?.command?.endsWith(" claude adapt-gates");
@@ -233,9 +234,10 @@ test("an entry of ours with the old matcher, as the record holds it, is replaced
   cli(r, ["install"]);
   const pre = readJson(r, ".claude/settings.json").hooks.PreToolUse;
   assert.equal(pre.length, PRE);
-  assert.equal(pre.find(adapt).matcher, "Write|Edit|MultiEdit|Workflow|Bash");
+  assert.equal(pre.find(adapt).matcher, CURRENT);
+  assert.equal(pre.filter((e) => e.matcher === OLD_MATCHER).length, 0);
   const rec = readJson(r, ".xworkflows/installed.json").merged.filter((m) => adapt(m.entry));
-  assert.deepEqual(rec.map((m) => m.entry.matcher), ["Write|Edit|MultiEdit|Workflow|Bash"]);
+  assert.deepEqual(rec.map((m) => m.entry.matcher), [CURRENT]);
 });
 const KEPT_EDIT = /kept: \.claude\/settings\.json hook adapt-gates differs from every text the package published; to get the package's entry, delete it and run xworkflows install\n/;
 test("an entry of ours edited by hand is kept and install says so", () => {
@@ -285,7 +287,7 @@ for (const [name, setup, before, edited] of STATES) {
     assert.equal(matcherOf(r), before);
     const first = cli(r, ["install"]).stdout;
     assert.equal(KEPT_EDIT.test(first), edited, first);
-    assert.equal(matcherOf(r), edited ? "Write" : "Write|Edit|MultiEdit|Workflow|Bash");
+    assert.equal(matcherOf(r), edited ? "Write" : CURRENT);
     const files = [".claude/settings.json", ".xworkflows/installed.json"].map((f) => existsSync(join(r, f)) ? readFileSync(join(r, f), "utf8") : null);
     assert.equal(KEPT_EDIT.test(cli(r, ["install"]).stdout), edited);
     assert.deepEqual([".claude/settings.json", ".xworkflows/installed.json"].map((f) => existsSync(join(r, f)) ? readFileSync(join(r, f), "utf8") : null), files);
@@ -311,7 +313,7 @@ test("a hook entry holding an old text is replaced when the record is lost, and 
   installedOld(r);
   rmSync(join(r, ".xworkflows/installed.json"));
   cli(r, ["install"]);
-  assert.deepEqual(readJson(r, ".xworkflows/installed.json").merged.filter((m) => adaptOf(m.entry)).map((m) => m.entry.matcher), ["Write|Edit|MultiEdit|Workflow|Bash"]);
+  assert.deepEqual(readJson(r, ".xworkflows/installed.json").merged.filter((m) => adaptOf(m.entry)).map((m) => m.entry.matcher), [CURRENT]);
 });
 test("broken settings.json: exit 1, tree unchanged", () => {
   const r = repo({ ".claude/settings.json": "{oops" });
@@ -488,6 +490,17 @@ test("doctor passes on a fresh install, in a path with a space, inside a Claude 
   assert.match(out.stdout, /always-loaded: \d+ bytes of 24000/);
   assert.match(out.stdout, /Claude Code: tested/);
 });
+test("doctor goes on when a recorded file cannot be read for a reason other than a missing path", { skip: process.getuid?.() === 0 && "root reads a file of mode 000" }, () => {
+  const r = repo(); cli(r, ["install", "--yes"]);
+  const dir = join(r, ".claude/skills/tdd");
+  chmodSync(dir, 0o000);
+  let out;
+  try { out = doctor(r); } finally { chmodSync(dir, 0o755); }
+  assert.doesNotMatch(out.stdout, /doctor stopped/);
+  assert.match(out.stdout, /missing or unreadable: \.claude\/skills\/tdd\/SKILL\.md: delete .*, then /);
+  assert.match(out.stdout, /installed\.json parses/);
+});
+
 test("doctor warns on a local change and still exits 0", () => {
   const r = repo(); cli(r, ["install"]);
   appendFileSync(join(r, ".claude/agents/explore.md"), "x\n");
@@ -1870,6 +1883,9 @@ test("end of input at a question of install is an empty answer, the first label,
   assert.match(out.stdout, /Add the xworkflows line to/);
   assert.doesNotMatch(out.stdout, /AbortError|Error:|\n\s+at /);
   assert.match(out.stdout, /left as it is; to run the check, add this line to it as its first command/);
+  // P-162: a question after the end of input is never shown, so it is listed; the first note is on a line of its own
+  assert.match(out.stdout, /^answered for you: Add @AGENTS\.md to CLAUDE\.md\? -> no\r?$/m);
+  assert.match(out.stdout, /^\.git\/hooks\/pre-push left as it is/m);
   assert.match(out.stdout, /Next: open Claude Code/);
   assert.equal(readFileSync(join(r, ".git/hooks/pre-push"), "utf8"), OLD);
   assert.equal(readFileSync(join(r, "CLAUDE.md"), "utf8"), "# x\n");
@@ -2357,6 +2373,7 @@ const DOCTOR_LINES = [
   ["old node", (r) => cli(r, ["install"]), () => ({ NODE_OPTIONS: `--require ${old22()}` }), "fail node 20.1.0: install Node 22 or newer"],
   ["git does not answer", (r) => cli(r, ["install"]), () => ({ PATH: noGitVersion() }), "fail git does not answer: install git and put it on PATH"],
   ["file missing", (r) => { cli(r, ["install"]); rmSync(join(r, ".xworkflows/hooks/run.mjs")); }, {}, `fail missing or unreadable: .xworkflows/hooks/run.mjs: ${FIX}`],
+  ["file made a link with no target", (r) => { cli(r, ["install"]); rmSync(join(r, ".xworkflows/hooks/run.mjs")); symlinkSync("nowhere", join(r, ".xworkflows/hooks/run.mjs")); }, {}, `fail missing or unreadable: .xworkflows/hooks/run.mjs: delete .xworkflows/hooks/run.mjs, then ${FIX}`],
   ["file changed", (r) => { cli(r, ["install"]); appendFileSync(join(r, ".claude/agents/explore.md"), "x\n"); }, {}, "warn changed locally: .claude/agents/explore.md; to put the package's copy back, delete it, then run xworkflows install (install keeps a changed file)"],
   ["file kept", (r) => cli(r, ["install"]), {}, null, { ".claude/agents/explore.md": "mine\n" }],
   ["merged entry changed", (r) => { cli(r, ["install"]); settingsEdit(r, (s) => { for (const e of s.hooks.PreToolUse) for (const h of e.hooks) h.timeout = 99; }); }, {}, "warn .claude/settings.json hooks.PreToolUse hook adapt-gates differs from every text the package published; to get the package's entry, delete it and run xworkflows install"],
@@ -2428,20 +2445,30 @@ test("doctor: a declined hook that cannot take the line is told how install asks
 const LEFTHOOK = "#!/bin/sh\n# generated by lefthook\ncat >/dev/null\n";
 const hookAt = (r, body) => { const h = join(r, ".git/hooks/pre-push"); mkdirSync(dirname(h), { recursive: true }); writeFileSync(h, body); chmodSync(h, 0o755); };
 const yes = (r) => assert.equal(cli(r, ["install", "--yes"]).status, 0);
-// `hand`: of the two steps a declined hook's line offers, the row does the hand edit
-function doLine(r, line, hand) {
+// `how`: "by hand", of the two steps a declined hook's line offers, the row does the hand edit; "own folder", of the two a hooks
+// folder outside the repository offers, the second
+function doLine(r, line, how) {
   let m;
-  if (hand) line = line.replace(/: .*?; or (add this line)/, ": $1");
+  if (how === "by hand") line = line.replace(/: .*?; or (add this line)/, ": $1");
+  if (how === "own folder") {
+    m = line.match(/; or point this repository at its own hooks folder, .*: run: (git config core\.hooksPath .+); then run xworkflows install$/);
+    assert.ok(m, line);
+    assert.equal(spawnSync("sh", ["-c", m[1]], { cwd: r, env: isoEnv() }).status, 0);
+    return assert.equal(cli(r, ["install"]).status, 0);
+  }
   // the sentence for a hooks folder outside the repository offers this edit first, and may ask to take an earlier line out
   if ((m = line.match(/(?::|either) add this line to (\S+) as its first command(, in place of [^:]*)?: (.+ # xworkflows)(?: ;|$)/))) {
     let t = existsSync(m[1]) ? readFileSync(m[1], "utf8") : "";
     if (m[2]) t = t.split("\n").filter((l) => l !== GUARDED_OLD).join("\n");
     // a read-only file is made writable first, as a user does to edit it
     if (existsSync(m[1])) chmodSync(m[1], statSync(m[1]).mode | 0o200);
-    return writeFileSync(m[1], t.startsWith("#!") ? t.replace("\n", `\n${m[3]}\n`) : `${m[3]}\n${t}`);
+    writeFileSync(m[1], t.startsWith("#!") ? t.replace("\n", `\n${m[3]}\n`) : `${m[3]}\n${t}`);
+    // the step of a sentence that names install after the edit
+    if (line.includes(" # xworkflows ; then run xworkflows install")) assert.equal(cli(r, ["install"]).status, 0);
+    return;
   }
   if ((m = line.match(/: delete (\S+), then run xworkflows install$/))) {
-    rmSync(join(r, m[1]));
+    rmSync(join(r, m[1]), { recursive: true });
     return assert.equal(cli(r, ["install"]).status, 0);
   }
   const undecline = (f) => withRecord(r, (x) => { x.declined = x.declined.filter((d) => d.file !== f); });
@@ -2515,6 +2542,7 @@ const HOOK_STATES = [
   ["an old pair whose hook can take the line", at((r) => { hookAt(r, OLD); oldInstall(r); })],
   ["an old pair whose hook cannot take the line", at((r) => { hookAt(r, NODE_HOOK); oldInstall(r); })],
   ["a user's hook holding the line", at((r) => { hookAt(r, OLD); yes(r); })],
+  ["a user's hook holding the line, not executable", at((r) => { hookAt(r, OLD); yes(r); chmodSync(join(r, ".git/hooks/pre-push"), 0o644); })],
   ["a user's hook holding the line, its file under .xworkflows/git missing", at((r) => { hookAt(r, OLD); yes(r); rmSync(join(r, ".xworkflows/git/pre-push")); })],
   ["a user's hook without the line, put there after install", at((r) => { cli(r, ["install"]); hookAt(r, "#!/bin/sh\nexit 0\n"); })],
   ["a user's hook whose line was declined", at((r) => { hookAt(r, OLD); cli(r, ["install"]); })],
@@ -2529,8 +2557,18 @@ const HOOK_STATES = [
   ["husky's file holding the line", () => { const x = husky({ "pre-push": "echo mine\n" }); yes(x.r); return x; }],
   ["husky's file without the line", () => { const x = husky({ "pre-push": "echo mine\n" }); yes(x.r); writeFileSync(join(x.r, ".husky/pre-push"), "echo mine\n"); return x; }],
   ["husky's file a link to a script holding the line", () => { const x = husky({ "pre-push": "echo mine\n" }); yes(x.r); toScript(x.r, ".husky/pre-push", "../scripts/pre-push.sh"); return x; }, "ok"],
+  ["husky's file a link to a script without the line", () => { const x = husky({ "pre-push": "echo mine\n" }); yes(x.r); writeFileSync(join(x.r, ".husky/pre-push"), "echo mine\n"); toScript(x.r, ".husky/pre-push", "../scripts/pre-push.sh"); return x; }],
   ["of a hooks folder outside the repository, shared with a project without xworkflows", shared(false), undefined, sharedAfter],
   ["of a hooks folder outside the repository, holding the line an earlier version gave", shared(true), undefined, sharedAfter],
+  ["of a hooks folder outside the repository, holding the line, not executable", () => { const x = shared(false)(); doLine(x.r, lineOf(doctor(x.r), /^fail +pre-push hook/)); chmodSync(join(x.g, "pre-push"), 0o644); return x; }, undefined, sharedAfter],
+  ["of a hooks folder outside the repository, left for a hooks folder of its own", shared(false), "own folder"],
+  // P-158: that version wrote no file under .xworkflows/git, so the new line refuses every push until install of this version runs
+  ["of a hooks folder outside the repository, holding the line an earlier version gave, in a project that version installed", () => {
+    const x = shared(true)();
+    rmSync(join(x.r, ".xworkflows/git"), { recursive: true });
+    withRecord(x.r, (rec) => { for (const n of ["pre-push", "post-merge", "post-commit"]) delete rec.files[`.xworkflows/git/${n}`]; });
+    return x;
+  }, undefined, sharedAfter],
 ];
 const ofHook = (out) => out.stdout.split("\n").filter((l) => /^(ok|warn|fail) .*(pre-push hook|hooks\/pre-push)/.test(l));
 // a row's third value: "ok", the line is there already and doctor says so at once; "by hand", the row does the hand edit its line offers;
@@ -2542,13 +2580,15 @@ for (const [name, make, how, after] of HOOK_STATES) test(`doctor, pre-push ${nam
   assert.equal(spawnSync("git", ["push", "-q", "--no-verify", "origin", "main"], { cwd: r, env: isoEnv() }).status, 0);
   const first = doctor(r), line = lineOf(first, /^(ok|warn|fail) +pre-push hook/);
   assert.ok(line, first.stdout);
+  // P-167: the file under .xworkflows/git the hook runs is not ok on its own line while the hook's line says it is not the package's
+  if (line.includes("which no longer holds the package's text")) assert.doesNotMatch(first.stdout, /^ok +\.xworkflows\/git\/pre-push$/m);
   if (how === "ok") {
     assert.match(line, /^ok /, first.stdout);
     // a second install leaves the hook that holds the line as it is
     yes(r);
     assert.equal(lineOf(doctor(r), /^(ok|warn|fail) +pre-push hook/), line);
   }
-  if (!line.startsWith("ok")) doLine(r, line, how === "by hand");
+  if (!line.startsWith("ok")) doLine(r, line, how);
   const then = doctor(r);
   assert.match(lineOf(then, /^(ok|warn|fail) +pre-push hook/) ?? "", /^ok /, `${line}\n${then.stdout}`);
   assert.deepEqual(ofHook(then).filter((l) => l.startsWith("fail")), [], line);
@@ -2563,7 +2603,7 @@ for (const [name, make, how, after] of HOOK_STATES) test(`doctor, pre-push ${nam
 const readOnly = [
   ["added by hand, as doctor's line says, to a hook install could not write", (r, hook) => {
     hookAt(r, "#!/bin/sh\nexit 0\n"); chmodSync(hook, 0o555); yes(r);
-    doLine(r, lineOf(doctor(r), /^fail +pre-push hook/), true);
+    doLine(r, lineOf(doctor(r), /^fail +pre-push hook/), "by hand");
     // the config the test's doctor() wrote is the user's, which uninstall keeps
     rmSync(join(r, ".xworkflows/config.json"));
     chmodSync(hook, 0o555);
@@ -2583,6 +2623,57 @@ for (const [how, make] of readOnly) test(`uninstall, the line of pre-push ${how}
   assert.match(out.stdout, /\nuninstalled\n$/);
   assert.deepEqual(readdirSync(r), [".git"]);
   assert.deepEqual(readFileSync(hook), bytes);
+});
+
+// P-164: install cannot write over a folder or a file it cannot read, so each line for one says to delete it first
+test("doctor: a file of the record made a folder gets lines that say to delete it, then install", () => {
+  const r = repo(); cli(r, ["install"]);
+  const f = join(r, ".xworkflows/git/pre-push"); rmSync(f); mkdirSync(f);
+  const out = doctor(r);
+  const lines = out.stdout.split("\n").filter((l) => l.startsWith("fail") && l.includes(".xworkflows/git/pre-push"));
+  assert.ok(lines.length, out.stdout);
+  for (const l of lines) assert.match(l, /: delete \.xworkflows\/git\/pre-push, then run xworkflows install$/, l);
+  doLine(r, lines[0]);
+  assert.equal(doctor(r).status, 0);
+});
+// P-161: uninstall writes through no link, so a line behind one stays: install's line is named, and the sentence that offers one says it
+test("uninstall: install's line in a hook that is a link now stays, and one line names it", () => {
+  const { r } = withRemote(); hookAt(r, OLD); yes(r);
+  toScript(r, ".git/hooks/pre-push", "../../scripts/pre-push.sh");
+  const out = cli(r, ["uninstall"]);
+  assert.equal(out.status, 0, out.stderr);
+  assert.match(out.stdout, /^not written \(symlink\): \.git\/hooks\/pre-push: the xworkflows line stays in it; take it out yourself$/m);
+  assert.match(readFileSync(join(r, "scripts/pre-push.sh"), "utf8"), / # xworkflows$/m);
+});
+test("doctor: the line it offers for husky's file that is a link is the user's to take out after uninstall", () => {
+  const { r } = husky({ "pre-push": "echo mine\n" }); yes(r);
+  writeFileSync(join(r, ".husky/pre-push"), "echo mine\n");
+  toScript(r, ".husky/pre-push", "../scripts/pre-push.sh");
+  assert.match(lineOf(doctor(r), /^fail +pre-push hook/) ?? "", /: if \[ -f .+ # xworkflows ; it is a link, which uninstall does not write through: the line is yours to take out after uninstall$/);
+});
+
+// P-168, P-169: a file uninstall cannot read or write is named in one line, and the rest of uninstall is done
+const noStack = (out) => { assert.equal(out.status, 0, out.stderr); assert.doesNotMatch(out.stdout + out.stderr, /Error|\n\s+at /); assert.match(out.stdout, /\nuninstalled\n$/); };
+test("uninstall: a recorded line in a read-only CLAUDE.md, and a hook holding the line it cannot read, are named in one line each", { skip: ROOT_WRITES }, () => {
+  const { r } = withRemote(); hookAt(r, OLD); yes(r);
+  const hook = join(r, ".git/hooks/pre-push");
+  chmodSync(join(r, "CLAUDE.md"), 0o444); chmodSync(hook, 0o000);
+  const out = cli(r, ["uninstall"]);
+  chmodSync(hook, 0o755);
+  noStack(out);
+  assert.match(out.stdout, /^not written \(EACCES\): CLAUDE\.md: the line @AGENTS\.md stays in it; take it out yourself$/m);
+  assert.match(out.stdout, /^not written \(EACCES\): \.git\/hooks\/pre-push: the xworkflows line stays in it; take it out yourself$/m);
+  assert.ok(!existsSync(join(r, ".xworkflows")));
+});
+test("uninstall: install's own hooks in a hooks folder it cannot write stay, one line names each, and uninstall goes on", { skip: ROOT_WRITES }, () => {
+  const r = repo(); cli(r, ["install"]);
+  const dir = join(r, ".git/hooks");
+  chmodSync(dir, 0o555);
+  const out = cli(r, ["uninstall"]);
+  chmodSync(dir, 0o755);
+  noStack(out);
+  for (const n of ["pre-push", "post-merge", "post-commit"]) assert.match(out.stdout, new RegExp(`^not deleted \\(EACCES\\): \\.git/hooks/${n}$`, "m"));
+  assert.ok(!existsSync(join(r, ".xworkflows")));
 });
 
 const QMD_V = "qmd 2.8.3 (facd35e)";
@@ -3320,15 +3411,11 @@ test("doctor: a pre-push hook it cannot read gives a fail line and doctor ends w
   chmodSync(hook, 0o755);
   assert.equal(out.stderr, "");
   assert.equal(out.status, 1);
-  // P-131: the last catch ends with a command, the one that shows where doctor stopped
-  assert.match(out.stdout, /^fail doctor stopped: EACCES.*: run xworkflows doctor --trace to see the stack$/m);
+  assert.match(out.stdout, /^fail doctor stopped: EACCES/m);
   assert.match(out.stdout, ENDS);
-  chmodSync(hook, 0o000);
-  const traced = cli(r, ["doctor", "--trace"], { env: { PATH: GOOD, HOME: EMPTY_HOME } });
-  chmodSync(hook, 0o755);
-  assert.match(traced.stderr, /EACCES[^]*\n +at /, traced.stderr);
-  assert.match(traced.stdout, ENDS);
-  assert.equal(cli(r, ["install", "--trace"]).status, 2);
+  // P-135: no flag prints a stack
+  assert.doesNotMatch(out.stdout, /--trace/);
+  for (const cmd of ["doctor", "install"]) assert.match(cli(r, [cmd, "--trace"]).stderr, /^unknown flag: --trace$/m, cmd);
 });
 // P-131: the loader names the section; doctor's line for the config gives the fix, and the last catch is not reached
 test("doctor: a config section that is not an object, or a config file holding null, gives a line naming the file, the section and the fix, and doctor ends with its count", () => {
@@ -3344,6 +3431,56 @@ test("doctor: a config section that is not an object, or a config file holding n
     assert.doesNotMatch(out.stdout, /doctor stopped/, text);
     assert.match(out.stdout, ENDS, text);
   }
+});
+// P-151: tokens.sessionStartBytes is the budget of all session-start hooks, the line that suggests dream included
+test("doctor: the session-start probe measures the dream line with the text of every session-start hook, and over the budget is a fail", () => {
+  const r = repo(); cli(r, ["install"]);
+  const home = tmp("xwf-home-"); mkdirSync(join(home, ".xworkflows")); writeFileSync(join(home, ".xworkflows/owner.md"), "Replies: short and direct.\n");
+  const bytes = (out) => Number(out.stdout.match(/^\S+ +session-start text: (\d+) bytes/m)?.[1]);
+  const without = bytes(doctor(r, { HOME: home }));
+  writeFileSync(join(r, "docs/memory/a-note.md"), "# a note\n");
+  const due = bytes(doctor(r, { HOME: home }));
+  assert.ok(due > without, `${without} ${due}`);
+  withConfig(r, { tokens: { sessionStartBytes: due - 1 } });
+  assert.match(doctor(r, { HOME: home }).stdout, new RegExp(`^fail session-start text: ${due} bytes of ${due - 1}: `, "m"));
+});
+// P-133: a value one level down whose default is an object stops the checks that read it: doctor names it and does not say 0 fail
+test("doctor: a value one level down in a section that is not an object gives a line naming it and the fix", () => {
+  const r = repo(); cli(r, ["install"]);
+  for (const [c, k] of [[{ lookup: { index: null } }, "lookup.index"], [{ brakes: { fixHasTest: 5 } }, "brakes.fixHasTest"]]) {
+    withConfig(r, c);
+    const out = doctor(r);
+    assert.equal(out.status, 1, out.stdout);
+    assert.ok(out.stdout.split("\n").includes(`fail config: .xworkflows/config.json: ${k} must be an object: make it an object, or take it out of .xworkflows/config.json`), out.stdout);
+  }
+});
+test("doctor: for a config that does not parse, the probe's fail line names the fix of the config", () => {
+  const r = repo(); cli(r, ["install"]);
+  for (const text of ["{", "null"]) {
+    writeFileSync(join(r, ".xworkflows/config.json"), text);
+    const out = doctor(r);
+    assert.ok(out.stdout.split("\n").includes("fail probe: expected deny, got no valid output: fix the JSON of .xworkflows/config.json"), `${text}\n${out.stdout}`);
+    assert.doesNotMatch(out.stdout, /changed locally/, text);
+  }
+});
+test("uninstall: with a section of the config that is not an object, install's autoMemoryDirectory and memory folder still go", () => {
+  const r = repo(); cli(r, ["install"]);
+  writeFileSync(join(r, ".xworkflows/config.json"), '{"tokens":5}\n');
+  const out = cli(r, ["uninstall"]);
+  assert.equal(out.status, 0, out.stderr);
+  assert.doesNotMatch(out.stdout, /kept/);
+  assert.ok(!existsSync(join(r, ".claude/settings.local.json")));
+  assert.ok(!existsSync(join(r, "docs/memory")));
+});
+
+test("uninstall: with docs/memory made a link out of the repository and no memory.dir, autoMemoryDirectory and the file still go", () => {
+  const r = repo(); cli(r, ["install", "--yes"]);
+  rmSync(join(r, "docs/memory"), { recursive: true });
+  symlinkSync(tmp("xwf-out-"), join(r, "docs/memory"));
+  const out = cli(r, ["uninstall"]);
+  assert.equal(out.status, 0, out.stderr);
+  assert.doesNotMatch(out.stdout, /kept \(changed locally\): \.claude\/settings\.local\.json autoMemoryDirectory/);
+  assert.ok(!existsSync(join(r, ".claude/settings.local.json")));
 });
 
 test("install --yes: a retired file is removed under the xwf- name the record holds, and with no record nothing is removed", () => {

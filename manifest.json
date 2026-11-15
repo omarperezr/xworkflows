@@ -65,10 +65,10 @@
       "claude": [
         {
           "event": "PreToolUse",
-          "matcher": "Write|Edit|MultiEdit|Workflow|Bash",
+          "matcher": "Write|Edit|MultiEdit|Workflow",
           "earlier": [
             {
-              "matcher": "Write|Edit|MultiEdit|Workflow"
+              "matcher": "Write|Edit|MultiEdit|Workflow|Bash"
             }
           ]
         }

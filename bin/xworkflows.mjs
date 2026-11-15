@@ -15,7 +15,7 @@ export let ROOT;
 // a config value in a command doctor prints: plain stays as it is, anything else in single quotes
 const sh = (v) => (/^[\w\/.-]+$/.test(v) ? v : `'${v.replaceAll("'", "'\\''")}'`);
 const COMMANDS = ["install", "doctor", "uninstall", "pack", "check"];
-const BOOL = ["--yes", "--dry-run", "--check", "--trace"];
+const BOOL = ["--yes", "--dry-run", "--check"];
 
 export const hash = (text) => createHash("sha256").update(text.replaceAll("\r\n", "\n")).digest("hex");
 export const digest = (files) =>
@@ -83,7 +83,6 @@ export function main(argv) {
   const flags = cmd === "check" ? {} : parse(rest);
   if ((flags["dry-run"] || flags.yes) && cmd !== "install") die(2, "--dry-run and --yes are for install only");
   if (flags.check && cmd !== "pack") die(2, "--check is for pack only");
-  if (flags.trace && cmd !== "doctor") die(2, "--trace is for doctor only");
   if (flags.tool && flags.tool !== "claude") die(2, `not yet: ${flags.tool} comes in a later phase`);
   if (cmd === "pack") return pack(flags.check);
   try {
@@ -97,7 +96,7 @@ export function main(argv) {
     process.exit(spawnSync("node", [run, ...rest], { stdio: "inherit" }).status ?? 2);
   }
   if (cmd === "install") return install(flags);
-  if (cmd === "doctor") return doctor(flags);
+  if (cmd === "doctor") return doctor();
   return uninstall();
 }
 
@@ -105,6 +104,8 @@ const EMPTY = { xworkflows: "", tools: ["claude"], pieces: {}, files: {}, merged
 // the file's own indent, so install and uninstall leave a project's layout as it was
 const indentOf = (text) => text?.match(/^([ \t]+)\S/m)?.[1] ?? 2;
 const json = (v, text) => JSON.stringify(v, null, indentOf(text)) + "\n";
+const isObj = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
+const SECTION_FIX = "make it an object, or take it out of .xworkflows/config.json";
 
 function target(f) {
   if (f === "hooks/mark.mjs") return ".xworkflows/mark.mjs";
@@ -722,12 +723,13 @@ async function install(flags) {
   const rl = pl.questions.length && !flags.yes && !flags["dry-run"] && process.stdin.isTTY ? createInterface({ input: process.stdin, output: process.stdout }) : null;
   // Ctrl-C at a question stops install: every write comes after the questions; 130 is a shell's code for a stop by Ctrl-C
   rl?.on("SIGINT", () => die(130, "\ninstall stopped: nothing written"));
+  let ended = false;
   for (const q of pl.questions) {
     if (flags.yes) ans[q.id] = q.labels[q.yes];
-    else if (rl) {
-      // end of input rejects the question, and closes it for the ones after: an empty answer, as Enter is
+    else if (rl && !ended) {
+      // end of input rejects the question, an empty answer as Enter is; the ones after are never shown, so they are listed
       let r = "";
-      try { r = (await rl.question(`${q.text} (${q.labels.join(" / ")}) `)).trim().toLowerCase(); } catch {}
+      try { r = (await rl.question(`${q.text} (${q.labels.join(" / ")}) `)).trim().toLowerCase(); } catch { ended = true; console.log(); }
       ans[q.id] = r && q.labels[1].toLowerCase().startsWith(r) ? q.labels[1] : q.labels[0];
     } else { ans[q.id] = q.labels[0]; auto.push(`answered for you: ${q.text} -> ${q.labels[0]}`); }
   }
@@ -751,7 +753,7 @@ async function install(flags) {
   for (const a of auto) console.log(a);
 }
 
-async function doctor(flags) {
+async function doctor() {
   const out = [];
   let nf = 0, nw = 0;
   const INSTALL = "run xworkflows install";
@@ -761,10 +763,7 @@ async function doctor(flags) {
     process.exit(nf ? 1 : 0);
   };
   // one catch around the body: a throw anywhere is one fail line with its message, and doctor ends as it always does
-  try { await checks(); } catch (e) {
-    say("fail", `doctor stopped: ${e?.message ?? e}: run xworkflows doctor --trace to see the stack`);
-    if (flags.trace) process.stderr.write(`${e?.stack ?? e}\n`);
-  }
+  try { await checks(); } catch (e) { say("fail", `doctor stopped: ${e?.message ?? e}`); }
   finish();
   async function checks() {
   say("ok", "git repository");
@@ -791,9 +790,12 @@ async function doctor(flags) {
   for (const [f, { sha256 }] of Object.entries(rec.files)) {
     let t;
     // the record names the three git hooks under .git/, which is a file in a linked worktree: git says where they are
-    try { t = readFileSync(f.startsWith(".git/hooks/") ? join(hooksFolder(ROOT), f.slice(".git/hooks/".length)) : join(ROOT, f), "utf8"); } catch { say("fail", `missing or unreadable: ${f}: ${INSTALL}`); continue; }
+    const abs = f.startsWith(".git/hooks/") ? join(hooksFolder(ROOT), f.slice(".git/hooks/".length)) : join(ROOT, f);
+    // install writes over no folder and no file it cannot read
+    try { t = readFileSync(abs, "utf8"); } catch (e) { say("fail", `missing or unreadable: ${f}: ${e.code === "ENOTDIR" || e.code === "ENOENT" && !lstatSync(abs, { throwIfNoEntry: false }) ? "" : `delete ${f}, then `}${INSTALL}`); continue; }
     // a git hook that holds no text of the package is the project's own: install records it as such, and nothing of it is deleted
-    const n = gitHooks.get(f), same = hash(t) === sha256;
+    // hash() drops the CR of a CRLF, and the shell cannot run a file the line runs that holds one
+    const n = gitHooks.get(f), same = hash(t) === sha256 && !(f.startsWith(".xworkflows/git/") && t.includes("\r"));
     say(same ? "ok" : "warn", same ? f : n && !hookState(readManifest(), ROOT, rec, n).mine ? `changed locally: ${f}, the project's own hook now: ${INSTALL}` : `changed locally: ${f}; to put the package's copy back, delete it, then ${INSTALL} (install keeps a changed file)`);
   }
   for (const k of rec.kept) {
@@ -831,9 +833,10 @@ async function doctor(flags) {
   else if (rec.declined.some((d) => d.file === "CLAUDE.md" && d.what === "import")) say("warn", "CLAUDE.md does not import AGENTS.md: add the line @AGENTS.md");
   else say("fail", "CLAUDE.md does not import AGENTS.md: add the line @AGENTS.md");
   // config
-  let cfg = {};
+  let cfg = {}, unparsed = false;
   // a file holding null is said by the config line below
-  try { cfg = JSON.parse(readFileSync(join(ROOT, ".xworkflows/config.json"), "utf8")) ?? {}; } catch {}
+  try { cfg = JSON.parse(readFileSync(join(ROOT, ".xworkflows/config.json"), "utf8")); unparsed = !isObj(cfg); cfg ??= {}; } catch (e) { unparsed = e.code !== "ENOENT"; }
+  const FIXJSON = "fix the JSON of .xworkflows/config.json";
   const specs = cfg.paths?.specs ?? "docs/superpowers/specs";
   // a memory.dir that is not a text reads as the default, as the hooks read it
   const memSet = cfg.memory?.dir === undefined ? DEFAULTS.memory.dir : cfg.memory.dir;
@@ -854,7 +857,7 @@ async function doctor(flags) {
     const event = { session_id: `doctor-${process.pid}`, cwd: ROOT, hook_event_name: "PreToolUse", tool_name: "Write", tool_input: { file_path: join(ROOT, specs, "xwf-doctor-probe.md"), content: "# probe\n" } };
     const r = fire(command, event);
     let d; try { d = JSON.parse(r.stdout).hookSpecificOutput?.permissionDecision; } catch {}
-    say(d === "deny" ? "ok" : "fail", d === "deny" ? "probe: design-first denies a spec write" : `probe: expected deny, got ${d ?? "no valid output"}: delete the files named "changed locally" above, then ${INSTALL}`);
+    say(d === "deny" ? "ok" : "fail", d === "deny" ? "probe: design-first denies a spec write" : `probe: expected deny, got ${d ?? "no valid output"}: ${unparsed ? FIXJSON : `delete the files named "changed locally" above, then ${INSTALL}`}`);
   }
   // 6
   const seen = new Set();
@@ -888,9 +891,11 @@ async function doctor(flags) {
       const gone = missing(conf, PROJECT_KEYS);
       for (const k of gone) say("fail", `not configured: ${k}${needs[k] ? ` (needed by ${needs[k].join(", ")})` : ""}, run /adapt`);
       if (!gone.length) say("ok", "config: every project key is set");
+      // a value one level down whose default is an object stops the checks that read it, as a section does
+      for (const [sec, d] of Object.entries(DEFAULTS)) for (const k in isObj(d) ? d : {}) if (isObj(d[k]) && cfg[sec]?.[k] !== undefined && !isObj(cfg[sec][k])) say("fail", `config: .xworkflows/config.json: ${sec}.${k} must be an object: ${SECTION_FIX}`);
     } catch (e) {
       const m = e.message;
-      say("fail", `config: ${m}: ${m.startsWith(".xworkflows/config.json does not parse") ? "fix the JSON of .xworkflows/config.json" : /^\.xworkflows\/config\.json: \S+ must be an object$/.test(m) ? "make it an object, or take it out of .xworkflows/config.json" : `if a file of the package is named "changed locally" above, delete it; then ${INSTALL}`}`);
+      say("fail", `config: ${m}: ${m.startsWith(".xworkflows/config.json does not parse") ? FIXJSON : /^\.xworkflows\/config\.json: \S+ must be an object$/.test(m) ? SECTION_FIX : `if a file of the package is named "changed locally" above, delete it; then ${INSTALL}`}`);
     }
     if (conf.paths.code?.length) {
       const dir = conf.lookup.index.folder;
@@ -946,21 +951,26 @@ async function doctor(flags) {
       missing: ["fail", `${P} runs .xworkflows/git/pre-push, which is missing: ${INSTALL}`],
       changed: ["fail", `${P} runs .xworkflows/git/pre-push, which no longer holds the package's text: delete .xworkflows/git/pre-push, then ${INSTALL}`],
       line: [exec ? "ok" : "fail", exec ? `${P}${of} runs the check` : `${P}${of} holds the check but is not executable, so git ignores it: chmod +x ${at(hook.path)}`],
-      add: ["fail", `${P} does not run the check: add this line to ${at(hook.file)} as its first command: ${hookLine("pre-push")}`],
+      add: ["fail", `${P} does not run the check: add this line to ${at(hook.file)} as its first command: ${hookLine("pre-push")}${hook.link ? " ; it is a link, which uninstall does not write through: the line is yours to take out after uninstall" : ""}`],
       chain: ["fail", `${P} cannot take the xworkflows line and is not chained: ${INSTALL} and answer yes to chain it`],
       blocked: ["fail", `${P} cannot take the xworkflows line, and ${at(hook.before)} is in the way of chaining it: move that file out of the hooks folder, ${hook.declined ? `${UNDECLINE}, ` : ""}then ${INSTALL} and answer yes to chain it`],
       declined: ["fail", `${P} does not run the check: its line or its chain was declined at install; to be asked again, ${UNDECLINE}, then ${INSTALL} and answer yes${hook.takes && !hook.chain ? `; or add this line to ${at(hook.file)} as its first command: ${hookLine("pre-push")}` : ""}`],
-      outside: ["fail", `${P}: core.hooksPath points outside this repository, where install writes no hook; either add this line to ${at(hook.path)} as its first command${hook.guarded ? ", in place of the line an earlier xworkflows gave, which hands the rest of the hook no pushed refs" : ""}: ${hookLine("pre-push")} ; it runs in every repository that uses the folder, silent where xworkflows is not installed, and is yours to take out after uninstall; or point this repository at its own hooks folder, after which the hooks of the other folder no longer run here: run: git config core.hooksPath "$(git rev-parse --path-format=absolute --git-common-dir)/hooks"; then ${INSTALL}`],
+      outside: ["fail", `${P}: core.hooksPath points outside this repository, where install writes no hook; either add this line to ${at(hook.path)} as its first command${hook.guarded ? ", in place of the line an earlier xworkflows gave, which hands the rest of the hook no pushed refs" : ""}: ${hookLine("pre-push")} ;${hook.guarded ? ` then ${INSTALL}, here and in every other project on the folder that an earlier xworkflows installed, since until then the line refuses every push there;` : ""} it runs in every repository that uses the folder, silent where xworkflows is not installed, and is yours to take out after uninstall; or point this repository at its own hooks folder, after which the hooks of the other folder no longer run here: run: git config core.hooksPath "$(git rev-parse --path-format=absolute --git-common-dir)/hooks"; then ${INSTALL}`],
     };
     say(...SAY[hook.state]);
     let st = {}, local = {};
     try { st = JSON.parse(readFileSync(join(ROOT, ".claude/settings.json"), "utf8")); } catch {}
     try { local = JSON.parse(readFileSync(join(ROOT, ".claude/settings.local.json"), "utf8")); } catch {}
     let bytes = 0;
+    // a session file with as many sessions beside it as make the memory hook suggest dream, as the hook reads the threshold
+    // shortcut: a threshold over 1000 is probed with 1000 sessions, so its line is not measured; raise it when a project sets one
+    const after = conf.dream?.suggestAfterSessions, sessions = mkdtempSync(join(tmpdir(), "xwf-doctor-sessions-"));
+    for (let i = 0; i <= Math.min(Number.isInteger(after) && after > 0 ? after : DEFAULTS.dream.suggestAfterSessions, 1000); i++) writeFileSync(join(sessions, `${i}.jsonl`), "");
     for (const h of (st.hooks?.SessionStart ?? []).flatMap((e) => e.hooks ?? [])) {
       if (!`${h.command} `.includes('/.xworkflows/hooks/run.mjs" claude ')) continue;
-      bytes += Buffer.byteLength(fire(h.command, { session_id: `doctor-${process.pid}`, cwd: ROOT, hook_event_name: "SessionStart", source: "startup" }).stdout ?? "");
+      bytes += Buffer.byteLength(fire(h.command, { session_id: `doctor-${process.pid}`, cwd: ROOT, hook_event_name: "SessionStart", source: "startup", transcript_path: join(sessions, "0.jsonl") }).stdout ?? "");
     }
+    rmSync(sessions, { recursive: true, force: true });
     const sb = conf.tokens.sessionStartBytes;
     say(bytes > sb ? "fail" : "ok", `session-start text: ${bytes} bytes of ${sb}${bytes > sb ? ": raise tokens.sessionStartBytes in .xworkflows/config.json or cut what the hook prints" : ""}`);
     const ai = st.attribution && typeof st.attribution === "object" ? [st.attribution.commit, st.attribution.pr].some((x) => x) : !!st.attribution;
@@ -1034,8 +1044,10 @@ function uninstall() {
   const wants = settingsWants(manifest);
   // a retired unit's line too: install wrote it, and it stays while a changed file keeps the unit's folder
   const giLines = new Set([".xworkflows/", ...[...wanted.keys(), ...retiredPaths(manifest).keys()].map(giLine).filter(Boolean)]);
-  let md = null;
-  try { md = memoryFolder(loadConfig(ROOT), ROOT).dir; } catch {}
+  // the raw value: a section the loader refuses must not keep what install wrote for the memory folder
+  let raw = {};
+  try { raw = JSON.parse(readFileSync(join(ROOT, ".xworkflows/config.json"), "utf8")) ?? {}; } catch {}
+  const mf = memoryFolder(raw, ROOT), md = mf.dir ?? mf.linked; // a default folder made a link out of the repository is still the one install wrote
 
   // the marker, not the record, says this checkout's install wrote the yml: only install's exact text is the marker
   let marked = false;
@@ -1072,10 +1084,13 @@ function uninstall() {
   for (const [name, p] of hookRel) {
     const abs = join(hooksDir, name), before = abs + ".before-xworkflows";
     if (!lstatSync(abs, { throwIfNoEntry: false })?.isFile()) continue;
-    const cur = readFileSync(abs, "utf8");
-    if (cur !== hookText(name) && cur !== chainText(name) && !earlierHook(manifest, name, cur)) { if (recFiles.has(p)) out.push(hash(cur) === rec.files[p].sha256 ? `kept (not ours): ${p}` : `kept (changed locally): ${p}`); continue; }
-    rmSync(abs); out.push(`deleted ${p}`);
-    if (lstatSync(before, { throwIfNoEntry: false })) { renameSync(before, abs); out.push(`restored ${p}`); }
+    // a hook it cannot read or delete stays, said in one line without a stack; a hook of the user's is named by the loop of the lines
+    try {
+      const cur = readFileSync(abs, "utf8");
+      if (cur !== hookText(name) && cur !== chainText(name) && !earlierHook(manifest, name, cur)) { if (recFiles.has(p)) out.push(hash(cur) === rec.files[p].sha256 ? `kept (not ours): ${p}` : `kept (changed locally): ${p}`); continue; }
+      rmSync(abs); out.push(`deleted ${p}`);
+      if (lstatSync(before, { throwIfNoEntry: false })) { renameSync(before, abs); out.push(`restored ${p}`); }
+    } catch (e) { if (recFiles.has(p)) out.push(`not deleted (${e.code}): ${p}`); }
   }
   const merged = rec.merged;
   const text = merged.length ? read(ROOT, SETTINGS) : null;
@@ -1105,7 +1120,7 @@ function uninstall() {
   }
   let memory;
   // the folder install wrote there; a record of an earlier version may hold a value that names none
-  try { memory = resolve(ROOT, md ?? loadConfig(ROOT).memory.dir); } catch {}
+  try { memory = resolve(ROOT, md ?? raw.memory?.dir); } catch {}
   for (const [file, key, was] of [[SETTINGS, "attribution", ATTRIBUTION], [LOCAL, LOCAL_KEY, memory]]) {
     const x = rec.scalars.find((e) => e.file === file);
     if (!x) continue;
@@ -1133,20 +1148,26 @@ function uninstall() {
   }
   for (const { file: key, line, addedNewline } of rec.imports) {
     // the line of a hook is in the hooks folder git uses, which a linked worktree has under the common git dir; a link there is not followed
-    const file = hookSet.has(key) ? relative(ROOT, join(hooksDir, basename(key))) : key;
-    if (hookSet.has(key) && !lstatSync(join(ROOT, file), { throwIfNoEntry: false })?.isFile()) continue;
-    // a hook's bytes are never rewritten as text
-    const there = existsSync(join(ROOT, file)), t = there && line === hookLine(basename(key)) ? textOf(join(ROOT, file)) : read(ROOT, file);
-    if (there && t === null) { out.push(`kept (not text): ${key}`); continue; }
-    const ls = t?.split("\n") ?? [], i = ls.lastIndexOf(line);
-    // a line of a hook that the user changed still holds the mark: it stays, and is named
-    if (i < 0 && line === hookLine(basename(key)) && ls.some((l) => l.endsWith(" # xworkflows"))) out.push(`kept (changed locally): ${key}`);
-    if (i < 0) continue;
-    ls.splice(i, 1);
-    const out2 = ls.join("\n");
-    // a hook uninstall cannot write keeps its line, said in one line without a stack, as apply does for install
-    try { write(file, addedNewline && out2.endsWith("\n") ? out2.slice(0, -1) : out2); }
-    catch (e) { if (line !== hookLine(basename(key))) throw e; out.push(`not written (${e.code}): ${key}: the xworkflows line stays in it; take it out yourself`); }
+    const file = hookSet.has(key) ? relative(ROOT, join(hooksDir, basename(key))) : key, hook = line === hookLine(basename(key));
+    // a file uninstall cannot read or write keeps its line, said in one line without a stack, as apply does for install
+    try {
+      if (hookSet.has(key)) {
+        const st = lstatSync(join(ROOT, file), { throwIfNoEntry: false });
+        // no link is written through: install's line behind one stays, and is named
+        if (st?.isSymbolicLink() && statSync(join(ROOT, file), { throwIfNoEntry: false })?.isFile() && read(ROOT, file).split("\n").includes(line)) out.push(`not written (symlink): ${key}: the xworkflows line stays in it; take it out yourself`);
+        if (!st?.isFile()) continue;
+      }
+      // a hook's bytes are never rewritten as text
+      const there = existsSync(join(ROOT, file)), t = there && hook ? textOf(join(ROOT, file)) : read(ROOT, file);
+      if (there && t === null) { out.push(`kept (not text): ${key}`); continue; }
+      const ls = t?.split("\n") ?? [], i = ls.lastIndexOf(line);
+      // a line of a hook that the user changed still holds the mark: it stays, and is named
+      if (i < 0 && hook && ls.some((l) => l.endsWith(" # xworkflows"))) out.push(`kept (changed locally): ${key}`);
+      if (i < 0) continue;
+      ls.splice(i, 1);
+      const out2 = ls.join("\n");
+      write(file, addedNewline && out2.endsWith("\n") ? out2.slice(0, -1) : out2);
+    } catch (e) { out.push(`not written (${e.code}): ${key}: ${hook ? "the xworkflows line" : `the line ${line}`} stays in it; take it out yourself`); }
   }
   for (const p of rec.created) {
     if (p === md) {
