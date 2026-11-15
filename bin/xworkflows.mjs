@@ -15,7 +15,7 @@ export let ROOT;
 // a config value in a command doctor prints: plain stays as it is, anything else in single quotes
 const sh = (v) => (/^[\w\/.-]+$/.test(v) ? v : `'${v.replaceAll("'", "'\\''")}'`);
 const COMMANDS = ["install", "doctor", "uninstall", "pack", "check"];
-const BOOL = ["--yes", "--dry-run", "--check", "--trace"];
+const BOOL = ["--yes", "--dry-run", "--check"];
 
 export const hash = (text) => createHash("sha256").update(text.replaceAll("\r\n", "\n")).digest("hex");
 export const digest = (files) =>
@@ -83,7 +83,6 @@ export function main(argv) {
   const flags = cmd === "check" ? {} : parse(rest);
   if ((flags["dry-run"] || flags.yes) && cmd !== "install") die(2, "--dry-run and --yes are for install only");
   if (flags.check && cmd !== "pack") die(2, "--check is for pack only");
-  if (flags.trace && cmd !== "doctor") die(2, "--trace is for doctor only");
   if (flags.tool && flags.tool !== "claude") die(2, `not yet: ${flags.tool} comes in a later phase`);
   if (cmd === "pack") return pack(flags.check);
   try {
@@ -97,7 +96,7 @@ export function main(argv) {
     process.exit(spawnSync("node", [run, ...rest], { stdio: "inherit" }).status ?? 2);
   }
   if (cmd === "install") return install(flags);
-  if (cmd === "doctor") return doctor(flags);
+  if (cmd === "doctor") return doctor();
   return uninstall();
 }
 
@@ -751,7 +750,7 @@ async function install(flags) {
   for (const a of auto) console.log(a);
 }
 
-async function doctor(flags) {
+async function doctor() {
   const out = [];
   let nf = 0, nw = 0;
   const INSTALL = "run xworkflows install";
@@ -761,10 +760,7 @@ async function doctor(flags) {
     process.exit(nf ? 1 : 0);
   };
   // one catch around the body: a throw anywhere is one fail line with its message, and doctor ends as it always does
-  try { await checks(); } catch (e) {
-    say("fail", `doctor stopped: ${e?.message ?? e}: run xworkflows doctor --trace to see the stack`);
-    if (flags.trace) process.stderr.write(`${e?.stack ?? e}\n`);
-  }
+  try { await checks(); } catch (e) { say("fail", `doctor stopped: ${e?.message ?? e}`); }
   finish();
   async function checks() {
   say("ok", "git repository");

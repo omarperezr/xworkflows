@@ -3320,15 +3320,11 @@ test("doctor: a pre-push hook it cannot read gives a fail line and doctor ends w
   chmodSync(hook, 0o755);
   assert.equal(out.stderr, "");
   assert.equal(out.status, 1);
-  // P-131: the last catch ends with a command, the one that shows where doctor stopped
-  assert.match(out.stdout, /^fail doctor stopped: EACCES.*: run xworkflows doctor --trace to see the stack$/m);
+  assert.match(out.stdout, /^fail doctor stopped: EACCES/m);
   assert.match(out.stdout, ENDS);
-  chmodSync(hook, 0o000);
-  const traced = cli(r, ["doctor", "--trace"], { env: { PATH: GOOD, HOME: EMPTY_HOME } });
-  chmodSync(hook, 0o755);
-  assert.match(traced.stderr, /EACCES[^]*\n +at /, traced.stderr);
-  assert.match(traced.stdout, ENDS);
-  assert.equal(cli(r, ["install", "--trace"]).status, 2);
+  // P-135: no flag prints a stack
+  assert.doesNotMatch(out.stdout, /--trace/);
+  for (const cmd of ["doctor", "install"]) assert.match(cli(r, [cmd, "--trace"]).stderr, /^unknown flag: --trace$/m, cmd);
 });
 // P-131: the loader names the section; doctor's line for the config gives the fix, and the last catch is not reached
 test("doctor: a config section that is not an object, or a config file holding null, gives a line naming the file, the section and the fix, and doctor ends with its count", () => {
