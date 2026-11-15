@@ -608,12 +608,12 @@
       ],
       "files": {
         "skills/dream/SKILL.md": "0e83ef12796737a1c263aac292eaf66202adb1730434dc2ed59555b5b68da8a8",
-        "skills/dream/extract.mjs": "9e41f87ea587c3f932d489a3746cc09e978b78ba376c693af6ec94d410f86daf",
+        "skills/dream/extract.mjs": "d977f058c7fcf7a7cdf88943164d8b0f910c2ac142b2d893964074589fe6e3e7",
         "skills/dream/branch.mjs": "b9f88a1e86a936cf88105956557bed345fdf2d62398f6fcff9e16b642e985373",
         "skills/dream/shared.mjs": "6055f40386bf830bb0453b36e10dc55b87930825053ce3df4906aa99e356d02d",
         "skills/dream/dream.workflow.js": "1e54b3ce3104638a2ecd3a231560cfb17b4832659057a053c69757c4ce34e5ea"
       },
-      "sha256": "5f025e89d1c842988e812c0ce99f3c602ff9f39f15e7843b0727e88a72e5c740"
+      "sha256": "801e4084174db399bd163a58a5d4167d7ffe3a75574c0ed31590bbe2cab5d0e5"
     },
     {
       "id": "checks",
