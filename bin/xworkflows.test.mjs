@@ -3615,14 +3615,17 @@ for (const [name, block, skip, why] of FOLDER_BLOCKS) {
     const o = cli(r, ["install"]);
     said(o, ".claude/skills/tdd");
     assert.match(o.stdout + o.stderr, new RegExp(why));
-    assert.ok(!o.stderr.includes("at "), o.stderr);
+    assert.equal(o.status, 0, o.stderr);
     assert.ok(existsSync(join(r, ".claude/skills/grill/SKILL.md")));
+    if (name === "made a file") assert.equal(readFileSync(d, "utf8"), "x\n");
   }));
-  test(`uninstall: an installed folder ${name} gets one line, the rest goes and the record keeps what it cannot judge`, { skip }, () => run((r, d) => {
+  test(`uninstall: an installed folder ${name} gets one line, the rest goes and the thing in the way stays`, { skip }, () => run((r, d) => {
     const o = cli(r, ["uninstall"]);
     said(o, ".claude/skills/tdd");
     assert.ok(!existsSync(join(r, ".claude/skills/grill/SKILL.md")));
-    assert.ok(existsSync(join(r, ".xworkflows/installed.json")) || o.status === 0, o.stdout);
+    assert.equal(o.status, 0, o.stderr);
+    assert.ok(existsSync(d), o.stdout);
+    if (name === "made a file") assert.equal(readFileSync(d, "utf8"), "x\n");
   }));
 }
 test("doctor: an installed folder made a file gives its line and doctor does not stop", () => {
@@ -3631,6 +3634,7 @@ test("doctor: an installed folder made a file gives its line and doctor does not
   const o = doctor(r);
   assert.ok(!/\n\s+at /.test(o.stdout + o.stderr), o.stderr);
   assert.match(o.stdout, /^fail missing or unreadable: \.claude\/skills\/tdd\/SKILL\.md: .*$/m);
-  assert.match(o.stdout, /^ok +pre-push hook runs the check$|^fail /m);
+  assert.equal(o.status, 1);
+  assert.equal(readFileSync(d, "utf8"), "x\n");
   rmSync(r, { recursive: true, force: true });
 });
