@@ -792,7 +792,7 @@ async function doctor() {
     // the record names the three git hooks under .git/, which is a file in a linked worktree: git says where they are
     const abs = f.startsWith(".git/hooks/") ? join(hooksFolder(ROOT), f.slice(".git/hooks/".length)) : join(ROOT, f);
     // install writes over no folder and no file it cannot read
-    try { t = readFileSync(abs, "utf8"); } catch { say("fail", `missing or unreadable: ${f}: ${lstatSync(abs, { throwIfNoEntry: false }) ? `delete ${f}, then ` : ""}${INSTALL}`); continue; }
+    try { t = readFileSync(abs, "utf8"); } catch (e) { say("fail", `missing or unreadable: ${f}: ${e.code === "ENOENT" || e.code === "ENOTDIR" ? "" : `delete ${f}, then `}${INSTALL}`); continue; }
     // a git hook that holds no text of the package is the project's own: install records it as such, and nothing of it is deleted
     // hash() drops the CR of a CRLF, and the shell cannot run a file the line runs that holds one
     const n = gitHooks.get(f), same = hash(t) === sha256 && !(f.startsWith(".xworkflows/git/") && t.includes("\r"));
