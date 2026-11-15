@@ -2566,6 +2566,8 @@ for (const [name, make, how, after] of HOOK_STATES) test(`doctor, pre-push ${nam
   assert.equal(spawnSync("git", ["push", "-q", "--no-verify", "origin", "main"], { cwd: r, env: isoEnv() }).status, 0);
   const first = doctor(r), line = lineOf(first, /^(ok|warn|fail) +pre-push hook/);
   assert.ok(line, first.stdout);
+  // P-167: the file under .xworkflows/git the hook runs is not ok on its own line while the hook's line says it is not the package's
+  if (line.includes("which no longer holds the package's text")) assert.doesNotMatch(first.stdout, /^ok +\.xworkflows\/git\/pre-push$/m);
   if (how === "ok") {
     assert.match(line, /^ok /, first.stdout);
     // a second install leaves the hook that holds the line as it is
