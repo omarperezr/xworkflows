@@ -1870,6 +1870,9 @@ test("end of input at a question of install is an empty answer, the first label,
   assert.match(out.stdout, /Add the xworkflows line to/);
   assert.doesNotMatch(out.stdout, /AbortError|Error:|\n\s+at /);
   assert.match(out.stdout, /left as it is; to run the check, add this line to it as its first command/);
+  // P-162: a question after the end of input is never shown, so it is listed; the first note is on a line of its own
+  assert.match(out.stdout, /^answered for you: Add @AGENTS\.md to CLAUDE\.md\? -> no\r?$/m);
+  assert.match(out.stdout, /^\.git\/hooks\/pre-push left as it is/m);
   assert.match(out.stdout, /Next: open Claude Code/);
   assert.equal(readFileSync(join(r, ".git/hooks/pre-push"), "utf8"), OLD);
   assert.equal(readFileSync(join(r, "CLAUDE.md"), "utf8"), "# x\n");

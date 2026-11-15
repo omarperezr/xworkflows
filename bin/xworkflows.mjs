@@ -723,12 +723,13 @@ async function install(flags) {
   const rl = pl.questions.length && !flags.yes && !flags["dry-run"] && process.stdin.isTTY ? createInterface({ input: process.stdin, output: process.stdout }) : null;
   // Ctrl-C at a question stops install: every write comes after the questions; 130 is a shell's code for a stop by Ctrl-C
   rl?.on("SIGINT", () => die(130, "\ninstall stopped: nothing written"));
+  let ended = false;
   for (const q of pl.questions) {
     if (flags.yes) ans[q.id] = q.labels[q.yes];
-    else if (rl) {
-      // end of input rejects the question, and closes it for the ones after: an empty answer, as Enter is
+    else if (rl && !ended) {
+      // end of input rejects the question, an empty answer as Enter is; the ones after are never shown, so they are listed
       let r = "";
-      try { r = (await rl.question(`${q.text} (${q.labels.join(" / ")}) `)).trim().toLowerCase(); } catch {}
+      try { r = (await rl.question(`${q.text} (${q.labels.join(" / ")}) `)).trim().toLowerCase(); } catch { ended = true; console.log(); }
       ans[q.id] = r && q.labels[1].toLowerCase().startsWith(r) ? q.labels[1] : q.labels[0];
     } else { ans[q.id] = q.labels[0]; auto.push(`answered for you: ${q.text} -> ${q.labels[0]}`); }
   }
