@@ -15,11 +15,18 @@ const M = "[masked]";
 const KEYRUN = String.raw`(?=[A-Za-z]*[0-9+/=\\])(?:\\[nr]|[A-Za-z0-9+/=])+`;
 const KEYLINE = String.raw`[ \t>]*[A-Za-z0-9+/=]+[ \t]*`; // a line of key material, indented, quoted with ">" or ending in white space
 const BEGIN = "-----BEGIN [A-Z ]{0,20}PRIVATE KEY-----", END = "-----END [A-Z ]{0,20}PRIVATE KEY-----";
-// No repeat here is retried from inside another: a block scans only the lines of key material, headers and blank lines under its mark.
-// a secret by its own form; a key block keeps its line breaks, so the line numbers after it hold. A BEGIN mark takes the rest of its line only when it is key material,
-// and only then the lines under it: up to an END mark, through key lines, "Name: value" headers and blank lines; or, with no END mark, the key lines that follow
+// key length: 64 base64 characters in a row, a PEM body line and the whole body of the shortest key (Ed25519); a commit hash (40), a UUID or a number is shorter
+const KEYLEN = /[A-Za-z0-9+/=]{64}/;
+const block = (b) => M + "\n".repeat(b.split("\n").length - 1);
+// No repeat here is retried from inside another; but each BEGIN mark with no END mark after it scans to the end of the text, and each "Name: value" line
+// that holds a mark scans the header lines under it, so the time grows with the square of the number of either.
+// a secret by its own form; a key block keeps its line breaks, so the line numbers after it hold. First, a block that holds a run of key length goes whole:
+// up to the END mark, or the rest of the mark's line and the key lines under it. Then, in a block with none, a BEGIN mark takes the rest of its line only when
+// it is key material, and only then the lines under it: up to an END mark, through key lines, "Name: value" headers and blank lines; or, with no END mark,
+// the key lines that follow
 const SHAPES = [
-  [new RegExp(String.raw`${BEGIN}(?:[ \t]*(?:${KEYRUN}(?:[ \t]+${KEYRUN})*[ \t]*)?(?:${END}|(?=\r?\n|\r?$)(?:(?:\r?\n(?:[ \t>]*[A-Za-z][\w-]*:[^\r\n]*|${KEYLINE}|[ \t>]*))*?\r?\n[ \t>]*${END}|(?:\r?\n${KEYLINE}(?=\r?\n|\r$|$))*)))?`, "g"), (b) => M + "\n".repeat(b.split("\n").length - 1)],
+  [new RegExp(String.raw`${BEGIN}(?:[\s\S]*?${END}|[^\r\n]*(?:\r?\n${KEYLINE}(?=\r?\n|\r$|$))*)`, "g"), (b) => (KEYLEN.test(b) ? block(b) : b)],
+  [new RegExp(String.raw`${BEGIN}(?:[ \t]*(?:${KEYRUN}(?:[ \t]+${KEYRUN})*[ \t]*)?(?:${END}|(?=\r?\n|\r?$)(?:(?:\r?\n(?:[ \t>]*[A-Za-z][\w-]*:[^\r\n]*|${KEYLINE}|[ \t>]*))*?\r?\n[ \t>]*${END}|(?:\r?\n${KEYLINE}(?=\r?\n|\r$|$))*)))?`, "g"), block],
   [/(\b[a-z][\w+.-]{0,19}:\/\/[^\s:@/]*:)(?!\[masked\]@)[^\s@/]+(?=@)/gi, (_, key) => key + M],
   [/\bsk-[\w-]{20,}/g, () => M],
   [/\b[sr]k_(?:live|test)_\w{10,}/g, () => M],
@@ -50,7 +57,7 @@ const random = (r) => (r.match(/[A-Za-z](?=\d)|\d(?=[A-Za-z])/g)?.length ?? 0) >
 
 const each = (text, rules) => {
   let n = 0;
-  for (const [re, to] of rules) text = text.replace(re, (...a) => (n++, to(...a)));
+  for (const [re, to] of rules) text = text.replace(re, (...a) => { const r = to(...a); n += r !== a[0]; return r; }); // a match left as it was is not counted
   return [text, n];
 };
 // one line: [masked line, count, whether a credential word has no value after it on the line]

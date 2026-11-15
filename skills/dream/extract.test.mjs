@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { execFileSync, spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { mask, shapes, suspect, run } from "./extract.mjs";
 import { shared } from "./shared.mjs";
 
@@ -259,6 +260,7 @@ test("shapes: the lines between two key marks named in prose stay, and a real bl
     `A key starts with ${BEGIN} on its first line,\nthen comes its body,\n- in lines of 64 characters,\nand it ends with ${END} on its last.`,
     `The two marks: ${BEGIN} and ${END}, each on a line of its own.`,
     `${BEGIN}\nThe body goes here, in lines of 64 characters.\n\n- a list item\n${END}`,
+    `${BEGIN}\nPinned at e3b0c44298fc1c149afbf4c8996fb924e3b0c442, id 550e8400-e29b-41d4-a716-446655440000, 1234567890123456789012345678901234567890.\n${END}`, // shorter than a key
   ]) assert.deepEqual(shapes(t), [t.replace(BEGIN, "[masked]"), 1], t);
   for (const lead of [`Paste it under the line ${BEGIN}, like this:`, `Paste it under this line: ${BEGIN}`]) {
     const t = [lead, BEGIN, ...KEYLINES, END, "That is all."].join("\n");
@@ -274,6 +276,40 @@ test("shapes: the lines between two key marks named in prose stay, and a real bl
   for (const [from, to] of [[`"key": "${BEGIN}\\n${esc}\\n${END}\\n",`, '"key": "[masked]\\n",'], [`"key": "${BEGIN}\\n${esc}`, '"key": "[masked]'],
     [`${BEGIN} ${KEYLINES.join(" ")} ${END} after`, "[masked] after"], [`${BEGIN}${KEYLINES[0]}\n${KEYLINES[1]}\nafter words`, "[masked]\n\nafter words"]])
     assert.deepEqual(shapes(from), [to, 1], from);
+});
+
+// a made-up key body of real length: lines of 64 base64 characters and a shorter last one, as in a PEM block
+const BODY = Buffer.concat(Array.from({ length: 4 }, (_, i) => createHash("sha512").update(`made-up ${i}`).digest())).toString("base64").match(/.{1,64}/g);
+const FULL = [BEGIN, ...BODY, END], SHORT = [...BODY.slice(0, -1), "AoGBAK"]; // SHORT: a letters-only last chunk
+const LAYOUTS = [
+  ["a Java string", "String key = " + FULL.map((l) => `"${l}\\n"`).join(" +\n    ") + ";"],
+  ["a JavaScript string", "const key =\n" + FULL.map((l) => `  "${l}\\n"`).join(" +\n") + ";"],
+  ["escaped twice inside a JSON string", `X='{"private_key": "${FULL.join("\\\\n")}\\\\n"}'`],
+  ["an encrypted key on one line, escaped", `{"key": "${[BEGIN, "Proc-Type: 4,ENCRYPTED", "DEK-Info: AES-128-CBC,0A1B2C3D4E5F6071", "", ...BODY, END].join("\\n")}\\n"}`],
+  ["one line, escaped, cut before END, the quote closed", `"key": "${[BEGIN, ...BODY].join("\\n")}"`],
+  ["the removed lines of a diff", FULL.map((l) => "-" + l).join("\n")],
+  ["numbered lines, tab", FULL.map((l, i) => String(i + 1).padStart(6) + "\t" + l).join("\n")],
+  ["numbered lines, colon", FULL.map((l, i) => `${i + 1}: ${l}`).join("\n")],
+  ...["# ", "// ", "| ", "id_rsa:"].map((p) => [`lines behind ${p}`, FULL.map((l) => p + l + (p === "| " ? " |" : "")).join("\n")]),
+  ["a JSON list of lines", JSON.stringify(FULL, null, 2)],
+  ["lines that end in a backslash", [BEGIN + "\\", ...BODY.map((l) => l + "\\"), END].join("\n")],
+  ["lines that end in <br>", FULL.join("<br>\n")],
+  ["one line, spaces, a letters-only chunk", [BEGIN, ...SHORT, END].join(" ")],
+  ["one line, spaces, no END, words after", `${BEGIN} ${BODY.join(" ")} (cut here)`],
+  ["a block with a ... line", [BEGIN, ...BODY.slice(0, 2), "...", ...BODY.slice(2), END].join("\n")],
+];
+// the body bytes a text still shows: a line of 8 or more by any 8 characters of it, a shorter one whole
+const shown = (text) => [...BODY, "AoGBAK"].filter((l) => (l.length < 8 ? text.includes(l) : Array.from({ length: l.length - 7 }, (_, i) => l.slice(i, i + 8)).some((w) => text.includes(w))));
+
+test("shapes: a block whose lines hold key material is masked whole, whatever stands around its lines", () => {
+  const failed = [];
+  for (const [name, text] of LAYOUTS) for (const [fn, f] of [["shapes", shapes], ["mask", mask]]) {
+    const [out, n] = f(text);
+    if (shown(out).length) failed.push(`${fn}, ${name}: ${shown(out).length} body lines shown`);
+    assert.ok(n >= 1, `${fn}, ${name}`);
+    if (f === shapes) assert.equal(out.split("\n").length, text.split("\n").length, name); // the line numbers hold
+  }
+  assert.deepEqual(failed, []);
 });
 
 test("mask: every form a review found is masked, and every key of a known form", () => {
