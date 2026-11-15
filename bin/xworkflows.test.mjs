@@ -2535,6 +2535,7 @@ const HOOK_STATES = [
   ["husky's file holding the line", () => { const x = husky({ "pre-push": "echo mine\n" }); yes(x.r); return x; }],
   ["husky's file without the line", () => { const x = husky({ "pre-push": "echo mine\n" }); yes(x.r); writeFileSync(join(x.r, ".husky/pre-push"), "echo mine\n"); return x; }],
   ["husky's file a link to a script holding the line", () => { const x = husky({ "pre-push": "echo mine\n" }); yes(x.r); toScript(x.r, ".husky/pre-push", "../scripts/pre-push.sh"); return x; }, "ok"],
+  ["husky's file a link to a script without the line", () => { const x = husky({ "pre-push": "echo mine\n" }); yes(x.r); writeFileSync(join(x.r, ".husky/pre-push"), "echo mine\n"); toScript(x.r, ".husky/pre-push", "../scripts/pre-push.sh"); return x; }],
   ["of a hooks folder outside the repository, shared with a project without xworkflows", shared(false), undefined, sharedAfter],
   ["of a hooks folder outside the repository, holding the line an earlier version gave", shared(true), undefined, sharedAfter],
   // P-158: that version wrote no file under .xworkflows/git, so the new line refuses every push until install of this version runs
@@ -2596,6 +2597,22 @@ for (const [how, make] of readOnly) test(`uninstall, the line of pre-push ${how}
   assert.match(out.stdout, /\nuninstalled\n$/);
   assert.deepEqual(readdirSync(r), [".git"]);
   assert.deepEqual(readFileSync(hook), bytes);
+});
+
+// P-161: uninstall writes through no link, so a line behind one stays: install's line is named, and the sentence that offers one says it
+test("uninstall: install's line in a hook that is a link now stays, and one line names it", () => {
+  const { r } = withRemote(); hookAt(r, OLD); yes(r);
+  toScript(r, ".git/hooks/pre-push", "../../scripts/pre-push.sh");
+  const out = cli(r, ["uninstall"]);
+  assert.equal(out.status, 0, out.stderr);
+  assert.match(out.stdout, /^not written \(symlink\): \.git\/hooks\/pre-push: the xworkflows line stays in it; take it out yourself$/m);
+  assert.match(readFileSync(join(r, "scripts/pre-push.sh"), "utf8"), / # xworkflows$/m);
+});
+test("doctor: the line it offers for husky's file that is a link is the user's to take out after uninstall", () => {
+  const { r } = husky({ "pre-push": "echo mine\n" }); yes(r);
+  writeFileSync(join(r, ".husky/pre-push"), "echo mine\n");
+  toScript(r, ".husky/pre-push", "../scripts/pre-push.sh");
+  assert.match(lineOf(doctor(r), /^fail +pre-push hook/) ?? "", /: if \[ -f .+ # xworkflows ; it is a link, which uninstall does not write through: the line is yours to take out after uninstall$/);
 });
 
 const QMD_V = "qmd 2.8.3 (facd35e)";

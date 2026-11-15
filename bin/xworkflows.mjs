@@ -949,7 +949,7 @@ async function doctor() {
       missing: ["fail", `${P} runs .xworkflows/git/pre-push, which is missing: ${INSTALL}`],
       changed: ["fail", `${P} runs .xworkflows/git/pre-push, which no longer holds the package's text: delete .xworkflows/git/pre-push, then ${INSTALL}`],
       line: [exec ? "ok" : "fail", exec ? `${P}${of} runs the check` : `${P}${of} holds the check but is not executable, so git ignores it: chmod +x ${at(hook.path)}`],
-      add: ["fail", `${P} does not run the check: add this line to ${at(hook.file)} as its first command: ${hookLine("pre-push")}`],
+      add: ["fail", `${P} does not run the check: add this line to ${at(hook.file)} as its first command: ${hookLine("pre-push")}${hook.link ? " ; it is a link, which uninstall does not write through: the line is yours to take out after uninstall" : ""}`],
       chain: ["fail", `${P} cannot take the xworkflows line and is not chained: ${INSTALL} and answer yes to chain it`],
       blocked: ["fail", `${P} cannot take the xworkflows line, and ${at(hook.before)} is in the way of chaining it: move that file out of the hooks folder, ${hook.declined ? `${UNDECLINE}, ` : ""}then ${INSTALL} and answer yes to chain it`],
       declined: ["fail", `${P} does not run the check: its line or its chain was declined at install; to be asked again, ${UNDECLINE}, then ${INSTALL} and answer yes${hook.takes && !hook.chain ? `; or add this line to ${at(hook.file)} as its first command: ${hookLine("pre-push")}` : ""}`],
@@ -1144,7 +1144,12 @@ function uninstall() {
   for (const { file: key, line, addedNewline } of rec.imports) {
     // the line of a hook is in the hooks folder git uses, which a linked worktree has under the common git dir; a link there is not followed
     const file = hookSet.has(key) ? relative(ROOT, join(hooksDir, basename(key))) : key;
-    if (hookSet.has(key) && !lstatSync(join(ROOT, file), { throwIfNoEntry: false })?.isFile()) continue;
+    if (hookSet.has(key)) {
+      const st = lstatSync(join(ROOT, file), { throwIfNoEntry: false });
+      // no link is written through: install's line behind one stays, and is named
+      if (st?.isSymbolicLink() && statSync(join(ROOT, file), { throwIfNoEntry: false })?.isFile() && read(ROOT, file).split("\n").includes(line)) out.push(`not written (symlink): ${key}: the xworkflows line stays in it; take it out yourself`);
+      if (!st?.isFile()) continue;
+    }
     // a hook's bytes are never rewritten as text
     const there = existsSync(join(ROOT, file)), t = there && line === hookLine(basename(key)) ? textOf(join(ROOT, file)) : read(ROOT, file);
     if (there && t === null) { out.push(`kept (not text): ${key}`); continue; }
