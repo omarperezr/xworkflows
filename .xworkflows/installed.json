@@ -6,7 +6,7 @@
   "pieces": {
     "hook-runtime": {
       "version": "0.1.0",
-      "sha256": "0a1149508b77b8ae4a35985bae4e61ea072dc75438434e9104cffc19b93545f3"
+      "sha256": "738b43d09be98996b800e405225c72329a66caaae0c56b831573df2fb016d99c"
     },
     "design-first": {
       "version": "0.1.0",
@@ -50,7 +50,7 @@
     },
     "adapt": {
       "version": "0.1.0",
-      "sha256": "0f8bf5c61ec2a6849376ef554b010b9568556e85ebb1ff49ca0dfb90133d1002"
+      "sha256": "a02c1ebc62b922aeff763d4594f4a5575bb90c0b58009a062e747d9e0febdaca"
     },
     "full-review": {
       "version": "0.1.0",
@@ -70,7 +70,7 @@
     },
     "memory": {
       "version": "0.1.0",
-      "sha256": "4ec2455f28716a2bfae3bcb5e70746f5e0e7969a2b2a4e442ca3d003721fed6e"
+      "sha256": "363d84ec9c46a95c3c0bc5fea0bc4950329b678aac3057ee9357b9b298c5cf2f"
     },
     "modes": {
       "version": "0.1.0",
@@ -106,7 +106,7 @@
     },
     "orchestrate": {
       "version": "0.1.0",
-      "sha256": "e3abe85db45467a06dea053ed2050bae4555befc14f54afe7396f2a07a3e3a75"
+      "sha256": "4da10f630bb12e9e97442072786664d80338888ae6f8b3af54b4bb994553f28d"
     },
     "pending": {
       "version": "0.1.0",
@@ -126,11 +126,11 @@
     },
     "dream": {
       "version": "0.1.0",
-      "sha256": "3e118aa0a1cb796f3080ec3e688724be293adff9b4fb696b811c99498c4ef710"
+      "sha256": "696931a88420fcb8e7642ea584a9cb9755365dea5e9d849305a08abb4386a896"
     },
     "checks": {
       "version": "0.1.0",
-      "sha256": "97b1d3e13d1969d8b60a2ae975608f1e1daef9c83024b5cd3ff9ca00e9dcca51"
+      "sha256": "e127fc6046706488e0bfb128cad9d72eb5abacfcf5b757cec52aa96a5e28d06a"
     },
     "lint": {
       "version": "0.1.0",
@@ -168,7 +168,7 @@
     },
     ".xworkflows/hooks/core/config.mjs": {
       "piece": "hook-runtime",
-      "sha256": "ea58516b21df776580b0424bc94adc09d3527c1f384e86b3fc583629fbc40068"
+      "sha256": "2c680c2417b7f2e887dd61174c1e8b25b4cf533b61d118ae30901868014d137f"
     },
     ".xworkflows/hooks/core/ctx.mjs": {
       "piece": "hook-runtime",
@@ -196,7 +196,7 @@
     },
     ".xworkflows/hooks/core/memory.mjs": {
       "piece": "memory",
-      "sha256": "c1bab32a4e6e87231dc050010314d93ba8c2836da94775d0f93719f0f8c3ecc4"
+      "sha256": "b318e79d804966cf0f0713f0c2d5457b6c12eb70e4c3c85d43d11afef83e0222"
     },
     ".xworkflows/hooks/core/memory-index.mjs": {
       "piece": "memory",
@@ -236,7 +236,7 @@
     },
     ".xworkflows/checks/fix-has-test.mjs": {
       "piece": "checks",
-      "sha256": "0cb0dbc57227be360e44671ab7ad5feb218758f00ece5102d4abddedcb6518d8"
+      "sha256": "8aad8681683f6c5a41daf86be6fc7e85a87513a9267db99bd4d87be973fdcf2f"
     },
     ".xworkflows/checks/change-size.mjs": {
       "piece": "checks",
@@ -264,11 +264,11 @@
     },
     ".xworkflows/checks/stale-memory.mjs": {
       "piece": "checks",
-      "sha256": "ab0317b1434d202ac114b837f383fdd25d98feb66dbea6fe2dd01b57e8dec277"
+      "sha256": "638d16610a34dfdc3773fe4cb6e7deb2089913466e4b504342a9f677a873df7f"
     },
     ".xworkflows/checks/index-current.mjs": {
       "piece": "checks",
-      "sha256": "1da87381699bfd1825b26a6ee2cef90b75fde9ebec72575b5f3c511ee49030cc"
+      "sha256": "e76348a0862428fa5ee2754746a77a5bddb0a734a9ac037668cb5837977a10be"
     },
     ".xworkflows/checks/project.mjs": {
       "piece": "checks",
@@ -340,7 +340,7 @@
     },
     ".claude/skills/adapt/SKILL.md": {
       "piece": "adapt",
-      "sha256": "86e131a7c7af1f9f2aab356bb083b42568d9c41b5a61abdb836d4f6705046bb6"
+      "sha256": "2296af68b8c944e64025c3b646a35e46699b92d7c7b6ecf6c204fe9bb31b32e8"
     },
     ".claude/skills/adapt/scan.mjs": {
       "piece": "adapt",
@@ -356,7 +356,7 @@
     },
     ".claude/skills/adapt/research.mjs": {
       "piece": "adapt",
-      "sha256": "168c1bb29ec6417e70d61abadc390d22be0448457fcde6f7d90bd0999a3a721d"
+      "sha256": "514a1a1ddadb09c4ce41cfda31649700186c60913ddea21828f31057a5d923c4"
     },
     ".claude/skills/adapt/screens.mjs": {
       "piece": "adapt",
@@ -400,7 +400,7 @@
     },
     ".claude/skills/orchestrate/SKILL.md": {
       "piece": "orchestrate",
-      "sha256": "1f506c458d579ad4ab331c698340738b7811a964f1d370c910e2774714f12b02"
+      "sha256": "b32b25f95f6bb57c79783e9627200b478887898b53a039a0b1b386ca23753f2c"
     },
     ".claude/skills/pending/SKILL.md": {
       "piece": "pending",
@@ -448,7 +448,7 @@
     },
     ".claude/skills/dream/SKILL.md": {
       "piece": "dream",
-      "sha256": "f9be909739445b685957296eb5b173b9feafaf2041f1527dc7c670ed0eef2724"
+      "sha256": "0e83ef12796737a1c263aac292eaf66202adb1730434dc2ed59555b5b68da8a8"
     },
     ".claude/skills/dream/extract.mjs": {
       "piece": "dream",

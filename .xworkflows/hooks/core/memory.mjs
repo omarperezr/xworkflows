@@ -10,7 +10,7 @@ const qmd = (ctx, ...args) => [...(ctx.config.memory.index ? ["--index", ctx.con
 
 function rebuild(ev, ctx) {
   const read = (p) => ctx.readFile(path.resolve(ev.root, p));
-  const { dir } = memoryFolder(ctx.config, ev.root);
+  const { dir } = memoryFolder(ctx.config, ev.root, ctx.outsideLine);
   if (!dir) return;
   const names = ctx.listDir(dir).filter((f) => f.endsWith(".md") && f !== "MEMORY.md");
   if (!names.length && !ctx.exists(dir)) return;
@@ -38,9 +38,10 @@ function typed(transcript) {
 
 // the line that suggests /dream when work has piled up unread, or null; it reads no session and starts nothing
 function dreamLine(ev, ctx) {
-  const o = { ...DEFAULTS.dream, ...ctx.config.dream };
+  const o = ctx.config.dream ?? {};
+  const after = (k) => (Number.isInteger(o[k]) && o[k] > 0 ? o[k] : DEFAULTS.dream[k]); // a threshold that is not a whole number above zero is its default
   if (o.suggest === false || (ev.source !== "startup" && ev.source !== "clear") || typeof ev.transcript !== "string" || !ev.transcript || ev.isSubagent) return null;
-  const { dir } = memoryFolder(ctx.config, ev.root);
+  const { dir } = memoryFolder(ctx.config, ev.root, ctx.outsideLine);
   if (!dir || !ctx.listDir(dir).some((f) => f.endsWith(".md") && f !== "MEMORY.md")) return null;
   if (ctx.realPath(dir) !== path.join(ctx.realPath(""), dir)) return null; // a link, or under one: dream refuses to run there
   let ran = NaN;
@@ -53,7 +54,7 @@ function dreamLine(ev, ctx) {
     return t !== null && (never || t > ran);
   }).length;
   const days = never ? 0 : Math.max(0, Math.floor((ctx.now() - ran) / 86400000));
-  if (!(count >= o.suggestAfterSessions || (!never && count >= 1 && days >= o.suggestAfterDays))) return null;
+  if (!(count >= after("suggestAfterSessions") || (!never && count >= 1 && days >= after("suggestAfterDays")))) return null;
   return `Dream is due: ${count} sessions since ${never ? "it never ran here" : `the last run ${days} days ago`}. Suggest /dream to the owner; nothing runs by itself.`;
 }
 
@@ -71,7 +72,7 @@ function start(ev, ctx) {
       lines.push(`Goals written ${months} months ago: run /adapt to refresh them.`);
     }
   }
-  const refused = memoryFolder(config, ev.root).line;
+  const refused = memoryFolder(config, ev.root, ctx.outsideLine).line;
   if (refused) lines.push(refused);
   const idx = config.lookup?.index;
   if (Array.isArray(config.paths.code) && config.paths.code.length && idx?.command) {
@@ -103,8 +104,9 @@ export function decide(ev, ctx) {
     const lines = start(ev, ctx);
     if (lines.length) return { decision: "allow", context: lines.join("\n") };
   } else if (ev.event === "preTool" && ev.kind === "write") {
-    const { dir: mem } = memoryFolder(ctx.config, ev.root);
-    const dir = mem && path.resolve(ev.root, mem) + path.sep; // a refused folder is no memory folder: no write is judged as a note
+    const { dir: mem, linked } = memoryFolder(ctx.config, ev.root, ctx.outsideLine);
+    const notes = mem ?? linked; // a folder refused only by the link test still holds the notes; one that names no folder holds none
+    const dir = notes && path.resolve(ev.root, notes) + path.sep;
     const left = new Map(); // the text of each file as the edits so far leave it
     for (const w of ev.writes ?? []) {
       const abs = path.resolve(ev.root, String(w.path).replaceAll("\\", "/"));

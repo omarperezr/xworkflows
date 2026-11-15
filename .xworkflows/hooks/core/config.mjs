@@ -56,14 +56,15 @@ export function memoryDir(d) {
   return n === "" || n === "." || n.startsWith("/") || n === ".." || n.startsWith("../") ? null : n;
 }
 
-// the memory folder every reader uses, { dir, line: null }, or the line that refuses it, { dir: null, line }
+// the memory folder every reader uses, { dir, line: null }, or the line that refuses it, { dir: null, line }; a folder refused only by the link test also names it, { dir: null, line, linked }
 // a value that is not a text is the default; a text outside is refused even when memory.outside lists it: that list is only for a link inside
-export function memoryFolder(config, root) {
+// link(file) is the line refusing a write of file, or null: the hooks pass the one of ctx; without it the disk is asked
+export function memoryFolder(config, root, link = (file) => outsideLine(root, file, config.memory?.outside)) {
   const value = config.memory?.dir;
   const dir = typeof value === "string" ? memoryDir(value) : DEFAULTS.memory.dir;
   if (dir === null) return { dir: null, line: `memory.dir ${JSON.stringify(value)} must be a folder inside the repository` };
-  const line = outsideLine(root, join(dir, "MEMORY.md"), config.memory?.outside);
-  return line ? { dir: null, line } : { dir, line: null };
+  const line = link(join(dir, "MEMORY.md"));
+  return line ? { dir: null, line, linked: dir } : { dir, line: null };
 }
 
 const isObj = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
