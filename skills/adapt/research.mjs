@@ -119,15 +119,20 @@ export function missing(queue, log, run, approved = false) {
 // The model of the risk reviewer, the first that applies: `given` (a correction at P-H6); the `answer` of H6-model of this run;
 // on a re-adapt (`readapt`), the `model:` line of the front matter of the existing reviewer `file`; the model of `strongest`; of `top`.
 // `tiers` is the `claude` table; a tier's name stands for its model; the mark, the open labels and an empty text name none. null: none at all.
+const TIER_NAMES = ["cheap", "medium", "top", "strongest"];
+// A text as the owner or a file gives it: the mark and the quotes around the value off.
+const modelText = (x) => collapse(x ?? "").replace(/\s*\(Recommended\)$/, "").replace(/^(["'])(.*)\1$/, "$2").trim();
 export function riskModel({ tiers, answer = null, readapt = false, file = null, given = null }) {
   const t = tiers || {};
   const named = (x) => {
-    const m = collapse(x ?? "").replace(/\s*\(Recommended\)$/, "");
+    const m = modelText(x);
     if (!m || OPEN.includes(m)) return null;
-    return ["cheap", "medium", "top", "strongest"].includes(m.toLowerCase()) ? t[m.toLowerCase()] || null : m;
+    return TIER_NAMES.includes(m.toLowerCase()) ? t[m.toLowerCase()] || null : m;
   };
-  const front = readapt && file ? (String(file).match(/^---\r?\n([\s\S]*?)\r?\n---/) || [])[1] : null;
-  return named(given) ?? named(answer) ?? named((front?.match(/^model:(.*)$/m) || [])[1]) ?? (t.strongest || t.top || null);
+  // a leading BOM and a `#` comment after the value are not the model
+  const front = readapt && file ? (String(file).replace(/^\uFEFF/, "").match(/^---\r?\n([\s\S]*?)\r?\n---/) || [])[1] : null;
+  const line = (front?.match(/^model:(.*)$/m) || [])[1]?.replace(/(^|\s)#.*$/, "");
+  return named(given) ?? named(answer) ?? named(line) ?? (t.strongest || t.top || null);
 }
 
 const git = (root, args) => execFileSync("git", args, { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
@@ -177,6 +182,12 @@ function keepAnswered(dir, run) {
   put(join(dir, "research.answered.json"), JSON.stringify(list, null, 2) + "\n");
 }
 
+// A pass that checked nothing says so: on stderr and in the hooks' log, where hooks/run.mjs writes a hook's skip; a log failure never changes the answer.
+function trace(said, logged) {
+  process.stderr.write(`xworkflows: research.mjs done: ${said}\n`);
+  try { appendFileSync(join(process.env.XWORKFLOWS_STATE_DIR ?? tmpdir(), "xwf-hooks.log"), `${new Date().toISOString()} - research.mjs ${logged}\n`); } catch {}
+}
+
 function cli(cmd, root) {
   const dir = join(root, ".xworkflows");
   const runFile = join(dir, "adapt-run.json");
@@ -222,9 +233,7 @@ function cli(cmd, root) {
     if (r && statusOf(summary) === "approved" && (h === r.summarySha || (marked(r) && h !== r.startSha && h !== headSha(root)))) {
       // the adapt-gates hook kept the hash of the last summary Write it allowed; any other text on disk came another way
       if (h !== r.summarySha && process.env.XWORKFLOWS_FREE) {
-        process.stderr.write("xworkflows: research.mjs done: the summary check skipped by XWORKFLOWS_FREE\n");
-        // the hooks' log, where hooks/run.mjs writes a hook's skip; a log failure never changes the answer
-        try { appendFileSync(join(process.env.XWORKFLOWS_STATE_DIR ?? tmpdir(), "xwf-hooks.log"), `${new Date().toISOString()} - research.mjs free done: the summary check\n`); } catch {}
+        trace("the summary check skipped by XWORKFLOWS_FREE", "free done: the summary check");
       } else if (h !== r.summarySha) {
         console.error("adapt: the summary on disk is not the one written with the Write tool; write it again with Write, then run research.mjs done again");
         process.exit(1);
@@ -234,6 +243,7 @@ function cli(cmd, root) {
         keepAnswered(dir, r.run);
       }
     }
+    else if (r && statusOf(summary) === "approved" && marked(r) && h === headSha(root)) trace("the summary equals the one at HEAD; nothing was checked or copied", "done: the summary equals the one at HEAD");
     rmSync(runFile, { force: true });
   } else if (cmd === "render") {
     const research = readJson(join(dir, "research.json"));
@@ -278,7 +288,9 @@ function cli(cmd, root) {
         const answer = log.filter((l) => l.run === run && l.id === "H6-model" && l.answer !== undefined && l.answer !== "").pop()?.answer;
         let file = null;
         try { file = readFileSync(join(root, ".claude", "agents", "risk-review.md"), "utf8"); } catch {}
-        const m = riskModel({ tiers: opt("tiers.json")?.claude, answer, readapt: !!opt("research.prev.json"), file, given: process.argv[3] });
+        const tier = modelText(process.argv[3]).toLowerCase(), tiers = opt("tiers.json")?.claude;
+        if (TIER_NAMES.includes(tier) && !tiers?.[tier]) { console.error(`adapt: the tier ${tier} is not in .xworkflows/tiers.json under claude`); process.exit(1); }
+        const m = riskModel({ tiers, answer, readapt: !!opt("research.prev.json"), file, given: process.argv[3] });
         if (!m) { console.error("adapt: no model for the risk reviewer: .xworkflows/tiers.json has neither strongest nor top under claude"); process.exit(1); }
         console.log(m);
       }

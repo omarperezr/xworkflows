@@ -382,8 +382,9 @@ test("tiers.json has the level strongest for claude, and no agent of the package
 test("adapt: H6-model is asked as the queue words it; heading 6 and step 4 take the model research.mjs model prints, and the skill names no case", () => {
   const s = read("skills/adapt/SKILL.md");
   has(s.split("## Step 1")[0], ["`H6-model`", "on the first option of `H6-model` (the model of `strongest`), the product's default"]);
-  has(step(3), ["- `H6-model`, when the queue holds it: after the `H6-r<n>` items, with its text and options as the queue words them, the first option carrying `(Recommended)`; its text already holds the `Type something` note."]);
-  has(step(3).split("### Playback")[1], ["Heading 6 also names, in one line, the model the risk reviewer runs on: the one `node <base>/research.mjs model` prints; a correction of it at `P-H6` goes through `node <base>/research.mjs model \"<the owner's words for the model>\"`."]);
+  has(step(3), ["- `H6-model`, when the queue holds it: after the `H6-r<n>` items, with its text and options as the queue words them, the first option carrying `(Recommended)`, the mark staying the English `(Recommended)` in the label whatever the owner's language; its text already holds the `Type something` note."]);
+  has(step(3).split("### Playback")[1], ["Heading 6 also names, in one line, the model the risk reviewer runs on: the one `node <base>/research.mjs model` prints; a correction of it at `P-H6` goes through `node <base>/research.mjs model \"<the owner's words for the model>\"`. When that command exits 1, stop and tell the owner what it printed, as step 2 does for `render`."]);
+  has(step(1), ["write a draft from the approved summary with all eight headings, each changed line marked `(changed)`, heading 6's model line being the one `node <base>/research.mjs model` prints;"]);
   has(step(4), ["`model:` set to the model heading 6 names as approved and, where heading 6 names none, to the model `node <base>/research.mjs model` prints; the line is never left out;"]);
   has(step(3), ["`(Recommended)`, as in the question rules: an option backed by a verified `file:line` citation in `research.md`, and the first option of `H6-model`."]);
   // the cases live in research.mjs and its table test: no sentence of the skill says which model a case gives
