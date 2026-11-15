@@ -131,6 +131,15 @@ test("a symlinked write path to research.md is denied; a not-yet-existing file r
     deny(decide(e("./.xworkflows/../.xworkflows/research.md"), c), /render/);
   } finally { rmSync(link); }
 });
+test("a write spelled through a link to an existing interview.json is denied", () => {
+  const d = realpathSync(mkdtempSync(join(tmpdir(), "xwf-g-")));
+  mkdirSync(join(d, ".xworkflows"));
+  writeFileSync(join(d, ".xworkflows/interview.json"), "[]");
+  symlinkSync(join(d, ".xworkflows/interview.json"), join(d, "alias.json"));
+  const f = { [join(d, ".xworkflows/adapt-run.json")]: JSON.stringify(fresh) };
+  const c = { readFile: (p) => f[p] ?? null, runCheck: () => ({ code: 0 }), skillName: () => "adapt" };
+  deny(decide({ ...wr([{ path: "alias.json", content: "x" }]), root: d }, c), /interview\.json is written by node \.claude\/skills\/adapt\/research\.mjs queue/);
+});
 test("scriptPath compared after realpath", () => {
   const d = mkdtempSync(join(tmpdir(), "xwf-g-"));
   const real = realpathSync(d);
