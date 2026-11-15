@@ -2441,7 +2441,10 @@ function doLine(r, line, hand) {
     if (m[2]) t = t.split("\n").filter((l) => l !== GUARDED_OLD).join("\n");
     // a read-only file is made writable first, as a user does to edit it
     if (existsSync(m[1])) chmodSync(m[1], statSync(m[1]).mode | 0o200);
-    return writeFileSync(m[1], t.startsWith("#!") ? t.replace("\n", `\n${m[3]}\n`) : `${m[3]}\n${t}`);
+    writeFileSync(m[1], t.startsWith("#!") ? t.replace("\n", `\n${m[3]}\n`) : `${m[3]}\n${t}`);
+    // the step of a sentence that names install after the edit
+    if (line.includes(" # xworkflows ; then run xworkflows install")) assert.equal(cli(r, ["install"]).status, 0);
+    return;
   }
   if ((m = line.match(/: delete (\S+), then run xworkflows install$/))) {
     rmSync(join(r, m[1]));
@@ -2534,6 +2537,13 @@ const HOOK_STATES = [
   ["husky's file a link to a script holding the line", () => { const x = husky({ "pre-push": "echo mine\n" }); yes(x.r); toScript(x.r, ".husky/pre-push", "../scripts/pre-push.sh"); return x; }, "ok"],
   ["of a hooks folder outside the repository, shared with a project without xworkflows", shared(false), undefined, sharedAfter],
   ["of a hooks folder outside the repository, holding the line an earlier version gave", shared(true), undefined, sharedAfter],
+  // P-158: that version wrote no file under .xworkflows/git, so the new line refuses every push until install of this version runs
+  ["of a hooks folder outside the repository, holding the line an earlier version gave, in a project that version installed", () => {
+    const x = shared(true)();
+    rmSync(join(x.r, ".xworkflows/git"), { recursive: true });
+    withRecord(x.r, (rec) => { for (const n of ["pre-push", "post-merge", "post-commit"]) delete rec.files[`.xworkflows/git/${n}`]; });
+    return x;
+  }, undefined, sharedAfter],
 ];
 const ofHook = (out) => out.stdout.split("\n").filter((l) => /^(ok|warn|fail) .*(pre-push hook|hooks\/pre-push)/.test(l));
 // a row's third value: "ok", the line is there already and doctor says so at once; "by hand", the row does the hand edit its line offers;
