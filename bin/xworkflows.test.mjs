@@ -3619,6 +3619,14 @@ for (const [name, block, skip, why] of FOLDER_BLOCKS) {
     assert.ok(existsSync(join(r, ".claude/skills/grill/SKILL.md")));
     if (name === "made a file") assert.equal(readFileSync(d, "utf8"), "x\n");
   }));
+  test(`install: an installed folder ${name} leaves its files in the record`, { skip }, () => run((r, d) => {
+    const rec = () => readFileSync(join(r, ".xworkflows/installed.json"), "utf8");
+    const keys = (t) => Object.keys(JSON.parse(t).files).filter((k) => k.startsWith(".claude/skills/tdd/"));
+    const before = keys(rec());
+    assert.ok(before.length > 0, rec());
+    assert.equal(cli(r, ["install"]).status, 0);
+    assert.deepEqual(keys(rec()), before);
+  }));
   test(`uninstall: an installed folder ${name} gets one line, the rest goes and the thing in the way stays`, { skip }, () => run((r, d) => {
     const o = cli(r, ["uninstall"]);
     said(o, ".claude/skills/tdd");

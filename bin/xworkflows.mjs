@@ -578,7 +578,9 @@ export function plan(manifest, root, record, ans = {}) {
     if (!notes.includes(n)) notes.push(n);
     return true;
   };
-  writes = writes.filter((w) => !off(w.path));
+  // a write dropped for a path in the way keeps its record entry: a second install and uninstall still know the file
+  const dropped = writes.filter((w) => off(w.path));
+  writes = writes.filter((w) => !dropped.includes(w));
   for (const w of writes) {
     const cur = read(root, w.path);
     if (cur === null || cur === w.text || w.rename || (w.key && earlierHook(manifest, w.src, cur))) continue;
@@ -629,7 +631,7 @@ export function plan(manifest, root, record, ans = {}) {
       merges.push({ path: "CLAUDE.md", text: claude + (claude.endsWith("\n") ? "" : "\n") + "@AGENTS.md\n", rec: { imports: [claude.endsWith("\n") ? { file: "CLAUDE.md", line: "@AGENTS.md" } : { file: "CLAUDE.md", line: "@AGENTS.md", addedNewline: true }] } });
     } else merges.push({ path: "CLAUDE.md", text: null, rec: { declined: [{ file: "CLAUDE.md", what: "import" }] } });
   }
-  return { writes, merges, questions, kept, renamed, notes, retired };
+  return { writes, dropped, merges, questions, kept, renamed, notes, retired };
 }
 
 const differs = (root, w) => !existsSync(join(root, w.path)) || readFileSync(join(root, w.path), "utf8") !== w.text;
@@ -695,6 +697,7 @@ export function apply(pl, root, manifest, record) {
     next.imports = next.imports.filter((i) => !(i.file === GI && i.line === line));
   }
   for (const p of manifest.pieces) next.pieces[p.id] = { version: p.version, sha256: p.sha256 };
+  for (const w of pl.dropped) if (record.files[w.key ?? w.path]) next.files[w.key ?? w.path] = record.files[w.key ?? w.path];
   for (const w of pl.writes) next.files[w.key ?? w.path] = w.keep ? record.files[w.key ?? w.path] : { piece: w.piece, sha256: hash(w.text) };
   const rp = ".xworkflows/installed.json";
   mk(dirname(rp));
