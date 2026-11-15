@@ -7,6 +7,21 @@ import { inPaths } from "../hooks/core/config.mjs";
 export const needs = ["paths.code", "tests.files", "tests.run", "tests.notRunnable"];
 
 const quote = (s) => `'${s.replace(/'/g, `'\\''`)}'`;
+const esc = (s) => s.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&");
+const START = /(?:^|[^\w.$])(?:test|it|describe|suite)(?:\.(?:only|skip|todo))?\(\s*(["'`])((?:\\.|(?!\1)[^\\])*)\1/;
+
+// the tests of a file as name pattern -> text up to the next test; a template's ${...} matches any text
+// shortcut: a test made by a helper of another name is not seen, its lines count to the test above; the whole file then decides at the parent
+const testsOf = (text) => {
+  const tests = new Map();
+  let key = null;
+  for (const line of (text ?? "").split(/(?<=\n)/)) {
+    const m = START.exec(line);
+    if (m) key = `^${(m[1] === "`" ? m[2].split(/\$\{[^}]*\}/) : [m[2]]).map(esc).join(".*")}$`;
+    if (key) tests.set(key, (tests.get(key) ?? "") + line);
+  }
+  return tests;
+};
 
 export async function run(range, ctx) {
   const { paths: { code }, tests } = ctx.config;
@@ -24,11 +39,17 @@ export async function run(range, ctx) {
   const onSig = (s) => { signal ??= s; try { process.kill(-child.pid, "SIGKILL"); } catch {} };
   for (const s of sigs) process.on(s, onSig);
 
-  // exit: 0 pass, 1 red, null could not run
-  const runTests = async (files) => {
+  // exit: 0 pass, 1 red, null could not run; a run by names that ran no test exits 0
+  const runTests = async (files, names) => {
     if (signal) return null;
     const list = files.map(quote).join(" ");
-    const cmd = tests.run.includes("<files>") ? tests.run.split("<files>").join(list) : `${tests.run} ${list}`;
+    const build = (ns) => {
+      const run = ns ? tests.run.replace(/^\s*node --test/, () => `node --test ${ns.map((n) => quote(`--test-name-pattern=${n}`)).join(" ")}`) : tests.run;
+      return run.includes("<files>") ? run.split("<files>").join(list) : `${run} ${list}`;
+    };
+    // Linux caps one argument at 128 KB: past 100000 bytes of command the whole file runs
+    let cmd = build(names);
+    if (names && Buffer.byteLength(cmd) > 100000) cmd = build(null);
     const env = { ...process.env };
     delete env.NODE_TEST_CONTEXT; // a nested `node --test` would report to the outer run and always pass
     for (const k of ["GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE"]) delete env[k];
@@ -76,13 +97,18 @@ export async function run(range, ctx) {
         if (existsSync(join(ctx.root, n)) && !existsSync(join(wt, n))) symlinkSync(join(ctx.root, n), join(wt, n));
       }
       wtGit("checkout", "-q", c, "--", ...runnable);
-      const atParent = await runTests(runnable);
+      // only the parent runs: the push runs the whole suite on the last commit
+      // with node --test, only the tests the fix adds or changes run; a red of those decides
+      // a pass or no test run goes to the whole file, as before, so no verdict is stricter than before
+      const names = /^\s*node --test(?: <files>)?\s*$/.test(tests.run) ? runnable.flatMap((f) => {
+        const before = testsOf(ctx.show(`${c}^`, f));
+        return [...testsOf(ctx.show(c, f))].filter(([k, text]) => before.get(k) !== text).map(([k]) => k);
+      }) : [];
+      let atParent = names.length ? await runTests(runnable, names) : 0;
+      // shortcut: a test that needs an earlier test of its file fails alone at the parent, and that red counts as proof, though the whole file passes there; a gap, see docs/gaps.md
+      if (atParent === 0) atParent = await runTests(runnable);
       if (atParent === null) { cannot = `${label}: its tests did not end within ${seconds}s or could not start at the parent; raise brakes.fixHasTest.seconds`; return; }
-      if (atParent === 0) { bad.push(`${label}: its tests also pass at the parent, so they prove nothing; make them fail without the fix`); return; }
-      wtGit("checkout", "-q", "--detach", "-f", c);
-      const atFix = await runTests(runnable);
-      if (atFix === null) { cannot = `${label}: its tests did not end within ${seconds}s or could not start at the fix; raise brakes.fixHasTest.seconds`; return; }
-      if (atFix !== 0) bad.push(`${label}: its tests still fail at the fix commit`);
+      if (atParent === 0) bad.push(`${label}: its tests also pass at the parent, so they prove nothing; make them fail without the fix`);
     })();
   } finally {
     if (wt) {

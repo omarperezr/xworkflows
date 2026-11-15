@@ -428,16 +428,23 @@ const UNIT = /^\.claude\/(skills|agents)\/[^/]+/;
 const IMPORT = "Add @AGENTS.md to CLAUDE.md?";
 
 const plain = (p) => typeof p === "string" && p !== "" && p !== "." && !isAbsolute(p) && normalize(p) === p && !p.split("/").includes("..");
-// no existing component of p, from the repository root down, is a symlink
-const clean = (root, p) => {
+// What is in the way of p, from the repository root down: null when nothing; { folder } for a folder made a file or one that
+// cannot be searched (the folder is named, nothing is written into it); {} for a symlink.
+const way = (root, p) => {
   let a = root;
   for (const c of p.split("/")) {
-    const st = lstatSync((a = join(a, c)), { throwIfNoEntry: false });
-    if (!st) return true;
-    if (st.isSymbolicLink()) return false;
+    let st;
+    try { st = lstatSync((a = join(a, c)), { throwIfNoEntry: false }); } catch (e) {
+      if (e.code === "ENOTDIR" || e.code === "EACCES") return { folder: dirname(a).slice(root.length + 1) };
+      throw e;
+    }
+    if (!st) return null;
+    if (st.isSymbolicLink()) return {};
   }
-  return true;
+  return null;
 };
+// no existing component of p is a symlink, a file in place of a folder, or a folder that cannot be read
+const clean = (root, p) => !way(root, p);
 
 // Reads and parses every target file before any write (ruling P2) and refuses before any write.
 // `ans` maps question id -> chosen label; an unanswered question is listed in `questions` and planned with its safe answer.
@@ -564,11 +571,17 @@ export function plan(manifest, root, record, ans = {}) {
   // install and uninstall share one test: a path with a symlink component is never written or merged
   const hookPaths = new Set(writes.filter((w) => w.src && HOOKS.includes(w.src)).map((w) => w.path));
   const off = (p) => {
-    if (hookPaths.has(p) || (plain(p) && clean(root, p))) return false;
-    notes.push(`not written (symlink): ${p}`);
+    if (hookPaths.has(p)) return false;
+    const w = plain(p) ? way(root, p) : {};
+    if (!w) return false;
+    const n = w.folder ? `not written (not a folder, or not readable): ${w.folder}` : `not written (symlink): ${p}`;
+    if (!notes.includes(n)) notes.push(n);
     return true;
   };
-  writes = writes.filter((w) => !off(w.path));
+  // a write dropped for a folder in the way keeps its record entry (a link does not): a second install and uninstall still know the file
+  const gone = writes.filter((w) => off(w.path));
+  writes = writes.filter((w) => !gone.includes(w));
+  const dropped = gone.filter((w) => plain(w.path) && way(root, w.path)?.folder);
   for (const w of writes) {
     const cur = read(root, w.path);
     if (cur === null || cur === w.text || w.rename || (w.key && earlierHook(manifest, w.src, cur))) continue;
@@ -619,7 +632,7 @@ export function plan(manifest, root, record, ans = {}) {
       merges.push({ path: "CLAUDE.md", text: claude + (claude.endsWith("\n") ? "" : "\n") + "@AGENTS.md\n", rec: { imports: [claude.endsWith("\n") ? { file: "CLAUDE.md", line: "@AGENTS.md" } : { file: "CLAUDE.md", line: "@AGENTS.md", addedNewline: true }] } });
     } else merges.push({ path: "CLAUDE.md", text: null, rec: { declined: [{ file: "CLAUDE.md", what: "import" }] } });
   }
-  return { writes, merges, questions, kept, renamed, notes, retired };
+  return { writes, dropped, merges, questions, kept, renamed, notes, retired };
 }
 
 const differs = (root, w) => !existsSync(join(root, w.path)) || readFileSync(join(root, w.path), "utf8") !== w.text;
@@ -685,6 +698,7 @@ export function apply(pl, root, manifest, record) {
     next.imports = next.imports.filter((i) => !(i.file === GI && i.line === line));
   }
   for (const p of manifest.pieces) next.pieces[p.id] = { version: p.version, sha256: p.sha256 };
+  for (const w of pl.dropped) if (record.files[w.key ?? w.path]) next.files[w.key ?? w.path] = record.files[w.key ?? w.path];
   for (const w of pl.writes) next.files[w.key ?? w.path] = w.keep ? record.files[w.key ?? w.path] : { piece: w.piece, sha256: hash(w.text) };
   const rp = ".xworkflows/installed.json";
   mk(dirname(rp));
@@ -716,8 +730,8 @@ async function install(flags) {
     }
   }
   let pl = plan(m, ROOT, record);
-  // a linked folder under .xworkflows would leave the hooks wired to files that were not written
-  const linked = pl.notes.find((n) => n.startsWith("not written (symlink): .xworkflows/"));
+  // a linked folder, or a file or unreadable folder in the way, under .xworkflows would leave the hooks wired to files that were not written
+  const linked = pl.notes.find((n) => /^not written \((symlink\)|not a folder, or not readable\)): \.xworkflows\//.test(n));
   if (linked) die(1, linked);
   const ans = {}, auto = [];
   const rl = pl.questions.length && !flags.yes && !flags["dry-run"] && process.stdin.isTTY ? createInterface({ input: process.stdin, output: process.stdout }) : null;
@@ -1065,8 +1079,10 @@ function uninstall() {
   };
   const said = new Set();
   const keep = (kind, e, p) => {
-    if ((hookSet.has(p) ? ["files", "chained", "imports"].includes(kind) : plain(p) && clean(ROOT, p)) && named[kind](e, p)) return true;
-    if (!said.has(p)) { said.add(p); out.push(`kept (not ours): ${p}`); }
+    const w = hookSet.has(p) || !plain(p) ? null : way(ROOT, p);
+    if ((hookSet.has(p) ? ["files", "chained", "imports"].includes(kind) : plain(p) && !w) && named[kind](e, p)) return true;
+    const n = w?.folder ?? p;
+    if (!said.has(n)) { said.add(n); out.push(`kept (not ours): ${n}`); }
     return false;
   };
   const recFiles = new Set(Object.keys(rec.files).filter((p) => keep("files", rec.files[p], p)));

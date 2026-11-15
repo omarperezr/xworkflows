@@ -3595,3 +3595,74 @@ test("doctor: a pre-push hook of an outside folder with a function holding exit 
 test("doctor: a pre-push hook of an outside folder with only comments and blank lines before the line is ok", () => {
   assert.match(outsideHook((l) => `#!/bin/sh\n\n# the check of this repository\n  # indented\n\n${l}\necho after\n`).out, OK_LINE);
 });
+
+// an installed folder made a file, or one that cannot be read: install and uninstall answer with one line and go on
+const FOLDER_BLOCKS = [
+  ["made a file", (d) => { rmSync(d, { recursive: true }); writeFileSync(d, "x\n"); }, false, "not a folder"],
+  ["of mode 000", (d) => chmodSync(d, 0o000), process.getuid?.() === 0 && "root reads a folder of mode 000", "not readable"],
+];
+for (const [name, block, skip, why] of FOLDER_BLOCKS) {
+  const run = (go) => {
+    const r = repo(), d = join(r, ".claude/skills/tdd");
+    try {
+      assert.equal(cli(r, ["install"]).status, 0);
+      block(d);
+      go(r, d);
+    } finally { try { chmodSync(d, 0o755); } catch {} rmSync(r, { recursive: true, force: true }); }
+  };
+  const said = (o, rel) => { const all = o.stdout + o.stderr; assert.ok(!/\n\s+at /.test(all) && !/ENOTDIR|EACCES/.test(all.replace(/^.*\.claude\/skills\/tdd.*$/gm, "")), all); assert.equal(all.split("\n").filter((l) => l.includes(rel)).length, 1, all); };
+  test(`install: an installed folder ${name} gets one line and the install goes on`, { skip }, () => run((r, d) => {
+    const o = cli(r, ["install"]);
+    said(o, ".claude/skills/tdd");
+    assert.match(o.stdout + o.stderr, new RegExp(why));
+    assert.equal(o.status, 0, o.stderr);
+    assert.ok(existsSync(join(r, ".claude/skills/grill/SKILL.md")));
+    if (name === "made a file") assert.equal(readFileSync(d, "utf8"), "x\n");
+  }));
+  test(`install: an installed folder ${name} leaves its files in the record`, { skip }, () => run((r, d) => {
+    const rec = () => readFileSync(join(r, ".xworkflows/installed.json"), "utf8");
+    const keys = (t) => Object.keys(JSON.parse(t).files).filter((k) => k.startsWith(".claude/skills/tdd/"));
+    const before = keys(rec());
+    assert.ok(before.length > 0, rec());
+    assert.equal(cli(r, ["install"]).status, 0);
+    assert.deepEqual(keys(rec()), before);
+  }));
+  test(`uninstall: an installed folder ${name} gets one line, the rest goes and the thing in the way stays`, { skip }, () => run((r, d) => {
+    const o = cli(r, ["uninstall"]);
+    said(o, ".claude/skills/tdd");
+    assert.ok(!existsSync(join(r, ".claude/skills/grill/SKILL.md")));
+    assert.equal(o.status, 0, o.stderr);
+    assert.ok(existsSync(d), o.stdout);
+    if (name === "made a file") assert.equal(readFileSync(d, "utf8"), "x\n");
+  }));
+}
+test("doctor: an installed folder made a file gives its line and doctor does not stop", () => {
+  const r = repo(), d = join(r, ".claude/skills/tdd");
+  cli(r, ["install"]); rmSync(d, { recursive: true }); writeFileSync(d, "x\n");
+  const o = doctor(r);
+  assert.ok(!/\n\s+at /.test(o.stdout + o.stderr), o.stderr);
+  assert.doesNotMatch(o.stdout, /^fail doctor stopped/m);
+  assert.match(o.stdout, /^fail missing or unreadable: \.claude\/skills\/tdd\/SKILL\.md: .*$/m);
+  assert.equal(o.status, 1);
+  assert.equal(readFileSync(d, "utf8"), "x\n");
+  rmSync(r, { recursive: true, force: true });
+});
+test("install: a skill folder replaced by a link leaves no key of the record under it and doctor says nothing of it", () => {
+  const r = repo(), d = join(r, ".claude/skills/tdd"), out = join(r, "outside");
+  cli(r, ["install"]); mkdirSync(out); rmSync(d, { recursive: true }); symlinkSync(out, d);
+  assert.equal(cli(r, ["install"]).status, 0);
+  const keys = Object.keys(JSON.parse(readFileSync(join(r, ".xworkflows/installed.json"), "utf8")).files);
+  assert.deepEqual(keys.filter((k) => k.startsWith(".claude/skills/tdd/")), []);
+  assert.doesNotMatch(doctor(r).stdout, /skills\/tdd/);
+  rmSync(r, { recursive: true, force: true });
+});
+test("install: a folder under .xworkflows made a file stops install with one line and leaves it as it is", () => {
+  const r = repo(); mkdirSync(join(r, ".xworkflows")); writeFileSync(join(r, ".xworkflows/hooks"), "x\n");
+  const o = cli(r, ["install"]), all = o.stdout + o.stderr;
+  assert.equal(o.status, 1, all);
+  assert.equal(all.split("\n").filter((l) => l.includes(".xworkflows")).length, 1, all);
+  assert.ok(!/\n\s+at /.test(all), all);
+  assert.equal(readFileSync(join(r, ".xworkflows/hooks"), "utf8"), "x\n");
+  assert.ok(!existsSync(join(r, ".claude/skills/grill/SKILL.md")), all);
+  rmSync(r, { recursive: true, force: true });
+});

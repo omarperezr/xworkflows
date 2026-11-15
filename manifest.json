@@ -654,7 +654,7 @@
         "checks/review-seal.mjs": "f3ab75a35ba6f5fad303b5d0b2af975928c240aa9a0b5ac791ced5c0c62a4139",
         "checks/goal-cited.mjs": "ece9e129e2bdb39a619bf8680195101364e67d2d6ab318eef00cf4cb11c9eb8d",
         "checks/pending.mjs": "0eb036116ed41676dd1fb2bed3c8a96d1357360e246bead864af6b311559c0cb",
-        "checks/fix-has-test.mjs": "8aad8681683f6c5a41daf86be6fc7e85a87513a9267db99bd4d87be973fdcf2f",
+        "checks/fix-has-test.mjs": "63ba9b3dbbf9251be58632b667ed69f611aa0c6a7fb6c893a114c1a2610defc4",
         "checks/change-size.mjs": "be1366d8e2f5fa80b0616cf4a22c660526316b988df38d28643c31c46ac8b855",
         "checks/comment-ratio.mjs": "20112da90275485c4cfa149cb2164517aa308873b49a97d1f5d8c98f9a621310",
         "checks/skills-travel.mjs": "d6188c4677f6ddcaf7bbb6ba6a311976377b318c6d9ddb3612614dce6d7e89cd",
@@ -665,7 +665,7 @@
         "checks/index-current.mjs": "e76348a0862428fa5ee2754746a77a5bddb0a734a9ac037668cb5837977a10be",
         "checks/project.mjs": "3756970ca6af156dc599cdae8afcb7f2adc0982d5be72cb0c79b04d2777ce901"
       },
-      "sha256": "e127fc6046706488e0bfb128cad9d72eb5abacfcf5b757cec52aa96a5e28d06a"
+      "sha256": "402757f82bcb90a411acfcf56a8045668d034876ffddc7e3881bf50d6d0342f3"
     },
     {
       "id": "lint",

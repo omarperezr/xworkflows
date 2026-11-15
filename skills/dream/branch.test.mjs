@@ -467,6 +467,23 @@ test("drop removes the extract's folder by the same rule and nothing else", () =
   assert.equal(run(["drop"], root).code, 2);
 });
 
+test("drop --out spelled through a link into the repository deletes nothing", () => {
+  const root = repo(), inRepo = extractAt(join(root, "data")), alias = join(tmpdir(), `dream-b-link-${process.pid}`);
+  symlinkSync(root, alias);
+  made.push(alias);
+  const spelled = join(alias, "data");
+  assert.deepEqual(json(run(["drop", "--out", spelled], root)), { left: [spelled], deleted: null });
+  assert.ok(existsSync(join(inRepo, "extract.json")));
+});
+
+test("drop --worktree names a worktree that open made through a link to it", () => {
+  const root = repo(), o = opened(root), alias = join(tmpdir(), `dream-b-wt-${process.pid}`);
+  symlinkSync(o.worktree, alias);
+  made.push(alias);
+  assert.deepEqual(json(run(["drop", "--worktree", alias], root)), { left: [], deleted: o.branch });
+  assert.equal(existsSync(o.worktree), false);
+});
+
 test("drop --worktree removes a worktree that open made, and its branch only when the branch has no commit of its own", () => {
   const root = repo();
   const bare = opened(root), kept = opened(root);
