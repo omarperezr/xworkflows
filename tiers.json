@@ -1,1 +1,1 @@
-{ "claude": { "cheap": "haiku", "medium": "sonnet", "top": "opus" } }
+{ "claude": { "cheap": "haiku", "medium": "sonnet", "top": "opus", "strongest": "fable" } }

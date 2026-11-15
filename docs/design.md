@@ -233,7 +233,9 @@ folders and comment marks cannot be fixed values (section 7.7), and the
 ### 7.1 Agents and model tiers
 
 A role asks for a tier, never a model. `tiers.json` maps tier to model per
-tool and is the only place a model name appears.
+tool and is the only place a model name appears. There are four tiers: `cheap`,
+`medium`, `top` and `strongest`; no role of the package asks for `strongest`,
+it is the default model of `risk-review`.
 
 | Role | Tier | Job |
 |---|---|---|
@@ -242,14 +244,16 @@ tool and is the only place a model name appears.
 | `implement` | medium | Implements a written spec in the files it owns |
 | `verify-finding` | medium | Reproduces a review finding with a failing test, or discards it |
 | `review` | top | Reviews a diff against the project's rules |
-| `risk-review` | top | Written by the interview for this project (section 8.3) |
+| `risk-review` | the model the user chose at `/adapt`: the `strongest` entry by default, the `top` entry or a model typed | Written by the interview for this project (section 8.3) |
 | `dream-analyzer` | cheap | Reads one session extract and verifies, enriches and organizes memory (section 7.9) |
 | `dream-organizer` | cheap | Runs once after the analyzers: merges duplicates, marks conflicts |
 
 Tier tables for Codex, Cursor and Gemini are filled at build time from each
 tool's docs. Start at the cheapest tier that holds the rules; escalate one
 tier, once, on a defined failure (type check red, test red, agent returns
-`blocked`).
+`blocked`); the step up ends at `top`. The user changes the model of
+`risk-review` afterwards by editing the `model:` line of
+`.claude/agents/risk-review.md`.
 
 ### 7.2 Hooks
 

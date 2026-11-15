@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -334,7 +334,7 @@ test("revision 2: written rules first, coherent questions", () => {
   assert.equal(s.split("backed by a verified `file:line` citation in `research.md`").length, 3);
   const c = q.split("\n").find((x) => x.startsWith("- `C<n>`"));
   has(c, ["on a bare `No`, ask the follow-up `C<n>-fix`, `open`: `What should it be?`", "Its answer is the key's value."]);
-  has(s.split("## Step 1")[0], ["except `H6-r<n>`, whose text already says it"]);
+  has(s.split("## Step 1")[0], ["except `H6-r<n>` and `H6-model`, whose text already says it"]);
   has(q, ["`H1-what`", "`H2-pays`"]);
   has(s.split("## Step 1")[0], ["Drafted options are suggestions from research"]);
   has(q, ["asks each heading in the owner's language", "the canonical English heading stays in `summary.md`",
@@ -372,4 +372,22 @@ test("adapt step 4: the path sentence is one line of its own and the five answer
   assert.ok(path.includes(`a screen 2 rule (${FIVE}) from its question in \`interview.json\``), "path sentence");
   assert.ok(path.includes("take it from the place where the rule itself holds, which the question names (`The rule itself holds at <path:line>`), never from the place that differs."), "exception place");
   assert.ok(row.includes(`or a screen 2 rule kept: ${FIVE})`), "zone file row");
+});
+
+test("tiers.json has the level strongest for claude, and no agent of the package asks for it", () => {
+  assert.equal(JSON.parse(read("tiers.json")).claude.strongest, "fable");
+  for (const f of readdirSync(join(ROOT, "agents")).filter((x) => x.endsWith(".md"))) assert.doesNotMatch(read(`agents/${f}`), /^tier:\s*strongest\s*$/m, f);
+});
+
+test("adapt: H6-model is asked as the queue words it; heading 6 and step 4 take the model research.mjs model prints, and the skill names no case", () => {
+  const s = read("skills/adapt/SKILL.md");
+  has(s.split("## Step 1")[0], ["`H6-model`", "on the first option of `H6-model` (the model of `strongest`), the product's default"]);
+  has(step(3), ["- `H6-model`, when the queue holds it: after the `H6-r<n>` items, with its text and options as the queue words them, the first option carrying `(Recommended)`; its text already holds the `Type something` note."]);
+  has(step(3).split("### Playback")[1], ["Heading 6 also names, in one line, the model the risk reviewer runs on: the one `node <base>/research.mjs model` prints; a correction of it at `P-H6` goes through `node <base>/research.mjs model \"<the owner's words for the model>\"`."]);
+  has(step(4), ["`model:` set to the model heading 6 names as approved and, where heading 6 names none, to the model `node <base>/research.mjs model` prints; the line is never left out;"]);
+  has(step(3), ["`(Recommended)`, as in the question rules: an option backed by a verified `file:line` citation in `research.md`, and the first option of `H6-model`."]);
+  // the cases live in research.mjs and its table test: no sentence of the skill says which model a case gives
+  for (const old of ["when the item is not in the queue", "give the model of `strongest`", "stands for the model of that tier", "a tier's name typed", "the model's name alone",
+    "where heading 6 names none, the model of `strongest`", "of `top` where `.xworkflows/tiers.json` has no `strongest`", "the model the `model:` line of the existing", "never holds the name of a tier"])
+    assert.ok(!s.includes(old), old);
 });

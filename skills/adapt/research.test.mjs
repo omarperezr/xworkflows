@@ -2,10 +2,10 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdtempSync as makeTmp, mkdirSync, writeFileSync, existsSync, rmSync, utimesSync, symlinkSync } from "node:fs";
+import { appendFileSync, mkdtempSync as makeTmp, mkdirSync, writeFileSync, existsSync, rmSync, utimesSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { sum, verifyCitation, buildQueue, missing } from "./research.mjs";
+import { sum, verifyCitation, buildQueue, missing, riskModel } from "./research.mjs";
 import { decide } from "../../hooks/core/adapt-gates.mjs";
 import { makeCtx } from "../../hooks/core/ctx.mjs";
 const madeTmp = [];
@@ -431,6 +431,126 @@ test("the queue is S1-<n>, X<n>, the nine ids of screen 3, then the shipped ques
   assert.equal(by["C1"].style, "open");
   for (const i of q) { assert.ok(["open", "choice", "confirm"].includes(i.style)); assert.ok(!i.options || (i.options.length >= 2 && i.options.length <= 4), i.id); }
   assert.ok(!ids(q).some((i) => /^(H2-refused|H3-|H4-|H5-)/.test(i)));
+});
+
+const TIERS = { cheap: "haiku", medium: "sonnet", top: "opus", strongest: "fable" };
+
+test("H6-model: after the H6-r<n> items, two options (strongest first, then top), a question naming both", () => {
+  const q = buildQueue(SC(), { topics }, { zones: [{ key: "src" }, { key: "lib" }] }, null, {}, null, TIERS);
+  const i = ids(q);
+  assert.equal(i[i.indexOf("H6-r2") + 1], "H6-model");
+  const m = q.find((x) => x.id === "H6-model");
+  assert.equal(m.heading, "6");
+  assert.equal(m.style, "choice");
+  assert.deepEqual(m.options, ["fable", "opus"]);
+  assert.match(m.text, /fable/);
+  assert.match(m.text, /opus/);
+});
+
+test("H6-model: a tiers table without strongest, or none, leaves it out", () => {
+  for (const t of [{ cheap: "haiku", top: "opus" }, null, undefined]) assert.ok(!ids(buildQueue(SC(), { topics }, { zones: [] }, null, {}, null, t)).includes("H6-model"));
+});
+
+test("H6-model: queue reads .xworkflows/tiers.json of the project; check lists it until answered; an interview begun before is asked only it", () => {
+  const d = repo();
+  cli(d, "start");
+  const run = rj(d, "adapt-run.json").run;
+  writeFileSync(X(d, "screens.json"), JSON.stringify(SC())); put(d, sample());
+  writeFileSync(X(d, "tiers.json"), JSON.stringify({ claude: TIERS }));
+  assert.equal(cli(d, "queue").status, 0);
+  const q = rj(d, "interview.json");
+  assert.ok(ids(q).includes("H6-model"));
+  writeFileSync(X(d, "interview.log.jsonl"), q.filter((i) => i.id !== "H6-model").map((i) => JSON.stringify(L(i.id, "Right", run))).join("\n") + "\n");
+  let r = cli(d, "check");
+  assert.equal(r.status, 1);
+  assert.equal(r.stdout, "H6-model\n");
+  appendFileSync(X(d, "interview.log.jsonl"), JSON.stringify(L("H6-model", "opus", run)) + "\n");
+  assert.equal(cli(d, "check").status, 0);
+  writeFileSync(X(d, "tiers.json"), JSON.stringify({ claude: { top: "opus" } }));
+  cli(d, "queue");
+  assert.ok(!ids(rj(d, "interview.json")).includes("H6-model"));
+});
+
+// The model of the risk reviewer, one row per case: [case, what the rule gets, the model].
+const FM = (lines) => `---\nname: risk-review\n${lines}\ntools: Read\n---\n\nmodel: haiku\n`;
+const NO_STRONGEST = { cheap: "haiku", medium: "sonnet", top: "opus" };
+const MODEL_ROWS = [
+  ["the first option chosen, with its mark", { answer: "fable (Recommended)" }, "fable"],
+  ["the second option", { answer: "opus" }, "opus"],
+  ["a model typed", { answer: "claude-made-up-9" }, "claude-made-up-9"],
+  ["a tier's name typed", { answer: "medium" }, "sonnet"],
+  ["I don't know", { answer: "I don't know" }, "fable"],
+  ["a skip", { answer: "Skip: not relevant here" }, "fable"],
+  ["an empty answer", { answer: "" }, "fable"],
+  ["no answer", {}, "fable"],
+  ["a first adapt whose table has no strongest: the item was not asked", { tiers: NO_STRONGEST }, "opus"],
+  ["a tier's name typed whose tier the table lacks", { tiers: NO_STRONGEST, answer: "strongest" }, "opus"],
+  ["a re-adapt whose file holds model: sonnet", { readapt: true, file: FM("model: sonnet") }, "sonnet"],
+  ["a re-adapt whose file holds a tier's name", { readapt: true, file: FM("model: top") }, "opus"],
+  ["a re-adapt whose file holds an empty model: line", { readapt: true, file: FM("model:") }, "fable"],
+  ["a re-adapt whose file has no model: line, a tier: line only", { readapt: true, file: FM("tier: medium") }, "fable"],
+  ["a re-adapt with no file", { readapt: true }, "fable"],
+  ["an answer of this run over the file of a re-adapt", { answer: "opus", readapt: true, file: FM("model: sonnet") }, "opus"],
+  ["a first adapt with an existing file and no answer: the file is not read", { file: FM("model: sonnet") }, "fable"],
+  ["a text by hand over everything else", { given: "haiku", answer: "opus", readapt: true, file: FM("model: sonnet") }, "haiku"],
+  ["a text by hand that is a tier's name", { given: "top", answer: "fable" }, "opus"],
+  ["a text by hand that names no model", { given: "I don't know", answer: "opus" }, "opus"],
+  ["a table with neither entry", { tiers: { cheap: "haiku", medium: "sonnet" } }, null],
+];
+for (const [name, args, want] of MODEL_ROWS) test(`riskModel: ${name}`, () => {
+  assert.equal(riskModel({ tiers: TIERS, answer: null, readapt: false, file: null, given: null, ...args }), want);
+});
+
+const model = (d, ...args) => spawnSync("node", [MJS, "model", ...args], { cwd: d, encoding: "utf8", env: { ...process.env, XWORKFLOWS_FREE: "" } });
+function modelRun(tiers = TIERS) {
+  const d = repo();
+  cli(d, "start");
+  writeFileSync(X(d, "tiers.json"), JSON.stringify({ claude: tiers }));
+  return { d, run: rj(d, "adapt-run.json").run };
+}
+const reviewer = (d, text) => { mkdirSync(join(d, ".claude", "agents"), { recursive: true }); writeFileSync(join(d, ".claude", "agents", "risk-review.md"), text); };
+
+test("research.mjs model: a first adapt prints the last answer of H6-model of this run, without its mark, and not the file", () => {
+  const { d, run } = modelRun();
+  reviewer(d, FM("model: sonnet"));
+  writeFileSync(X(d, "interview.log.jsonl"), [L("H6-model", "opus", run), L("H6-model", "fable (Recommended)", run)].map((l) => JSON.stringify(l)).join("\n") + "\n");
+  const r = model(d);
+  assert.equal(r.status, 0);
+  assert.equal(r.stdout, "fable\n");
+});
+
+test("research.mjs model: a re-adapt keeps the model the file holds", () => {
+  const { d } = modelRun();
+  writeFileSync(X(d, "research.prev.json"), JSON.stringify(sample()));
+  reviewer(d, FM("model: sonnet"));
+  const r = model(d);
+  assert.equal(r.status, 0);
+  assert.equal(r.stdout, "sonnet\n");
+});
+
+test("research.mjs model: an interview saved before the item existed, no answer in the log of this run, gives the strongest", () => {
+  const { d, run } = modelRun();
+  writeFileSync(X(d, "interview.log.jsonl"), [L("H6-r1", "Money", run), L("H6-model", "opus", "an-older-run")].map((l) => JSON.stringify(l)).join("\n") + "\n");
+  const r = model(d);
+  assert.equal(r.status, 0);
+  assert.equal(r.stdout, "fable\n");
+});
+
+test("research.mjs model: the argument, a correction at P-H6, wins and a tier's name stands for its model", () => {
+  const { d, run } = modelRun();
+  writeFileSync(X(d, "interview.log.jsonl"), JSON.stringify(L("H6-model", "fable", run)) + "\n");
+  assert.equal(model(d, "claude-made-up-9").stdout, "claude-made-up-9\n");
+  const r = model(d, "medium");
+  assert.equal(r.status, 0);
+  assert.equal(r.stdout, "sonnet\n");
+});
+
+test("research.mjs model: neither strongest nor top and nothing else names a model: exit 1 and one line naming the tiers file", () => {
+  const { d } = modelRun({ cheap: "haiku" });
+  const r = model(d);
+  assert.equal(r.status, 1);
+  assert.equal(r.stdout, "");
+  assert.match(r.stderr, /^[^\n]*\.xworkflows\/tiers\.json[^\n]*\n$/);
 });
 
 test("a re-adaptation keeps of the shipped questions only the config keys still without a value", () => {
