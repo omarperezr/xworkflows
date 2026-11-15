@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { mkdtempSync as makeTmp, mkdirSync, writeFileSync, readdirSync, readFileSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { tmpdir } from "../test-tmp.mjs";
 import { join } from "node:path";
 const madeTmp = [];
 const mkdtempSync = (p) => { const d = makeTmp(p); madeTmp.push(d); return d; };

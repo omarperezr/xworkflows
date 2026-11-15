@@ -1,7 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync as makeTmp, readFileSync, writeFileSync, mkdirSync, existsSync, symlinkSync, realpathSync, rmSync } from "node:fs";
-import { tmpdir, homedir } from "node:os";
+import { homedir } from "node:os";
+import { tmpdir } from "../../test-tmp.mjs";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { makeCtx, outsideLine } from "./ctx.mjs";

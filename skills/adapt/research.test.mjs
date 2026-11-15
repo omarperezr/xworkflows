@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { execFileSync, spawnSync } from "node:child_process";
 import { appendFileSync, mkdtempSync as makeTmp, mkdirSync, writeFileSync, existsSync, rmSync, utimesSync, symlinkSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { tmpdir } from "../../test-tmp.mjs";
 import { join } from "node:path";
 import { sum, verifyCitation, buildQueue, missing, riskModel } from "./research.mjs";
 import { decide } from "../../hooks/core/adapt-gates.mjs";

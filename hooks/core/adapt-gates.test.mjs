@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { mkdtempSync as makeTmp, mkdirSync, writeFileSync, symlinkSync, realpathSync, rmSync, readFileSync, existsSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { tmpdir } from "../../test-tmp.mjs";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
 import { decide } from "./adapt-gates.mjs";

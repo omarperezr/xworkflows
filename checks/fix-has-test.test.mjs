@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { readFileSync, writeFileSync, mkdtempSync as makeTmp, rmSync, existsSync } from "node:fs";
 import { spawn } from "node:child_process";
-import { tmpdir } from "node:os";
+import { tmpdir } from "../test-tmp.mjs";
 import { join } from "node:path";
 import * as brake from "./fix-has-test.mjs";
 import { makeRepo } from "../test/helpers/repo.mjs";
