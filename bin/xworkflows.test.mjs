@@ -2454,7 +2454,7 @@ function doLine(r, line, how) {
     return;
   }
   if ((m = line.match(/: delete (\S+), then run xworkflows install$/))) {
-    rmSync(join(r, m[1]));
+    rmSync(join(r, m[1]), { recursive: true });
     return assert.equal(cli(r, ["install"]).status, 0);
   }
   const undecline = (f) => withRecord(r, (x) => { x.declined = x.declined.filter((d) => d.file !== f); });
@@ -2609,6 +2609,17 @@ for (const [how, make] of readOnly) test(`uninstall, the line of pre-push ${how}
   assert.deepEqual(readFileSync(hook), bytes);
 });
 
+// P-164: install cannot write over a folder or a file it cannot read, so each line for one says to delete it first
+test("doctor: a file of the record made a folder gets lines that say to delete it, then install", () => {
+  const r = repo(); cli(r, ["install"]);
+  const f = join(r, ".xworkflows/git/pre-push"); rmSync(f); mkdirSync(f);
+  const out = doctor(r);
+  const lines = out.stdout.split("\n").filter((l) => l.startsWith("fail") && l.includes(".xworkflows/git/pre-push"));
+  assert.ok(lines.length, out.stdout);
+  for (const l of lines) assert.match(l, /: delete \.xworkflows\/git\/pre-push, then run xworkflows install$/, l);
+  doLine(r, lines[0]);
+  assert.equal(doctor(r).status, 0);
+});
 // P-161: uninstall writes through no link, so a line behind one stays: install's line is named, and the sentence that offers one says it
 test("uninstall: install's line in a hook that is a link now stays, and one line names it", () => {
   const { r } = withRemote(); hookAt(r, OLD); yes(r);

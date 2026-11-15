@@ -790,7 +790,9 @@ async function doctor() {
   for (const [f, { sha256 }] of Object.entries(rec.files)) {
     let t;
     // the record names the three git hooks under .git/, which is a file in a linked worktree: git says where they are
-    try { t = readFileSync(f.startsWith(".git/hooks/") ? join(hooksFolder(ROOT), f.slice(".git/hooks/".length)) : join(ROOT, f), "utf8"); } catch { say("fail", `missing or unreadable: ${f}: ${INSTALL}`); continue; }
+    const abs = f.startsWith(".git/hooks/") ? join(hooksFolder(ROOT), f.slice(".git/hooks/".length)) : join(ROOT, f);
+    // install writes over no folder and no file it cannot read
+    try { t = readFileSync(abs, "utf8"); } catch { say("fail", `missing or unreadable: ${f}: ${lstatSync(abs, { throwIfNoEntry: false }) ? `delete ${f}, then ` : ""}${INSTALL}`); continue; }
     // a git hook that holds no text of the package is the project's own: install records it as such, and nothing of it is deleted
     const n = gitHooks.get(f), same = hash(t) === sha256;
     say(same ? "ok" : "warn", same ? f : n && !hookState(readManifest(), ROOT, rec, n).mine ? `changed locally: ${f}, the project's own hook now: ${INSTALL}` : `changed locally: ${f}; to put the package's copy back, delete it, then ${INSTALL} (install keeps a changed file)`);
