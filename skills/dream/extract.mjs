@@ -11,10 +11,15 @@ const { DEFAULTS, load, memoryDir } = await shared("hooks/core/config.mjs");
 const { NOISE, REPORT } = await shared("hooks/core/memory.mjs");
 
 const M = "[masked]";
-// No repeat here is retried from inside another; but each BEGIN line with no END line scans to the end of the text for an END line, so their time grows with the square of their number.
-// a secret by its own form; a key block keeps its line breaks, so the line numbers after it hold (an end-less block takes only the lines of key material that follow, indented, quoted with ">" or ending in white space)
+// key material on the line of a BEGIN mark: runs of base64 or escaped line breaks, each with a digit, + / = or \ in it, so a word of prose is none
+const KEYRUN = String.raw`(?=[A-Za-z]*[0-9+/=\\])(?:\\[nr]|[A-Za-z0-9+/=])+`;
+const KEYLINE = String.raw`[ \t>]*[A-Za-z0-9+/=]+[ \t]*`; // a line of key material, indented, quoted with ">" or ending in white space
+const BEGIN = "-----BEGIN [A-Z ]{0,20}PRIVATE KEY-----", END = "-----END [A-Z ]{0,20}PRIVATE KEY-----";
+// No repeat here is retried from inside another: a block scans only the lines of key material, headers and blank lines under its mark.
+// a secret by its own form; a key block keeps its line breaks, so the line numbers after it hold. A BEGIN mark takes the rest of its line only when it is key material,
+// and only then the lines under it: up to an END mark, through key lines, "Name: value" headers and blank lines; or, with no END mark, the key lines that follow
 const SHAPES = [
-  [/-----BEGIN [A-Z ]{0,20}PRIVATE KEY-----(?:[\s\S]*?-----END [A-Z ]{0,20}PRIVATE KEY-----|[^\r\n]*(?:\r?\n[ \t>]*[A-Za-z0-9+/=]+[ \t]*(?=\r?\n|\r$|$))*)/g, (b) => M + "\n".repeat(b.split("\n").length - 1)],
+  [new RegExp(String.raw`${BEGIN}(?:[ \t]*(?:${KEYRUN}(?:[ \t]+${KEYRUN})*[ \t]*)?(?:${END}|(?=\r?\n|\r?$)(?:(?:\r?\n(?:[ \t>]*[A-Za-z][\w-]*:[^\r\n]*|${KEYLINE}|[ \t>]*))*?\r?\n[ \t>]*${END}|(?:\r?\n${KEYLINE}(?=\r?\n|\r$|$))*)))?`, "g"), (b) => M + "\n".repeat(b.split("\n").length - 1)],
   [/(\b[a-z][\w+.-]{0,19}:\/\/[^\s:@/]*:)(?!\[masked\]@)[^\s@/]+(?=@)/gi, (_, key) => key + M],
   [/\bsk-[\w-]{20,}/g, () => M],
   [/\b[sr]k_(?:live|test)_\w{10,}/g, () => M],

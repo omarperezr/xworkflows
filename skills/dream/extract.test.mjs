@@ -185,12 +185,12 @@ test("shapes: each key of a known form goes, the text around stays, the count is
   for (const form of FORMS) assert.deepEqual(shapes(form), [form, 0], form);
 });
 
-test("shapes: a BEGIN line in a sentence masks only that line, and a cut block takes only its key lines before a blank line", () => {
+test("shapes: a BEGIN line in a sentence masks only its mark, and a cut block takes only its key lines before a blank line", () => {
   const lines = Array.from({ length: 20 }, (_, i) => `Fact ${i + 1} of the note.`);
   lines[0] = "The key file must start with the line -----BEGIN OPENSSH PRIVATE " + "KEY----- or ssh refuses it.";
   const [out, n] = shapes(lines.join("\n\n"));
   assert.equal(n, 1);
-  assert.deepEqual(out.split("\n\n"), ["The key file must start with the line [masked]", ...lines.slice(1)]); // nineteen stay
+  assert.deepEqual(out.split("\n\n"), ["The key file must start with the line [masked] or ssh refuses it.", ...lines.slice(1)]); // nineteen stay
   const cut = "-----BEGIN RSA PRIVATE " + "KEY-----\nabc\ndef";
   assert.deepEqual(shapes(`${cut}\n\nafter`), ["[masked]\n\n\n\nafter", 1]); // a cut block: its lines go, the line numbers hold
 });
@@ -201,7 +201,7 @@ test("shapes: a BEGIN line with no END line takes only the lines of key material
   for (const eol of ["\n", "\r\n"]) {
     const [out, n] = shapes([head, ...prose].join(eol));
     assert.equal(n, 1);
-    assert.deepEqual(out.split(eol), ["The key file must start with the line [masked]", ...prose]); // the twenty stay
+    assert.deepEqual(out.split(eol), ["The key file must start with the line [masked] or ssh refuses it.", ...prose]); // the twenty stay
   }
   const b64 = Array.from({ length: 6 }, (_, i) => "MIIEvQIBADANBgkq+/" + i + "=");
   const cut = ["-----BEGIN RSA PRIVATE " + "KEY-----", ...b64, "Then some prose.", "More prose."];
@@ -234,10 +234,46 @@ test("shapes: a cut block is masked whole when its key lines are indented, quote
   const head = "The key file must start with the line " + b + " or ssh refuses it.";
   for (const f of [(l) => l, (l) => "    " + l, (l) => "> " + l]) {
     const prose = Array.from({ length: 20 }, (_, i) => f(`Fact ${i + 1} of the note.`));
-    assert.deepEqual(shapes([head, ...prose].join("\n")), ["The key file must start with the line [masked]\n" + prose.join("\n"), 1]);
+    assert.deepEqual(shapes([head, ...prose].join("\n")), ["The key file must start with the line [masked] or ssh refuses it.\n" + prose.join("\n"), 1]);
   }
   const ordinary = Array.from({ length: 30 }, (_, i) => `line${i}`).join("\n");
   assert.deepEqual(shapes(ordinary), [ordinary, 0]);
+});
+
+const BEGIN = "-----BEGIN RSA PRIVATE " + "KEY-----", END = "-----END RSA PRIVATE " + "KEY-----";
+const KEYLINES = Array.from({ length: 4 }, (_, i) => "MIIEvQIBADANBgkq+/" + i + "=");
+
+test("shapes: a BEGIN line named in a sentence masks its mark alone: the rest of its line and the lines under it stay", () => {
+  const head = `The key file must start with the line ${BEGIN} or ssh refuses it.`, named = head.replace(BEGIN, "[masked]");
+  assert.deepEqual(shapes(head), [named, 1]); // a paragraph of one line
+  assert.deepEqual(shapes(`Intro.\n\n${head}\n\nNext.`), [`Intro.\n\n${named}\n\nNext.`, 1]);
+  for (const eol of ["\n", "\r\n"]) for (const word of ["Fact", "42", "e3b0c44298fc1c149afbf4c8996fb924"]) // a bare word, a number, a hash
+    for (const [name, f] of [["plain", (l) => l], ["indented", (l) => "    " + l], ["quoted", (l) => "> " + l], ["trailing space", (l) => l + " "]]) {
+      const t = [head, f(word), "More."].join(eol);
+      assert.deepEqual(shapes(t), [t.replace(BEGIN, "[masked]"), 1], `${name} ${word}`);
+    }
+});
+
+test("shapes: the lines between two key marks named in prose stay, and a real block under a named mark is masked whole", () => {
+  for (const t of [
+    `A key starts with ${BEGIN} on its first line,\nthen comes its body,\n- in lines of 64 characters,\nand it ends with ${END} on its last.`,
+    `The two marks: ${BEGIN} and ${END}, each on a line of its own.`,
+    `${BEGIN}\nThe body goes here, in lines of 64 characters.\n\n- a list item\n${END}`,
+  ]) assert.deepEqual(shapes(t), [t.replace(BEGIN, "[masked]"), 1], t);
+  for (const lead of [`Paste it under the line ${BEGIN}, like this:`, `Paste it under this line: ${BEGIN}`]) {
+    const t = [lead, BEGIN, ...KEYLINES, END, "That is all."].join("\n");
+    assert.deepEqual(shapes(t), [[lead.replace(BEGIN, "[masked]"), "[masked]", "", "", "", "", "", "That is all."].join("\n"), 2], lead);
+    const [crlf, n] = shapes(t.replaceAll("\n", "\r\n"));
+    assert.equal(n, 2, lead);
+    assert.ok(crlf.startsWith(lead.replace(BEGIN, "[masked]") + "\r\n[masked]\n") && crlf.endsWith("\r\nThat is all.") && !crlf.includes("MIIEv"), crlf);
+  }
+  // still masked whole: a block with headers and a blank line, a block on one line with escaped line breaks, its key material after the mark
+  const enc = [BEGIN, "Proc-Type: 4,ENCRYPTED", "DEK-Info: AES-128-CBC,0A1B2C3D4E5F6071", "", ...KEYLINES, END, "after"].join("\n");
+  assert.deepEqual(shapes(enc), ["[masked]" + "\n".repeat(9) + "after", 1]);
+  const esc = KEYLINES.join("\\n");
+  for (const [from, to] of [[`"key": "${BEGIN}\\n${esc}\\n${END}\\n",`, '"key": "[masked]\\n",'], [`"key": "${BEGIN}\\n${esc}`, '"key": "[masked]'],
+    [`${BEGIN} ${KEYLINES.join(" ")} ${END} after`, "[masked] after"], [`${BEGIN}${KEYLINES[0]}\n${KEYLINES[1]}\nafter words`, "[masked]\n\nafter words"]])
+    assert.deepEqual(shapes(from), [to, 1], from);
 });
 
 test("mask: every form a review found is masked, and every key of a known form", () => {
