@@ -50,7 +50,7 @@
     },
     "adapt": {
       "version": "0.1.0",
-      "sha256": "a98213c681bce828eda07d51eeaecf7991759d7a3eebda155cda65d0a42d54e3"
+      "sha256": "0f8bf5c61ec2a6849376ef554b010b9568556e85ebb1ff49ca0dfb90133d1002"
     },
     "full-review": {
       "version": "0.1.0",
@@ -148,7 +148,7 @@
   "files": {
     ".xworkflows/tiers.json": {
       "piece": "installer",
-      "sha256": "9bcc9425977d8f02d20db8bd2a1af838ecac3054db14b9d0dce55418e5512adf"
+      "sha256": "eef8110aeef1b3345bb8fd70d13ebf55b4086fcb1a99bf23d10a4978b2229665"
     },
     ".xworkflows/hooks/run.mjs": {
       "piece": "hook-runtime",
@@ -340,7 +340,7 @@
     },
     ".claude/skills/adapt/SKILL.md": {
       "piece": "adapt",
-      "sha256": "e6eff403a630a283f5a7e0125900049ebcbe125c8da190019be37c41601410e8"
+      "sha256": "86e131a7c7af1f9f2aab356bb083b42568d9c41b5a61abdb836d4f6705046bb6"
     },
     ".claude/skills/adapt/scan.mjs": {
       "piece": "adapt",
@@ -356,7 +356,7 @@
     },
     ".claude/skills/adapt/research.mjs": {
       "piece": "adapt",
-      "sha256": "b2bdb932ebd801d51760c168c6750132baa82fff51b8a1fce50cdad91b6be60a"
+      "sha256": "168c1bb29ec6417e70d61abadc390d22be0448457fcde6f7d90bd0999a3a721d"
     },
     ".claude/skills/adapt/screens.mjs": {
       "piece": "adapt",

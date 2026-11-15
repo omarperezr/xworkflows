@@ -45,9 +45,10 @@ const NEG = /\b(not|never|nunca|refuses?|won't|doesn't|don't)\b|\bno\s/i; // wha
 
 // The interview queue: S1-<n> a sentence, X<n> a screen 2 question, the nine ids of screen 3 (all from screens.json `s`),
 // then the shipped questions no screen asks. `prev` is research.prev.json on a re-adapt (then only the config keys still without a value in `cfg`, .xworkflows/config.json).
+// `tiers` is the `claude` table of .xworkflows/tiers.json: with a `strongest` entry the queue asks `H6-model`.
 // `earlier` ({ root, answered, docs }: the sentences the approved run answered, as research.answered.json keeps them, and the texts of the specs and plans added or changed since that adaptation's commit) lets a re-adapt skip a screen 1 sentence already answered.
 // A sentence keeps its number (S1-<n>, n its place on screen 1 and in research.md) whether or not it is asked.
-export function buildQueue(s, research = {}, scan = {}, prev = null, cfg = {}, earlier = null) {
+export function buildQueue(s, research = {}, scan = {}, prev = null, cfg = {}, earlier = null, tiers = null) {
   const item = (id, heading, text, options, style = "choice") => ({ id, heading, style, text, ...(options ? { options } : {}) });
   const confirm = (id, h, text) => item(id, h, text, ["Yes", "No", "I don't know"], "confirm");
   const lines = Object.keys(research.topics || {}).sort().flatMap((t) => research.topics[t]?.lines || []);
@@ -63,6 +64,7 @@ export function buildQueue(s, research = {}, scan = {}, prev = null, cfg = {}, e
     item("H2-pays", "2", "Who pays for this, and what is sold?", o.length ? [...o, OPEN[0]] : OPEN),
     item("H6-zones", "6", "Does this split of the code into zones match how you think about it?"),
     ...(scan.zones || []).map((z, i) => item(`H6-r${i + 1}`, "6", `What does a mistake in ${z.key} risk? If more than one applies, type them all in Type something.`, ["Money", "Data", "Access", "No risk"])),
+    ...(tiers?.strongest && tiers.top ? [item("H6-model", "6", `Which model should run the risk reviewer of this project: ${tiers.strongest}, the strongest, or ${tiers.top}, the one of the plain reviewer? If another, type it in Type something.`, [tiers.strongest, tiers.top])] : []),
     ...["Keep one branch per batch, merged with --no-ff and never rebased after review?", "Push only when you say so?", "Add files by explicit path, never `git add .` or `-A`?", "No commit, PR or comment names an AI as author or co-author?"].map((t, i) => confirm(`H7-g${i + 1}`, "7", t)),
     item("H7-depth", "7", "How deep should a review go on a normal change?"),
     item("H7-push", "7", "Who may push?"),
@@ -112,6 +114,20 @@ export function missing(queue, log, run, approved = false) {
   }
   if (approved) for (let n = 1; n <= 7; n++) if (last[`P-H${n}`] !== FIXED[0]) out.push(`P-H${n}`);
   return out;
+}
+
+// The model of the risk reviewer, the first that applies: `given` (a correction at P-H6); the `answer` of H6-model of this run;
+// on a re-adapt (`readapt`), the `model:` line of the front matter of the existing reviewer `file`; the model of `strongest`; of `top`.
+// `tiers` is the `claude` table; a tier's name stands for its model; the mark, the open labels and an empty text name none. null: none at all.
+export function riskModel({ tiers, answer = null, readapt = false, file = null, given = null }) {
+  const t = tiers || {};
+  const named = (x) => {
+    const m = collapse(x ?? "").replace(/\s*\(Recommended\)$/, "");
+    if (!m || OPEN.includes(m)) return null;
+    return ["cheap", "medium", "top", "strongest"].includes(m.toLowerCase()) ? t[m.toLowerCase()] || null : m;
+  };
+  const front = readapt && file ? (String(file).match(/^---\r?\n([\s\S]*?)\r?\n---/) || [])[1] : null;
+  return named(given) ?? named(answer) ?? named((front?.match(/^model:(.*)$/m) || [])[1]) ?? (t.strongest || t.top || null);
 }
 
 const git = (root, args) => execFileSync("git", args, { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
@@ -241,12 +257,12 @@ function cli(cmd, root) {
     for (const [f] of out) if (isLink(join(dir, f))) refuse(join(dir, f)); // refuse before writing any
     for (const [f, text] of out) put(join(dir, f), text);
     console.log(`screen 1: ${s.drawer1.length} sentence(s), ${s.drawer1LeftOut.length} left out; screen 2: ${s.drawer2.length} question(s), ${s.drawer2LeftOut.length} left out; dropped: ${s.dropped.length}`);
-  } else if (cmd === "queue" || cmd === "check") {
+  } else if (cmd === "queue" || cmd === "check" || cmd === "model") {
     const need = (f) => { try { return readJson(join(dir, f)); } catch { console.error(`adapt: ${f} is missing or unreadable`); process.exit(1); } };
+    const opt = (f) => { try { return readJson(join(dir, f)); } catch { return null; } };
     if (cmd === "queue") {
-      const opt = (f) => { try { return readJson(join(dir, f)); } catch { return null; } };
       const prevRun = opt("research.prev.json"), cfg = opt("config.json") || {};
-      const q = buildQueue(need("screens.json"), need("research.json"), need("scan.json"), prevRun, cfg, prevRun && earlier(root, dir, cfg));
+      const q = buildQueue(need("screens.json"), need("research.json"), need("scan.json"), prevRun, cfg, prevRun && earlier(root, dir, cfg), opt("tiers.json")?.claude);
       put(join(dir, "interview.json"), JSON.stringify(q, null, 2) + "\n");
     } else {
       const { run } = need("adapt-run.json");
@@ -254,11 +270,21 @@ function cli(cmd, root) {
       const log = [];
       // a truncated line (killed mid-write) is skipped
       if (existsSync(logFile)) for (const l of readFileSync(logFile, "utf8").split("\n")) try { log.push(JSON.parse(l)); } catch {}
-      const ids = missing(need("interview.json"), log, run, process.argv.includes("--approved"));
-      if (ids.length) { console.log(ids.join("\n")); process.exit(1); }
+      if (cmd === "check") {
+        const ids = missing(need("interview.json"), log, run, process.argv.includes("--approved"));
+        if (ids.length) { console.log(ids.join("\n")); process.exit(1); }
+      } else {
+        // the last answer of this run, as check counts it; a re-adapt is the run queue leaves the kept items out of
+        const answer = log.filter((l) => l.run === run && l.id === "H6-model" && l.answer !== undefined && l.answer !== "").pop()?.answer;
+        let file = null;
+        try { file = readFileSync(join(root, ".claude", "agents", "risk-review.md"), "utf8"); } catch {}
+        const m = riskModel({ tiers: opt("tiers.json")?.claude, answer, readapt: !!opt("research.prev.json"), file, given: process.argv[3] });
+        if (!m) { console.error("adapt: no model for the risk reviewer: .xworkflows/tiers.json has neither strongest nor top under claude"); process.exit(1); }
+        console.log(m);
+      }
     }
   } else {
-    console.error("usage: research.mjs start|done|render|queue|check [--approved]");
+    console.error("usage: research.mjs start|done|render|queue|check [--approved]|model [<text>]");
     process.exit(2);
   }
 }
