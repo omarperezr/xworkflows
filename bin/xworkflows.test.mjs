@@ -3341,6 +3341,18 @@ test("doctor: a config section that is not an object, or a config file holding n
     assert.match(out.stdout, ENDS, text);
   }
 });
+// P-151: tokens.sessionStartBytes is the budget of all session-start hooks, the line that suggests dream included
+test("doctor: the session-start probe measures the dream line with the text of every session-start hook, and over the budget is a fail", () => {
+  const r = repo(); cli(r, ["install"]);
+  const home = tmp("xwf-home-"); mkdirSync(join(home, ".xworkflows")); writeFileSync(join(home, ".xworkflows/owner.md"), "Replies: short and direct.\n");
+  const bytes = (out) => Number(out.stdout.match(/^\S+ +session-start text: (\d+) bytes/m)?.[1]);
+  const without = bytes(doctor(r, { HOME: home }));
+  writeFileSync(join(r, "docs/memory/a-note.md"), "# a note\n");
+  const due = bytes(doctor(r, { HOME: home }));
+  assert.ok(due > without, `${without} ${due}`);
+  withConfig(r, { tokens: { sessionStartBytes: due - 1 } });
+  assert.match(doctor(r, { HOME: home }).stdout, new RegExp(`^fail session-start text: ${due} bytes of ${due - 1}: `, "m"));
+});
 // P-133: a value one level down whose default is an object stops the checks that read it: doctor names it and does not say 0 fail
 test("doctor: a value one level down in a section that is not an object gives a line naming it and the fix", () => {
   const r = repo(); cli(r, ["install"]);
