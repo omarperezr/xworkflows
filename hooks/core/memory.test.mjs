@@ -87,11 +87,13 @@ test("sessionStart startup: nothing", () => {
   assert.equal(calls.exec.length, 0);
 });
 
-test("qmd failing, missing or timed out: nothing", () => {
-  for (const qmd of [{ code: 1, out: "x" }, { code: null, out: "" }, { code: 0, out: "  \n" }]) {
+test("qmd failing or timed out: one line points to the memory index; no hits: silent", () => {
+  for (const qmd of [{ code: 1, out: "x" }, { code: null, out: "" }]) {
     const { ctx } = fake({ files: { "/t.jsonl": transcript }, qmd });
-    assert.deepEqual(decide(ev("sessionStart", { source: "compact", transcript: "/t.jsonl" }), ctx), { decision: "allow" });
+    assert.deepEqual(decide(ev("sessionStart", { source: "compact", transcript: "/t.jsonl" }), ctx), { decision: "allow", context: "Memory search did not run: read docs/memory/MEMORY.md." });
   }
+  const { ctx } = fake({ files: { "/t.jsonl": transcript }, qmd: { code: 0, out: "  \n" } });
+  assert.deepEqual(decide(ev("sessionStart", { source: "compact", transcript: "/t.jsonl" }), ctx), { decision: "allow" });
 });
 
 test("typed text only: tool results, reports and meta entries are not the owner's", () => {
