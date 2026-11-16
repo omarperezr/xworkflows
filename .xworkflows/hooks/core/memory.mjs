@@ -72,7 +72,7 @@ function start(ev, ctx) {
       lines.push(`Goals written ${months} months ago: run /adapt to refresh them.`);
     }
   }
-  const refused = memoryFolder(config, ev.root, ctx.outsideLine).line;
+  const { dir, linked, line: refused } = memoryFolder(config, ev.root, ctx.outsideLine);
   if (refused) lines.push(refused);
   const idx = config.lookup?.index;
   if (Array.isArray(config.paths.code) && config.paths.code.length && idx?.command) {
@@ -89,7 +89,9 @@ function start(ev, ctx) {
     const q = typed(text).slice(-3).join(" ").replace(/[^\p{L}\p{N}]+/gu, " ").trim().slice(-300).trim();
     if (q) {
       const r = ctx.exec("qmd", qmd(ctx, "query", `lex: ${q}\nvec: ${q}`, "-n", "5", "--no-rerank"), { timeout: 8000 });
-      if (r.code === 0 && r.out.trim()) lines.push(`Memory notes on the current topic:\n${r.out.slice(0, 3000)}`);
+      const index = (dir ?? linked) && path.join(dir ?? linked, "MEMORY.md"); // a refused folder names none
+      if (r.code !== 0) { if (index && ctx.exists(index)) lines.push(`Memory search did not run: read ${index}.`); } // a non-zero exit or the timeout; no hits stays silent
+      else if (r.out.trim()) lines.push(`Memory notes on the current topic:\n${r.out.slice(0, 3000)}`);
     }
   }
   const dream = dreamLine(ev, ctx);

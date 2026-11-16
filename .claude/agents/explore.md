@@ -2,6 +2,7 @@
 name: explore
 description: Read-only lookup. Where is X defined, who calls Y, read one file. Returns 10 lines at most.
 model: haiku
+effort: low
 tools: Read, Grep, Glob, Bash, WebSearch
 ---
 

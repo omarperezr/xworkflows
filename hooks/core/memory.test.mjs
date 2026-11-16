@@ -87,11 +87,19 @@ test("sessionStart startup: nothing", () => {
   assert.equal(calls.exec.length, 0);
 });
 
-test("qmd failing, missing or timed out: nothing", () => {
-  for (const qmd of [{ code: 1, out: "x" }, { code: null, out: "" }, { code: 0, out: "  \n" }]) {
-    const { ctx } = fake({ files: { "/t.jsonl": transcript }, qmd });
-    assert.deepEqual(decide(ev("sessionStart", { source: "compact", transcript: "/t.jsonl" }), ctx), { decision: "allow" });
+test("qmd failing or timed out: one line points to the memory index that exists; no hits: silent", () => {
+  const start = (o) => decide(ev("sessionStart", { source: "compact", transcript: "/t.jsonl" }), fake({ ...o, files: { "/t.jsonl": transcript, ...o.files } }).ctx);
+  for (const qmd of [{ code: 1, out: "x" }, { code: null, out: "" }]) {
+    assert.deepEqual(start({ qmd, files: { "docs/memory/MEMORY.md": "- a\n" } }), { decision: "allow", context: "Memory search did not run: read docs/memory/MEMORY.md." });
+    assert.deepEqual(start({ qmd }), { decision: "allow" }); // no notes yet: nothing to read
   }
+  const bad = { code: 1, out: "" };
+  const notes = { "notes/MEMORY.md": "- a\n", "docs/memory/MEMORY.md": "- b\n" };
+  const linked = start({ qmd: bad, config: { ...base, memory: { dir: "notes" } }, outside: () => "notes leaves the repository", files: notes });
+  assert.equal(linked.context, "notes leaves the repository\nMemory search did not run: read notes/MEMORY.md.");
+  const refused = start({ qmd: bad, config: { ...base, memory: { dir: "../x" } }, files: notes });
+  assert.equal(refused.context, 'memory.dir "../x" must be a folder inside the repository');
+  assert.deepEqual(start({ qmd: { code: 0, out: "  \n" } }), { decision: "allow" });
 });
 
 test("typed text only: tool results, reports and meta entries are not the owner's", () => {

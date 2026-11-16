@@ -2,6 +2,7 @@
 name: review
 description: Reviews a diff against the project's rules. Every finding has the exact line and a concrete failure scenario. Never fixes.
 tier: top
+effort: high
 tools: Read, Grep, Glob, Bash
 skills:
   - ponytail-review

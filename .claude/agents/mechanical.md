@@ -2,6 +2,7 @@
 name: mechanical
 description: Mechanical, checkable edits. Renames, formatting, moving a constant, one pattern applied across files. Never logic.
 model: haiku
+effort: low
 tools: Read, Grep, Glob, Bash, Write, Edit
 ---
 

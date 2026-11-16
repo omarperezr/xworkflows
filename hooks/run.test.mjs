@@ -107,3 +107,22 @@ test("a healthy config prints nothing to stderr", () => {
   assert.match(r.stdout, /deny/);
   assert.equal(r.stderr, "");
 });
+const goSpecIn = (root, stateDir) => spawnSync("node", [run, "claude", "design-first"], { input: JSON.stringify(specWrite(root)), encoding: "utf8", env: { ...process.env, XWORKFLOWS_FREE: "", XWORKFLOWS_STATE_DIR: stateDir } });
+test("a hook that throws leaves one line in xwf-hooks.log and lets the call through", () => {
+  const { root } = project("{");
+  const own = mkdtempSync(join(tmpdir(), "xwf-state-"));
+  const r = goSpecIn(root, own);
+  assert.doesNotMatch(r.stdout, /deny/);
+  const lines = readFileSync(join(own, "xwf-hooks.log"), "utf8").trimEnd().split("\n");
+  assert.equal(lines.length, 1);
+  assert.match(lines[0], / s design-first error .*does not parse/);
+});
+test("a hook that throws still lets the call through when the log cannot be written", () => {
+  const { root } = project("{");
+  const own = join(mkdtempSync(join(tmpdir(), "xwf-state-")), "not-a-folder");
+  writeFileSync(own, "");
+  const r = goSpecIn(root, own);
+  assert.equal(r.status, 0);
+  assert.doesNotMatch(r.stdout, /deny/);
+  assert.match(r.stderr, /design-first let the call through/);
+});

@@ -16,7 +16,7 @@
         "gemini"
       ],
       "files": {
-        "hooks/run.mjs": "cf9ecf76c88fc39449b299ea6bb379af132a3d7d3b0163b8281eb0599831008a",
+        "hooks/run.mjs": "f16b9c43cc1525dabc0e50672516b74065524927d90bef3462c66c4e05ba6d67",
         "hooks/mark.mjs": "f2ecad21dedeb1515287063237e6852b9374781f71ce876f13b57324bfcb88a5",
         "hooks/core/marks.mjs": "9f52d052c8fb1275e92335d1dd5664be0f1bff7d43a4a9432268bac01d61a2b7",
         "hooks/adapters/claude.mjs": "8693cd79efe0043cf8afb96553daa4e9b5122c1ee2c820a2def91224abbb31aa",
@@ -26,7 +26,7 @@
         "hooks/core/config.mjs": "2c680c2417b7f2e887dd61174c1e8b25b4cf533b61d118ae30901868014d137f",
         "hooks/core/ctx.mjs": "c467ec88a800a1b3df3193922b7bd1377e12d610b6c75e2a7becc81cdd848138"
       },
-      "sha256": "738b43d09be98996b800e405225c72329a66caaae0c56b831573df2fb016d99c"
+      "sha256": "a6f8280c6d01d8d2c57e5823a8fa71c4acc82eab3b50d20aecc6ca2216a1e5b5"
     },
     {
       "id": "design-first",
@@ -135,9 +135,9 @@
         "gemini"
       ],
       "files": {
-        "agents/explore.md": "21c13b82207fbfd11b4006514c6ba4d0a827c98d30ed47324de2f289d4517a54"
+        "agents/explore.md": "d07a4fca0f0000289d620bc278b50163ac6032c0be044288ec0491320512ea5b"
       },
-      "sha256": "f65f16b993bd1103b38ce9fecf5aea063b1da6e6cce52f6d08b071cba224d8e8"
+      "sha256": "db94fb8cc7ebee7eab9df55b7a29c6be7ca279b365072e3a5f398d71e7c9b6cb"
     },
     {
       "id": "mechanism",
@@ -153,9 +153,9 @@
         "gemini"
       ],
       "files": {
-        "agents/mechanism.md": "198a48792624ff2b3d447f5f3e933c8845778038c947ec740e13444b20d770cb"
+        "agents/mechanism.md": "b607db73bd98816c986025dd4e87f83fe86dccaae1c879d2704d724faadb7792"
       },
-      "sha256": "cfa684ecb49777e73bdad23696a1758546c8ff930da387301514614991972379"
+      "sha256": "2cbe54ddaac3c2fd509e1c2589576ada6765743175c5f15f8cc4a4b82ebeb84d"
     },
     {
       "id": "thermo-nuclear-review",
@@ -215,9 +215,9 @@
         "gemini"
       ],
       "files": {
-        "agents/zone-review.md": "ed9a8f778975d231d9396331b93ecf501e91b0515cfe7557f59a50a8e8388232"
+        "agents/zone-review.md": "08a1f1c2848f314781863137791a41c6f172ab9c13a6d1693570121321027633"
       },
-      "sha256": "351cb0ee3d709aa8d13fbe476a919ebfdc6a1f20e24ad37e42f7c97e60147caf"
+      "sha256": "432fdabc2b140d0277a4bfd7bf71c9db7de58495bbb6dbd31626ddf56ce1b675"
     },
     {
       "id": "verify-finding",
@@ -233,9 +233,9 @@
         "gemini"
       ],
       "files": {
-        "agents/verify-finding.md": "1e879d50115326374d900ee8af12fea24069b3fb8a9c9c9e2563ba987d3ae5ec"
+        "agents/verify-finding.md": "58092420516b186214ac7e3d600af55aaf52613c843b7d9949d13c6a29962101"
       },
-      "sha256": "4993932e80d4a4ade27399fd4f17c7358862685f377c9407ded2b71fe78c63d9"
+      "sha256": "24ede35a2e3ee1ff734c25be469789ac4e66ee91a7a54d2f452ae0b3ee5435db"
     },
     {
       "id": "adapt",
@@ -261,14 +261,14 @@
         ]
       },
       "files": {
-        "skills/adapt/SKILL.md": "2296af68b8c944e64025c3b646a35e46699b92d7c7b6ecf6c204fe9bb31b32e8",
+        "skills/adapt/SKILL.md": "20bcb381ae0cdb811aa3e78852252198f6aba2a834c47817c1845f54d3b4fbb1",
         "skills/adapt/scan.mjs": "c7d9a47a268cdf6135057da9eb267826b3d5df6df574b7fc206daccacfe401e9",
         "skills/adapt/rules.mjs": "736bb9ee53874d8c9447ab4107780d9b8f5733cee26597dae96862d43d37bde2",
         "skills/adapt/research.workflow.js": "c7d72c728a5eef056d9a23f56d3334b6f2400fa9730cb96dfcad23dadd579daa",
-        "skills/adapt/research.mjs": "514a1a1ddadb09c4ce41cfda31649700186c60913ddea21828f31057a5d923c4",
-        "skills/adapt/screens.mjs": "0a0f3698ea1e41ebae375416e52eac0df90e8d644f8b452c44e9fe702bc34cdc"
+        "skills/adapt/research.mjs": "81fd85001c9c022dc30d284d8557c037b05b35f37b5848044b0e4f7e042b5e0e",
+        "skills/adapt/screens.mjs": "46218539062b06597556be39eebd0f0a6b47dfa6e31154232c55a7967c537a4c"
       },
-      "sha256": "a02c1ebc62b922aeff763d4594f4a5575bb90c0b58009a062e747d9e0febdaca"
+      "sha256": "d3e6b27d37645c4c28c414f91b524e6dc38e0de8dcd103a5b8fb1d1722490c0a"
     },
     {
       "id": "full-review",
@@ -377,10 +377,10 @@
         }
       ],
       "files": {
-        "hooks/core/memory.mjs": "b318e79d804966cf0f0713f0c2d5457b6c12eb70e4c3c85d43d11afef83e0222",
+        "hooks/core/memory.mjs": "bd4cf723bd7eecb1587415e1586541dce896f7dbd652d4da9034baf72289c72d",
         "hooks/core/memory-index.mjs": "ed9d990262ae86bfb68b63b7c34e6594e3239460136907fbb376011990898006"
       },
-      "sha256": "363d84ec9c46a95c3c0bc5fea0bc4950329b678aac3057ee9357b9b298c5cf2f"
+      "sha256": "eef62d686784b1858e5708d99e71c67301f5ac5efdf854572f37d6e7e8a63588"
     },
     {
       "id": "modes",
@@ -413,9 +413,9 @@
         "claude"
       ],
       "files": {
-        "agents/implement.md": "ec40e65a434fa38f45fbd005bf7809f470558a451df20c10e584c60b7d866c0a"
+        "agents/implement.md": "986acdd5b7d62f109996ec399c9c85d38ceeba5e2c51b12ec6270388c0f4751e"
       },
-      "sha256": "5744a15a0549222b5c7f076cf86da376a65e2470426813fcbbf0a36878ed2c43"
+      "sha256": "fe729fb8c4bc7ef5ef71693447e4d4ece7f6650a968f3f0bc568d2dae9a016ad"
     },
     {
       "id": "mechanical",
@@ -428,9 +428,9 @@
         "claude"
       ],
       "files": {
-        "agents/mechanical.md": "c7f827c126687689980467decb2734eafff8fdcfc7413ab0f2f84c3f324a851c"
+        "agents/mechanical.md": "216d5a29faa9140afc153f20d96aa7e0206d2f748cb729a03001b81a341ad06e"
       },
-      "sha256": "b3b453be5e342669893b093b56e9c63070dae7c1dfcd37b173250f44162324c6"
+      "sha256": "4a464f1172e5e9d092e9f32dab849c39e4f05bdbeae13dbac8c38efd62706386"
     },
     {
       "id": "review",
@@ -443,9 +443,9 @@
         "claude"
       ],
       "files": {
-        "agents/review.md": "1ca8ee55c9b2c555517d860b8ac41ad7d0494dec3e77ff25f38706f016306b99"
+        "agents/review.md": "c26dbe92ece49c26773162c7f98665cbdc211368c0955c889125f7b9b68a93a5"
       },
-      "sha256": "f01aa761e0696d3848e3d3578a72664924288c7fcc10cc6c4ad3b62636771ef5"
+      "sha256": "933a195bfeeab52caf2b9e74436108db339e1ad627ed01cb929c2553851a8af3"
     },
     {
       "id": "dream-analyzer",
@@ -458,9 +458,9 @@
         "claude"
       ],
       "files": {
-        "agents/dream-analyzer.md": "9bd34b2796ce3cca70827ef38213b5737f3a9e957a51181a7eda1bc39d72e0dd"
+        "agents/dream-analyzer.md": "8f4a483f5c3ea32f254fd794b32b0c7f10b77132e6a671803b31a5350de2125e"
       },
-      "sha256": "57382a984675e0f05467eac5e568bd367b2b290f09d2aff3c56eb9261b2121ef"
+      "sha256": "235093ff36aaf5059e98e0e6d7b5047ae5200db5a82301cda8b3642330e06cc2"
     },
     {
       "id": "dream-organizer",
@@ -473,9 +473,9 @@
         "claude"
       ],
       "files": {
-        "agents/dream-organizer.md": "60298250d3103584a1160b98ac80714eee03d966bac6a53ab745cd44b3f840a7"
+        "agents/dream-organizer.md": "a7f279636b45d25e07b06f83d0986e4070fb9447826e47b951ef321b2ca9d7a4"
       },
-      "sha256": "6ec37033f2894b399c575ae07da49d4dc658efe485c85e272ee3e6231c608526"
+      "sha256": "b9de240aa1d139323c356d5410a5a52841a9d235f1402ab77df24b1a2688cf02"
     },
     {
       "id": "deepen",
@@ -503,9 +503,9 @@
         "claude"
       ],
       "files": {
-        "skills/plan/SKILL.md": "60f777f6649c4be4f0ea6f4c3438db30f2b9832e3672bcf914487a0c51e27edb"
+        "skills/plan/SKILL.md": "8197c3af7799a2d85b960ee25f7d371b645191d98f3252097390dbc75d26516d"
       },
-      "sha256": "404bf77570fab0804b04d6c2fb8ea4f7ce64f52157488b648dd0d2d559f54b9b"
+      "sha256": "98d16abb5513de4ac62ecd1ad026e9a3daf3ad08469091dbac53e675e5d29439"
     },
     {
       "id": "orchestrate",
@@ -518,9 +518,9 @@
         "claude"
       ],
       "files": {
-        "skills/orchestrate/SKILL.md": "b32b25f95f6bb57c79783e9627200b478887898b53a039a0b1b386ca23753f2c"
+        "skills/orchestrate/SKILL.md": "372c4534a13605a3a9b0aa1fb3059098f71cdc5e241dca024d9634a9c9c11782"
       },
-      "sha256": "4da10f630bb12e9e97442072786664d80338888ae6f8b3af54b4bb994553f28d"
+      "sha256": "e5894f2b9da9762f0aa4da65397b5084e915de9356079e215d0b71e95bec9354"
     },
     {
       "id": "pending",

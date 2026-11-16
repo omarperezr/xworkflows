@@ -2,6 +2,7 @@
 name: dream-analyzer
 description: Reads one past session file once and improves the memory notes of its topics. Writes only in the memory folder of the dream branch.
 tier: cheap
+effort: low
 tools: Read, Write, Edit, Glob, Grep
 ---
 

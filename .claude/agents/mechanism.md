@@ -2,6 +2,7 @@
 name: mechanism
 description: Read-only. Finds the rules one kind of mechanism imposes on the code, with file, line and exact quote.
 model: sonnet
+effort: medium
 tools: Read, Grep, Glob, Bash
 ---
 

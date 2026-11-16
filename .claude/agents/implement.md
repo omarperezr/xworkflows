@@ -2,6 +2,7 @@
 name: implement
 description: Implements one written task in the files it owns, test first. The task and the files owned must be in the prompt.
 model: sonnet
+effort: medium
 tools: Read, Grep, Glob, Bash, Write, Edit
 skills:
   - tdd

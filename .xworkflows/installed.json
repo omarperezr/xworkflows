@@ -6,7 +6,7 @@
   "pieces": {
     "hook-runtime": {
       "version": "0.1.0",
-      "sha256": "738b43d09be98996b800e405225c72329a66caaae0c56b831573df2fb016d99c"
+      "sha256": "a6f8280c6d01d8d2c57e5823a8fa71c4acc82eab3b50d20aecc6ca2216a1e5b5"
     },
     "design-first": {
       "version": "0.1.0",
@@ -26,11 +26,11 @@
     },
     "explore": {
       "version": "0.1.0",
-      "sha256": "f65f16b993bd1103b38ce9fecf5aea063b1da6e6cce52f6d08b071cba224d8e8"
+      "sha256": "db94fb8cc7ebee7eab9df55b7a29c6be7ca279b365072e3a5f398d71e7c9b6cb"
     },
     "mechanism": {
       "version": "0.1.0",
-      "sha256": "cfa684ecb49777e73bdad23696a1758546c8ff930da387301514614991972379"
+      "sha256": "2cbe54ddaac3c2fd509e1c2589576ada6765743175c5f15f8cc4a4b82ebeb84d"
     },
     "thermo-nuclear-review": {
       "version": "dc415439eebed0cd8fddb11e896dee43bce9d8b0",
@@ -42,15 +42,15 @@
     },
     "zone-review": {
       "version": "0.1.0",
-      "sha256": "351cb0ee3d709aa8d13fbe476a919ebfdc6a1f20e24ad37e42f7c97e60147caf"
+      "sha256": "432fdabc2b140d0277a4bfd7bf71c9db7de58495bbb6dbd31626ddf56ce1b675"
     },
     "verify-finding": {
       "version": "0.1.0",
-      "sha256": "4993932e80d4a4ade27399fd4f17c7358862685f377c9407ded2b71fe78c63d9"
+      "sha256": "24ede35a2e3ee1ff734c25be469789ac4e66ee91a7a54d2f452ae0b3ee5435db"
     },
     "adapt": {
       "version": "0.1.0",
-      "sha256": "a02c1ebc62b922aeff763d4594f4a5575bb90c0b58009a062e747d9e0febdaca"
+      "sha256": "d3e6b27d37645c4c28c414f91b524e6dc38e0de8dcd103a5b8fb1d1722490c0a"
     },
     "full-review": {
       "version": "0.1.0",
@@ -70,7 +70,7 @@
     },
     "memory": {
       "version": "0.1.0",
-      "sha256": "363d84ec9c46a95c3c0bc5fea0bc4950329b678aac3057ee9357b9b298c5cf2f"
+      "sha256": "eef62d686784b1858e5708d99e71c67301f5ac5efdf854572f37d6e7e8a63588"
     },
     "modes": {
       "version": "0.1.0",
@@ -78,23 +78,23 @@
     },
     "implement": {
       "version": "0.1.0",
-      "sha256": "5744a15a0549222b5c7f076cf86da376a65e2470426813fcbbf0a36878ed2c43"
+      "sha256": "fe729fb8c4bc7ef5ef71693447e4d4ece7f6650a968f3f0bc568d2dae9a016ad"
     },
     "mechanical": {
       "version": "0.1.0",
-      "sha256": "b3b453be5e342669893b093b56e9c63070dae7c1dfcd37b173250f44162324c6"
+      "sha256": "4a464f1172e5e9d092e9f32dab849c39e4f05bdbeae13dbac8c38efd62706386"
     },
     "review": {
       "version": "0.1.0",
-      "sha256": "f01aa761e0696d3848e3d3578a72664924288c7fcc10cc6c4ad3b62636771ef5"
+      "sha256": "933a195bfeeab52caf2b9e74436108db339e1ad627ed01cb929c2553851a8af3"
     },
     "dream-analyzer": {
       "version": "0.1.0",
-      "sha256": "57382a984675e0f05467eac5e568bd367b2b290f09d2aff3c56eb9261b2121ef"
+      "sha256": "235093ff36aaf5059e98e0e6d7b5047ae5200db5a82301cda8b3642330e06cc2"
     },
     "dream-organizer": {
       "version": "0.1.0",
-      "sha256": "6ec37033f2894b399c575ae07da49d4dc658efe485c85e272ee3e6231c608526"
+      "sha256": "b9de240aa1d139323c356d5410a5a52841a9d235f1402ab77df24b1a2688cf02"
     },
     "deepen": {
       "version": "0.1.0",
@@ -102,11 +102,11 @@
     },
     "plan": {
       "version": "0.1.0",
-      "sha256": "404bf77570fab0804b04d6c2fb8ea4f7ce64f52157488b648dd0d2d559f54b9b"
+      "sha256": "98d16abb5513de4ac62ecd1ad026e9a3daf3ad08469091dbac53e675e5d29439"
     },
     "orchestrate": {
       "version": "0.1.0",
-      "sha256": "4da10f630bb12e9e97442072786664d80338888ae6f8b3af54b4bb994553f28d"
+      "sha256": "e5894f2b9da9762f0aa4da65397b5084e915de9356079e215d0b71e95bec9354"
     },
     "pending": {
       "version": "0.1.0",
@@ -152,7 +152,7 @@
     },
     ".xworkflows/hooks/run.mjs": {
       "piece": "hook-runtime",
-      "sha256": "cf9ecf76c88fc39449b299ea6bb379af132a3d7d3b0163b8281eb0599831008a"
+      "sha256": "f16b9c43cc1525dabc0e50672516b74065524927d90bef3462c66c4e05ba6d67"
     },
     ".xworkflows/mark.mjs": {
       "piece": "hook-runtime",
@@ -196,7 +196,7 @@
     },
     ".xworkflows/hooks/core/memory.mjs": {
       "piece": "memory",
-      "sha256": "b318e79d804966cf0f0713f0c2d5457b6c12eb70e4c3c85d43d11afef83e0222"
+      "sha256": "bd4cf723bd7eecb1587415e1586541dce896f7dbd652d4da9034baf72289c72d"
     },
     ".xworkflows/hooks/core/memory-index.mjs": {
       "piece": "memory",
@@ -300,11 +300,11 @@
     },
     ".claude/agents/explore.md": {
       "piece": "explore",
-      "sha256": "7c5dcf050c0ef492d0e16b03e2bab3b10f8e57f97ec74935e175dffa6a3d5088"
+      "sha256": "58ff824c61bf62f1ac084549443ac7c03ff7dda88259dd0316a637aee9905f90"
     },
     ".claude/agents/mechanism.md": {
       "piece": "mechanism",
-      "sha256": "a33fc4ba45343df1eb82382f02e5be40e90042a2057b3255954450280fd73fc2"
+      "sha256": "066954a7533944132db6cd23d30cea6cd7e0fac7ef16c6b235cf2eea7a86f39b"
     },
     ".claude/skills/thermo-nuclear-review/SKILL.md": {
       "piece": "thermo-nuclear-review",
@@ -332,15 +332,15 @@
     },
     ".claude/agents/zone-review.md": {
       "piece": "zone-review",
-      "sha256": "ecbbc33512a794c6feb65ddb73d796f09913009001d4f6caccc2041e7087ad3d"
+      "sha256": "defb8cdcbb68f20d8ae019646c4b09b8557b4bade7f5fc1186fc875f0580b985"
     },
     ".claude/agents/verify-finding.md": {
       "piece": "verify-finding",
-      "sha256": "15be29137615ebabbf61c774290d8be5b9654a96f46bf012cf5eb5bbbf960e87"
+      "sha256": "01a6eea5e0c8d14d62ceaaf8e1d98fb2b4e756b6d184aa2b9fbae444edff9ec9"
     },
     ".claude/skills/adapt/SKILL.md": {
       "piece": "adapt",
-      "sha256": "2296af68b8c944e64025c3b646a35e46699b92d7c7b6ecf6c204fe9bb31b32e8"
+      "sha256": "20bcb381ae0cdb811aa3e78852252198f6aba2a834c47817c1845f54d3b4fbb1"
     },
     ".claude/skills/adapt/scan.mjs": {
       "piece": "adapt",
@@ -356,11 +356,11 @@
     },
     ".claude/skills/adapt/research.mjs": {
       "piece": "adapt",
-      "sha256": "514a1a1ddadb09c4ce41cfda31649700186c60913ddea21828f31057a5d923c4"
+      "sha256": "81fd85001c9c022dc30d284d8557c037b05b35f37b5848044b0e4f7e042b5e0e"
     },
     ".claude/skills/adapt/screens.mjs": {
       "piece": "adapt",
-      "sha256": "0a0f3698ea1e41ebae375416e52eac0df90e8d644f8b452c44e9fe702bc34cdc"
+      "sha256": "46218539062b06597556be39eebd0f0a6b47dfa6e31154232c55a7967c537a4c"
     },
     ".claude/skills/full-review/SKILL.md": {
       "piece": "full-review",
@@ -372,23 +372,23 @@
     },
     ".claude/agents/implement.md": {
       "piece": "implement",
-      "sha256": "fa39204c96a3ab1273a213a1af63d834f82c056368803684d5952e468f8c1ee5"
+      "sha256": "14c53c5ff7c7227ea42b3087432d8b046c0f767a3a0c49652038e3bd08452e7f"
     },
     ".claude/agents/mechanical.md": {
       "piece": "mechanical",
-      "sha256": "275357aeaa75f39d493440c75f0654a049e34efe9dd20f5e6ab627c6392fd67d"
+      "sha256": "ea6214885a28226667caacbbc5815ce082aeaca8f6e30175d8aacd0b4f8e591f"
     },
     ".claude/agents/review.md": {
       "piece": "review",
-      "sha256": "56e15d044c1962e9ce435f0f0742f0be5ed33386c0815dfba88eada5ce7b9f81"
+      "sha256": "868d2574acc27bca927e61b69350d8671b997be71417b5dd17c008eda23fe415"
     },
     ".claude/agents/dream-analyzer.md": {
       "piece": "dream-analyzer",
-      "sha256": "3e071a7cb7f8fbb22ab8215cc1371cf68e87563eb2fe54c367cdc24539aade08"
+      "sha256": "295cb92a9ee9c9fd98221635838f406cdf03d51452b7d86ef225def11dd74a10"
     },
     ".claude/agents/dream-organizer.md": {
       "piece": "dream-organizer",
-      "sha256": "ea20a67e4e4f7386b26a5d1617111f5ea2d2fb25051263f55c61c7984d8bfd60"
+      "sha256": "87e6dfd6e35ddeb34abc54513713a54b23a8f908b0d7be618175925563a0cfb8"
     },
     ".claude/skills/deepen/SKILL.md": {
       "piece": "deepen",
@@ -396,11 +396,11 @@
     },
     ".claude/skills/plan/SKILL.md": {
       "piece": "plan",
-      "sha256": "60f777f6649c4be4f0ea6f4c3438db30f2b9832e3672bcf914487a0c51e27edb"
+      "sha256": "8197c3af7799a2d85b960ee25f7d371b645191d98f3252097390dbc75d26516d"
     },
     ".claude/skills/orchestrate/SKILL.md": {
       "piece": "orchestrate",
-      "sha256": "b32b25f95f6bb57c79783e9627200b478887898b53a039a0b1b386ca23753f2c"
+      "sha256": "372c4534a13605a3a9b0aa1fb3059098f71cdc5e241dca024d9634a9c9c11782"
     },
     ".claude/skills/pending/SKILL.md": {
       "piece": "pending",

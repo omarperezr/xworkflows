@@ -2,6 +2,7 @@
 name: review
 description: Reviews a diff against the project's rules. Every finding has the exact line and a concrete failure scenario. Never fixes.
 model: opus
+effort: high
 tools: Read, Grep, Glob, Bash
 skills:
   - ponytail-review

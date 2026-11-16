@@ -7,7 +7,7 @@ import { existsSync, readFileSync, writeFileSync, appendFileSync, mkdirSync, rmS
 import { tmpdir } from "node:os";
 import { join, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
-import { screens, render, details, mechanism, seen, MAX_RULES, MAX_MORE } from "./screens.mjs";
+import { screens, render, details, mechanism, seen, wideMark, MAX_RULES, MAX_MORE } from "./screens.mjs";
 
 const STOP = "Research could not be copied unchanged twice: stop and tell the owner.";
 
@@ -83,7 +83,7 @@ export function buildQueue(s, research = {}, scan = {}, prev = null, cfg = {}, e
     if (!cites.length || !cites.every((c) => c && verifyCitation(earlier.root, c))) return true;
     return cites.some((c) => earlier.docs.some((d) => d.includes(String(c.file).replace(resolve(earlier.root) + sep, "")))); // a newer spec or plan names a cited file
   };
-  const sentence = (x, i) => item(`S1-${i + 1}`, "1", `${x.text} (${x.at})${seen(x)}`, SENTENCE);
+  const sentence = (x, i) => item(`S1-${i + 1}`, "1", `${x.text} (${x.at})${seen(x)}${wideMark(x)}`, SENTENCE);
   const first = s.drawer1.flatMap((x, i) => (asked(x) ? [[x, i]] : [])), out = s.drawer1LeftOut.flatMap((x, i) => (asked(x) ? [[x, MAX_RULES + i]] : []));
   const more = out.filter(([, i]) => i < MAX_RULES + MAX_MORE); // the second page is the first MAX_MORE places, cut before the skip
   return [
