@@ -47,6 +47,15 @@ install, day one and the method fit together and pay for themselves
 - The pilot runs on the owner's Mac, Claude Code only.
 - The pilot project (owner, 2026-11-11) is the owner's Python and pytest
   project that design 6.2 describes. Its name stays out of this repository.
+- That project is exam project A. The owner retires it as an exam project:
+  "Sí, retirarlo del examen" (2026-11-15). Later /adapt exams use exam project B
+  or a new project the owner picks.
+- The pilot clone starts at the last commit before any trace of xworkflows in
+  the pilot project (an earlier install and adapt are in its history): "Desde
+  antes de xworkflows" (owner, 2026-11-15). The owner's working tree is never
+  touched.
+- The first real `/dream` runs in the pilot clone, once its sessions have
+  written memory notes (owner, 2026-11-15).
 - Check packs ready before the pilot (owner, 2026-11-11): the project's own
   linter, `semgrep` and `trivy` (1.3).
 - The full review runs once in the pilot, step 7 (owner, 2026-11-11).

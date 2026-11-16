@@ -10,3 +10,4 @@ node_modules/
 graphify-out/
 .claude/settings.local.json
 .qmd/
+docs/pilot/private/
