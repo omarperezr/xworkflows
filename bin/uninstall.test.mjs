@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 import { appendFileSync, chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "../test-tmp.mjs";
 import { dirname, join, relative } from "node:path";
-import { mkdtempSync, repo, git, cli, readJson, writeJson, PRE, theirs, withRemote, OLD, chained, made, tmp, doctor, outside, hasHook, ROOT_WRITES, sha, withRecord, files, tree, lineOf, hookAt, yes, doLine, toScript } from "./shared.test.mjs";
+import { mkdtempSync, repo, git, cli, readJson, writeJson, PRE, theirs, withRemote, OLD, made, tmp, doctor, outside, hasHook, ROOT_WRITES, sha, withRecord, files, tree, lineOf, hookAt, yes, doLine, toScript } from "./shared.test.mjs";
 const notOurs = (out, p) => assert.match(out.stdout, new RegExp(`^kept \\(not ours\\): ${p.replace(/[.\/]/g, "\\$&")}$`, "m"));
 // a hook uninstall cannot write keeps its line, which is named in one line; the rest of uninstall is done
 const readOnly = [

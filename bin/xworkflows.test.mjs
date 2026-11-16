@@ -5,7 +5,7 @@ import { appendFileSync, chmodSync, existsSync, mkdirSync, readdirSync, readFile
 import { tmpdir } from "../test-tmp.mjs";
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
-import { mkdtempSync, ISO, isoEnv, repo, git, cli, readJson, writeJson, PKG_ROOT, WIRED, PRE, packageCopy, SHARED, BIN, cliAt, packedCopy, theirs, OLD_MATCHER, CURRENT, installedOld, KEPT_EDIT, config, BAD, commit, marked, OLD, chained, tmp, tools, doctor, outside, hasHook, OLD_TEXT, oldInstall, withRecord, files, at } from "./shared.test.mjs";
+import { mkdtempSync, ISO, isoEnv, repo, git, cli, readJson, writeJson, PKG_ROOT, WIRED, PRE, packageCopy, SHARED, BIN, cliAt, packedCopy, theirs, OLD_MATCHER, CURRENT, installedOld, KEPT_EDIT, config, BAD, commit, marked, OLD, chained, tmp, doctor, outside, hasHook, OLD_TEXT, oldInstall, withRecord, files, at } from "./shared.test.mjs";
 // the answers are typed at a terminal: a pty from python3, each line sent once the previous question is out; EOF sends end of input,
 // INT sends Ctrl-C. It exits with the code of the command, 255 when a signal ended it
 const PTY = `import os, pty, sys, time

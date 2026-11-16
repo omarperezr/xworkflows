@@ -3,11 +3,11 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { appendFileSync, chmodSync, cpSync, existsSync, lstatSync, lutimesSync, mkdtempSync as makeTmp, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
+import { chmodSync, cpSync, existsSync, lstatSync, mkdtempSync as makeTmp, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "../test-tmp.mjs";
-import { basename, dirname, join, relative } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
-export const madeTmp = [];
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+const madeTmp = [];
 export const mkdtempSync = (p) => { const d = makeTmp(p); madeTmp.push(d); return d; };
 test.after(() => { for (const d of madeTmp) rmSync(d, { recursive: true, force: true }); });
 
@@ -60,7 +60,7 @@ export function packageCopy(from = PKG_ROOT) {
 // the tests install from one copy made per run, its manifest regenerated here: a changed piece never needs pack first
 export const SHARED = packageCopy();
 process.on("exit", () => rmSync(SHARED, { recursive: true, force: true }));
-export const packed = spawnSync("node", [join(SHARED, "bin/xworkflows.mjs"), "pack"], { cwd: SHARED, env: { ...process.env, ...ISO }, encoding: "utf8" });
+const packed = spawnSync("node", [join(SHARED, "bin/xworkflows.mjs"), "pack"], { cwd: SHARED, env: { ...process.env, ...ISO }, encoding: "utf8" });
 assert.equal(packed.status, 0, `pack of the shared copy failed, every install test depends on it:\n${packed.stdout}${packed.stderr}`);
 export const BIN = join(SHARED, "bin/xworkflows.mjs");
 
@@ -161,7 +161,7 @@ export const outside = (hooksPath) => {
 export const hasHook = (d) => { const p = join(d, "pre-push"); writeFileSync(p, OLD); chmodSync(p, 0o755); };
 // husky's two files, written here from its documented behaviour: the shim git runs reads h beside it, and h runs the file of the
 // hook's own name one folder up with sh -e, which gets the arguments and the standard input
-export const HUSKY_H = '#!/usr/bin/env sh\nn=$(basename "$0")\ns=$(dirname "$(dirname "$0")")/$n\n[ ! -f "$s" ] && exit 0\nsh -e "$s" "$@"\nc=$?\n[ $c != 0 ] && echo "husky - $n script failed (code $c)"\nexit $c\n';
+const HUSKY_H = '#!/usr/bin/env sh\nn=$(basename "$0")\ns=$(dirname "$(dirname "$0")")/$n\n[ ! -f "$s" ] && exit 0\nsh -e "$s" "$@"\nc=$?\n[ $c != 0 ] && echo "husky - $n script failed (code $c)"\nexit $c\n';
 export const HUSKY_SHIM = '#!/usr/bin/env sh\n. "$(dirname "$0")/h"\n';
 export function husky(files = {}) {
   const { r, bare } = withRemote();
@@ -262,7 +262,7 @@ export const at = (f) => () => { const x = withRemote(); f(x.r); return x; };
 export const toScript = (r, f, link) => { mkdirSync(join(r, "scripts"), { recursive: true }); renameSync(join(r, f), join(r, "scripts/pre-push.sh")); symlinkSync(link, join(r, f)); };
 // the line an earlier version told a user to put in the pre-push of a hooks folder outside the repository: it ran the check and
 // handed the rest of the hook no pushed refs
-export const GUARDED_OLD = 'f="$(git rev-parse --show-toplevel)/.xworkflows/checks/run.mjs"; if [ -f "$f" ]; then node "$f" --pre-push "$1" || exit $?; fi';
+const GUARDED_OLD = 'f="$(git rev-parse --show-toplevel)/.xworkflows/checks/run.mjs"; if [ -f "$f" ]; then node "$f" --pre-push "$1" || exit $?; fi';
 // a hooks folder outside the repository, shared with other projects: its pre-push is OLD, which writes beside the folder what it got.
 // install writes nothing there
 export const shared = (guarded) => () => {

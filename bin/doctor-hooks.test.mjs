@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { appendFileSync, chmodSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { ISO, isoEnv, repo, git, cli, ALL_KEYS, config, BAD, commit, pushed, withRemote, marked, OLD, chained, tmp, tools, COVERS, doctor, withConfig, outside, husky, NODE_HOOK, oldInstall, withRecord, files, top, FIX, lineOf, hookAt, yes, doLine, at, toScript, shared, ENDS } from "./shared.test.mjs";
+import { ISO, isoEnv, repo, git, cli, ALL_KEYS, config, BAD, commit, pushed, withRemote, marked, OLD, chained, tmp, tools, COVERS, doctor, withConfig, outside, husky, NODE_HOOK, oldInstall, withRecord, top, FIX, lineOf, hookAt, yes, doLine, at, toScript, shared, ENDS } from "./shared.test.mjs";
 // the fail line for a hook of the project that does not run the check: the file, then the line to put in it
 const ADD = /^fail pre-push hook does not run the check: add this line to (\S+) as its first command: (.+ # xworkflows)$/m;
 // Each state of a pre-push hook, built in a temp project. Doctor's line for it is done as it is written: the edit it names, or the

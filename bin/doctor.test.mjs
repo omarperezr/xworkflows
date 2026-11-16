@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { appendFileSync, chmodSync, existsSync, mkdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { join, relative } from "node:path";
-import { repo, git, cli, readJson, writeJson, adaptOf, ALL_KEYS, commit, tmp, tools, COVERS, GOOD, EMPTY_HOME, doctor, withConfig, outside, files, top, FIX, lineOf, doLine, lines, ENDS } from "./shared.test.mjs";
+import { repo, git, cli, readJson, writeJson, adaptOf, ALL_KEYS, tmp, tools, COVERS, GOOD, EMPTY_HOME, doctor, withConfig, outside, files, top, FIX, lineOf, doLine, lines, ENDS } from "./shared.test.mjs";
 const old22 = () => { const f = join(tmp("xwf-ver-"), "ver.cjs"); writeFileSync(f, 'Object.defineProperty(process, "versions", { value: { ...process.versions, node: "20.1.0" } });\n'); return f; };
 const noGitVersion = () => {
   const d = tools({}).split(":")[0], real = spawnSync("sh", ["-c", "command -v git"], { encoding: "utf8" }).stdout.trim();

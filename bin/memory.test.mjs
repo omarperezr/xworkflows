@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
-import { isoEnv, repo, cli, readJson, writeJson, ALL_KEYS, tmp, tools, COVERS, EMPTY_HOME, doctor, withConfig, outside, files, qmdLog, spy, inst, top, tree, lineOf } from "./shared.test.mjs";
+import { isoEnv, repo, cli, readJson, writeJson, ALL_KEYS, tmp, tools, COVERS, EMPTY_HOME, doctor, withConfig, files, qmdLog, spy, inst, top, tree, lineOf } from "./shared.test.mjs";
 const yml = (r, dir = "docs/memory") => `collections:\n  memory:\n    path: ${JSON.stringify(join(top(r), dir))}\n    pattern: "**/*.md"\n`;
 
 const MARKER = "written by xworkflows install: uninstall removes index.yml and its database here only while this file exists\n";
