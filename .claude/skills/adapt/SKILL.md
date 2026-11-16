@@ -133,7 +133,7 @@ Goals in `docs/BUSINESS.md`, one line per aspiration, no dates. G1 is the 3-mont
 
 `risk-review` agent:
 
-- Front matter: `name: risk-review`; a one-line `description`; `model:` set to the model heading 6 names as approved and, where heading 6 names none, to the model `node <base>/research.mjs model` prints; the line is never left out; `tools: Read, Grep, Glob, Bash`.
+- Front matter: `name: risk-review`; a one-line `description`; `model:` set to the model heading 6 names as approved and, where heading 6 names none, to the model `node <base>/research.mjs model` prints; the line is never left out; `tools: Read, Grep, Glob, Bash`; `effort: xhigh`, so its first review runs at xhigh.
 - What it guards: heading 4, the costliest mistake first.
 - A checklist: one line per check, each one a reviewer can check against a diff, with one line per rule the owner confirmed, each with its path as in `What each answer writes` (for example: `a fee is charged only after the due date has passed`).
 - The paths it covers: `paths.risk`.
