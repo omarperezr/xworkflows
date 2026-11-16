@@ -321,7 +321,8 @@ test("a row added to a table above a generated test: that test runs with the cha
   repo.commit("fix: x returns 2", { files: { ...FIXED, "test/x.test.mjs": rowsFile(log, [1, 2], slowTests(log)) } });
   const t0 = Date.now();
   assert.deepEqual(await repo.run(brake), { ok: true, lines: [] });
-  assert.equal(readFileSync(log, "utf8"), "head\nrow 1\nrow 2\n");
+  // the changed test runs alone first, then again with the generated test under it
+  assert.equal(readFileSync(log, "utf8"), "head\nhead\nrow 1\nrow 2\n");
   assert.ok(Date.now() - t0 < 8000, "the slow tests of the file ran");
 }));
 
@@ -349,6 +350,23 @@ test("a filtered run at the parent that ran no test is not a pass: the whole fil
   repo.commit("fix: x returns 2", { files: { ...FIXED, "test/x.test.mjs": HEAD + t } });
   assert.deepEqual(await repo.run(brake), { ok: true, lines: [] });
   assert.equal(readFileSync(log, "utf8"), "ran\n");
+}));
+
+test("a generated test under an edited test needs the tests above it: the whole file passes at the parent, so the brake refuses", withRepo({}, async (repo) => {
+  // "collects" fills shared state, "sorts" is the edited test and passes at the parent, the generated tests read the state
+  const file = (note) => `${HEAD}const seen = [];\ntest("collects", () => { seen.push(1, 2); });\ntest("sorts", () => { ${note}assert.deepEqual([2, 1].sort(), [1, 2]); });\nfor (const n of [1, 2]) test(\`has \${n}\`, () => assert.ok(seen.includes(n)));\n`;
+  repo.commit("test: file", { files: { "test/x.test.mjs": file("") } });
+  repo.commit("fix: x returns 2", { files: { ...FIXED, "test/x.test.mjs": file("/* reworded */ ") } });
+  const r = await repo.run(brake);
+  assert.equal(r.ok, false);
+  assert.match(r.lines.join("\n"), /also pass at the parent/);
+}));
+
+test("an edited test that is red at the parent decides alone: the slow generated tests under it do not run", withRepo(withSeconds(2), async (repo) => {
+  const file = (note) => `${HEAD}test("x", () => { ${note}assert.equal(x(), 2); });\nfor (const n of [1, 2]) test(\`slow \${n}\`, () => new Promise((r) => setTimeout(r, 3000)));\n`;
+  repo.commit("test: file", { files: { "test/x.test.mjs": file("") } });
+  repo.commit("fix: x returns 2", { files: { ...FIXED, "test/x.test.mjs": file("/* reworded */ ") } });
+  assert.deepEqual(await repo.run(brake), { ok: true, lines: [] });
 }));
 
 test("needs names the four keys", () => {
