@@ -98,21 +98,14 @@ export async function run(range, ctx) {
       }
       wtGit("checkout", "-q", c, "--", ...runnable);
       // only the parent runs: the push runs the whole suite on the last commit
-      // with node --test, three runs, each a red that decides; a pass goes on to the next:
-      // 1 the tests the fix adds or changes, alone; 2 the generated tests that sit under an edited test, with every test above them in their file, in file order; 3 the whole file
-      const plan = /^\s*node --test(?: <files>)?\s*$/.test(tests.run) ? runnable.map((f) => {
+      // with node --test, only the tests the fix adds or changes run; a red of those decides
+      // a pass or no test run goes to the whole file, as before, so no verdict is stricter than before
+      const names = /^\s*node --test(?: <files>)?\s*$/.test(tests.run) ? runnable.flatMap((f) => {
         const before = testsOf(ctx.show(`${c}^`, f));
-        const after = [...testsOf(ctx.show(c, f))];
-        const changed = after.map(([k, text]) => before.get(k) !== text);
-        // a table row the fix adds counts to the test above it; the generated test after it reads it
-        const last = after.findLastIndex(([k], i) => !changed[i] && k.includes(".*") && changed[i - 1] && before.has(after[i - 1][0]));
-        const alone = after.filter((_, i) => changed[i]).map(([k]) => k);
-        return { alone, above: last < 0 ? [] : [...new Set([...alone, ...after.slice(0, last + 1).map(([k]) => k)])] };
+        return [...testsOf(ctx.show(c, f))].filter(([k, text]) => before.get(k) !== text).map(([k]) => k);
       }) : [];
-      const alone = plan.flatMap((p) => p.alone), above = plan.flatMap((p) => p.above);
-      let atParent = alone.length ? await runTests(runnable, alone) : 0;
-      if (atParent === 0 && above.length) atParent = await runTests(runnable, above);
-      // shortcut: a test of a helper of another name is not seen; the whole file decides at the parent
+      let atParent = names.length ? await runTests(runnable, names) : 0;
+      // shortcut: a test that needs an earlier test of its file fails alone at the parent, and that red counts as proof, though the whole file passes there; a gap, see docs/gaps.md
       if (atParent === 0) atParent = await runTests(runnable);
       if (atParent === null) { cannot = `${label}: its tests did not end within ${seconds}s or could not start at the parent; raise brakes.fixHasTest.seconds`; return; }
       if (atParent === 0) bad.push(`${label}: its tests also pass at the parent, so they prove nothing; make them fail without the fix`);

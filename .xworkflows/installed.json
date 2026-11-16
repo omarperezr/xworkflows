@@ -130,7 +130,7 @@
     },
     "checks": {
       "version": "0.1.0",
-      "sha256": "9f6cc801c9708215920116dd0b20df35b7cc268de6012ad50c8426ba1e067a47"
+      "sha256": "402757f82bcb90a411acfcf56a8045668d034876ffddc7e3881bf50d6d0342f3"
     },
     "lint": {
       "version": "0.1.0",
@@ -236,7 +236,7 @@
     },
     ".xworkflows/checks/fix-has-test.mjs": {
       "piece": "checks",
-      "sha256": "ce6324f5703952333dca5c939bcbcb8c0ba9f4f0f7449ed0bff20f3a26710ae2"
+      "sha256": "63ba9b3dbbf9251be58632b667ed69f611aa0c6a7fb6c893a114c1a2610defc4"
     },
     ".xworkflows/checks/change-size.mjs": {
       "piece": "checks",
