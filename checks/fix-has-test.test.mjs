@@ -312,6 +312,28 @@ test("a test named by a template runs by its pattern", withRepo({}, async (repo)
   assert.equal(readFileSync(log, "utf8"), "x\n");
 }));
 
+// a table above a generated test: the row a fix adds is no test of its own, the generated test after it runs with the changed ones
+const rowsFile = (log, rows, tail) => `${HEAD}${logged(log, "head", "assert.ok(true);")}const ROWS = ${JSON.stringify(rows)};\nfor (const n of ROWS) test(\`row \${n}\`, () => { appendFileSync(${JSON.stringify(log)}, "row " + n + "\\n"); assert.equal(x(), n); });\n${tail}`;
+
+test("a row added to a table above a generated test: that test runs with the changed ones, and a red of it decides", withRepo({}, async (repo) => {
+  const log = newLog();
+  repo.commit("test: rows", { files: { "test/x.test.mjs": rowsFile(log, [1], slowTests(log)) } });
+  repo.commit("fix: x returns 2", { files: { ...FIXED, "test/x.test.mjs": rowsFile(log, [1, 2], slowTests(log)) } });
+  const t0 = Date.now();
+  assert.deepEqual(await repo.run(brake), { ok: true, lines: [] });
+  assert.equal(readFileSync(log, "utf8"), "head\nrow 1\nrow 2\n");
+  assert.ok(Date.now() - t0 < 8000, "the slow tests of the file ran");
+}));
+
+test("a generated test after the changed ones that passes at the parent: the whole file decides as before", withRepo({}, async (repo) => {
+  const log = newLog();
+  const tail = logged(log, "after", "assert.equal(x(), 2);");
+  repo.commit("test: rows", { files: { "test/x.test.mjs": rowsFile(log, [1], tail) } });
+  repo.commit("fix: x returns 2", { files: { ...FIXED, "test/x.test.mjs": rowsFile(log, [1, 1], tail) } });
+  assert.deepEqual(await repo.run(brake), { ok: true, lines: [] });
+  assert.match(readFileSync(log, "utf8"), /after\n$/);
+}));
+
 test("when the changed tests pass at the parent, the whole file decides as before", withRepo({}, async (repo) => {
   // the fix changes a value above the tests, which only the unchanged test reads
   const file = (want, extra) => `${HEAD}const WANT = ${want};\ntest("x", () => assert.equal(x(), WANT));\ntest("other", () => { ${extra} });\n`;
