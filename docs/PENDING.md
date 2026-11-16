@@ -50,7 +50,7 @@ One living list. The `pending` brake checks these rules:
 
 ## Check runner and brakes
 
-- **P-194** — The pre-push took about 11.5 minutes with 23 fix commits (2026-11-14), and the whole suite alone takes 4.9 minutes (293 s wall, 1485 tests, measured 2026-11-15), so about 6.6 minutes is `checks/fix-has-test.mjs` (`run`, the serial loop at `:66`) and the other brakes. Measure the share of each brake on that range before any speed-up; a pool of worktrees was judged unsafe as is (`child` is one variable at `:35` and `onSig` kills only it at `:39`, and `node --test` already uses every core). Origin: read-only diagnosis, 2026-11-15, plan docs/superpowers/plans/2026-11-15-spend-cut.md. Status: in progress on spend-cut-1.
+- **P-194** — The pre-push took about 11.5 minutes with 23 fix commits (2026-11-14), and the whole suite alone takes 4.9 minutes (293 s wall, 1485 tests, measured 2026-11-15), so about 6.6 minutes is `checks/fix-has-test.mjs` (`run`, the serial loop at `:66`) and the other brakes. Measure the share of each brake on that range before any speed-up; a pool of worktrees was judged unsafe as is (`child` is one variable at `:35` and `onSig` kills only it at `:39`, and `node --test` already uses every core). Origin: read-only diagnosis, 2026-11-15, plan docs/superpowers/plans/2026-11-15-spend-cut.md. Measured 2026-11-15: fix-has-test 753 s of that push, almost all in two fixes that ran bin/xworkflows.test.mjs whole (about 440 tests, about 270 s each); a cut by test names was reverted (it let a fix whose test proves nothing pass); batch 2 of the plan splits that file. Status: scheduled.
 
 
 
