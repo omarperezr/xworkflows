@@ -2,6 +2,7 @@
 name: verify-finding
 description: Takes one review finding and tries to prove it with the smallest failing test, in a separate worktree. Never fixes the code.
 tier: medium
+effort: medium
 tools: Read, Grep, Glob, Bash, Write, Edit
 ---
 

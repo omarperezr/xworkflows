@@ -128,6 +128,8 @@ test("fresh install writes every piece and the record", () => {
   assert.ok(!existsSync(join(r, ".xworkflows/hooks/adapters/codex.mjs")));
   assert.match(readFileSync(join(r, ".claude/agents/explore.md"), "utf8"), /^model: haiku$/m);
   assert.doesNotMatch(readFileSync(join(r, ".claude/agents/explore.md"), "utf8"), /^tier:/m);
+  assert.match(readFileSync(join(r, ".claude/agents/explore.md"), "utf8"), /^effort: low$/m);
+  assert.match(readFileSync(join(r, ".claude/agents/review.md"), "utf8"), /^effort: high$/m);
   const rec = JSON.parse(readFileSync(join(r, ".xworkflows/installed.json"), "utf8"));
   assert.deepEqual(Object.keys(rec), ["xworkflows", "tools", "pieces", "files", "merged", "blocks", "imports", "created", "dirs", "declined", "kept", "renamed", "scalars", "chained"]);
   assert.equal(out.stdout.trim().split("\n").at(-1), "Next: open Claude Code and type /adapt");

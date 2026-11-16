@@ -2,6 +2,7 @@
 name: mechanical
 description: Mechanical, checkable edits. Renames, formatting, moving a constant, one pattern applied across files. Never logic.
 tier: cheap
+effort: low
 tools: Read, Grep, Glob, Bash, Write, Edit
 ---
 
