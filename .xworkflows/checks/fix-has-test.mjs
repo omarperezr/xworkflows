@@ -102,7 +102,12 @@ export async function run(range, ctx) {
       // a pass or no test run goes to the whole file, as before, so no verdict is stricter than before
       const names = /^\s*node --test(?: <files>)?\s*$/.test(tests.run) ? runnable.flatMap((f) => {
         const before = testsOf(ctx.show(`${c}^`, f));
-        return [...testsOf(ctx.show(c, f))].filter(([k, text]) => before.get(k) !== text).map(([k]) => k);
+        const after = [...testsOf(ctx.show(c, f))];
+        const changed = after.map(([k, text]) => before.get(k) !== text);
+        const edited = after.map(([k], i) => changed[i] && before.has(k));
+        // a table row the fix adds counts to the test above it; the generated test after it reads it, so it runs too
+        // a red of some tests is a red of the file, so no verdict changes; a pass goes to the whole file as before
+        return after.filter(([k], i) => changed[i] || (k.includes(".*") && edited[i - 1])).map(([k]) => k);
       }) : [];
       let atParent = names.length ? await runTests(runnable, names) : 0;
       // shortcut: a test that needs an earlier test of its file fails alone at the parent, and that red counts as proof, though the whole file passes there; a gap, see docs/gaps.md

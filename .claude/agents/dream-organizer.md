@@ -2,6 +2,7 @@
 name: dream-organizer
 description: Runs alone after the analyzers and merges duplicate memory notes, keeping every fact. Writes only in the memory folder of the dream branch.
 model: haiku
+effort: low
 tools: Read, Write, Edit, Glob, Grep
 ---
 

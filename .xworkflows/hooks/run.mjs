@@ -13,6 +13,8 @@ const log = (stateDir, session, kind, reason) => { // a log failure never change
 let adapter;
 let input;
 let root;
+let session = "-";
+const stateDir = env.XWORKFLOWS_STATE_DIR ?? tmpdir();
 const unrecorded = () => { if (hook === "adapt-record") process.stderr.write("xworkflows: adapt-record: the answers are not being recorded\n"); };
 let out = { stdout: "", exitCode: 0 };
 
@@ -23,7 +25,7 @@ try {
   input = JSON.parse(readFileSync(0, "utf8"));
   const ev = adapter.normalize(input, env);
   root = ev.root;
-  const stateDir = env.XWORKFLOWS_STATE_DIR ?? tmpdir();
+  session = ev.session;
   if (env.XWORKFLOWS_FREE) {
     process.stderr.write(`xworkflows: ${hook} skipped by XWORKFLOWS_FREE\n`);
     unrecorded();
@@ -41,6 +43,7 @@ try {
 } catch (e) {
   process.stderr.write(`xworkflows: ${hook} let the call through: ${e.message}\n`);
   unrecorded();
+  log(stateDir, session, "error", e.message);
   out = adapter?.answer({ decision: "allow" }) ?? out;
 }
 

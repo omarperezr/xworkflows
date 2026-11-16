@@ -2,6 +2,7 @@
 name: zone-review
 description: Reviews one zone of the repo in whole-repo mode and returns the findings as JSON. Never writes.
 model: opus
+effort: high
 tools: Read, Grep, Glob, Bash
 ---
 

@@ -19,6 +19,8 @@ const ASK = {
   "G-interim": "Given those goals, which part of today's code is provisional?",
 };
 const collapse = (t) => String(t).replace(/\s+/g, " ").trim();
+// A sentence with one of these words claims every case; no code here can tell that a cited line enforces it, so it is marked unless a second place backs its rule.
+const WIDE = /\b(never|always|all|every|only)\b/i;
 const words = (t) => String(t).split(/\s+/).filter(Boolean).length;
 
 // Agents sometimes cite absolute paths inside the root, spelled through a link of it or through its real path; keep them repo-relative.
@@ -101,7 +103,7 @@ export function screens(root, r) {
     const why = failed.length && !rule ? "its general rule did not verify" : !named.length ? "names no item with a verified citation" : n > MAX_WORDS ? `${n} words, more than ${MAX_WORDS}` : null;
     if (why) dropped.push({ area: "plain", what: `sentence: ${c.text}`, reason: why });
     for (const id of failed) dropped.push({ area: "plain", what: `rule ${id}, named by: ${c.text}`, reason: "did not verify" });
-    if (!why) verified.push({ text: c.text, from: c.from, at: rule ? rules.get(rule).at[0] : ideas.get(named[0]).at, ...(rule && !rule.startsWith("kind:") && { also: rules.get(rule).at.length - 1 }), general: Boolean(rule), first: { id: rule ?? named[0] }, kind: named.some((id) => id.startsWith("kind:")), risk: named.map((id) => (rules.get(id) ?? rules.get(ideas.get(id).area))?.risk).filter((k) => k in RISK).sort((x, y) => RISK[x] - RISK[y])[0] });
+    if (!why) verified.push({ text: c.text, from: c.from, at: rule ? rules.get(rule).at[0] : ideas.get(named[0]).at, ...(rule && !rule.startsWith("kind:") && { also: rules.get(rule).at.length - 1 }), general: Boolean(rule), ...(WIDE.test(c.text) && !(rules.get(rule)?.at.length > 1) && { wide: true }), first: { id: rule ?? named[0] }, kind: named.some((id) => id.startsWith("kind:")), risk: named.map((id) => (rules.get(id) ?? rules.get(ideas.get(id).area))?.risk).filter((k) => k in RISK).sort((x, y) => RISK[x] - RISK[y])[0] });
   }
   // One list by risk, high first, whatever the sentence comes from; inside a risk: general rules first, a kind's and an area-only one in turn, then the ideas.
   const sentences = [0, 1, 2, 3].flatMap((k) => {
@@ -157,7 +159,7 @@ export const seen = (x) => ("also" in x ? ` seen in ${x.also} more place(s).` : 
 export function render(r, s, commit) {
   const out = ["---", `commit: ${commit}`, "version: 3", "---", "", "## What it is", "", r.profile.what, ""];
   out.push("## Screen 1: what the code shows", "", "Strike what is habit and not rule; correct the level where a rule is stated too narrowly.", "");
-  s.drawer1.forEach((x, i) => out.push(`${i + 1}. ${x.text} (${x.at})${seen(x)}${x.risk ? ` Risk ${x.risk}.` : ""}`));
+  s.drawer1.forEach((x, i) => out.push(`${i + 1}. ${x.text} (${x.at})${seen(x)}${x.risk ? ` Risk ${x.risk}.` : ""}${x.wide ? " Wide: no second place backs it, check it says no more than the code does." : ""}`));
   if (s.drawer1LeftOut.length) out.push("", `Left out of this screen: ${s.drawer1LeftOut.length} sentence(s): ${Math.min(MAX_MORE, s.drawer1LeftOut.length)} on the second page, ${Math.max(0, s.drawer1LeftOut.length - MAX_MORE)} beyond it, not asked.`);
   out.push("", "## Screen 2: where the code contradicts itself or leaves a gap", "");
   for (const g of s.drawer2) out.push(`- ${g.id} [${g.area}] ${g.text}`, `  Options: ${g.options.join(" / ")}`);
