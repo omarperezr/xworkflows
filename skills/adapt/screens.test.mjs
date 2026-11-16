@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync, symlinkSync, realpathSync } from "node:fs";
 import { tmpdir } from "../../test-tmp.mjs";
 import { join } from "node:path";
+import { buildQueue } from "./research.mjs";
 import { screens, render, details, mechanism, MAX_RULES, MAX_GAPS, MAX_WORDS } from "./screens.mjs";
 
 const root = mkdtempSync(join(tmpdir(), "xwf-screens-"));
@@ -537,8 +538,22 @@ test("a sentence with never/always/all/every/only whose rule cites no second pla
   }, { claims: [claim("Loans NEVER run past a year.", "lone"), claim("Loans never run past a year.", "backed"), claim("Loans count whole days.", "plain"), claim("Only staff lend.", "idea.1"), claim("A loan is overall short.", "plain"), claim("Loans are always counted.", "plain")] });
   const s = screens(root, r);
   const wide = Object.fromEntries(s.drawer1.map((x) => [x.text, Boolean(x.wide)]));
-  assert.deepEqual(wide, { "Loans NEVER run past a year.": true, "Loans never run past a year.": false, "Loans count whole days.": false, "Only staff lend.": true, "A loan is overall short.": false, "Loans are always counted.": true });
+  assert.deepEqual(wide, { "Loans NEVER run past a year.": true, "Loans never run past a year.": false, "Loans count whole days.": false, "Only staff lend.": true, "A loan is overall short.": false, "Loans are always counted.": false });
   const md = render(r, s, "abc");
   assert.match(md, /Loans NEVER run past a year\. \(src\/a\.js:1\) seen in 0 more place\(s\)\. Risk low\. Wide:/);
   assert.doesNotMatch(md, /Loans count whole days\. .*Wide:/);
+});
+
+test("the wide mark follows the English items a sentence names, not the sentence's own language; a kind rule alone is never marked; the S1 question carries the mark", () => {
+  const r = research({
+    en: area({ general: general("Loans never run past a year.", "low", c(1, "days(loan)")) }),
+    ok: area({ general: general("Loans count whole days.", "low", c(1, "days(loan)")) }),
+  }, { claims: [claim("Los prestamos nunca pasan de dos anos.", "en"), claim("Los prestamos cuentan dias.", "ok"), claim("Every request passes the one login check.", "kind:auth")] }, {
+    kinds: { auth: { status: "found", general: general("Every request passes the one login check.", "high", c(2, "late(loan)")), rules: [], verdicts: [] } },
+  });
+  const s = screens(root, r);
+  assert.deepEqual(Object.fromEntries(s.drawer1.map((x) => [x.text, Boolean(x.wide)])), { "Los prestamos nunca pasan de dos anos.": true, "Los prestamos cuentan dias.": false, "Every request passes the one login check.": false });
+  assert.match(render(r, s, "abc"), /Los prestamos nunca pasan de dos anos\. \(src\/a\.js:1\).* Wide:/);
+  const q = buildQueue(s, r, {}).filter((x) => x.id.startsWith("S1-"));
+  assert.deepEqual(q.map((x) => /Wide: no second place/.test(x.text)), s.drawer1.map((x) => Boolean(x.wide)));
 });
