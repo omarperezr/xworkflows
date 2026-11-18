@@ -1,10 +1,10 @@
 // Development-only, not shipped: one row of numbers per batch (a --no-ff merge on the main branch) of a project, from its git history,
-// the session files Claude Code writes and the hook log; compares them with a baseline project's rows. Only reads the project; writes only under --out (inside a measured project, only this repository's own docs/measure/private, and only where git ignores it).
-// usage: node proof/measure.mjs --project <path> [--baseline <path>] [--sessions <dir>] [--out <dir>] | --false <time> <reason> [--out <dir>]
+// the session files Claude Code writes and the hook log; compares them with a baseline project's rows. Only reads the project; writes only in this repository's own docs/measure/private (the `out` dep, for tests); nothing typed chooses where rows go.
+// usage: node proof/measure.mjs --project <path> [--baseline <path>] [--sessions <dir>] | --false <time> <reason>
 import { readFileSync, readdirSync, existsSync, mkdirSync, writeFileSync, appendFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { homedir, tmpdir } from "node:os";
-import { basename, join, resolve, sep } from "node:path";
+import { basename, join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { loadLenient } from "../hooks/core/config.mjs";
 
@@ -173,11 +173,9 @@ export function worseThanBaseline(rows, baseRows) {
 
 // Returns the exit code: 0 done, 2 could not run.
 export function measure(argv, deps = {}) {
-  const { env = process.env, home = homedir(), root = join(import.meta.dirname, ".."), log = console.log, err = console.error } = deps;
+  const { env = process.env, home = homedir(), root = join(import.meta.dirname, ".."), out = join(resolve(root), "docs", "measure", "private"), log = console.log, err = console.error } = deps;
   let o, pos;
-  try { ({ values: o, positionals: pos } = parseArgs({ args: argv, allowPositionals: true, options: { project: { type: "string" }, baseline: { type: "string" }, sessions: { type: "string" }, out: { type: "string" }, false: { type: "string" } } })); } catch (e) { err(`measure: ${e.message}`); return 2; }
-  const own = join(resolve(root), "docs", "measure", "private");
-  const out = resolve(o.out ?? own);
+  try { ({ values: o, positionals: pos } = parseArgs({ args: argv, allowPositionals: true, options: { project: { type: "string" }, baseline: { type: "string" }, sessions: { type: "string" }, false: { type: "string" } } })); } catch (e) { err(`measure: ${e.message}`); return 2; }
   const judgedFile = join(out, "judged.jsonl");
   const judgedRows = () => (existsSync(judgedFile) ? jsonLines(judgedFile) : []);
   try {
@@ -188,11 +186,8 @@ export function measure(argv, deps = {}) {
       if (!judgedRows().some((j) => j.time === o.false)) { mkdirSync(out, { recursive: true }); appendFileSync(judgedFile, JSON.stringify({ time: o.false, reason: pos[0] }) + "\n"); }
       return 0;
     }
-    if (!o.project) { err("usage: measure.mjs --project <path> [--baseline <path>] [--sessions <dir>] [--out <dir>]"); return 2; }
+    if (!o.project) { err("usage: measure.mjs --project <path> [--baseline <path>] [--sessions <dir>]"); return 2; }
     const project = resolve(o.project);
-    // inside a measured project only this repository's own folder, and only where git ignores it
-    const ignored = (p) => { try { git(p, "check-ignore", "-q", "--", join(out, "x")); return true; } catch { return false; } };
-    for (const p of [project, o.baseline && resolve(o.baseline)]) if (p && (out === p || (out.startsWith(p + sep) && !(out === own && ignored(p))))) { err(`measure: --out is inside ${basename(p)}; nothing is written in a measured project`); return 2; }
     const sdir = o.sessions ?? join(home, ".claude", "projects", project.replace(/[^a-zA-Z0-9]/g, "-"));
     if (!existsSync(sdir)) { err(`measure: no session folder ${sdir}`); return 2; }
     const sessions = readSessions(sdir);
