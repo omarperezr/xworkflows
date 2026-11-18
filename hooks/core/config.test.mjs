@@ -179,3 +179,8 @@ test("loadLenient: a healthy or absent file replaces nothing; a file that does n
   assert.throws(() => loadLenient("/r", () => "{"), /does not parse/);
   assert.throws(() => loadLenient("/r", () => "null"), /does not parse: not a JSON object/);
 });
+
+test("defaults: the small reviewer and the three implementers", () => {
+  assert.equal(DEFAULTS.roles.smallReviewer, "review-small");
+  assert.deepEqual(DEFAULTS.roles.implementers, ["implement", "implement-sql", "implement-front", "mechanical"]);
+});

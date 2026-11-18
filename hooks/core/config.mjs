@@ -16,7 +16,8 @@ export const DEFAULTS = {
   roles: {
     reviewer: "review",
     riskReviewer: "risk-review",
-    implementers: ["implement", "mechanical"],
+    smallReviewer: "review-small",
+    implementers: ["implement", "implement-sql", "implement-front", "mechanical"],
     lookup: "explore",
     verifier: "verify-finding",
     builtIn: [],

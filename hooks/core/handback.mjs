@@ -17,7 +17,7 @@ export function decide(ev, ctx) {
   // an agent renamed by the installer (xwf-<name>) is still its role
   const is = (role) => ev.agent != null && role != null && ev.agent === (ctx.agentName?.(role) ?? role); // when ours was renamed xwf-<role>, the bare name is the project's own agent
   const implementer = roles.implementers?.some(is);
-  const reviewer = is(roles.reviewer) || is(roles.riskReviewer);
+  const reviewer = is(roles.reviewer) || is(roles.riskReviewer) || is(roles.smallReviewer);
   const verifier = is(roles.verifier);
   if (!implementer && !reviewer && !verifier) return pass(ctx);
 

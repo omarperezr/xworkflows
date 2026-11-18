@@ -227,3 +227,14 @@ test("a list-item seal keeps its role: risk needs risk-review", () => withRepo(a
   seal(repo, `- risk-review ok at ${c}`);
   assert.equal((await repo.run(mod)).ok, true);
 }));
+
+test("on a risk commit a reviewer seal counts after a risk seal of an ancestor sha, not alone or before it", () => withRepo(async (repo) => {
+  const c = repo.commit("db: m", { files: { "db/m.sql": "select 2;\n" } });
+  const f = repo.commit("fix: after review", { files: { "src/a.js": "const a = 3;\n" } });
+  seal(repo, `review ok at ${f}`);
+  assert.equal((await repo.run(mod)).ok, false);
+  seal(repo, `review ok at ${f}\nrisk-review ok at ${c}`, "docs/superpowers/plans/q.md");
+  assert.equal((await repo.run(mod)).ok, false);
+  seal(repo, `risk-review ok at ${c}\nreview ok at ${f}`, "docs/superpowers/plans/r.md");
+  assert.equal((await repo.run(mod)).ok, true);
+}));
