@@ -11,3 +11,6 @@ graphify-out/
 .claude/settings.local.json
 .qmd/
 docs/pilot/private/
+
+# Measure rows: numbers of private projects, never pushed.
+docs/measure/private/

@@ -21,7 +21,7 @@ One living list. The `pending` brake checks these rules:
 
 ## Proof harness (development only)
 
-- **P-198** — Measure cost and quality per batch, against the reference project as baseline: `proof/measure.mjs` and the ignored rows folder. Origin: docs/superpowers/plans/2026-11-18-measure.md. Status: scheduled, plan docs/superpowers/plans/2026-11-18-measure.md.
+- **P-198** — Measure cost and quality per batch, against the reference project as baseline: `proof/measure.mjs` and the ignored rows folder. Origin: docs/superpowers/plans/2026-11-18-measure.md. Status: in progress on measure-1, plan docs/superpowers/plans/2026-11-18-measure.md.
 
 
 ## Installer and docs
