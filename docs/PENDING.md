@@ -65,5 +65,5 @@ One living list. The `pending` brake checks these rules:
 
 ## Workflow upgrade
 
-- **P-204** — The workflow upgrade of the spec: deepen when it pays, one review per plan, a small reviewer, Opus confirms the risk reviewer's fixes, three implementers with external guides, hooks `safe-rm` and `safe-db`. Origin: docs/superpowers/specs/2026-11-18-workflow-upgrade.md. Status: scheduled.
+- **P-204** — The workflow upgrade of the spec: deepen when it pays, one review per plan, a small reviewer, Opus confirms the risk reviewer's fixes, three implementers with external guides, hooks `safe-rm` and `safe-db`. Origin: docs/superpowers/specs/2026-11-18-workflow-upgrade.md. Status: in progress on workflow-upgrade-1.
 - **P-205** — `safe-db` denies in a subagent because no test has shown that a hook's `ask` from a subagent reaches the owner; test it in a real session (a subagent runs a harmless command the hook asks on) and, if the owner sees the question, let the hook ask there too. Origin: docs/superpowers/specs/2026-11-18-workflow-upgrade.md, section 2 item 6. Status: unscheduled.
