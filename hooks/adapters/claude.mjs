@@ -22,7 +22,7 @@ export function normalize(raw, env) {
 
 export function answer(d, ev) {
   let stdout = "";
-  if (d.decision === "deny" && (!ev || ev.event === "preTool")) stdout = JSON.stringify({ hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: "deny", permissionDecisionReason: d.reason } });
-  else if (d.decision !== "deny" && typeof d.context === "string" && d.context) stdout = JSON.stringify({ hookSpecificOutput: { hookEventName: ev?.hookEvent, additionalContext: d.context } });
+  if ((d.decision === "deny" || d.decision === "ask") && (!ev || ev.event === "preTool")) stdout = JSON.stringify({ hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: d.decision, permissionDecisionReason: d.reason } });
+  else if (d.decision !== "deny" && d.decision !== "ask" && typeof d.context === "string" && d.context) stdout = JSON.stringify({ hookSpecificOutput: { hookEventName: ev?.hookEvent, additionalContext: d.context } });
   return { stdout, exitCode: 0 };
 }
