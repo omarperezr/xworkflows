@@ -1,0 +1,180 @@
+// Development-only, not shipped: one row of numbers per batch (a --no-ff merge on the main branch) of a project, from its git history,
+// the session files Claude Code writes and the hook log; compares them with a baseline project's rows. Only reads the project; writes only under --out.
+// usage: node proof/measure.mjs --project <path> [--baseline <path>] [--sessions <dir>] [--out <dir>] | --false <time> <reason> [--out <dir>]
+import { readFileSync, readdirSync, existsSync, mkdirSync, writeFileSync, appendFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { homedir, tmpdir } from "node:os";
+import { basename, join, resolve, sep } from "node:path";
+import { parseArgs } from "node:util";
+
+// Prices in USD per million tokens: input / output / 5-minute cache write / 1-hour cache write / cache read.
+// Source: https://platform.claude.com/docs/en/about-claude/pricing, read 2026-11-18.
+const PRICES = { "fable-5-2": [8, 40, 10, 16, 0.2], "opus-5-5": [4, 20, 5, 8, 0.2], "sonnet-5-5": [2, 10, 2.5, 4, 0.1], "haiku-5-5": [0.1, 0.5, 0.125, 0.2, 0.01] };
+const COUNTS = ["in", "out", "w5", "w1", "read"];
+
+export function price(model, u) {
+  const key = Object.keys(PRICES).find((k) => String(model).includes(k));
+  if (!key) return null;
+  const t = tokensOf(u);
+  return COUNTS.reduce((s, c, i) => s + t[c] * PRICES[key][i], 0) / 1e6;
+}
+function tokensOf(u) {
+  const c = u.cache_creation ?? {};
+  return { in: u.input_tokens ?? 0, out: u.output_tokens ?? 0, w5: c.ephemeral_5m_input_tokens ?? u.cache_creation_input_tokens ?? 0, w1: c.ephemeral_1h_input_tokens ?? 0, read: u.cache_read_input_tokens ?? 0 };
+}
+
+const jsonLines = (file) => readFileSync(file, "utf8").split("\n").flatMap((l) => { try { return [JSON.parse(l)]; } catch { return []; } });
+const readJson = (file) => { try { return JSON.parse(readFileSync(file, "utf8")); } catch { return {}; } };
+
+// records: one per assistant message id (the last line of an id wins); runs: one per subagent file, with its start.
+export function readSessions(dir) {
+  const byId = new Map();
+  const runs = [];
+  const take = (file, agent, run) => {
+    const times = [];
+    for (const o of jsonLines(file)) {
+      const m = o.message;
+      if (!m?.id || !m.usage) continue;
+      times.push(Date.parse(o.timestamp));
+      byId.set(m.id, { id: m.id, model: m.model, ts: Date.parse(o.timestamp), agent, tokens: tokensOf(m.usage), usd: price(m.model, m.usage) });
+    }
+    if (run && times.length) runs.push({ agent, ts: Math.min(...times) });
+  };
+  for (const e of readdirSync(dir, { withFileTypes: true })) {
+    if (e.isFile() && e.name.endsWith(".jsonl")) take(join(dir, e.name), "main", false);
+    const sub = join(dir, e.name, "subagents");
+    if (e.isDirectory() && existsSync(sub)) for (const f of readdirSync(sub).filter((f) => f.endsWith(".jsonl")).sort()) take(join(sub, f), readJson(join(sub, f.replace(/\.jsonl$/, ".meta.json"))).agentType ?? "unknown", true);
+  }
+  return { records: [...byId.values()], runs };
+}
+
+const git = (cwd, ...args) => execFileSync("git", ["-c", "core.quotepath=off", ...args], { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], maxBuffer: 1 << 28 });
+
+// Merges of the main branch, oldest first: sha, parents, time, branch (from "Merge branch 'x'"), and the commits it brought.
+export function readBatches(repo, main) {
+  const log = git(repo, "log", "--merges", "--first-parent", "--reverse", "--format=%H %P|%cI|%s", main).split("\n").filter(Boolean);
+  return log.map((l) => {
+    const [head, time, subject] = l.split("|");
+    const [sha, first, second] = head.split(" ");
+    const commits = second ? git(repo, "log", "--no-merges", "--format=%H|%s", `${first}..${second}`).split("\n").filter(Boolean).map((c) => { const [s, ...r] = c.split("|"); return { sha: s, subject: r.join("|") }; }) : [];
+    return { sha, first, time: Date.parse(time), branch: /^Merge branch '([^']+)'/.exec(subject)?.[1] ?? sha.slice(0, 8), commits };
+  });
+}
+
+// The commits that last changed or deleted the lines a commit changes: blame at its parent, per hunk. A file new in the commit blames nothing.
+export function blamedBy(repo, sha) {
+  let diff;
+  try { diff = git(repo, "diff", "-U0", "--no-renames", `${sha}^`, sha); } catch { return new Set(); } // a root commit has no parent
+  const out = new Set();
+  let file = null;
+  for (const l of diff.split("\n")) {
+    if (l.startsWith("--- ")) file = l === "--- /dev/null" ? null : l.slice(6).replace(/\t.*$/, "");
+    const h = /^@@ -(\d+)(?:,(\d+))? /.exec(l);
+    if (!h || !file) continue;
+    const n = h[2] === undefined ? 1 : Number(h[2]);
+    if (n === 0) continue;
+    for (const b of git(repo, "blame", "-l", "--porcelain", `${sha}^`, "-L", `${h[1]},${Number(h[1]) + n - 1}`, "--", file).split("\n")) {
+      const s = /^([0-9a-f]{40}) /.exec(b);
+      if (s) out.add(s[1]);
+    }
+  }
+  return out;
+}
+
+const denialsOf = (stateDir) => {
+  const f = join(stateDir, "xwf-hooks.log");
+  if (!existsSync(f)) return null;
+  return readFileSync(f, "utf8").split("\n").map((l) => l.split(" ")).filter((p) => p[3] === "deny" && !isNaN(Date.parse(p[0]))).map((p) => ({ time: p[0], ts: Date.parse(p[0]) }));
+};
+
+const sum = (a, b) => Object.fromEntries(COUNTS.map((c) => [c, (a?.[c] ?? 0) + b[c]]));
+const group = (recs, key) => {
+  const g = {};
+  for (const r of [...recs].sort((a, b) => (a.id < b.id ? -1 : 1))) {
+    const e = (g[r[key]] ??= { tokens: sum(null, { in: 0, out: 0, w5: 0, w1: 0, read: 0 }), usd: r.usd === null ? null : 0 });
+    e.tokens = sum(e.tokens, r.tokens);
+    if (r.usd !== null && e.usd !== null) e.usd += r.usd;
+  }
+  return Object.fromEntries(Object.entries(g).sort(([a], [b]) => (a < b ? -1 : 1)));
+};
+const usdOf = (g) => Object.values(g).reduce((s, e) => s + (e.usd ?? 0), 0);
+
+// One row per batch. Sessions bound by time only: other work in the window counts too.
+export function buildRows(repo, main, sessions, denials, judged) {
+  const batches = readBatches(repo, main);
+  const batchOf = new Map();
+  batches.forEach((b, i) => { batchOf.set(b.sha, i); b.commits.forEach((c) => batchOf.set(c.sha, i)); });
+  const isFix = (sha, i) => batches[i].commits.some((c) => c.sha === sha && /^fix(\(.*\))?!?:/.test(c.subject));
+  const firstTs = Math.min(...sessions.records.map((r) => r.ts));
+  const rows = batches.map((b, i) => ({ b, i, start: i ? batches[i - 1].time : -Infinity, fixes: b.commits.filter((c) => isFix(c.sha, i)), failuresAfterSeal: [], fixOfFix: 0 })).filter((x) => x.b.time >= firstTs);
+  for (const x of batches.map((b, i) => ({ b, i }))) {
+    for (const f of x.b.commits.filter((c) => isFix(c.sha, x.i))) {
+      for (const s of blamedBy(repo, f.sha)) {
+        const j = batchOf.get(s);
+        if (j === x.i && s !== f.sha && isFix(s, j)) rows.find((r) => r.i === x.i).fixOfFix++;
+        else if (j < x.i && rows.find((r) => r.i === j)) rows.find((r) => r.i === j).failuresAfterSeal.push({ fix: f.sha, commit: s, fixBatch: x.b.branch });
+      }
+    }
+  }
+  return rows.map(({ b, i, start, fixes, failuresAfterSeal, fixOfFix }) => {
+    const inWin = (t) => t > start && t <= b.time;
+    const recs = sessions.records.filter((r) => inWin(r.ts));
+    const runs = sessions.runs.filter((r) => inWin(r.ts));
+    const byModel = group(recs, "model");
+    const byAgent = group(recs, "agent");
+    const lines = git(repo, "diff", "--numstat", b.first, b.sha).split("\n").filter(Boolean).reduce((s, l) => { const [a, d] = l.split("\t"); return s + (Number(a) || 0) + (Number(d) || 0); }, 0);
+    const wd = denials?.filter((d) => inWin(d.ts));
+    const unpriced = Object.entries(byModel).filter(([, e]) => e.usd === null).map(([m]) => `unpriced: ${m}`);
+    return {
+      merge: b.sha, branch: b.branch, windowStart: Number.isFinite(start) ? new Date(start).toISOString() : null, windowEnd: new Date(b.time).toISOString(),
+      byModel, byAgent, usd: usdOf(byModel), notes: unpriced,
+      riskReviewRuns: runs.filter((r) => r.agent === "risk-review").length, reviewRounds: runs.filter((r) => r.agent === "review" || r.agent === "risk-review").length,
+      commits: b.commits.length, changedLines: lines, fixCommits: fixes.length, fixOfFix, failuresAfterSeal,
+      denials: wd ? wd.length : "log missing", falseDenials: wd ? wd.filter((d) => judged.has(d.time)).length : 0,
+    };
+  });
+}
+
+const metrics = (r) => ({ usdPer100: r.changedLines ? (r.usd / r.changedLines) * 100 : 0, fixOfFix: r.fixOfFix, reviewRounds: r.reviewRounds, failuresAfterSeal: r.failuresAfterSeal.length });
+const median = (xs) => { const s = [...xs].sort((a, b) => a - b); return s.length ? (s[(s.length - 1) >> 1] + s[s.length >> 1]) / 2 : 0; };
+export function worseThanBaseline(rows, baseRows) {
+  const base = baseRows.map(metrics);
+  return rows.flatMap((r) => Object.entries(metrics(r)).filter(([k, v]) => v > median(base.map((m) => m[k]))).map(([k, v]) => `${r.branch}: ${k} ${v} is worse than the baseline median ${median(base.map((m) => m[k]))}`));
+}
+
+// Returns the exit code: 0 done, 2 could not run.
+export function measure(argv, deps = {}) {
+  const { env = process.env, home = homedir(), log = console.log, err = console.error } = deps;
+  let o, pos;
+  try { ({ values: o, positionals: pos } = parseArgs({ args: argv, allowPositionals: true, options: { project: { type: "string" }, baseline: { type: "string" }, sessions: { type: "string" }, out: { type: "string" }, false: { type: "string" } } })); } catch (e) { err(`measure: ${e.message}`); return 2; }
+  const out = resolve(o.out ?? join(import.meta.dirname, "..", "docs", "measure", "private"));
+  const judgedFile = join(out, "judged.jsonl");
+  const judgedRows = () => (existsSync(judgedFile) ? jsonLines(judgedFile) : []);
+  try {
+    if (o.false !== undefined) {
+      if (!pos[0]) { err("usage: measure.mjs --false <time> <reason>"); return 2; }
+      if (!judgedRows().some((j) => j.time === o.false)) { mkdirSync(out, { recursive: true }); appendFileSync(judgedFile, JSON.stringify({ time: o.false, reason: pos[0] }) + "\n"); }
+      return 0;
+    }
+    if (!o.project) { err("usage: measure.mjs --project <path> [--baseline <path>] [--sessions <dir>] [--out <dir>]"); return 2; }
+    const project = resolve(o.project);
+    for (const p of [project, o.baseline && resolve(o.baseline)]) if (p && (out === p || out.startsWith(p + sep))) { err(`measure: --out is inside ${basename(p)}; nothing is written in a measured project`); return 2; }
+    const sdir = o.sessions ?? join(home, ".claude", "projects", project.replaceAll("/", "-"));
+    if (!existsSync(sdir)) { err(`measure: no session folder ${sdir}`); return 2; }
+    const sessions = readSessions(sdir);
+    if (!sessions.records.length) { err("measure: no assistant message with an id and usage in the session files"); return 2; }
+    const main = readJson(join(project, ".xworkflows", "config.json")).mainBranch ?? "main";
+    const rows = buildRows(project, main, sessions, denialsOf(env.XWORKFLOWS_STATE_DIR ?? tmpdir()), new Set(judgedRows().map((j) => j.time)));
+    mkdirSync(out, { recursive: true });
+    writeFileSync(join(out, `${basename(project)}.jsonl`), rows.map((r) => JSON.stringify(r) + "\n").join(""));
+    for (const r of rows) for (const f of r.failuresAfterSeal) log(`failure after the seal: ${r.branch} came back in fix ${f.fix} of ${f.fixBatch}, from commit ${f.commit}`);
+    if (o.baseline) {
+      const bf = join(out, `${basename(resolve(o.baseline))}.jsonl`);
+      if (!existsSync(bf)) { err(`measure: the baseline ${basename(o.baseline)} has not been measured: no ${bf}`); return 2; }
+      for (const l of worseThanBaseline(rows, jsonLines(bf))) log(l);
+    }
+    return 0;
+  } catch (e) { err(`measure: ${e.message}`); return 2; }
+}
+
+if (import.meta.url === `file://${process.argv[1]}`) process.exitCode = measure(process.argv.slice(2));
