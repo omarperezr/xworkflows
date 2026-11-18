@@ -18,7 +18,7 @@ Spec: docs/superpowers/specs/2026-11-18-workflow-upgrade.md
 ### Batch 1: `workflow-upgrade-1`
 
 **T1: the skills say the new method** (spec section 2, items 1 to 4)
-- Files: `skills/deepen/SKILL.md`, `skills/next-step/SKILL.md`, `skills/plan/SKILL.md`, `skills/orchestrate/SKILL.md`, `skills/day-one.test.mjs`, `README.md`
+- Files: `skills/deepen/SKILL.md`, `skills/next-step/SKILL.md`, `skills/plan/SKILL.md`, `skills/orchestrate/SKILL.md`, `skills/day-one.test.mjs`, `skills/design-alarm.test.mjs`, `README.md`
 - Role: implement
 - deepen: the run-or-skip rule of item 1, and the one line to the owner; next-step hands to `deepen` or straight to `grill` by that rule. plan: dependent tasks on the same branch after the task they need; more batches only above `brakes.changeSize.max`; the implementer picked by the task's files (`implement-sql` for SQL and migrations, `implement-front` for screens, `implement` otherwise, `mechanical` for no logic). orchestrate: pick `roles.smallReviewer` for a batch under 50 code lines that touches no `paths.risk`; a risk reviewer's fixes are confirmed by a fresh `roles.reviewer` at effort `high`; the seal lines of item 3.
 - Done: `node --test skills/` passes; each SKILL.md stays at 150 lines or fewer.
