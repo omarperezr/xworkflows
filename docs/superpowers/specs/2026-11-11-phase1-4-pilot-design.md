@@ -29,7 +29,8 @@ install, day one and the method fit together and pay for themselves
 
 ## Anti-goals
 
-- Changing the pilot project's code or history outside the pilot branch.
+- Changing the pilot project's code or history outside the method's own batch
+  branches.
 - Hand fixes during the run that are not counted. Every manual step counts.
 - Any private detail of the pilot project in the public repo.
 
@@ -50,12 +51,17 @@ install, day one and the method fit together and pay for themselves
 - That project is exam project A. The owner retires it as an exam project:
   "Sí, retirarlo del examen" (2026-11-15). Later /adapt exams use exam project B
   or a new project the owner picks.
-- The pilot clone starts at the last commit before any trace of xworkflows in
-  the pilot project (an earlier install and adapt are in its history): "Desde
-  antes de xworkflows" (owner, 2026-11-15). The owner's working tree is never
-  touched.
-- The first real `/dream` runs in the pilot clone, once its sessions have
+- The pilot runs in the owner's own working tree of the pilot project, no
+  clone: "No vamos a utilizar clone ... Es un proyecto que tengo que terminar
+  igual" (owner, 2026-11-18). This replaces the clone from before any trace of
+  xworkflows (owner, 2026-11-15). So `install` is an update over the earlier
+  install (0.1.0, its files never committed) and the earlier `/adapt` commit;
+  the owner's uncommitted data files stay as they are, and install touches none
+  of them.
+- The first real `/dream` runs in the pilot project, once its sessions have
   written memory notes (owner, 2026-11-15).
+- The pilot goes on for five sealed batches, so the spend of the plan
+  spend-cut is measured again on them.
 - Check packs ready before the pilot (owner, 2026-11-11): the project's own
   linter, `semgrep` and `trivy` (1.3).
 - The full review runs once in the pilot, step 7 (owner, 2026-11-11).
@@ -76,22 +82,17 @@ install, day one and the method fit together and pay for themselves
 
 ## How the pilot runs
 
-1. **Freeze.** Record the xworkflows commit sha. Install from a local clone
-   at that sha: `node <clone>/bin/xworkflows.mjs install`. The npx path is
-   tested at publish (design 11, item 5). (Claude's call)
-2. **Before snapshot.** Make a separate local clone of the pilot project, not
-   a worktree (a worktree shares `.git` hooks with the owner's main tree),
-   and a branch `xworkflows-pilot`. The owner's uncommitted work stays in
-   the main tree. (Claude's call) Save `git status --porcelain`, `git diff`,
-   the sha256 of every file under `.claude/`, plus `CLAUDE.md` and `AGENTS.md`
-   if present, and the hooks folder from `git rev-parse --git-path hooks`
-   with `core.hooksPath`.
+1. **Freeze.** Record the xworkflows commit sha. Install from this
+   repository at that sha: `node <xworkflows>/bin/xworkflows.mjs install`. The
+   npx path is tested at publish (design 11, item 5). (Claude's call)
+2. **Before snapshot.** In the pilot project itself, save
+   `git status --porcelain`, `git diff` and the commit of `HEAD`.
 3. **Install.** Start the clock. The owner follows only the README guide.
    Record each prompt `install` asks (6.2) and the answer. The pilot answers
    yes to the `@AGENTS.md` import. (Claude's call)
 4. **Doctor.** `xworkflows doctor` must exit 0. Save its output.
 5. **Idempotence.** Run `install` again. Compare as in design 10, point 7.
-6. **Day one.** Open Claude Code in the clone and run day one as the owner
+6. **Day one.** Open Claude Code in the pilot project and run day one as the owner
    would. The owner answers the interview for real. Record: research minutes
    and tokens, interview minutes, how many times the summary was played back,
    the owner's review-or-next-step answer, and where the next step came from
@@ -103,12 +104,13 @@ install, day one and the method fit together and pay for themselves
    problem in the batch (fix it the normal way) or a false brake (a defect).
 10. **After snapshot.** Compare with step 2. Every changed pre-existing file
     must match installed.json's `merged`, `blocks` and `imports`; the hooks
-    folder differs only by our pre-push (the clone's own, restored by uninstall).
-11. **Uninstall round trip.** In the clone, run `uninstall`. Every product
-    file installed.json lists must be gone. Project content stays and is
-    listed: `docs/BUSINESS.md`, the project part of `AGENTS.md`, the
-    `risk-review` agent, `config.json`, the pending list, memory, rules, and
-    the batch's own files. (Claude's call)
+    folder differs only by our git hooks.
+11. **Uninstall round trip.** In the pilot project, run `uninstall`, then
+    `install --yes` again. Every product file installed.json lists must be
+    gone after the uninstall. Project content stays and is listed:
+    `docs/BUSINESS.md`, the project part of `AGENTS.md`, the `risk-review`
+    agent, `config.json`, the pending list, memory, rules, and the batch's own
+    files. (Claude's call)
 
 ## What is measured, and pass marks
 
