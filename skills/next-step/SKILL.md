@@ -45,7 +45,7 @@ If the pick is an error from the full review, launch the `verify-finding` agent 
 
 ## Hand-off
 
-Invoke `deepen` with the chosen step (its text, source and goal). After a `red:`, also pass `verify/<id>` and the red test: the fix will copy that test from the branch.
+When the step is very big or very risky (the rule at the top of `deepen`), invoke `deepen` with the chosen step (its text, source and goal). After a `red:`, also pass `verify/<id>` and the red test: the fix will copy that test from the branch. Otherwise invoke `grill` with the same step, goal and red test. Tell the owner in one line which one and why.
 
 If that skill is not available, say so, then append the step to `paths.pending` as a card and stop:
 

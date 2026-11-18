@@ -127,7 +127,7 @@ test("next-step pins sources, GitHub skip and the hand-off section", () => {
     "GitHub issues skipped: gh is not set up.", "(Recommended)", "verify-finding",
     "Status: scheduled."]) assert.ok(s.includes(t), t);
   assert.match(s, /^## Hand-off$/m);
-  assert.ok(s.split(/^## Hand-off$/m)[1].includes("Invoke `deepen` with the chosen step (its text, source and goal). After a `red:`, also pass `verify/<id>` and the red test"));
+  assert.ok(s.split(/^## Hand-off$/m)[1].includes("invoke `deepen` with the chosen step (its text, source and goal). After a `red:`, also pass `verify/<id>` and the red test"));
   assert.doesNotMatch(s, /brainstorming/);
   const order = ["docs/PENDING.md", "TODO.md", "gh issue list", "git grep"].map((t) => s.indexOf(t));
   assert.deepEqual([...order].sort((a, b) => a - b), order);
@@ -190,7 +190,7 @@ test("adapt: installer files stay uncommitted, existing files are merged", () =>
 });
 test("README names graphify, the hand-off to deepen and the cursor/plugins credit", () => {
   const r = read("README.md");
-  has(r, ["`/adapt` needs the `graphify` command installed", "`/next-step` hands the chosen step to `/deepen`"]);
+  has(r, ["`/adapt` needs the `graphify` command installed", "`/next-step` hands the chosen step to `/deepen` when it is very big or very risky, and to `/grill` otherwise"]);
   assert.match(r.split("## License")[1], /\[cursor\/plugins\]\(https:\/\/github\.com\/cursor\/plugins\) \(MIT\)/);
 });
 test("adapt asks how the code prevents each risk; research looks for mechanisms; zones question is plain", () => {
@@ -391,4 +391,19 @@ test("adapt: H6-model is asked as the queue words it; heading 6 and step 4 take 
   for (const old of ["when the item is not in the queue", "give the model of `strongest`", "stands for the model of that tier", "a tier's name typed", "the model's name alone",
     "where heading 6 names none, the model of `strongest`", "of `top` where `.xworkflows/tiers.json` has no `strongest`", "the model the `model:` line of the existing", "never holds the name of a tier"])
     assert.ok(!s.includes(old), old);
+});
+
+test("the skills say the upgraded method: deepen when it pays, one review per plan, reviewers by size", () => {
+  const d = read("skills/deepen/SKILL.md");
+  assert.doesNotMatch(d, /never skipped/);
+  has(d, ["very big (more than `brakes.changeSize.warn` code lines, or more than one branch)", "very risky (money, permissions, deleting data, security)", "Tell the owner in one line whether it runs and why"]);
+  const n = read("skills/next-step/SKILL.md").split(/^## Hand-off$/m)[1];
+  has(n, ["very big or very risky", "Otherwise invoke `grill`"]);
+  const p = read("skills/plan/SKILL.md");
+  assert.doesNotMatch(p, /goes in a later batch/);
+  has(p, ["goes on the same branch, after it, in the same batch", "only above `brakes.changeSize.max`", "`implement-sql`", "`implement-front`", "`mechanical`"]);
+  const o = read("skills/orchestrate/SKILL.md");
+  has(o, ["`roles.smallReviewer`", "under 50 code lines", "a fresh `roles.reviewer` at effort `high`", "risk-review ok at", "never a second risk reviewer"]);
+  assert.doesNotMatch(o, /fresh reviewer of the same role and model/);
+  for (const f of ["deepen", "next-step", "plan", "orchestrate"]) assert.ok(read(`skills/${f}/SKILL.md`).split("\n").length <= 150, f);
 });
