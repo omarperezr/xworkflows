@@ -108,7 +108,7 @@ test("a denial judged false is counted, a second run writes the same file, a mis
   const [p, s, out, state] = [project(), sessions(), join(tmp(), "out"), tmp()];
   run(p, s, out, state);
   assert.equal(rows(out, p)[0].denials, "log missing");
-  hookLog(state, "2026-11-01T10:15:00.000Z sess pre deny no writes", "2026-11-01T10:16:00.000Z sess pre free x", "2026-11-02T10:15:00.000Z sess pre deny other");
+  hookLog(state, "2026-11-01T10:15:00.000Z main pre deny no writes", "2026-11-01T10:16:00.000Z main pre free x", "2026-11-01T10:17:00.000Z elsewhere pre deny other project", "2026-11-02T10:15:00.000Z main pre deny other");
   assert.equal(run(p, s, out, state, "--false", "2026-11-01T10:15:00.000Z", "wrong").code, 0);
   run(p, s, out, state);
   const first = readFileSync(join(out, p.split("/").pop() + ".jsonl"), "utf8");

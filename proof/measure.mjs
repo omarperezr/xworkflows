@@ -45,7 +45,8 @@ export function readSessions(dir) {
     const sub = join(dir, e.name, "subagents");
     if (e.isDirectory() && existsSync(sub)) for (const f of readdirSync(sub).filter((f) => f.endsWith(".jsonl")).sort()) take(join(sub, f), readJson(join(sub, f.replace(/\.jsonl$/, ".meta.json"))).agentType ?? "unknown", true);
   }
-  return { records: [...byId.values()], runs };
+  const ids = new Set(readdirSync(dir).filter((f) => f.endsWith(".jsonl")).map((f) => f.slice(0, -6))); // the hook log names the main session
+  return { records: [...byId.values()], runs, ids };
 }
 
 const git = (cwd, ...args) => execFileSync("git", ["-c", "core.quotepath=off", ...args], { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], maxBuffer: 1 << 28 });
@@ -84,7 +85,7 @@ export function blamedBy(repo, sha) {
 const denialsOf = (stateDir) => {
   const f = join(stateDir, "xwf-hooks.log");
   if (!existsSync(f)) return null;
-  return readFileSync(f, "utf8").split("\n").map((l) => l.split(" ")).filter((p) => p[3] === "deny" && !isNaN(Date.parse(p[0]))).map((p) => ({ time: p[0], ts: Date.parse(p[0]) }));
+  return readFileSync(f, "utf8").split("\n").map((l) => l.split(" ")).filter((p) => p[3] === "deny" && !isNaN(Date.parse(p[0]))).map((p) => ({ time: p[0], ts: Date.parse(p[0]), session: p[1] }));
 };
 
 const sum = (a, b) => Object.fromEntries(COUNTS.map((c) => [c, (a?.[c] ?? 0) + b[c]]));
@@ -123,7 +124,7 @@ export function buildRows(repo, main, sessions, denials, judged) {
     const byModel = group(recs, "model");
     const byAgent = group(recs, "agent");
     const lines = git(repo, "diff", "--numstat", b.first, b.sha).split("\n").filter(Boolean).reduce((s, l) => { const [a, d] = l.split("\t"); return s + (Number(a) || 0) + (Number(d) || 0); }, 0);
-    const wd = denials?.filter((d) => inWin(d.ts));
+    const wd = denials?.filter((d) => inWin(d.ts) && sessions.ids.has(d.session)); // the log is shared by every project
     const unpriced = Object.entries(byModel).filter(([, e]) => e.usd === null).map(([m]) => `unpriced: ${m}`);
     return {
       merge: b.sha, branch: b.branch, windowStart: Number.isFinite(start) ? new Date(start).toISOString() : null, windowEnd: new Date(b.time).toISOString(),
