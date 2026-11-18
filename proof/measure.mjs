@@ -1,5 +1,5 @@
 // Development-only, not shipped: one row of numbers per batch (a --no-ff merge on the main branch) of a project, from its git history,
-// the session files Claude Code writes and the hook log; compares them with a baseline project's rows. Only reads the project; writes only under --out (inside a measured project, only a folder git ignores there).
+// the session files Claude Code writes and the hook log; compares them with a baseline project's rows. Only reads the project; writes only under --out (inside a measured project, only this repository's own docs/measure/private, and only where git ignores it).
 // usage: node proof/measure.mjs --project <path> [--baseline <path>] [--sessions <dir>] [--out <dir>] | --false <time> <reason> [--out <dir>]
 import { readFileSync, readdirSync, existsSync, mkdirSync, writeFileSync, appendFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
@@ -10,7 +10,7 @@ import { loadLenient } from "../hooks/core/config.mjs";
 
 // Prices in USD per million tokens: input / output / 5-minute cache write / 1-hour cache write / cache read.
 // Source: https://platform.claude.com/docs/en/about-claude/pricing, read 2026-11-18.
-const PRICES = { "fable-5-2": [8, 40, 10, 16, 0.2], "opus-5-5": [4, 20, 5, 8, 0.2], "sonnet-5-5": [2, 10, 2.5, 4, 0.1], "haiku-5-5": [0.1, 0.5, 0.125, 0.2, 0.01] };
+const PRICES = { "fable-5-2": [8, 40, 10, 16, 0.2], "fable-5-1": [10, 50, 12.5, 20, 0.25], "opus-5-5": [4, 20, 5, 8, 0.2], "sonnet-5-5": [2, 10, 2.5, 4, 0.1], "haiku-5-5": [0.1, 0.5, 0.125, 0.2, 0.01] };
 const COUNTS = ["in", "out", "w5", "w1", "read"];
 
 export function price(model, u) {
@@ -78,15 +78,14 @@ export function readBatches(repo, main) {
 // The file a "--- " or "+++ " header names, without its a/ or b/ prefix; a quoted name is unquoted; null for /dev/null.
 const headerName = (h) => {
   const n = h.slice(4).replace(/\t.*$/, "");
-  if (n === "/dev/null") return null;
-  try { return (n.startsWith('"') ? JSON.parse(n) : n).slice(2); } catch { return n.slice(3, -1); }
+  return n === "/dev/null" ? null : (n.startsWith('"') ? JSON.parse(n) : n).slice(2);
 };
 
 // The commits that last changed or deleted the lines a commit changes: blame at its parent, per hunk. A file new in the commit blames nothing.
 // A file's headers are read only before its first hunk, so a deleted line that starts with "-- " is never taken for one.
 export function blamedBy(repo, sha) {
   let diff;
-  try { diff = git(repo, "diff", "-U0", "--no-ext-diff", "--src-prefix=a/", "--dst-prefix=b/", `${sha}^`, sha); } catch { return new Set(); } // a root commit has no parent
+  try { diff = git(repo, "diff-tree", "-p", "-U0", "-M", `${sha}^`, sha); } catch { return new Set(); } // a root commit has no parent
   const out = new Set();
   let file = null;
   let inHunks = false;
@@ -126,7 +125,8 @@ const group = (recs, key) => {
   }
   return Object.fromEntries(Object.entries(g).sort(([a], [b]) => (a < b ? -1 : 1)));
 };
-const usdOf = (g) => Object.values(g).reduce((s, e) => s + (e.usd ?? 0), 0);
+// null as soon as one entry is null: a cost is the whole cost or nothing
+const usdOf = (g) => Object.values(g).some((e) => e.usd === null) ? null : Object.values(g).reduce((s, e) => s + e.usd, 0);
 
 // One row per batch. Sessions bound by time only: other work in the window counts too.
 export function buildRows(repo, main, sessions, log, judged) {
@@ -150,12 +150,12 @@ export function buildRows(repo, main, sessions, log, judged) {
     const byModel = group(recs, "model");
     const byAgent = group(recs, "agent");
     const lines = git(repo, "diff", "--numstat", b.first, b.sha).split("\n").filter(Boolean).reduce((s, l) => { const [a, d] = l.split("\t"); return s + (Number(a) || 0) + (Number(d) || 0); }, 0);
-    // the log is shared by every project; a window that ended before its first line has no data
-    const wd = !log ? "log missing" : b.time < log.first ? "no data" : log.list.filter((d) => inWin(d.ts) && sessions.ids.has(d.session)).map(({ time, hook }) => ({ time, hook }));
+    // the log is shared by every project; a window that started before its first line has no data
+    const wd = !log ? "log missing" : start < log.first ? "no data" : log.list.filter((d) => inWin(d.ts) && sessions.ids.has(d.session)).map(({ time, hook }) => ({ time, hook }));
     const unpriced = Object.entries(byModel).filter(([, e]) => e.usd === null).map(([m]) => `unpriced: ${m}`);
     return {
       merge: b.sha, branch: b.branch, windowStart: Number.isFinite(start) ? new Date(start).toISOString() : null, windowEnd: new Date(b.time).toISOString(), partial: start < sessions.first,
-      byModel, byAgent, usd: usdOf(byModel), notes: unpriced,
+      byModel, byAgent, usd: start < sessions.first ? null : usdOf(byModel), notes: unpriced,
       riskReviewRuns: runs.filter((r) => r.agent === "risk-review").length, reviewRounds: runs.filter((r) => r.agent === "review" || r.agent === "risk-review").length,
       commits: b.commits.length, changedLines: lines, fixCommits: fixes.length, fixOfFix, failuresAfterSeal,
       denials: wd, falseDenials: Array.isArray(wd) ? wd.filter((d) => judged.has(d.time)).length : 0,
@@ -163,7 +163,7 @@ export function buildRows(repo, main, sessions, log, judged) {
   });
 }
 
-const metrics = (r) => ({ usdPer100: r.changedLines ? (r.usd / r.changedLines) * 100 : 0, fixOfFix: r.fixOfFix, reviewRounds: r.reviewRounds, failuresAfterSeal: r.failuresAfterSeal.length });
+const metrics = (r) => ({ ...(typeof r.usd === "number" && r.changedLines ? { usdPer100: (r.usd / r.changedLines) * 100 } : {}), fixOfFix: r.fixOfFix, reviewRounds: r.reviewRounds, failuresAfterSeal: r.failuresAfterSeal.length });
 const median = (xs) => { const s = [...xs].sort((a, b) => a - b); return s.length ? (s[(s.length - 1) >> 1] + s[s.length >> 1]) / 2 : 0; };
 export function worseThanBaseline(rows, baseRows) {
   const base = baseRows.filter((r) => r.usd && r.changedLines).map(metrics); // a row with no cost or no changed line says nothing
@@ -173,10 +173,11 @@ export function worseThanBaseline(rows, baseRows) {
 
 // Returns the exit code: 0 done, 2 could not run.
 export function measure(argv, deps = {}) {
-  const { env = process.env, home = homedir(), log = console.log, err = console.error } = deps;
+  const { env = process.env, home = homedir(), root = join(import.meta.dirname, ".."), log = console.log, err = console.error } = deps;
   let o, pos;
   try { ({ values: o, positionals: pos } = parseArgs({ args: argv, allowPositionals: true, options: { project: { type: "string" }, baseline: { type: "string" }, sessions: { type: "string" }, out: { type: "string" }, false: { type: "string" } } })); } catch (e) { err(`measure: ${e.message}`); return 2; }
-  const out = resolve(o.out ?? join(import.meta.dirname, "..", "docs", "measure", "private"));
+  const own = join(resolve(root), "docs", "measure", "private");
+  const out = resolve(o.out ?? own);
   const judgedFile = join(out, "judged.jsonl");
   const judgedRows = () => (existsSync(judgedFile) ? jsonLines(judgedFile) : []);
   try {
@@ -189,9 +190,9 @@ export function measure(argv, deps = {}) {
     }
     if (!o.project) { err("usage: measure.mjs --project <path> [--baseline <path>] [--sessions <dir>] [--out <dir>]"); return 2; }
     const project = resolve(o.project);
-    // inside a measured project only its own folder, one that git ignores there
+    // inside a measured project only this repository's own folder, and only where git ignores it
     const ignored = (p) => { try { git(p, "check-ignore", "-q", "--", join(out, "x")); return true; } catch { return false; } };
-    for (const p of [project, o.baseline && resolve(o.baseline)]) if (p && (out === p || (out.startsWith(p + sep) && !ignored(p)))) { err(`measure: --out is inside ${basename(p)}; nothing is written in a measured project`); return 2; }
+    for (const p of [project, o.baseline && resolve(o.baseline)]) if (p && (out === p || (out.startsWith(p + sep) && !(out === own && ignored(p))))) { err(`measure: --out is inside ${basename(p)}; nothing is written in a measured project`); return 2; }
     const sdir = o.sessions ?? join(home, ".claude", "projects", project.replace(/[^a-zA-Z0-9]/g, "-"));
     if (!existsSync(sdir)) { err(`measure: no session folder ${sdir}`); return 2; }
     const sessions = readSessions(sdir);

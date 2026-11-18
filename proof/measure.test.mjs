@@ -72,6 +72,8 @@ test("cache writes of 5 minutes and of 1 hour are priced apart, an unknown model
   assert.equal(price("claude-sonnet-5-5", u(0, 1e6)), 4);
   assert.equal(price("claude-fable-5-2", use({ input_tokens: 1e6, output_tokens: 1e6, cache_read_input_tokens: 1e6 })), 48.2);
   assert.equal(price("claude-mystery-1", use()), null);
+  assert.equal(price("claude-fable-5-1", use({ input_tokens: 1e6, output_tokens: 1e6, cache_read_input_tokens: 1e6 })), 60.25);
+  assert.equal(price("claude-fable-5-1", u(1e6, 1e6)), 32.5);
 });
 
 test("a window runs from the merge before to its own merge, with roles, review rounds and unpriced models", () => {
@@ -80,15 +82,17 @@ test("a window runs from the merge before to its own merge, with roles, review r
   assert.equal(code, 0);
   const [r1, r2] = rows(out, p);
   assert.equal(r1.branch, "b1");
-  assert.equal(r1.usd, 2.5); // m1 once: 1M sonnet input = 2; haiku 1M output = 0.5
+  assert.equal(r1.usd, null); // the oldest row is partial: its cost is not the whole cost
+  assert.equal(r1.byModel["claude-sonnet-5-5"].usd + r1.byModel["claude-haiku-5-5"].usd, 2.5); // m1 once: 1M sonnet input = 2; haiku 1M output = 0.5
   assert.deepEqual(Object.keys(r1.byAgent).sort(), ["main", "risk-review"]);
   assert.equal(r1.riskReviewRuns, 1);
   assert.equal(r1.reviewRounds, 1);
-  assert.equal(r2.usd, 20); // opus 1M output, 13:00 on day 1 belongs to batch 2
+  assert.equal(r2.byModel["claude-opus-5-5"].usd, 20); // opus 1M output, 13:00 on day 1 belongs to batch 2
   assert.equal(r2.reviewRounds, 1);
   assert.equal(r2.riskReviewRuns, 0);
   assert.deepEqual(r2.notes, ["unpriced: claude-mystery-1"]);
   assert.equal(r2.byModel["claude-mystery-1"].usd, null);
+  assert.equal(r2.usd, null); // one unpriced model makes the whole row null
 });
 
 test("a fix that repairs a fix of the same batch is counted, one that repairs an earlier batch is a failure after the seal against it", () => {
@@ -109,39 +113,39 @@ test("each row lists its denials, a denial judged false is counted, a second run
   const [p, s, out, state] = [project(), sessions(), join(tmp(), "out"), tmp()];
   run(p, s, out, state);
   assert.equal(rows(out, p)[0].denials, "log missing");
-  hookLog(state, "2026-11-01T10:15:00.000Z main pre deny no writes", "2026-11-01T10:16:00.000Z main pre free x", "2026-11-01T10:17:00.000Z elsewhere pre deny other project", "2026-11-02T10:15:00.000Z main post deny other");
+  hookLog(state, "2026-11-01T09:00:00.000Z main pre free first", "2026-11-02T10:15:00.000Z main pre deny no writes", "2026-11-02T10:16:00.000Z main pre free x", "2026-11-02T10:17:00.000Z elsewhere pre deny other project", "2026-11-02T10:18:00.000Z main post deny other");
   run(p, s, out, state);
-  assert.equal(run(p, s, out, state, "--false", "2026-11-01T10:15:00.000Z", "wrong").code, 0);
+  assert.equal(run(p, s, out, state, "--false", "2026-11-02T10:15:00.000Z", "wrong").code, 0);
   run(p, s, out, state);
   const first = readFileSync(join(out, p.split("/").pop() + ".jsonl"), "utf8");
   const [r1, r2] = first.trim().split("\n").map((l) => JSON.parse(l));
-  assert.deepEqual(r1.denials, [{ time: "2026-11-01T10:15:00.000Z", hook: "pre" }]);
-  assert.deepEqual(r2.denials, [{ time: "2026-11-02T10:15:00.000Z", hook: "post" }]);
-  assert.deepEqual([r1.falseDenials, r2.falseDenials], [1, 0]);
+  assert.equal(r1.denials, "no data"); // the first window starts before everything
+  assert.deepEqual(r2.denials, [{ time: "2026-11-02T10:15:00.000Z", hook: "pre" }, { time: "2026-11-02T10:18:00.000Z", hook: "post" }]);
+  assert.deepEqual([r1.falseDenials, r2.falseDenials], [0, 1]);
   run(p, s, out, state);
   assert.equal(readFileSync(join(out, p.split("/").pop() + ".jsonl"), "utf8"), first);
-  run(p, s, out, state, "--false", "2026-11-01T10:15:00.000Z", "wrong");
+  run(p, s, out, state, "--false", "2026-11-02T10:15:00.000Z", "wrong");
   assert.equal(readFileSync(join(out, "judged.jsonl"), "utf8").trim().split("\n").length, 1);
 });
 
 test("--false refuses a time that is not a denial of a measured row", () => {
   const [p, s, out, state] = [project(), sessions(), join(tmp(), "out"), tmp()];
-  hookLog(state, "2026-11-01T10:15:00.000Z main pre deny no writes");
+  hookLog(state, "2026-11-01T09:00:00.000Z main pre free first", "2026-11-02T10:15:00.000Z main pre deny no writes");
   run(p, s, out, state);
-  const r = run(p, s, out, state, "--false", "2026-11-01T10:16:00.000Z", "wrong");
+  const r = run(p, s, out, state, "--false", "2026-11-02T10:16:00.000Z", "wrong");
   assert.equal(r.code, 2);
   assert.equal(r.lines.length, 1);
   assert.equal(existsSync(join(out, "judged.jsonl")), false);
 });
 
-test("a window that ends before the first line of the hook log says no data, not 0", () => {
+test("a window that starts before the first line of the hook log says no data, not 0", () => {
   const [p, s, out, state] = [project(), sessions(), join(tmp(), "out"), tmp()];
-  hookLog(state, "2026-11-02T10:15:00.000Z main pre deny no writes");
+  hookLog(state, "2026-11-01T18:00:00.000Z main pre free first", "2026-11-02T10:15:00.000Z main pre deny no writes"); // inside window 2, which starts at 12:00 of day 1
   run(p, s, out, state);
   const [r1, r2] = rows(out, p);
   assert.equal(r1.denials, "no data");
-  assert.equal(r1.falseDenials, 0);
-  assert.equal(r2.denials.length, 1);
+  assert.equal(r2.denials, "no data");
+  assert.equal(r2.falseDenials, 0);
 });
 
 test("a number worse than the baseline median prints its line, a number not worse does not", () => {
@@ -206,14 +210,32 @@ test("the main branch comes from the lenient config: a config that does not pars
   assert.equal(rows(out, p).length, 2);
 });
 
-test("an --out inside the project is allowed when git ignores it there: the tool's own folder", () => {
-  const [p, s, state] = [project(), sessions(), tmp()];
+const runIn = (p, s, out, root) => { const lines = []; const code = measure(["--project", p, "--sessions", s, "--out", out], { env: { XWORKFLOWS_STATE_DIR: tmp() }, root, log: (l) => lines.push(l), err: (l) => lines.push(l) }); return { code, lines }; };
+
+test("an --out inside the project is allowed only for the tool's own docs/measure/private folder that git ignores there", () => {
+  const [p, s] = [project(), sessions()];
   writeFileSync(join(p, ".gitignore"), "docs/measure/private/\n");
   const before = git(p, "2026-11-03T00:00:00Z", "status", "--porcelain");
   const out = join(p, "docs", "measure", "private");
-  assert.equal(run(p, s, out, state).code, 0);
+  assert.equal(runIn(p, s, out, p).code, 0);
   assert.equal(existsSync(join(out, p.split("/").pop() + ".jsonl")), true);
   assert.equal(git(p, "2026-11-03T00:00:00Z", "status", "--porcelain"), before);
+});
+
+test("an --out inside the project is refused when it is another folder, even one git ignores there", () => {
+  const [p, s] = [project(), sessions()];
+  writeFileSync(join(p, ".gitignore"), "docs/measure/private/\nother/\n");
+  const r = runIn(p, s, join(p, "other"), p);
+  assert.equal(r.code, 2);
+  assert.equal(existsSync(join(p, "other")), false);
+  assert.equal(runIn(p, s, join(p, "docs", "measure", "private"), join(tmp(), "elsewhere")).code, 2); // the tool lives elsewhere
+  assert.equal(existsSync(join(p, "docs")), false);
+});
+
+test("the tool's own folder inside the measured project is refused when git does not ignore it", () => {
+  const [p, s] = [project(), sessions()];
+  assert.equal(runIn(p, s, join(p, "docs", "measure", "private"), p).code, 2);
+  assert.equal(existsSync(join(p, "docs")), false);
 });
 
 test("no record list is spread into Math.min: 150000 records in a main file and in an agent file", () => {
@@ -292,6 +314,7 @@ for (const [order, ids] of [["synthetic id first", ["0b2f-synthetic", "msg_01"]]
     const lines = ids.map((id) => id.includes("synthetic") ? msg(id, "claude-mystery-1", day(1, "10"), use({ output_tokens: 7 })) : msg(id, "claude-sonnet-5-5", day(1, "09"), use({ input_tokens: 1e6 })));
     const row = runOf(p, sess(lines)).rows[0];
     assert.equal(row.byAgent.main.usd, null);
+    assert.equal(row.usd, null);
     assert.deepEqual(row.notes, ["unpriced: claude-mystery-1"]);
   });
 }
@@ -348,4 +371,35 @@ test("a fix that only renames a file is not a failure after the seal", () => {
   });
   const r = runOf(p, allS());
   assert.equal(r.rows.find((x) => x.branch === "b1").failuresAfterSeal.length, 0);
+});
+
+test("a pure rename is not a failure after the seal when the user's git has diff.renames=false", () => {
+  const cfg = join(tmp(), "gitconfig");
+  writeFileSync(cfg, "[diff]\n\trenames = false\n");
+  const p = repo(({ d, commit, batch, git }) => {
+    commit(day(1, "07"), { "f.txt": "base\n" }, "chore: base");
+    batch(1, "b1", () => { commit(day(1, "09"), { "old.txt": "one\ntwo\nthree\n" }, "feat: a"); commit(day(1, "10"), { "other.txt": "x\n" }, "feat: a2"); });
+    batch(2, "b2", () => { renameSync(join(d, "old.txt"), join(d, "new.txt")); git(day(2, "10"), "add", "-A"); git(day(2, "10"), "commit", "-q", "-m", "fix: the file has the right name"); });
+  });
+  const saved = process.env.GIT_CONFIG_GLOBAL;
+  process.env.GIT_CONFIG_GLOBAL = cfg;
+  try {
+    const r = runOf(p, allS());
+    assert.equal(r.code, 0, r.lines.join("\n"));
+    assert.equal(r.rows.find((x) => x.branch === "b1").failuresAfterSeal.length, 0);
+  } finally {
+    if (saved === undefined) delete process.env.GIT_CONFIG_GLOBAL; else process.env.GIT_CONFIG_GLOBAL = saved;
+  }
+});
+
+test("a file header that does not parse stops the tool with one line that names the parse, not a git failure", () => {
+  const p = repo(({ commit, batch }) => {
+    commit(day(1, "07"), { "f.txt": "base\n" }, "chore: base");
+    batch(1, "b1", () => { commit(day(1, "09"), { "we\x01ird.txt": "one\ntwo\n" }, "feat: a"); });
+    batch(2, "b2", () => { commit(day(2, "10"), { "we\x01ird.txt": "one\n2\n" }, "fix: control"); });
+  });
+  const r = runOf(p, allS());
+  assert.equal(r.code, 2);
+  assert.equal(r.lines.length, 1);
+  assert.doesNotMatch(r.lines[0], /\n|Command failed/);
 });
