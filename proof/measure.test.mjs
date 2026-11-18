@@ -1,6 +1,6 @@
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync, existsSync, readdirSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, renameSync, rmSync, existsSync } from "node:fs";
 import { tmpdir } from "../test-tmp.mjs";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
@@ -14,8 +14,9 @@ const msg = (id, model, ts, usage) => JSON.stringify({ timestamp: ts, gitBranch:
 const use = (o = {}) => ({ input_tokens: 0, output_tokens: 0, cache_read_input_tokens: 0, cache_creation: { ephemeral_5m_input_tokens: 0, ephemeral_1h_input_tokens: 0 }, ...o });
 
 // batch 1 (b1): feat, fix x, fix y (repairs fix x); merged 11-01 12:00. batch 2 (b2): fix z (changes a line of the feat commit); merged 11-02 12:00.
-function project() {
-  const d = tmp();
+function project(name) {
+  const d = name ? join(tmp(), name) : tmp();
+  if (name) mkdirSync(d);
   const day = (n, h) => `2026-11-0${n}T${h}:00:00Z`;
   git(d, day(1, "08"), "init", "-q", "-b", "main");
   git(d, day(1, "08"), "config", "user.email", "t@example.com");
@@ -104,20 +105,43 @@ test("a fix that repairs a fix of the same batch is counted, one that repairs an
   assert.equal(r1.changedLines > 0, true);
 });
 
-test("a denial judged false is counted, a second run writes the same file, a missing log is said", () => {
+test("each row lists its denials, a denial judged false is counted, a second run writes the same file, a missing log is said", () => {
   const [p, s, out, state] = [project(), sessions(), join(tmp(), "out"), tmp()];
   run(p, s, out, state);
   assert.equal(rows(out, p)[0].denials, "log missing");
-  hookLog(state, "2026-11-01T10:15:00.000Z main pre deny no writes", "2026-11-01T10:16:00.000Z main pre free x", "2026-11-01T10:17:00.000Z elsewhere pre deny other project", "2026-11-02T10:15:00.000Z main pre deny other");
+  hookLog(state, "2026-11-01T10:15:00.000Z main pre deny no writes", "2026-11-01T10:16:00.000Z main pre free x", "2026-11-01T10:17:00.000Z elsewhere pre deny other project", "2026-11-02T10:15:00.000Z main post deny other");
+  run(p, s, out, state);
   assert.equal(run(p, s, out, state, "--false", "2026-11-01T10:15:00.000Z", "wrong").code, 0);
   run(p, s, out, state);
   const first = readFileSync(join(out, p.split("/").pop() + ".jsonl"), "utf8");
   const [r1, r2] = first.trim().split("\n").map((l) => JSON.parse(l));
-  assert.deepEqual([r1.denials, r1.falseDenials, r2.denials, r2.falseDenials], [1, 1, 1, 0]);
+  assert.deepEqual(r1.denials, [{ time: "2026-11-01T10:15:00.000Z", hook: "pre" }]);
+  assert.deepEqual(r2.denials, [{ time: "2026-11-02T10:15:00.000Z", hook: "post" }]);
+  assert.deepEqual([r1.falseDenials, r2.falseDenials], [1, 0]);
   run(p, s, out, state);
   assert.equal(readFileSync(join(out, p.split("/").pop() + ".jsonl"), "utf8"), first);
   run(p, s, out, state, "--false", "2026-11-01T10:15:00.000Z", "wrong");
   assert.equal(readFileSync(join(out, "judged.jsonl"), "utf8").trim().split("\n").length, 1);
+});
+
+test("--false refuses a time that is not a denial of a measured row", () => {
+  const [p, s, out, state] = [project(), sessions(), join(tmp(), "out"), tmp()];
+  hookLog(state, "2026-11-01T10:15:00.000Z main pre deny no writes");
+  run(p, s, out, state);
+  const r = run(p, s, out, state, "--false", "2026-11-01T10:16:00.000Z", "wrong");
+  assert.equal(r.code, 2);
+  assert.equal(r.lines.length, 1);
+  assert.equal(existsSync(join(out, "judged.jsonl")), false);
+});
+
+test("a window that ends before the first line of the hook log says no data, not 0", () => {
+  const [p, s, out, state] = [project(), sessions(), join(tmp(), "out"), tmp()];
+  hookLog(state, "2026-11-02T10:15:00.000Z main pre deny no writes");
+  run(p, s, out, state);
+  const [r1, r2] = rows(out, p);
+  assert.equal(r1.denials, "no data");
+  assert.equal(r1.falseDenials, 0);
+  assert.equal(r2.denials.length, 1);
 });
 
 test("a number worse than the baseline median prints its line, a number not worse does not", () => {
@@ -132,6 +156,78 @@ test("a number worse than the baseline median prints its line, a number not wors
   assert.doesNotMatch(lines, /usdPer100/);
 });
 
+test("baseline rows with no USD or no changed line stay out of the medians", () => {
+  const [p, s, out, state] = [project(), sessions(), join(tmp(), "out"), tmp()];
+  mkdirSync(out, { recursive: true });
+  const good = { usd: 1000, changedLines: 100, fixOfFix: 0, reviewRounds: 3, failuresAfterSeal: [] };
+  const rowsOf = [good, good, { ...good, usd: null, fixOfFix: 9 }, { ...good, usd: 0, fixOfFix: 9 }, { ...good, changedLines: 0, fixOfFix: 9 }];
+  writeFileSync(join(out, "ref.jsonl"), rowsOf.map((r) => JSON.stringify(r)).join("\n") + "\n");
+  assert.match(run(p, s, out, state, "--baseline", "/somewhere/ref").lines.join("\n"), /b1: fixOfFix 1 is worse than the baseline median 0/);
+});
+
+test("the oldest row whose window starts before the first saved session is marked partial", () => {
+  const [p, s, out, state] = [project(), sessions(), join(tmp(), "out"), tmp()];
+  run(p, s, out, state);
+  assert.deepEqual(rows(out, p).map((r) => r.partial), [true, false]);
+});
+
+test("a message with no timestamp or a usage with a missing field stops the tool with one line", () => {
+  for (const o of [{ message: { id: "x", model: "m", usage: use() } }, { timestamp: "2026-11-01T10:00:00Z", message: { id: "x", model: "m", usage: { input_tokens: 1, output_tokens: 1, cache_read_input_tokens: 0, cache_creation_input_tokens: 5 } } }]) {
+    const [p, out, state] = [project(), join(tmp(), "out"), tmp()];
+    const s = tmp();
+    writeFileSync(join(s, "main.jsonl"), JSON.stringify(o) + "\n");
+    const r = run(p, s, out, state);
+    assert.equal(r.code, 2);
+    assert.equal(r.lines.length, 1);
+    assert.equal(existsSync(out), false);
+  }
+});
+
+test("the session folder name replaces every character that is not a letter or a digit, as Claude Code does", () => {
+  const p = project("my_proj.v2");
+  const home = tmp();
+  const folder = join(home, ".claude", "projects", p.replace(/[^a-zA-Z0-9]/g, "-"));
+  mkdirSync(folder, { recursive: true });
+  writeFileSync(join(folder, "main.jsonl"), msg("m1", "claude-sonnet-5-5", "2026-11-01T10:00:00Z", use({ input_tokens: 1e6 })) + "\n");
+  const [out, lines] = [join(tmp(), "out"), []];
+  const code = measure(["--project", p, "--out", out], { env: { XWORKFLOWS_STATE_DIR: tmp() }, home, log: (l) => lines.push(l), err: (l) => lines.push(l) });
+  assert.equal(code, 0, lines.join("\n"));
+});
+
+test("the main branch comes from the lenient config: a config that does not parse stops the tool, a trunk is read", () => {
+  const p = project();
+  mkdirSync(join(p, ".xworkflows"));
+  const [s, out, state] = [sessions(), join(tmp(), "out"), tmp()];
+  writeFileSync(join(p, ".xworkflows", "config.json"), "{");
+  assert.equal(run(p, s, out, state).code, 2);
+  git(p, "2026-11-03T00:00:00Z", "branch", "-m", "main", "trunk");
+  writeFileSync(join(p, ".xworkflows", "config.json"), JSON.stringify({ mainBranch: "trunk", paths: 3 }));
+  assert.equal(run(p, s, out, state).code, 0);
+  assert.equal(rows(out, p).length, 2);
+});
+
+test("an --out inside the project is allowed when git ignores it there: the tool's own folder", () => {
+  const [p, s, state] = [project(), sessions(), tmp()];
+  writeFileSync(join(p, ".gitignore"), "docs/measure/private/\n");
+  const before = git(p, "2026-11-03T00:00:00Z", "status", "--porcelain");
+  const out = join(p, "docs", "measure", "private");
+  assert.equal(run(p, s, out, state).code, 0);
+  assert.equal(existsSync(join(out, p.split("/").pop() + ".jsonl")), true);
+  assert.equal(git(p, "2026-11-03T00:00:00Z", "status", "--porcelain"), before);
+});
+
+test("no record list is spread into Math.min: 150000 records in a main file and in an agent file", () => {
+  const [p, state, out] = [project(), tmp(), join(tmp(), "out")];
+  const s = tmp();
+  const line = (i) => `{"timestamp":"2026-11-01T10:00:00Z","message":{"id":"m${i}","model":"x","usage":{"input_tokens":0,"output_tokens":0,"cache_read_input_tokens":0,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":0}}}}`;
+  const body = (pre) => Array.from({ length: 150000 }, (_, i) => line(pre + i)).join("\n") + "\n";
+  writeFileSync(join(s, "main.jsonl"), body("a"));
+  mkdirSync(join(s, "main", "subagents"), { recursive: true });
+  writeFileSync(join(s, "main", "subagents", "a.jsonl"), body("b"));
+  const r = run(p, s, out, state);
+  assert.equal(r.code, 0, r.lines.join("\n"));
+});
+
 test("nothing is written inside the measured project, and an --out inside it is refused", () => {
   const [p, s, state] = [project(), sessions(), tmp()];
   const before = git(p, "2026-11-03T00:00:00Z", "status", "--porcelain");
@@ -139,4 +235,117 @@ test("nothing is written inside the measured project, and an --out inside it is 
   assert.equal(git(p, "2026-11-03T00:00:00Z", "status", "--porcelain"), before);
   assert.equal(run(p, s, join(p, "out"), state).code, 2);
   assert.equal(existsSync(join(p, "out")), false);
+});
+
+// Fixtures built from a list of batches: each batch is a branch merged with --no-ff at 12:00 of its day.
+const day = (n, h) => `2026-11-0${n}T${h}:00:00Z`;
+function repo(build) {
+  const d = tmp();
+  git(d, day(1, "08"), "init", "-q", "-b", "main");
+  git(d, day(1, "08"), "config", "user.email", "t@example.com");
+  git(d, day(1, "08"), "config", "user.name", "t");
+  git(d, day(1, "08"), "config", "commit.gpgsign", "false");
+  const commit = (date, files, subject) => { for (const [f, text] of Object.entries(files)) writeFileSync(join(d, f), text); git(d, date, "add", "-A"); git(d, date, "commit", "-q", "-m", subject); };
+  const batch = (n, name, fn) => { git(d, day(n, "08"), "checkout", "-q", "-b", name); fn(); git(d, day(n, "12"), "checkout", "-q", "main"); git(d, day(n, "12"), "merge", "-q", "--no-ff", name, "-m", `Merge branch '${name}'`); };
+  build({ d, commit, batch, git: (date, ...a) => git(d, date, ...a) });
+  return d;
+}
+function sess(lines) { const s = tmp(); writeFileSync(join(s, "main.jsonl"), lines.join("\n") + "\n"); return s; }
+function runOf(p, s) {
+  const out = join(tmp(), "out");
+  const { code, lines } = run(p, s, out, tmp());
+  return { code, lines, rows: existsSync(join(out, p.split("/").pop() + ".jsonl")) ? rows(out, p) : [] };
+}
+const allS = () => sess([msg("m1", "claude-sonnet-5-5", day(1, "09"), use({ input_tokens: 1e6 }))]);
+
+test("readSessions reads agent files under subagents/workflows/<run>/", () => {
+  const s = sess([msg("m1", "claude-sonnet-5-5", day(1, "09"), use({ input_tokens: 1 }))]);
+  const dir = join(s, "main", "subagents", "workflows", "run1");
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, "agent-a.jsonl"), msg("w1", "claude-sonnet-5-5", day(1, "10"), use({ input_tokens: 1e6 })) + "\n");
+  writeFileSync(join(dir, "agent-a.meta.json"), JSON.stringify({ agentType: "risk-review" }));
+  const r = readSessions(s);
+  assert.ok(r.records.some((x) => x.id === "w1"), "workflow agent message is missing");
+  assert.ok(r.runs.some((x) => x.agent === "risk-review"), "workflow risk-review run is missing");
+});
+
+test("a fix of a fix in a batch older than the first saved session does not crash", () => {
+  const p = repo(({ commit, batch }) => {
+    commit(day(1, "07"), { "f.txt": "base\n" }, "chore: base");
+    batch(1, "b1", () => { commit(day(1, "09"), { "f.txt": "one\n" }, "feat: a"); commit(day(1, "10"), { "f.txt": "one2\n" }, "fix: x"); commit(day(1, "11"), { "f.txt": "one3\n" }, "fix: y"); });
+    batch(2, "b2", () => { commit(day(2, "10"), { "g.txt": "new\n" }, "feat: b"); });
+  });
+  const r = runOf(p, sess([msg("m1", "claude-sonnet-5-5", day(2, "09"), use({ input_tokens: 1e6 }))]));
+  assert.equal(r.code, 0, r.lines.join("\n"));
+});
+
+for (const [order, ids] of [["synthetic id first", ["0b2f-synthetic", "msg_01"]], ["synthetic id last", ["msg_01", "zz-synthetic"]]]) {
+  test(`a zero-token <synthetic> message does not hide or silently shrink the agent USD (${order})`, () => {
+    const p = repo(({ commit, batch }) => { commit(day(1, "07"), { "f.txt": "base\n" }, "chore: base"); batch(1, "b1", () => { commit(day(1, "09"), { "f.txt": "one\n" }, "feat: a"); }); });
+    const lines = ids.map((id) => id.includes("synthetic") ? msg(id, "<synthetic>", day(1, "10"), use()) : msg(id, "claude-sonnet-5-5", day(1, "09"), use({ input_tokens: 1e6 })));
+    const row = runOf(p, sess(lines)).rows[0];
+    assert.equal(row.byAgent.main.usd, 2, `main usd is ${row.byAgent.main.usd}, notes ${JSON.stringify(row.notes)}`);
+    assert.deepEqual(row.notes, []);
+  });
+  test(`a real unpriced model with tokens makes the agent USD null and is named, whatever the order (${order})`, () => {
+    const p = repo(({ commit, batch }) => { commit(day(1, "07"), { "f.txt": "base\n" }, "chore: base"); batch(1, "b1", () => { commit(day(1, "09"), { "f.txt": "one\n" }, "feat: a"); }); });
+    const lines = ids.map((id) => id.includes("synthetic") ? msg(id, "claude-mystery-1", day(1, "10"), use({ output_tokens: 7 })) : msg(id, "claude-sonnet-5-5", day(1, "09"), use({ input_tokens: 1e6 })));
+    const row = runOf(p, sess(lines)).rows[0];
+    assert.equal(row.byAgent.main.usd, null);
+    assert.deepEqual(row.notes, ["unpriced: claude-mystery-1"]);
+  });
+}
+
+test("one fix that changes lines of two earlier fixes counts once in fixOfFix", () => {
+  const p = repo(({ commit, batch }) => {
+    commit(day(1, "07"), { "f.txt": "base\n" }, "chore: base");
+    batch(1, "b1", () => { commit(day(1, "09"), { "f.txt": "a\nb\nc\nd\n" }, "feat: a"); commit(day(1, "09"), { "f.txt": "a\nb\nc\nd\ne\n" }, "feat: a2"); commit(day(1, "10"), { "f.txt": "a1\nb\nc\nd\ne\n" }, "fix: x1"); commit(day(1, "10"), { "f.txt": "a1\nb\nc1\nd\ne\n" }, "fix: x2"); commit(day(1, "11"), { "f.txt": "a2\nb\nc2\nd\ne\n" }, "fix: y"); });
+  });
+  const r = runOf(p, allS());
+  assert.equal(r.code, 0, r.lines.join("\n"));
+  assert.equal(r.rows[0].fixOfFix, 1);
+});
+
+test("one fix that changes lines of two commits of an earlier batch is one failure after the seal", () => {
+  const p = repo(({ commit, batch }) => {
+    commit(day(1, "07"), { "f.txt": "base\n" }, "chore: base");
+    batch(1, "b1", () => { commit(day(1, "09"), { "f.txt": "a\nb\nc\n" }, "feat: a"); commit(day(1, "10"), { "f.txt": "a\nb\nc\nd\n" }, "feat: a2"); });
+    batch(2, "b2", () => { commit(day(2, "10"), { "f.txt": "a1\nb\nc\nd1\n" }, "fix: both"); });
+  });
+  const r = runOf(p, allS());
+  assert.equal(r.code, 0, r.lines.join("\n"));
+  assert.equal(r.rows[0].failuresAfterSeal.length, 1);
+  assert.equal(r.rows[0].failuresAfterSeal[0].fixBatch, "b2");
+});
+
+test("a deleted line starting with '-- ' is not read as a file header", () => {
+  const p = repo(({ commit, batch }) => {
+    commit(day(1, "07"), { "f.txt": "base\n" }, "chore: base");
+    batch(1, "b1", () => { commit(day(1, "09"), { "q.sql": "-- old comment\nselect 1;\nselect 2;\nselect 3;\n" }, "feat: a"); });
+    batch(2, "b2", () => { commit(day(2, "10"), { "q.sql": "select 1;\nselect 2;\nselect 4;\n" }, "fix: the query"); });
+  });
+  const r = runOf(p, allS());
+  assert.equal(r.code, 0, r.lines.join("\n"));
+  assert.equal(r.rows[0].failuresAfterSeal.length, 1);
+});
+
+test("a file name with a space or a double quote is blamed", () => {
+  const p = repo(({ commit, batch }) => {
+    commit(day(1, "07"), { "f.txt": "base\n" }, "chore: base");
+    batch(1, "b1", () => { commit(day(1, "09"), { "a b.txt": "one\ntwo\n", 'we"ird.txt': "one\ntwo\n" }, "feat: a"); });
+    batch(2, "b2", () => { commit(day(2, "09"), { "a b.txt": "one\n2\n" }, "fix: space"); commit(day(2, "10"), { 'we"ird.txt': "one\n2\n" }, "fix: quote"); });
+  });
+  const r = runOf(p, allS());
+  assert.equal(r.code, 0, r.lines.join("\n"));
+  assert.equal(r.rows[0].failuresAfterSeal.length, 2);
+});
+
+test("a fix that only renames a file is not a failure after the seal", () => {
+  const p = repo(({ d, commit, batch, git }) => {
+    commit(day(1, "07"), { "f.txt": "base\n" }, "chore: base");
+    batch(1, "b1", () => { commit(day(1, "09"), { "old.txt": "one\ntwo\nthree\n" }, "feat: a"); commit(day(1, "10"), { "other.txt": "x\n" }, "feat: a2"); });
+    batch(2, "b2", () => { renameSync(join(d, "old.txt"), join(d, "new.txt")); git(day(2, "10"), "add", "-A"); git(day(2, "10"), "commit", "-q", "-m", "fix: the file has the right name"); });
+  });
+  const r = runOf(p, allS());
+  assert.equal(r.rows.find((x) => x.branch === "b1").failuresAfterSeal.length, 0);
 });
