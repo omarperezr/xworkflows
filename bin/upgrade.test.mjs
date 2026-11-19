@@ -391,8 +391,8 @@ test("install: a retired entry naming a file this tool's adapter never installs 
   assert.equal(out.status, 0, out.stderr);
 });
 
-// the copy of ponytail an earlier version shipped: gone on install when unchanged, kept when edited; the plugin replaces it
-const OLD_PONY = () => Object.fromEntries(["SKILL.md", "LICENSE", "SOURCE.md"].map((f) => [f, spawnSync("git", ["show", `HEAD:skills/ponytail/${f}`], { cwd: PKG_ROOT, encoding: "utf8" }).stdout]));
+// the copy of ponytail an earlier version shipped, read at the fixed commit b0f0430 (HEAD no longer holds it): gone on install when unchanged, kept when edited; the plugin replaces it
+const OLD_PONY = () => Object.fromEntries(["SKILL.md", "LICENSE", "SOURCE.md"].map((f) => [f, spawnSync("git", ["show", `b0f0430:skills/ponytail/${f}`], { cwd: PKG_ROOT, encoding: "utf8" }).stdout]));
 const withOldPony = (edit) => {
   const r = repo();
   cli(r, ["install"]);
