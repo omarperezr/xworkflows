@@ -63,7 +63,6 @@ One living list. The `pending` brake checks these rules:
 
 ## Hooks
 
-- **P-220** — `hooks/core/handoff-load.mjs` and `hooks/adapters/claude.mjs`: a fresh hand-off reached the model as `additionalContext` only, so on `/clear` or a new session the owner saw nothing and could not tell it loaded. Wanted: a line on the owner's screen when it loads. Task T9, plan docs/superpowers/plans/2026-11-19-handoff.md. Origin: owner, first real `/clear`, 2026-11-19. Status: in progress on handoff-notice.
 
 
 ## Workflow upgrade
