@@ -289,8 +289,30 @@ test("the right side of a WHERE term is a number literal; a name or a function a
   for (const s of ["DELETE FROM sessions WHERE user = current_user", "UPDATE users SET is_admin = 1 WHERE user = current_user", "DELETE FROM t WHERE name = x", "DELETE FROM t WHERE id = 5 AND b = c"])
     assert.ok(asks(`psql -c "${s}"`), s);
   assert.ok(asks(`sqlite3 app.db "DELETE FROM t WHERE rowid = oid"`));
-  for (const s of ["DELETE FROM t WHERE id = 5", "UPDATE t SET a = 1 WHERE id = 2 AND b = 3", "DELETE FROM t WHERE id = -5", "DELETE FROM t WHERE price = 1.5 AND qty = +2"])
+  for (const s of ["DELETE FROM t WHERE id = 5", "UPDATE t SET a = 1 WHERE id = 2 AND b = 3", "UPDATE t SET a = 1 WHERE id = 2.5", "DELETE FROM t WHERE price = 1.5 AND qty = 20"])
     assert.ok(allowed(`psql -c "${s}"`), s);
+});
+
+test("a number literal is digits with an optional decimal part: a sign or a bare point asks", () => {
+  for (const s of ["DELETE FROM t WHERE id = -5", "DELETE FROM t WHERE id = +2", "DELETE FROM t WHERE id = .5", "DELETE FROM t WHERE id = 5.", "DELETE FROM t WHERE price = 1.5 AND qty = +2"])
+    assert.ok(asks(`psql -c "${s}"`), s);
+});
+
+test("a WHERE term equal to zero asks in every client (MySQL compares text with 0 as true)", () => {
+  assert.ok(asks(`mysql -e "DELETE FROM users WHERE email = 0"`));
+  assert.ok(asks(`mariadb -e "UPDATE users SET a = 1 WHERE email = 0"`));
+  for (const z of ["0", "0.0", "00", "0.00"]) assert.ok(asks(`psql -c "DELETE FROM t WHERE deleted = ${z}"`), z);
+  assert.ok(asks(`psql -c "DELETE FROM t WHERE id = 5 AND deleted = 0"`));
+  assert.ok(allowed(`psql -c "DELETE FROM t WHERE id = 10"`));
+  assert.ok(allowed(`psql -c "DELETE FROM t WHERE id = 0.5"`));
+});
+
+test("when the command word only reads, no word in its arguments is a tool or a client", () => {
+  for (const c of ["grep -rn dropdb .", "rg dropdb scripts", "grep -n redis-cli scripts/flushdb.sh", "grep -rn mysqladmin drop-replica.sh", "grep -n truncate backup.db",
+    "which dropdb", "type dropdb", "command -v dropdb", "awk '/dropdb/' x.log", "head -n 3 dropdb.txt", "wc -l psql"])
+    assert.ok(allowed(c), c);
+  for (const c of ["dropdb app", "cat bad.sql | psql", "command -v dropdb && dropdb app", "grep -rn x . ; dropdb app", "grep x f | dropdb app"])
+    assert.ok(asks(c), c);
 });
 
 test("a text filter as the command word is never a database client", () => {
