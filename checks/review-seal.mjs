@@ -1,10 +1,8 @@
-import { inPaths } from "../hooks/core/config.mjs";
+import { inPaths, sealRe } from "../hooks/core/config.mjs";
 import { commentOnly } from "./comment-lines.mjs";
 
 export const mainOnly = true;
 export const needs = ["paths.codeAnyway", "paths.risk"];
-
-const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 // a seal inside a fenced code block is an example, not a seal; an unclosed fence runs to the end
 function unfenced(text) {
@@ -35,7 +33,7 @@ export function run(range, ctx) {
   }
   if (!unsealed.length) return { ok: true, lines: [] };
 
-  const re = new RegExp(`^\\s*(?:[-*>]\\s*)?\`?(${[roles.reviewer, roles.riskReviewer, roles.smallReviewer].map(esc).join("|")}) ok at ([0-9a-f]{7,40})\`?\\.?\\s*$`, "gm");
+  const re = sealRe(roles, "gm");
   const docs = ctx.git("ls-tree", "-r", "--name-only", "-z", range.head).split("\0")
     .filter((f) => inPaths(f, [paths.plans, paths.specs]));
   const ancestor = (a, b) => ctx.tryGit("merge-base", "--is-ancestor", a, b).code === 0;

@@ -1,5 +1,5 @@
 import path from "node:path";
-import { get, inPaths, memoryDir, DEFAULTS } from "./config.mjs";
+import { get, inPaths, memoryDir, sealRe, DEFAULTS } from "./config.mjs";
 
 const MARKS = ["orchestrate", "adapt", "full-review", "next-step", "dream"];
 const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -52,8 +52,7 @@ export function decide(ev, ctx) {
   }
 
   if (ev.kind === "write") {
-    const roles = [config.roles.reviewer, config.roles.riskReviewer, config.roles.smallReviewer].map(esc).join("|");
-    const seal = new RegExp(`^\\s*(?:[-*>]\\s*)?\`?(?:${roles}) ok at [0-9a-f]{7,40}\`?\\.?\\s*$`);
+    const seal = sealRe(config.roles);
     for (const w of ev.writes ?? []) {
       if (!under(w.path, [config.paths.plans, config.paths.specs])) continue;
       const before = w.content !== undefined ? ctx.readFile(path.resolve(ev.root, w.path)) : w.old;

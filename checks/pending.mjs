@@ -1,8 +1,6 @@
-import { inPaths } from "../hooks/core/config.mjs";
+import { inPaths, sealCore } from "../hooks/core/config.mjs";
 
 export const mainOnly = true;
-
-const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 export function run(range, ctx) {
   const { git, tryGit } = ctx;
@@ -43,7 +41,7 @@ export function run(range, ctx) {
   }
 
   // rule 3: a commit that changes a plan also changes the list, or its merge or a later pending-for commit does
-  const seal = new RegExp(`^\\+(?:${[roles.reviewer, roles.riskReviewer, roles.smallReviewer].map(esc).join("|")}) ok at [0-9a-f]{7,40}\\s*$`);
+  const seal = new RegExp(`^\\+${sealCore(roles)}\\s*$`);
   const sealOnly = (patch) => {
     let hunk = false, added = 0;
     for (const l of patch.split("\n")) {

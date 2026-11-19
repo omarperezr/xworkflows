@@ -1,3 +1,5 @@
+import { reviewerRoles } from "./config.mjs";
+
 const SHAPE = {
   "red:": "`red: <test file>::<case> - <the line that fails>`, run BEFORE the fix",
   "green:": "`green: <test file>::<case>`, the same test passing after",
@@ -17,7 +19,7 @@ export function decide(ev, ctx) {
   // an agent renamed by the installer (xwf-<name>) is still its role
   const is = (role) => ev.agent != null && role != null && ev.agent === (ctx.agentName?.(role) ?? role); // when ours was renamed xwf-<role>, the bare name is the project's own agent
   const implementer = roles.implementers?.some(is);
-  const reviewer = is(roles.reviewer) || is(roles.riskReviewer) || is(roles.smallReviewer);
+  const reviewer = reviewerRoles(roles).some(is);
   const verifier = is(roles.verifier);
   if (!implementer && !reviewer && !verifier) return pass(ctx);
 
