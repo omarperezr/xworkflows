@@ -64,11 +64,11 @@
         "hooks/adapters/codex.mjs": "0589bf97b5cec7e06fee8a70bd92d8a0f51e8bb082cc241f743a80308e44d059",
         "hooks/adapters/cursor.mjs": "394c1a81f4040089b67f0fbf1131012bbb5883bdf705ce3af12dff66d9b3cbd5",
         "hooks/adapters/gemini.mjs": "eff8f29bce46d7c4a7c62845f3762a16c6fd38e831e6c4a5d6b54361ec599175",
-        "hooks/core/config.mjs": "3de652d01be55f28ef80ab076966165a38f392cb8163dd44d8717938e138a9a5",
+        "hooks/core/config.mjs": "dcd2518da5eae28fe5ba57687a23cfcad0a587150ca0743c1746c1aa623d0928",
         "hooks/core/ctx.mjs": "c467ec88a800a1b3df3193922b7bd1377e12d610b6c75e2a7becc81cdd848138",
-        "hooks/core/shell-words.mjs": "e28ff05d6ca096cb342603a30bc847b15fbbbec801f49599d4ad892b1ae77b4d"
+        "hooks/core/shell-words.mjs": "aa31524c3aebc4d149c807fe1184d6bb494e936811bdc4ebd38ef63ddb1750bf"
       },
-      "sha256": "d8eee71ce536c59332db5817bb9eb92024087470d7fb6dffcdf17619f6018abb"
+      "sha256": "aa40f0f4697eb679b1a1ffe6fcd23a899e7c14cbf9dab4bf0efdcfcbed6dfd78"
     },
     {
       "id": "design-first",
@@ -114,9 +114,9 @@
         }
       ],
       "files": {
-        "hooks/core/safe-rm.mjs": "c023b6b6b42184c3592de75f45de58788eace5f21cf5f510f2598b03e1f44b6c"
+        "hooks/core/safe-rm.mjs": "c8c2e30824fbb96c56a93f34e7a35c8703d960a88d6caa1033efbc1835bf11bf"
       },
-      "sha256": "2620080518f30f361f891087ffb5a9017056fad86e7b0b2133461d32c8293298"
+      "sha256": "dcb2bad163c731b8966aa019750175bf1e48c9495f0ec2627a9e52cddeb8bb0e"
     },
     {
       "id": "safe-db",
@@ -135,9 +135,9 @@
         }
       ],
       "files": {
-        "hooks/core/safe-db.mjs": "4b92f742db59e281be607e63e87a4c52c48964fd0f002b706429721b25cb9a56"
+        "hooks/core/safe-db.mjs": "21a94e0021368f86f6bfd3c75dbe599e9ee52f74b52f9b2956f57932675dc3d9"
       },
-      "sha256": "966a046df373571b593ad150d5a6f337562b1b7bc94982ebbd82548e5e74f7af"
+      "sha256": "b278c8348ba10841b19b1776e03cefb41bfb5ba4c8f0a515f5e98617d3d242c8"
     },
     {
       "id": "adapt-gates",
@@ -413,9 +413,9 @@
         }
       ],
       "files": {
-        "hooks/core/orchestrator.mjs": "8bb2a60c414ea11d0b20d99ac9c02bb913954171ea81b2cd1421584c733eabd3"
+        "hooks/core/orchestrator.mjs": "337c7c71db7ccb7e56a87440c5c89cf5ffd3d7ea355f7b9a31208eeee3bb2004"
       },
-      "sha256": "da4cb422cb5c64b1f3818755dcd1d52dffa88c6308a45196e1043fdeef0571b1"
+      "sha256": "9c844cb5680364de00a3319ff68de602bc429100e94b6fbdb4a81e9aefd3ac35"
     },
     {
       "id": "handback",
@@ -434,9 +434,9 @@
         }
       ],
       "files": {
-        "hooks/core/handback.mjs": "b728c811e333e8e12d9bf97ef5414670c46ab5d3976f1cc0b13b32b42156a711"
+        "hooks/core/handback.mjs": "4035760e4c1f020f47e72354d9a2a3be57c73d5c480bf94090eb6f090eff4f25"
       },
-      "sha256": "1bd8e2267b5e3b5da29437e9e29a12830ffccb9a6dc254ad141a80ea19451ae0"
+      "sha256": "37ba54f706c62ec85e1ce19e7a92ef01afd62bd471b51d3408b2a2c3320c73eb"
     },
     {
       "id": "memory",
@@ -775,9 +775,9 @@
         "checks/run.mjs": "a9e8ea271375853592858420ae6386cf383bf22827f52be2cf977f9a8b5c18d0",
         "checks/comment-lines.mjs": "7cc1262dc37358f5c2436e47f3808baa4af7c39d5579d5c428996c90c446dcf7",
         "checks/signature.mjs": "369f1c717d975692f082dc71d05540a2279408807969254f987ae01a0ef5d28f",
-        "checks/review-seal.mjs": "06a7ab137148db6d9c15966329d7e2cd9cea408c26fe54b78492b6c9c9eb86ea",
+        "checks/review-seal.mjs": "87f06b66af14316852ac009a110515fcf7e4441114e1f807053cf66370297b59",
         "checks/goal-cited.mjs": "ece9e129e2bdb39a619bf8680195101364e67d2d6ab318eef00cf4cb11c9eb8d",
-        "checks/pending.mjs": "cdadfff6728519a324d39fe16a27e52a725ddaca843a46e323c27f4d0058c824",
+        "checks/pending.mjs": "4ed8286963595f02938520206478503d25686f91ba1af728eba69b63d7cf3ef4",
         "checks/fix-has-test.mjs": "63ba9b3dbbf9251be58632b667ed69f611aa0c6a7fb6c893a114c1a2610defc4",
         "checks/change-size.mjs": "be1366d8e2f5fa80b0616cf4a22c660526316b988df38d28643c31c46ac8b855",
         "checks/comment-ratio.mjs": "20112da90275485c4cfa149cb2164517aa308873b49a97d1f5d8c98f9a621310",
@@ -789,7 +789,7 @@
         "checks/index-current.mjs": "e76348a0862428fa5ee2754746a77a5bddb0a734a9ac037668cb5837977a10be",
         "checks/project.mjs": "3756970ca6af156dc599cdae8afcb7f2adc0982d5be72cb0c79b04d2777ce901"
       },
-      "sha256": "739c6324eaa48de5fe81675d871895f88f29cb905a08228249b005844cec1420"
+      "sha256": "4be2aebe401f33d7586a336472ca36511b670c0e8a4358a868a85c232c38d8f7"
     },
     {
       "id": "lint",
