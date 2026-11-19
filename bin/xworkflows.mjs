@@ -1016,8 +1016,10 @@ async function doctor() {
       if (!`${h.command} `.includes('/.xworkflows/hooks/run.mjs" claude ')) continue;
       const out = fire(h.command, { session_id: `doctor-${process.pid}`, cwd: ROOT, hook_event_name: "SessionStart", source: "startup", transcript_path: join(sessions, "0.jsonl") }).stdout ?? "";
       // the hand-off is the last session's text, not the hook's: its bytes stay out of the measure, and the hook alone says whether it loads
-      if (!isOurs({ hooks: [h] }, "handoff-load")) bytes += Buffer.byteLength(out);
-      else if (out.includes("was not loaded")) say("warn", ".xworkflows/handoff.md was not loaded: it is over tokens.handoffBytes; shorten it");
+      if (!isOurs({ hooks: [h] }, "handoff-load")) { bytes += Buffer.byteLength(out); continue; }
+      // the hook's notice alone, never its context, which holds the hand-off text itself
+      let note; try { note = JSON.parse(out).systemMessage; } catch {}
+      if (typeof note === "string" && note.startsWith("The hand-off .xworkflows/handoff.md was not loaded")) say("warn", ".xworkflows/handoff.md was not loaded: it is over tokens.handoffBytes; shorten it");
     }
     rmSync(sessions, { recursive: true, force: true });
     const sb = conf.tokens.sessionStartBytes;
