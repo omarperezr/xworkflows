@@ -137,6 +137,14 @@ Owner's answers on the confirmation of 12c8941 (2026-11-19): the right side of e
 - The two answers above.
 - Done: tests first (`DELETE FROM sessions WHERE user = current_user`, `UPDATE users SET is_admin = 1 WHERE user = current_user`, `sqlite3 app.db "DELETE FROM t WHERE rowid = oid"`, `WHERE name = x` ask; `DELETE FROM t WHERE id = 5` passes; `cat CHANGELOG.md | grep -i sqlite` and `git log --oneline | grep -i drop | grep psql` pass), red before; `node --test hooks/` passes.
 
+Owner's answers on the confirmation of f1cab05 (2026-11-19): any WHERE term `= 0` asks, in every client, since MySQL compares a string with 0 as true: "Todo '= 0' pregunta (Recommended)"; the number literal is digits with an optional decimal part (no sign, no bare point), and the text-filter rule covers the tool loop too: "Sí, los dos (Recommended)". The filter-fed SQL file form goes to card P-215.
+
+**T18: zero, plain numbers, one read-only rule** (confirmation of f1cab05, findings 1, 2, 4)
+- Files: `hooks/core/safe-db.mjs`, `hooks/core/safe-db.test.mjs`
+- Role: implement
+- The answers above; the text-filter and lookup tests become one rule for "the command word only reads".
+- Done: tests first (`mysql -e "DELETE FROM users WHERE email = 0"`, `WHERE deleted = 0`, `= 0.0`, `= -5`, `= .5`, `= 5.` ask; `WHERE id = 5` and `= 2.5` pass; `grep -rn dropdb .`, `rg dropdb scripts`, `grep -n redis-cli scripts/flushdb.sh` pass), red before; `node --test hooks/` passes.
+
 After the merge, the main session runs `node bin/xworkflows.mjs install` in this repository and `doctor`, and, on the owner's word, the same in the pilot project before its first batch.
 
 ## Review Focus
