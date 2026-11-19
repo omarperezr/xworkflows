@@ -61,6 +61,24 @@ Spec: docs/superpowers/specs/2026-11-18-workflow-upgrade.md
 - Runs after T1 to T5 and T7 are committed. Manifest pieces for `review-small`, `implement-sql`, `implement-front`, `safe-rm`, `safe-db`; `ponytail` stops shipping and goes under `retired`; `tdd` keeps shipping, and the three agents name `tdd` again in place of `superpowers:test-driven-development`. The plugins the agents name are declared in the manifest: `ponytail@ponytail` always; `supabase@claude-plugins-official` only when the project tracks SQL files; `impeccable@impeccable` and `frontend-design@claude-plugins-official` only when it tracks screen files (by extension, from `git ls-files`). `install` merges each marketplace and plugin into `.claude/settings.json` (`extraKnownMarketplaces`, `enabledPlugins`) per sub-key, never replacing a key the user set, and records each for `uninstall`, which removes only its own. `skills-travel` accepts a `plugin:skill` name. Tests that used `tdd` as a sample skill use another.
 - Done: `node --test` passes; `node bin/xworkflows.mjs pack --check` prints nothing.
 
+**T8: fix round 1, the hooks** (risk review of e59867d, findings 2, 5, 6)
+- Files: `hooks/core/safe-db.mjs`, `hooks/core/safe-db.test.mjs`, `hooks/core/safe-rm.mjs`, `hooks/core/safe-rm.test.mjs`, `hooks/adapters/claude.mjs`, `hooks/adapters/adapters.test.mjs`, and the red tests copied in
+- Role: implement
+- Red tests: `wu-db-anywhere` (`hooks/core/safe-db-anywhere.test.mjs`), `wu-rm-keywords` (`hooks/core/safe-rm-keywords.test.mjs`), `wu-db-cwd` (`hooks/core/safe-db.wu-db-cwd.test.mjs`), each from `git show verify/<id>:<path>`. Also the owner's answer: the inner `try`/`catch` of both hooks goes.
+- Done: the three red tests pass; `node --test hooks/` passes.
+
+**T9: fix round 1, the seals** (risk review of e59867d, findings 3, 4)
+- Files: `checks/review-seal.mjs`, `checks/review-seal.test.mjs`, `checks/pending.mjs`, `checks/pending.test.mjs`, `hooks/core/orchestrator.mjs`, `hooks/core/orchestrator.test.mjs`, `proof/measure.mjs`, `proof/measure.test.mjs`, `skills/orchestrate/SKILL.md`, `skills/design-alarm.test.mjs`, and the red tests copied in
+- Role: implement
+- Red tests: `wu-seal-old-risk` (`checks/review-seal-old-risk.test.mjs`), `wu-small-seal` (`checks/review-seal-small.test.mjs`). Every reader of a seal knows `roles.smallReviewer`, never on a risk commit; a risk seal counts for a reviewer seal only when it names a commit of the pushed range.
+- Done: the two red tests pass; `node --test checks/ hooks/ proof/ skills/` passes.
+
+**T10: fix round 1, install** (risk review of e59867d, findings 1, 7, 8), after T8 and T9
+- Files: `bin/xworkflows.mjs`, `bin/xworkflows.test.mjs`, `bin/upgrade.test.mjs`, `agents/implement-front.md`, `skills/method.test.mjs`, `checks/skills-travel.mjs`, `checks/skills-travel.test.mjs`, `manifest.json`, and the red tests copied in
+- Role: implement
+- Red tests: `wu-uninstall-record` (`bin/uninstall-record.test.mjs`), `wu-pony-test` (the existing `bin/upgrade.test.mjs`, red at e59867d), `wu-front-skills` (`agents/skills-one-name.test.mjs`). Uninstall takes plugin ids and values from the manifest, never from the record alone. Also the owner's answer: SQL and screen files count only under `paths.code`. Then `pack`.
+- Done: the three red tests pass; `node --test` passes; `node bin/xworkflows.mjs pack --check` prints nothing.
+
 After the merge, the main session runs `node bin/xworkflows.mjs install` in this repository and `doctor`, and, on the owner's word, the same in the pilot project before its first batch.
 
 ## Review Focus
