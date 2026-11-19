@@ -81,4 +81,4 @@ One living list. The `pending` brake checks these rules:
 
 ## Hand-off
 
-- **P-217** — A hand-off at the end of each batch: the skill `handoff` writes `.xworkflows/handoff.md` and says `/clear` or `/compact`; a hook loads it after `/clear` and gives it to `/compact`. Origin: docs/superpowers/specs/2026-11-19-handoff.md. Status: scheduled.
+- **P-217** — A hand-off at the end of each batch: the skill `handoff` writes `.xworkflows/handoff.md` and says `/clear` or `/compact`; a hook loads it after `/clear` and gives it to `/compact`. Origin: docs/superpowers/specs/2026-11-19-handoff.md. Status: in progress on handoff-1.
