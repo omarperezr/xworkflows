@@ -64,7 +64,7 @@ export function run(range, ctx) {
     // (--first-parent with --ancestry-path lists nothing here, so every merge on the path is tried)
     const brought = git("rev-list", "--merges", "--ancestry-path", `${c}..${range.head}`).split("\n").filter(Boolean).some((m) =>
       tryGit("merge-base", "--is-ancestor", c, `${m}^1`).code !== 0
-      && tryGit("diff", "--quiet", `${m}^1`, m, "--", paths.pending).code === 1);
+      && git("rev-list", "-n1", "--full-history", `${m}^1..${m}`, "--", paths.pending));
     if (brought) continue;
     const short = git("rev-parse", "--short=7", c);
     if (git("rev-list", "--no-merges", `--grep=pending-for:.*${short}`, `${c}..${range.head}`, "--", paths.pending)) continue;

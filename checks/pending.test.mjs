@@ -131,3 +131,13 @@ for (const name of ["mïgration.md", "with space.md"]) {
     assert.match(res.lines.join("\n"), /write plan/);
   }));
 }
+
+test("rule 3 is saved by a --no-ff merge whose branch added and closed its own card", withRepo({ files: { [PEND]: card(1) } }, async (r) => {
+  r.branch("feat");
+  r.commit("write plan", { files: { [PLAN]: "plan\n" } });
+  r.commit("add card", { files: { [PEND]: card(1) + card(2) } });
+  r.commit("close card", { files: { [PEND]: card(1) } });
+  r.checkout("main");
+  r.merge("feat", "merge feat");
+  assert.deepEqual(await r.run(pending), { ok: true, lines: [] });
+}));
