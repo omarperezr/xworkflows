@@ -508,9 +508,9 @@
         }
       ],
       "files": {
-        "hooks/core/handoff-load.mjs": "1ed5ab85138c55bfc58d6055975f1c63e8d6dd54be6d927d00ffb104cbecc12f"
+        "hooks/core/handoff-load.mjs": "3277c00cc8ae6372b1885248e7627978929acc5840e1eecb7360200251c976f0"
       },
-      "sha256": "2b0bb57aae3ed36374000ee53e8df31cf871016e62d66c39cf393a67ddb53a49"
+      "sha256": "a6e52382918f92cfcf638393b04e046240e577b57be41dc2f714a1cb0d43d40c"
     },
     {
       "id": "implement",
@@ -691,9 +691,9 @@
         "gemini"
       ],
       "files": {
-        "skills/handoff/SKILL.md": "80df6f9602e0f6e267b69f3a3f9d0cdd80aaa3cfbcd2a64248f56afc1d52cee4"
+        "skills/handoff/SKILL.md": "d3374ae9b256a576fa6db6ec44ef75abfbfb5398ef9acbe6fee82ad14a738b2c"
       },
-      "sha256": "7a38c5aaf6fca8b6111bb7d682097c429eec3b75bc794f347f080d4fb8659ea5"
+      "sha256": "49d2e36876cced991ed8ee1317c3c581e2091f99cb02b95783ef02f21f008e57"
     },
     {
       "id": "pending",
