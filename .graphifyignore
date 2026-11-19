@@ -24,3 +24,4 @@
 .claude/agents/review-small.md
 .claude/agents/implement-sql.md
 .claude/agents/implement-front.md
+.claude/skills/handoff/

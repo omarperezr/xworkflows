@@ -6,7 +6,7 @@
   "pieces": {
     "hook-runtime": {
       "version": "0.1.0",
-      "sha256": "4d23621fac50824f9370e5ee7b5f1ba7885063f35ecf41bd9da232c4380b3fac"
+      "sha256": "4d4b72414db10054b964cb89b2c7bc44d46957ebd11462e1b1e5875860c7623a"
     },
     "design-first": {
       "version": "0.1.0",
@@ -84,6 +84,10 @@
       "version": "0.1.0",
       "sha256": "4739f4bd94ebbcd336f1aa9a58c9610e21aa606fedc7d6bea6b277f9d0d15941"
     },
+    "handoff": {
+      "version": "0.1.0",
+      "sha256": "7a38c5aaf6fca8b6111bb7d682097c429eec3b75bc794f347f080d4fb8659ea5"
+    },
     "implement": {
       "version": "0.1.0",
       "sha256": "2531ec77a18fe652e915cf8968ec7d1ef358efda48c3cf3666a67ba2ebf6b32c"
@@ -126,7 +130,7 @@
     },
     "orchestrate": {
       "version": "0.1.0",
-      "sha256": "0bbbd80a90639234959754b925200374621d5947adce013d977079b391e8d511"
+      "sha256": "201cc4c6119c7007764117e624121bf5a540641bd8db96ada34117ca6f0da6ef"
     },
     "pending": {
       "version": "0.1.0",
@@ -180,11 +184,11 @@
     },
     ".xworkflows/hooks/adapters/claude.mjs": {
       "piece": "hook-runtime",
-      "sha256": "caf7f67521063d0fbd7e90ee1dbf51725b4a1f9f8a5edcf6e22699a98ea4e75c"
+      "sha256": "46115da47afb78c7207c83c6d4b058efb7676804d43b0b7a9a36114322b8160d"
     },
     ".xworkflows/hooks/core/config.mjs": {
       "piece": "hook-runtime",
-      "sha256": "dcd2518da5eae28fe5ba57687a23cfcad0a587150ca0743c1746c1aa623d0928"
+      "sha256": "a9b254039ac008ca03eff2b79373261cbb14d8d632e70da5a3970949168ec801"
     },
     ".xworkflows/hooks/core/ctx.mjs": {
       "piece": "hook-runtime",
@@ -233,6 +237,10 @@
     ".xworkflows/hooks/core/modes.mjs": {
       "piece": "modes",
       "sha256": "b07109cb1c24818c5e9562e9b9acf033bd996430ca37d57b480b7d53f0e380ec"
+    },
+    ".xworkflows/hooks/core/handoff.mjs": {
+      "piece": "handoff",
+      "sha256": "1ed5ab85138c55bfc58d6055975f1c63e8d6dd54be6d927d00ffb104cbecc12f"
     },
     ".xworkflows/templates/PENDING.md": {
       "piece": "pending",
@@ -440,7 +448,11 @@
     },
     ".claude/skills/orchestrate/SKILL.md": {
       "piece": "orchestrate",
-      "sha256": "a8b79d7e190515204f31759e6c33b27255f29a5b2d3ba2836c6deeb52ef392af"
+      "sha256": "4642cc6e64d130be960562c1b54a545ec59694ec9f3f587e1f85479fc0ce5e36"
+    },
+    ".claude/skills/handoff/SKILL.md": {
+      "piece": "handoff",
+      "sha256": "80df6f9602e0f6e267b69f3a3f9d0cdd80aaa3cfbcd2a64248f56afc1d52cee4"
     },
     ".claude/skills/pending/SKILL.md": {
       "piece": "pending",
@@ -744,6 +756,38 @@
         ]
       },
       "createdKey": false
+    },
+    {
+      "file": ".claude/settings.json",
+      "key": [
+        "hooks",
+        "SessionStart"
+      ],
+      "entry": {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$(git rev-parse --show-toplevel)/.xworkflows/hooks/run.mjs\" claude handoff"
+          }
+        ]
+      },
+      "createdKey": false
+    },
+    {
+      "file": ".claude/settings.json",
+      "key": [
+        "hooks",
+        "PreCompact"
+      ],
+      "entry": {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$(git rev-parse --show-toplevel)/.xworkflows/hooks/run.mjs\" claude handoff"
+          }
+        ]
+      },
+      "createdKey": false
     }
   ],
   "blocks": [
@@ -871,6 +915,14 @@
     {
       "file": ".graphifyignore",
       "line": ".claude/agents/implement-front.md"
+    },
+    {
+      "file": ".gitignore",
+      "line": ".xworkflows/handoff.md"
+    },
+    {
+      "file": ".graphifyignore",
+      "line": ".claude/skills/handoff/"
     }
   ],
   "created": [
@@ -884,7 +936,8 @@
   "dirs": [
     ".claude/skills/dream",
     ".xworkflows/git",
-    "docs/memory"
+    "docs/memory",
+    ".claude/skills/handoff"
   ],
   "declined": [],
   "kept": [],
