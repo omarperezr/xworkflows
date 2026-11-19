@@ -18,6 +18,17 @@ const TRUE = /^\s*\(?\s*(?:1\s*=\s*1|true|'a'\s*=\s*'a')(?![\w.])(?!\s*and\b)/i;
 
 const stripComments = (t, loose) => t.replace(/\/\*[\s\S]*?\*\//g, " ").replace(loose ? /--[^\n]*/g : /(^|\s)--(?=\s|$)[^\n]*/gm, "$1");
 
+// where the first WHERE outside any parentheses starts at or after `from`, or -1 (a WHERE in a subquery does not count)
+function topWhere(st, from) {
+  const re = /\bwhere\b/iy;
+  for (let i = from, depth = 0; i < st.length; i++) {
+    if (st[i] === "(") depth++;
+    else if (st[i] === ")") depth--;
+    else if (depth === 0 && (re.lastIndex = i, re.test(st))) return i;
+  }
+  return -1;
+}
+
 // the form of the SQL text that would delete all or part of the data, or null
 function sqlForm(text, loose) {
   for (const st of stripComments(text, loose).split(";")) {
@@ -25,8 +36,8 @@ function sqlForm(text, loose) {
     for (const [re, name] of [[/\bdelete\s+from\s+\S+/i, "DELETE"], [/\bupdate\s+\S+\s+set\b/i, "UPDATE"]]) {
       const m = re.exec(st);
       if (!m) continue;
-      const w = /\bwhere\b/i.exec(st.slice(m.index));
-      if (!w || TRUE.test(st.slice(m.index + w.index + 5))) return `${name} without a real WHERE`;
+      const at = topWhere(st, m.index);
+      if (at < 0 || TRUE.test(st.slice(at + 5))) return `${name} without a real WHERE`;
     }
   }
   return null;
@@ -45,18 +56,19 @@ function sqlFiles(words) {
 
 export function decide(ev, ctx) {
   if (ev?.kind !== "shell" || typeof ev.command !== "string") return { decision: "allow" };
-  let form = null, fed = "";
+  let form = null, fed = "", dir = ev.cwd ?? ev.root;
   for (const seg of segments(ev.command)) {
     const own = `${seg.words.join("\n")}\n${seg.doc}`, input = fed;
     fed = seg.pipe ? `${fed}\n${own}` : "";
     const cmd = commandWord(seg.words);
     if (!cmd) continue;
     const args = seg.words.slice(cmd.at + 1), line = seg.words.slice(cmd.at).join(" ");
+    if (cmd.word === "cd") dir = resolve(dir, args.find((a) => !a.startsWith("-")) ?? ".");
     if (CLI.some(([word, re]) => word.test(cmd.word) && re.test(line))) form = "a database reset or delete command";
     else if (CLIENT.test(cmd.word)) {
       form = sqlForm(`${args.join("\n")}\n${seg.doc}\n${input}`, false);
       if (!form) for (const f of sqlFiles(args)) {
-        const text = ctx.readFile(resolve(ev.root, f));
+        const text = ctx.readFile(resolve(dir, f));
         if (typeof text === "string" && (form = sqlForm(text, true))) { form = `${form} in ${f}`; break; }
       }
     }

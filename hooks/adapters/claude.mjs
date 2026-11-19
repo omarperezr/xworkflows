@@ -1,7 +1,7 @@
 export function normalize(raw, env) {
   if (!raw.session_id) throw new Error("no session_id");
   const { tool_name: tool, tool_input: i = {} } = raw;
-  const ev = { event: "preTool", tool, kind: "other", session: raw.session_id, root: env.CLAUDE_PROJECT_DIR ?? raw.cwd, isSubagent: Boolean(raw.agent_id), ...(raw.agent_id && raw.agent_type ? { agent: raw.agent_type } : {}), hookEvent: raw.hook_event_name };
+  const ev = { event: "preTool", tool, kind: "other", session: raw.session_id, root: env.CLAUDE_PROJECT_DIR ?? raw.cwd, cwd: raw.cwd, isSubagent: Boolean(raw.agent_id), ...(raw.agent_id && raw.agent_type ? { agent: raw.agent_type } : {}), hookEvent: raw.hook_event_name };
   if (raw.hook_event_name === "UserPromptSubmit") return { ...ev, event: "prompt", prompt: raw.prompt, fromUser: !/^(<task-notification>|Another Claude session sent a message)/.test(String(raw.prompt).trim()) };
   if (raw.hook_event_name === "SessionStart") return { ...ev, event: "sessionStart", source: raw.source, transcript: raw.transcript_path };
   if (raw.hook_event_name === "PreCompact") return { ...ev, event: "preCompact" };

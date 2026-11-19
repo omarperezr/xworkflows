@@ -196,3 +196,9 @@ test("hook log: a deny leaves a deny line, a free skip a free line", () => {
   assert.equal(lines().length, 2);
   assert.match(lines()[1], new RegExp(` ${input.session_id} design-first free ${input.tool_name}$`));
 });
+
+test("claude: the event carries the session's cwd next to the project root", async () => {
+  const { normalize } = await import("./claude.mjs");
+  const ev = normalize(pre("Bash", { command: "ls" }, { cwd: "/p/sub" }), { CLAUDE_PROJECT_DIR: "/p" });
+  assert.deepEqual([ev.root, ev.cwd], ["/p", "/p/sub"]);
+});

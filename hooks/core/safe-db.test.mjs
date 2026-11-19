@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync, readFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { decide } from "./safe-db.mjs";
@@ -102,4 +102,19 @@ test("CLI forms count only when the command word is that tool or its runner", ()
 test("a grant or revoke of truncate is not a truncate", () => {
   assert.ok(allowed('psql -c "REVOKE TRUNCATE ON t FROM anon; GRANT TRUNCATE ON t TO app"'));
   assert.ok(asks('psql -c "GRANT TRUNCATE ON t TO app; TRUNCATE t"'));
+});
+
+test("a SQL file resolves from the event's cwd, then from each cd before the client", () => {
+  mkdirSync(join(root, "sub", "deep"), { recursive: true });
+  writeFileSync(join(root, "sub", "deep", "bad.sql"), "TRUNCATE users;");
+  assert.ok(asks("psql -f deep/bad.sql", { cwd: join(root, "sub") }));
+  assert.ok(asks("cd sub && cd deep && psql -f bad.sql"));
+  assert.ok(allowed("psql -f deep/bad.sql"));
+});
+
+test("only a WHERE outside parentheses counts", () => {
+  assert.ok(allowed('psql -c "DELETE FROM t WHERE id IN (SELECT id FROM u WHERE a = 1) OR 1=1"'));
+  assert.ok(asks('psql -c "DELETE FROM t USING (SELECT id FROM u WHERE a = 1) x"'));
+  assert.ok(allowed('psql -c "DELETE FROM t WHERE (1=2) OR id = 1"'));
+  assert.ok(asks('psql -c "UPDATE t SET a = (SELECT b FROM u WHERE u.id = 1)"'));
 });
