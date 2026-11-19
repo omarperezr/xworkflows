@@ -79,6 +79,21 @@ Spec: docs/superpowers/specs/2026-11-18-workflow-upgrade.md
 - Red tests: `wu-uninstall-record` (`bin/uninstall-record.test.mjs`), `wu-pony-test` (the existing `bin/upgrade.test.mjs`, red at e59867d), `wu-front-skills` (`agents/skills-one-name.test.mjs`). Uninstall takes plugin ids and values from the manifest, never from the record alone. Also the owner's answer: SQL and screen files count only under `paths.code`. Then `pack`.
 - Done: the three red tests pass; `node --test` passes; `node bin/xworkflows.mjs pack --check` prints nothing.
 
+Possible design error in hooks/core/safe-db.mjs decide
+Root cause: the hook knows a database tool only as the command word, found after a closed list of wrappers, and runners are open-ended: `npx supabase db reset`, `docker exec db psql -c "DROP TABLE users"`, `poetry run python manage.py flush` pass (confirmation of 6c02222); the same root lets `exec`, `timeout`, `nice`, `case ... in`, `f() {` hide `rm` in safe-rm. Alternative design: a tool counts as an unquoted whole word anywhere in a segment's words (by basename), and its arguments are read from that word on; the command word stays only for `rm` of a database file (so `git rm --cached dev.db` passes) and safe-rm denies when any word `rm` is followed by a recursive flag and an unsafe operand. Owner, 2026-11-19: "Sí, rediseñar (Recommended)"; the two small safe-db findings of the same confirmation go in this round: "Sí, ahora (Recommended)"; the reviewer roles in one place: "Sí, un solo lugar (Recommended)"; the duplicate test goes: "Sí, quitarla (Recommended)".
+
+**T11: redesign round, the tool word anywhere** (confirmation of 6c02222, finding 1; pending findings 2 and 3)
+- Files: `hooks/core/safe-db.mjs`, `hooks/core/safe-db.test.mjs`, `hooks/core/safe-rm.mjs`, `hooks/core/safe-rm.test.mjs`, `hooks/core/shell-words.mjs`, `hooks/core/shell-words.test.mjs`
+- Role: implement
+- The design above. Also: separate `-c` values and inputs are joined with `;\n`, so each stays its own statement; `'...'` literals (with `''` as an escaped quote) are blanked once before the statement split and the bracket count.
+- Done: tests first, one per listed runner and keyword form and per small finding, red before; `node --test hooks/` passes.
+
+**T12: the reviewer roles in one place** (confirmation of 6c02222, findings 4 and 5)
+- Files: `hooks/core/config.mjs`, `hooks/core/config.test.mjs`, `checks/review-seal.mjs`, `checks/pending.mjs`, `hooks/core/orchestrator.mjs`, `proof/measure.mjs`, `hooks/core/handback.mjs`, `agents/skills-one-name.test.mjs`
+- Role: implement
+- One export in `hooks/core/config.mjs` gives the reviewer roles and the seal pattern; the five readers use it. `agents/skills-one-name.test.mjs` goes (skills/method.test.mjs keeps the rule).
+- Done: `node --test checks/ hooks/ proof/` passes, behavior unchanged.
+
 After the merge, the main session runs `node bin/xworkflows.mjs install` in this repository and `doctor`, and, on the owner's word, the same in the pilot project before its first batch.
 
 ## Review Focus
