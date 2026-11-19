@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 import { createInterface } from "node:readline/promises";
 import { accessSync, chmodSync, constants, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, readlinkSync, realpathSync, renameSync, rmSync, rmdirSync, statSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
-import { basename, dirname, isAbsolute, join, normalize, posix, relative, resolve, sep } from "node:path";
+import { basename, dirname, extname, isAbsolute, join, normalize, posix, relative, resolve, sep } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { DEFAULTS, PROJECT_KEYS, load as loadConfig, memoryFolder, missing } from "../hooks/core/config.mjs";
@@ -52,7 +52,7 @@ function pack(check) {
     errs.push(`${f} belongs to no piece`);
   }
   if (errs.length) die(1, errs.join("\n"));
-  const out = JSON.stringify({ name: m.name, version: pkgVersion, pieces }, null, 2) + "\n";
+  const out = JSON.stringify({ name: m.name, version: pkgVersion, marketplaces: m.marketplaces, plugins: m.plugins, pieces }, null, 2) + "\n";
   const cur = readFileSync(join(PKG, "manifest.json"), "utf8");
   if (out === cur) return;
   if (check) die(1, "manifest.json is stale: run xworkflows pack");
@@ -167,6 +167,19 @@ function setScalar(s, path, key, value, scalars) {
 }
 
 const ATTRIBUTION = { commit: "", pr: "" };
+// The marketplaces and plugins the manifest declares that this project uses: a plugin with whenTracked only when git tracks a file of that extension.
+const PLUGIN_MAPS = ["extraKnownMarketplaces", "enabledPlugins"];
+function pluginWants(manifest, root) {
+  let tracked = [];
+  try { tracked = execFileSync("git", ["ls-files", "-z"], { cwd: root, encoding: "utf8" }).split("\0"); } catch {}
+  const exts = new Set(tracked.map((f) => extname(f).toLowerCase()));
+  const on = (manifest.plugins ?? []).filter((p) => !p.whenTracked || p.whenTracked.some((e) => exts.has(e)));
+  const markets = [...new Set(on.map((p) => p.id.split("@")[1]))].filter((n) => manifest.marketplaces?.[n]);
+  return [
+    ...markets.map((n) => ({ key: [PLUGIN_MAPS[0], n], value: { source: { source: "github", repo: manifest.marketplaces[n] } } })),
+    ...on.map((p) => ({ key: [PLUGIN_MAPS[1], p.id], value: true })),
+  ];
+}
 // What install puts in settings.json, from the manifest; uninstall removes exactly these.
 function settingsWants(manifest) {
   const want = [];
@@ -221,6 +234,15 @@ function mergeSettings(root, manifest, record) {
   }
   const scalars = [];
   changed = setScalar(s, path, "attribution", ATTRIBUTION, scalars) || changed;
+  // a plugin sub-key is written only when absent, whatever the user's value; recorded so uninstall takes out only that
+  for (const { key: [map, name], value } of pluginWants(manifest, root)) {
+    if (map in s && !isObj(s[map])) die(1, `${path}: ${map} is not an object`);
+    const createdKey = !(map in s);
+    if (!createdKey && name in s[map]) continue;
+    (s[map] ??= {})[name] = value;
+    changed = true;
+    scalars.push({ file: path, key: [map, name], value, ...(createdKey && { createdKey }) });
+  }
   return { path, notes, text: changed ? json(s, old) : null, rec: { merged, scalars, created: old === null && changed ? [path] : [] } };
 }
 
@@ -837,6 +859,12 @@ async function doctor() {
     else say("fail", `merged entry missing: ${lbl}: ${INSTALL}`);
   }
   for (const w of wants) if (!rec.merged.some((m) => isDeepStrictEqual(m.key, w.key) && w.ours(m.entry))) differs(w, readArr(".claude/settings.json", w.key), `.claude/settings.json ${w.key.join(".")}`);
+  const inSettings = (key) => { try { return key.reduce((o, k) => o?.[k], JSON.parse(readFileSync(join(ROOT, ".claude/settings.json"), "utf8"))); } catch { return undefined; } };
+  for (const { key } of pluginWants(readManifest(), ROOT)) {
+    const lbl = `.claude/settings.json ${key.join(".")}`;
+    if (inSettings(key) !== undefined) say("ok", `merged: ${lbl}`);
+    else say("fail", `merged entry missing: ${lbl}: ${INSTALL}`);
+  }
   // 4
   if (!rec.blocks.length) say("fail", `AGENTS.md block was never written: ${INSTALL}`);
   else if ((read(ROOT, "AGENTS.md") ?? "").includes(agentsBlock())) say("ok", "AGENTS.md block matches the template");
@@ -1070,7 +1098,7 @@ function uninstall() {
   const named = {
     files: (_, p) => wanted.has(p) || hookSet.has(p),
     merged: (m) => m.file === SETTINGS && wants.some((w) => isDeepStrictEqual(w.key, m.key)),
-    scalars: (x) => (x.file === SETTINGS && isDeepStrictEqual(x.key, ["attribution"])) || (x.file === LOCAL && isDeepStrictEqual(x.key, [LOCAL_KEY])),
+    scalars: (x) => (x.file === SETTINGS && (isDeepStrictEqual(x.key, ["attribution"]) || (x.key?.length === 2 && PLUGIN_MAPS.includes(x.key[0])))) || (x.file === LOCAL && isDeepStrictEqual(x.key, [LOCAL_KEY])),
     blocks: (b) => b.file === "AGENTS.md",
     imports: (i) => !!LINES.get(i.file)?.includes(i.line) || (i.file === GI && giLines.has(i.line)) || i.line === hookLine(basename(i.file)),
     // a hook file install made for husky: the record holds the line it put there
@@ -1109,7 +1137,8 @@ function uninstall() {
     } catch (e) { if (recFiles.has(p)) out.push(`not deleted (${e.code}): ${p}`); }
   }
   const merged = rec.merged;
-  const text = merged.length ? read(ROOT, SETTINGS) : null;
+  const plugs = rec.scalars.filter((x) => x.file === SETTINGS && x.key?.length === 2 && PLUGIN_MAPS.includes(x.key[0]));
+  const text = merged.length || plugs.length ? read(ROOT, SETTINGS) : null;
   if (text !== null) {
     let s;
     try { s = JSON.parse(text); } catch { out.push(`kept (does not parse): ${SETTINGS}`); }
@@ -1123,6 +1152,12 @@ function uninstall() {
         if (i >= 0) { arr.splice(i, 1); changed = true; }
         else if (arr.some(w.ours)) out.push(`kept (changed locally): ${SETTINGS} ${w.key.join(".")}`);
       }
+      for (const { key: [map, name], value } of plugs) {
+        if (!(name in (s[map] ?? {}))) continue;
+        if (isDeepStrictEqual(s[map][name], value)) { delete s[map][name]; changed = true; }
+        else out.push(`kept (changed locally): ${SETTINGS} ${map}.${name}`);
+      }
+      for (const map of PLUGIN_MAPS) if (plugs.some((x) => x.key[0] === map && x.createdKey) && isObj(s[map]) && !Object.keys(s[map]).length) { delete s[map]; changed = true; }
       // a container install created goes once it is empty; a record without the count of levels holds them all
       const made = new Set();
       for (const m of merged) if (m.createdKey) for (let d = m.key.length; d > m.key.length - (m.levels ?? m.key.length); d--) made.add(JSON.stringify(m.key.slice(0, d)));
@@ -1138,7 +1173,7 @@ function uninstall() {
   // the folder install wrote there; a record of an earlier version may hold a value that names none
   try { memory = resolve(ROOT, md ?? raw.memory?.dir); } catch {}
   for (const [file, key, was] of [[SETTINGS, "attribution", ATTRIBUTION], [LOCAL, LOCAL_KEY, memory]]) {
-    const x = rec.scalars.find((e) => e.file === file);
+    const x = rec.scalars.find((e) => e.file === file && isDeepStrictEqual(e.key, [key]));
     if (!x) continue;
     const text = read(ROOT, file);
     let s;

@@ -1,6 +1,47 @@
 {
   "name": "xworkflows",
   "version": "0.1.0",
+  "marketplaces": {
+    "ponytail": "DietrichGebert/ponytail",
+    "impeccable": "pbakaus/impeccable"
+  },
+  "plugins": [
+    {
+      "id": "ponytail@ponytail"
+    },
+    {
+      "id": "supabase@claude-plugins-official",
+      "whenTracked": [
+        ".sql"
+      ]
+    },
+    {
+      "id": "impeccable@impeccable",
+      "whenTracked": [
+        ".tsx",
+        ".jsx",
+        ".vue",
+        ".svelte",
+        ".astro",
+        ".html",
+        ".css",
+        ".scss"
+      ]
+    },
+    {
+      "id": "frontend-design@claude-plugins-official",
+      "whenTracked": [
+        ".tsx",
+        ".jsx",
+        ".vue",
+        ".svelte",
+        ".astro",
+        ".html",
+        ".css",
+        ".scss"
+      ]
+    }
+  ],
   "pieces": [
     {
       "id": "hook-runtime",
@@ -19,14 +60,14 @@
         "hooks/run.mjs": "f16b9c43cc1525dabc0e50672516b74065524927d90bef3462c66c4e05ba6d67",
         "hooks/mark.mjs": "f2ecad21dedeb1515287063237e6852b9374781f71ce876f13b57324bfcb88a5",
         "hooks/core/marks.mjs": "9f52d052c8fb1275e92335d1dd5664be0f1bff7d43a4a9432268bac01d61a2b7",
-        "hooks/adapters/claude.mjs": "8693cd79efe0043cf8afb96553daa4e9b5122c1ee2c820a2def91224abbb31aa",
+        "hooks/adapters/claude.mjs": "843fa9ff7912a181c9418cc0b512bdce63653f68c14cf5a85243b1b1be61acb0",
         "hooks/adapters/codex.mjs": "0589bf97b5cec7e06fee8a70bd92d8a0f51e8bb082cc241f743a80308e44d059",
         "hooks/adapters/cursor.mjs": "394c1a81f4040089b67f0fbf1131012bbb5883bdf705ce3af12dff66d9b3cbd5",
         "hooks/adapters/gemini.mjs": "eff8f29bce46d7c4a7c62845f3762a16c6fd38e831e6c4a5d6b54361ec599175",
-        "hooks/core/config.mjs": "2c680c2417b7f2e887dd61174c1e8b25b4cf533b61d118ae30901868014d137f",
+        "hooks/core/config.mjs": "3de652d01be55f28ef80ab076966165a38f392cb8163dd44d8717938e138a9a5",
         "hooks/core/ctx.mjs": "c467ec88a800a1b3df3193922b7bd1377e12d610b6c75e2a7becc81cdd848138"
       },
-      "sha256": "a6f8280c6d01d8d2c57e5823a8fa71c4acc82eab3b50d20aecc6ca2216a1e5b5"
+      "sha256": "e9fca0ac04d6f8e0e8d59c51b14c872d4c98b0d3b638d03e070e990b6f603859"
     },
     {
       "id": "design-first",
@@ -51,6 +92,51 @@
         "hooks/core/design-first.mjs": "213646ac1a3129377bc1959681334ba106936612b018e70b7620615a0118ce2a"
       },
       "sha256": "f1ca4c0ced121e4be10cfad875a62ba221e4356fde1aae84cf0a7448154729d3"
+    },
+    {
+      "id": "safe-rm",
+      "kind": "hook",
+      "origin": "own",
+      "version": "0.1.0",
+      "license": "MIT",
+      "scope": "project",
+      "tools": [
+        "claude",
+        "codex",
+        "cursor",
+        "gemini"
+      ],
+      "claude": [
+        {
+          "event": "PreToolUse",
+          "matcher": "Bash"
+        }
+      ],
+      "files": {
+        "hooks/core/safe-rm.mjs": "1198e3e0049fe3a8f4141223b884f5f6170678042ba11f1b4734d1894ad577d2"
+      },
+      "sha256": "47c8d8e8438df2065adc7b9829bbc6566443115fc0bb5b88d545301d8576d61b"
+    },
+    {
+      "id": "safe-db",
+      "kind": "hook",
+      "origin": "own",
+      "version": "0.1.0",
+      "license": "MIT",
+      "scope": "project",
+      "tools": [
+        "claude"
+      ],
+      "claude": [
+        {
+          "event": "PreToolUse",
+          "matcher": "Bash"
+        }
+      ],
+      "files": {
+        "hooks/core/safe-db.mjs": "15bfa3fd4a0f26e466627da45913e2db2cbef46a5f72d8e50d676f6a9fa25456"
+      },
+      "sha256": "7b5be592c9e308a4431b58169dc6b68b80ca2801b4235d1af25072108e63dfef"
     },
     {
       "id": "adapt-gates",
@@ -302,9 +388,9 @@
         "gemini"
       ],
       "files": {
-        "skills/next-step/SKILL.md": "1acfa088430eda12ff40da6b6b48af13b4e82953525ee2ff22097c566830dd3d"
+        "skills/next-step/SKILL.md": "85170317b38f279a2a3ee48e0c4d06a5f4ee655799faac639e6255b36064d536"
       },
-      "sha256": "f4ed47267e5d5c43efeac014e5d1b3b4035dfd88d801c9399f54f6e777eafed6"
+      "sha256": "c3af9a4ebcf284f4180bac71e42424e517c203e7805852f06ec1996381950f1e"
     },
     {
       "id": "orchestrator",
@@ -347,9 +433,9 @@
         }
       ],
       "files": {
-        "hooks/core/handback.mjs": "4ee10ac11966ae64c7371b0fd7278612545c2e8d53be2d6c8b8c8b1aa8235145"
+        "hooks/core/handback.mjs": "b728c811e333e8e12d9bf97ef5414670c46ab5d3976f1cc0b13b32b42156a711"
       },
-      "sha256": "97dfa39db09105beb678e121485f1e76a48fb040783f9170225d578b83750505"
+      "sha256": "1bd8e2267b5e3b5da29437e9e29a12830ffccb9a6dc254ad141a80ea19451ae0"
     },
     {
       "id": "memory",
@@ -413,9 +499,54 @@
         "claude"
       ],
       "files": {
-        "agents/implement.md": "986acdd5b7d62f109996ec399c9c85d38ceeba5e2c51b12ec6270388c0f4751e"
+        "agents/implement.md": "fe896b86c25a9526828089972a078505d3ec8b637b24e9dfb8178a9b00807255"
       },
-      "sha256": "fe729fb8c4bc7ef5ef71693447e4d4ece7f6650a968f3f0bc568d2dae9a016ad"
+      "sha256": "2531ec77a18fe652e915cf8968ec7d1ef358efda48c3cf3666a67ba2ebf6b32c"
+    },
+    {
+      "id": "review-small",
+      "kind": "agent",
+      "origin": "own",
+      "version": "0.1.0",
+      "license": "MIT",
+      "scope": "project",
+      "tools": [
+        "claude"
+      ],
+      "files": {
+        "agents/review-small.md": "857ca1aa5f460f52876299e70d947599b0629f227cc4f3b65f430a99879da695"
+      },
+      "sha256": "6fc062dac3d17b29ff570f545534b64e96f87edcf6cfb0a0107184a16fe424ad"
+    },
+    {
+      "id": "implement-sql",
+      "kind": "agent",
+      "origin": "own",
+      "version": "0.1.0",
+      "license": "MIT",
+      "scope": "project",
+      "tools": [
+        "claude"
+      ],
+      "files": {
+        "agents/implement-sql.md": "c5d2390d3ae1eb34865bb4258584fe4f237ab58426b4871c1cdca7ae9891cd34"
+      },
+      "sha256": "cd9a4e40904c6f4d633bc279d84b9a0377d400005cff63e582337d46b2706573"
+    },
+    {
+      "id": "implement-front",
+      "kind": "agent",
+      "origin": "own",
+      "version": "0.1.0",
+      "license": "MIT",
+      "scope": "project",
+      "tools": [
+        "claude"
+      ],
+      "files": {
+        "agents/implement-front.md": "5ac4ea536041b9d85771692b8492d45c1bc4df44e69fc56489ba6cf57bbaf153"
+      },
+      "sha256": "226d3af9c274b090c32fe20a72c73eca8dddb96ce82061e032a67968e8979bc1"
     },
     {
       "id": "mechanical",
@@ -488,9 +619,9 @@
         "claude"
       ],
       "files": {
-        "skills/deepen/SKILL.md": "a8a8ff83c0755e86879e027661d96c57b8ad74781105fef19a29c22b94f5948b"
+        "skills/deepen/SKILL.md": "f214e700952f4b085cb62223f4a96bf215cd2123dbbb916989058a1e2cde363a"
       },
-      "sha256": "711d371798811c619f773c2597113a442632d7d60ef51453bfd175564a57d77f"
+      "sha256": "aea768000e43003e2cf9a768afae232e2c6ba8d1e5807635169e45a5df440d41"
     },
     {
       "id": "plan",
@@ -503,9 +634,9 @@
         "claude"
       ],
       "files": {
-        "skills/plan/SKILL.md": "8197c3af7799a2d85b960ee25f7d371b645191d98f3252097390dbc75d26516d"
+        "skills/plan/SKILL.md": "0dfd9ca912a88806a3e3ad4311faaa8fc205f4dd05fe729a1da577ec8b0f622b"
       },
-      "sha256": "98d16abb5513de4ac62ecd1ad026e9a3daf3ad08469091dbac53e675e5d29439"
+      "sha256": "5ab691ae5f81c1bcff7aa2f9fb8ebe68e2d904e0708833cc01fb09a795b836c6"
     },
     {
       "id": "orchestrate",
@@ -518,9 +649,9 @@
         "claude"
       ],
       "files": {
-        "skills/orchestrate/SKILL.md": "372c4534a13605a3a9b0aa1fb3059098f71cdc5e241dca024d9634a9c9c11782"
+        "skills/orchestrate/SKILL.md": "233431353abad1d8e0a668109aafaa75f3ad454ace8fdd5a8a338941e159ed9e"
       },
-      "sha256": "e5894f2b9da9762f0aa4da65397b5084e915de9356079e215d0b71e95bec9354"
+      "sha256": "f877e39aac24da7014133b29bfa6a46b73a153df8826831eeaf69d1bffccc4f5"
     },
     {
       "id": "pending",
@@ -551,31 +682,12 @@
         "claude"
       ],
       "files": {
-        "skills/tdd/SKILL.md": "6b0e52fbfc2021228af506c29bcc9893048fa84a2ab9b289eff6ce34bd0e90a6",
-        "skills/tdd/writing-good-tests.md": "51471c853306ff92ca8bb41dcaea05f31c0e46b03651f8f3c99754b7172f4ae1",
+        "skills/tdd/SKILL.md": "e91fbab7dd4837770da8667929a467ebe2c3fc4c3280954a3f20881d11c12362",
+        "skills/tdd/writing-good-tests.md": "2e6844a85186fe97954bf2df771145e80c7fcdc271227f4e9023ead8a87898fe",
         "skills/tdd/LICENSE": "a37e0e9697144819e1d965176ac4ae5bc3fa02d11e7812036bbcadf6dafe2400",
-        "skills/tdd/SOURCE.md": "cefc788202cd3fc2b769faf3484798cc53c7bd670a6d17f8d5f8348bd36eba2c"
+        "skills/tdd/SOURCE.md": "ab12e96dd4939826d898641c6796e45c4b46885de0246de4337d97b973ecb6d4"
       },
-      "sha256": "44a1ce7ee421f5cfa1779f8b77d2136cfd31ae475e66dc3ab7dba24edaef2f7a"
-    },
-    {
-      "id": "ponytail",
-      "kind": "skill",
-      "origin": "vendored",
-      "source": "https://github.com/DietrichGebert/ponytail",
-      "version": "09c434ab73ca43761c5d8b0c5d341926c2fba710",
-      "license": "MIT",
-      "modified": false,
-      "scope": "project",
-      "tools": [
-        "claude"
-      ],
-      "files": {
-        "skills/ponytail/SKILL.md": "9badd22a32e19cb884e46dfa8d3aae82bb81dfa5484105b8b4f0262df823a509",
-        "skills/ponytail/LICENSE": "fb1bc6909ac3ef82d5c22106e32ef682b0cff66788fa915fb9b53b15c9d2f3ab",
-        "skills/ponytail/SOURCE.md": "23eb81d19afa1af53cd7b4df2483552f2cc87c59f68bffc681c63956107347d6"
-      },
-      "sha256": "fdad32cdae79cc21420796df3eb8c55c6c61150f265d452c736daf39ba598025"
+      "sha256": "6ea222ca3e3080b84b7cf0a56ff473ef5fb6874d6b6273cabf48e39e2f0262fa"
     },
     {
       "id": "ponytail-review",
@@ -589,6 +701,17 @@
       "tools": [
         "claude"
       ],
+      "retired": {
+        "skills/ponytail/SKILL.md": [
+          "9badd22a32e19cb884e46dfa8d3aae82bb81dfa5484105b8b4f0262df823a509"
+        ],
+        "skills/ponytail/LICENSE": [
+          "fb1bc6909ac3ef82d5c22106e32ef682b0cff66788fa915fb9b53b15c9d2f3ab"
+        ],
+        "skills/ponytail/SOURCE.md": [
+          "23eb81d19afa1af53cd7b4df2483552f2cc87c59f68bffc681c63956107347d6"
+        ]
+      },
       "files": {
         "skills/ponytail-review/SKILL.md": "33fe4ebe22a460924e5d4a261e223df22e409cc94ab76182bee9fb91a3ef022e",
         "skills/ponytail-review/LICENSE": "fb1bc6909ac3ef82d5c22106e32ef682b0cff66788fa915fb9b53b15c9d2f3ab",
@@ -651,13 +774,13 @@
         "checks/run.mjs": "a9e8ea271375853592858420ae6386cf383bf22827f52be2cf977f9a8b5c18d0",
         "checks/comment-lines.mjs": "7cc1262dc37358f5c2436e47f3808baa4af7c39d5579d5c428996c90c446dcf7",
         "checks/signature.mjs": "369f1c717d975692f082dc71d05540a2279408807969254f987ae01a0ef5d28f",
-        "checks/review-seal.mjs": "f3ab75a35ba6f5fad303b5d0b2af975928c240aa9a0b5ac791ced5c0c62a4139",
+        "checks/review-seal.mjs": "cf621511e11d1a9aa35ee64d04f9155271248a5fb2bea6b5ad46dbb205fb01d4",
         "checks/goal-cited.mjs": "ece9e129e2bdb39a619bf8680195101364e67d2d6ab318eef00cf4cb11c9eb8d",
         "checks/pending.mjs": "0eb036116ed41676dd1fb2bed3c8a96d1357360e246bead864af6b311559c0cb",
         "checks/fix-has-test.mjs": "63ba9b3dbbf9251be58632b667ed69f611aa0c6a7fb6c893a114c1a2610defc4",
         "checks/change-size.mjs": "be1366d8e2f5fa80b0616cf4a22c660526316b988df38d28643c31c46ac8b855",
         "checks/comment-ratio.mjs": "20112da90275485c4cfa149cb2164517aa308873b49a97d1f5d8c98f9a621310",
-        "checks/skills-travel.mjs": "d6188c4677f6ddcaf7bbb6ba6a311976377b318c6d9ddb3612614dce6d7e89cd",
+        "checks/skills-travel.mjs": "912be9319395715a3beec405e039567ceecbad7173bc76922981cf9679f07685",
         "checks/patterns.mjs": "b76bd62236b34035c628147793d6d428959a91036f7700389bd6d7c443805e12",
         "checks/ratchet.mjs": "5eaaeeecccfd4cc62ceba0961f39d99dc162c1b0592efee6a576d643946d2a88",
         "checks/graph-current.mjs": "3a174bf16b0e546ade3c5dfc5a7633e570020adb527a9385724880b41dd93c21",
@@ -665,7 +788,7 @@
         "checks/index-current.mjs": "e76348a0862428fa5ee2754746a77a5bddb0a734a9ac037668cb5837977a10be",
         "checks/project.mjs": "3756970ca6af156dc599cdae8afcb7f2adc0982d5be72cb0c79b04d2777ce901"
       },
-      "sha256": "402757f82bcb90a411acfcf56a8045668d034876ffddc7e3881bf50d6d0342f3"
+      "sha256": "396913300cdc074f5cb218993cdd13a3d46b8bbb9819a4119a12813f999aec6b"
     },
     {
       "id": "lint",

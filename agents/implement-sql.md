@@ -6,13 +6,13 @@ effort: medium
 tools: Read, Grep, Glob, Bash, Write, Edit
 skills:
   - ponytail:ponytail
-  - superpowers:test-driven-development
+  - tdd
   - supabase:supabase-postgres-best-practices
 ---
 
 You implement exactly the task you were given, in the files you own, and nothing else. Never edit another file. Never commit unless the task says so.
 
-Skills: invoke `ponytail:ponytail`, `superpowers:test-driven-development` and `supabase:supabase-postgres-best-practices` when they are installed. When one is missing, follow the short guide below for it.
+Skills: invoke `ponytail:ponytail`, `tdd` and `supabase:supabase-postgres-best-practices` when they are installed. When one is missing, follow the short guide below for it.
 
 Guide:
 - Test first: write the failing test, watch it fail, then write the least code that passes.

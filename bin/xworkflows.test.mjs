@@ -723,3 +723,61 @@ test("install: a folder under .xworkflows made a file stops install with one lin
   assert.ok(!existsSync(join(r, ".claude/skills/grill/SKILL.md")), all);
   rmSync(r, { recursive: true, force: true });
 });
+
+// plugins the manifest declares: merged per sub-key into .claude/settings.json
+const PONY = { extraKnownMarketplaces: { ponytail: { source: { source: "github", repo: "DietrichGebert/ponytail" } } }, enabledPlugins: { "ponytail@ponytail": true } };
+const track = (r, ...paths) => { for (const p of paths) { mkdirSync(dirname(join(r, p)), { recursive: true }); writeFileSync(join(r, p), "x\n"); } git(r, `add ${paths.join(" ")}`); };
+const plug = (r) => { const s = readJson(r, ".claude/settings.json"); return { m: Object.keys(s.extraKnownMarketplaces ?? {}).sort(), p: Object.keys(s.enabledPlugins ?? {}).sort() }; };
+
+test("plugins: ponytail always; sql and front plugins only when the project tracks such files", () => {
+  const plain = repo();
+  cli(plain, ["install"]);
+  const s = readJson(plain, ".claude/settings.json");
+  assert.deepEqual(s.extraKnownMarketplaces, PONY.extraKnownMarketplaces);
+  assert.deepEqual(s.enabledPlugins, PONY.enabledPlugins);
+  const sql = repo(); track(sql, "db/a.sql"); cli(sql, ["install"]);
+  assert.deepEqual(plug(sql), { m: ["ponytail"], p: ["ponytail@ponytail", "supabase@claude-plugins-official"] });
+  for (const ext of ["tsx", "jsx", "vue", "svelte", "astro", "html", "css", "scss"]) {
+    const front = repo(); track(front, `ui/a.${ext}`); cli(front, ["install"]);
+    assert.deepEqual(plug(front), { m: ["impeccable", "ponytail"], p: ["frontend-design@claude-plugins-official", "impeccable@impeccable", "ponytail@ponytail"] }, ext);
+    assert.deepEqual(readJson(front, ".claude/settings.json").extraKnownMarketplaces.impeccable, { source: { source: "github", repo: "pbakaus/impeccable" } });
+  }
+  const untracked = repo({ "a.sql": "x\n", "b.tsx": "x\n" }); cli(untracked, ["install"]);
+  assert.deepEqual(plug(untracked).p, ["ponytail@ponytail"]);
+});
+test("plugins: a sub-key the user set stays, any value; install twice changes nothing; uninstall leaves the user's keys", () => {
+  const mine = { extraKnownMarketplaces: { ponytail: { source: { source: "github", repo: "me/fork" } }, other: { source: { source: "github", repo: "a/b" } } }, enabledPlugins: { "ponytail@ponytail": false, "x@y": true } };
+  const r = repo({ ".claude/settings.json": JSON.stringify(mine) });
+  track(r, "a.sql");
+  cli(r, ["install"]);
+  const s = readJson(r, ".claude/settings.json");
+  assert.deepEqual(s.extraKnownMarketplaces, mine.extraKnownMarketplaces);
+  assert.deepEqual(s.enabledPlugins, { ...mine.enabledPlugins, "supabase@claude-plugins-official": true });
+  assert.match(cli(r, ["install"]).stdout, /^nothing to do$/m);
+  cli(r, ["uninstall"]);
+  const u = readJson(r, ".claude/settings.json");
+  assert.deepEqual(u.extraKnownMarketplaces, mine.extraKnownMarketplaces);
+  assert.deepEqual(u.enabledPlugins, mine.enabledPlugins);
+});
+test("plugins: uninstall removes its own sub-keys and the maps it made, keeps one the user changed since", () => {
+  const r = repo(); track(r, "a.sql");
+  cli(r, ["install"]);
+  const s = readJson(r, ".claude/settings.json");
+  s.enabledPlugins["supabase@claude-plugins-official"] = false;
+  writeJson(r, ".claude/settings.json", s);
+  cli(r, ["uninstall"]);
+  assert.deepEqual(readJson(r, ".claude/settings.json"), { enabledPlugins: { "supabase@claude-plugins-official": false } });
+  const q = repo();
+  cli(q, ["install"]);
+  cli(q, ["uninstall"]);
+  assert.ok(!existsSync(join(q, ".claude/settings.json")));
+});
+test("plugins: doctor reports a declared sub-key that is missing", () => {
+  const r = repo();
+  cli(r, ["install"]);
+  assert.doesNotMatch(doctor(r).stdout, /^fail .*enabledPlugins/m);
+  const s = readJson(r, ".claude/settings.json");
+  delete s.enabledPlugins;
+  writeJson(r, ".claude/settings.json", s);
+  assert.match(doctor(r).stdout, /^fail merged entry missing: \.claude\/settings\.json enabledPlugins\.ponytail@ponytail: /m);
+});

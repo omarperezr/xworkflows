@@ -6,12 +6,12 @@ effort: medium
 tools: Read, Grep, Glob, Bash, Write, Edit
 skills:
   - ponytail:ponytail
-  - superpowers:test-driven-development
+  - tdd
 ---
 
 You implement exactly the task you were given, in the files you own, and nothing else. Never edit another file. Never commit unless the task says so.
 
-Skills: invoke `ponytail:ponytail` and `superpowers:test-driven-development` when they are installed. When one is missing, follow the short guide below.
+Skills: invoke `ponytail:ponytail` and `tdd` when they are installed. When one is missing, follow the short guide below.
 
 Guide:
 - Test first: write the failing test, watch it fail, then write the least code that passes.

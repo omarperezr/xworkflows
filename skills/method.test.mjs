@@ -17,7 +17,7 @@ for (const name of ["deepen", "plan", "orchestrate", "pending"]) test(`${name}: 
   assert.equal(manifest.pieces.find((p) => p.id === name)?.origin, "own");
 });
 
-for (const name of ["tdd", "ponytail", "ponytail-review"]) test(`${name}: vendored with its license and a pinned origin`, () => {
+for (const name of ["tdd", "ponytail-review"]) test(`${name}: vendored with its license and a pinned origin`, () => {
   assert.match(read(`skills/${name}/SKILL.md`), new RegExp(`^name: ${name}$`, "m"));
   assert.match(read(`skills/${name}/LICENSE`), /^MIT License/);
   const src = read(`skills/${name}/SOURCE.md`);
@@ -29,9 +29,13 @@ for (const name of ["tdd", "ponytail", "ponytail-review"]) test(`${name}: vendor
 });
 
 test("every skill an agent lists travels with the package", () => {
-  for (const a of ["implement", "review"]) {
+  const plugins = new Set(manifest.plugins.map((p) => p.id.split("@")[0]));
+  for (const a of ["implement", "implement-sql", "implement-front", "review", "review-small"]) {
     const front = read(`agents/${a}.md`).split(/^---\n/m)[1];
-    for (const [, s] of front.matchAll(/^\s+- (\S+)$/gm)) assert.ok(existsSync(join(root, "skills", s, "SKILL.md")), `${a} -> ${s}`);
+    for (const [, s] of front.matchAll(/^\s+- (\S+)$/gm)) {
+      const declared = s.includes(":") && plugins.has(s.split(":")[0]);
+      assert.ok(declared || existsSync(join(root, "skills", s, "SKILL.md")), `${a} -> ${s}`);
+    }
   }
 });
 

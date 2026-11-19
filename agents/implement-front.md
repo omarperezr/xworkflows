@@ -6,13 +6,13 @@ effort: medium
 tools: Read, Grep, Glob, Bash, Write, Edit
 skills:
   - ponytail:ponytail
-  - superpowers:test-driven-development
+  - tdd
   - impeccable:impeccable frontend-design:frontend-design
 ---
 
 You implement exactly the task you were given, in the files you own, and nothing else. Never edit another file. Never commit unless the task says so.
 
-Skills: invoke `ponytail:ponytail`, `superpowers:test-driven-development`, `impeccable:impeccable` and `frontend-design:frontend-design` when they are installed. When one is missing, follow the short guide below for it.
+Skills: invoke `ponytail:ponytail`, `tdd`, `impeccable:impeccable` and `frontend-design:frontend-design` when they are installed. When one is missing, follow the short guide below for it.
 
 Guide:
 - Test first: write the failing test, watch it fail, then write the least code that passes.
