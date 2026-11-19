@@ -166,3 +166,12 @@ test("rule 3 is not saved by a --no-ff merge whose branch only merged main's lis
   assert.equal(res.ok, false);
   assert.match(res.lines.join("\n"), /write plan/);
 }));
+
+test("rule 3 is saved by a --no-ff merge that edits the list itself", withRepo({ files: { [PEND]: card(1) } }, async (r) => {
+  r.branch("feat");
+  r.commit("write plan", { files: { [PLAN]: "plan\n" } });
+  r.checkout("main");
+  r.git("merge", "--no-ff", "--no-commit", "feat");
+  r.commit("merge feat", { files: { [PEND]: card(1) + card(2) } });
+  assert.deepEqual(await r.run(pending), { ok: true, lines: [] });
+}));
