@@ -393,7 +393,7 @@ test("gitignore lines and scalar settings: written once, left alone, removed by 
   const r = repo({ ".gitignore": "node_modules" });
   cli(r, ["install"]);
   const gi = readFileSync(join(r, ".gitignore"), "utf8");
-  assert.equal(gi, "node_modules\ngraphify-out/\n.claude/settings.local.json\n.qmd/\n");
+  assert.equal(gi, "node_modules\ngraphify-out/\n.claude/settings.local.json\n.qmd/\n.xworkflows/handoff.md\n");
   assert.deepEqual(readJson(r, ".claude/settings.json").attribution, { commit: "", pr: "" });
   assert.deepEqual(readJson(r, ".claude/settings.local.json"), { autoMemoryDirectory: join(realpathSync(r), "docs/memory") });
   assert.equal(git(r, "check-ignore .claude/settings.local.json"), ".claude/settings.local.json");
@@ -407,7 +407,7 @@ test("gitignore and settings already there are left alone; memory.dir is honored
   const mine = { attribution: { commit: "x" }, theme: "dark" };
   const r = repo({ ".gitignore": "graphify-out\n.claude/*.local.json\n", ".claude/settings.json": JSON.stringify(mine), ".claude/settings.local.json": JSON.stringify({ autoMemoryDirectory: "/mine" }) });
   cli(r, ["install"]);
-  assert.equal(readFileSync(join(r, ".gitignore"), "utf8"), "graphify-out\n.claude/*.local.json\n.qmd/\n");
+  assert.equal(readFileSync(join(r, ".gitignore"), "utf8"), "graphify-out\n.claude/*.local.json\n.qmd/\n.xworkflows/handoff.md\n");
   assert.deepEqual(readJson(r, ".claude/settings.json").attribution, { commit: "x" });
   assert.deepEqual(readJson(r, ".claude/settings.local.json"), { autoMemoryDirectory: "/mine" });
   cli(r, ["uninstall"]);
@@ -417,6 +417,14 @@ test("gitignore and settings already there are left alone; memory.dir is honored
   cli(q, ["install"]);
   assert.equal(readJson(q, ".claude/settings.local.json").autoMemoryDirectory, join(realpathSync(q), "notes"));
 });
+test("uninstall deletes the hand-off file and says so", () => {
+  const r = repo();
+  cli(r, ["install"]);
+  writeFileSync(join(r, ".xworkflows/handoff.md"), "main: x\n");
+  assert.match(cli(r, ["uninstall"]).stdout, /^deleted \.xworkflows\/handoff\.md$/m);
+  assert.deepEqual(readdirSync(r).sort(), [".git"]);
+});
+
 test("a scalar setting the user changed stays on uninstall", () => {
   const r = repo();
   cli(r, ["install"]);

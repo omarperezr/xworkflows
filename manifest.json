@@ -60,15 +60,15 @@
         "hooks/run.mjs": "f16b9c43cc1525dabc0e50672516b74065524927d90bef3462c66c4e05ba6d67",
         "hooks/mark.mjs": "f2ecad21dedeb1515287063237e6852b9374781f71ce876f13b57324bfcb88a5",
         "hooks/core/marks.mjs": "9f52d052c8fb1275e92335d1dd5664be0f1bff7d43a4a9432268bac01d61a2b7",
-        "hooks/adapters/claude.mjs": "caf7f67521063d0fbd7e90ee1dbf51725b4a1f9f8a5edcf6e22699a98ea4e75c",
+        "hooks/adapters/claude.mjs": "46115da47afb78c7207c83c6d4b058efb7676804d43b0b7a9a36114322b8160d",
         "hooks/adapters/codex.mjs": "0589bf97b5cec7e06fee8a70bd92d8a0f51e8bb082cc241f743a80308e44d059",
         "hooks/adapters/cursor.mjs": "394c1a81f4040089b67f0fbf1131012bbb5883bdf705ce3af12dff66d9b3cbd5",
         "hooks/adapters/gemini.mjs": "eff8f29bce46d7c4a7c62845f3762a16c6fd38e831e6c4a5d6b54361ec599175",
-        "hooks/core/config.mjs": "dcd2518da5eae28fe5ba57687a23cfcad0a587150ca0743c1746c1aa623d0928",
+        "hooks/core/config.mjs": "a9b254039ac008ca03eff2b79373261cbb14d8d632e70da5a3970949168ec801",
         "hooks/core/ctx.mjs": "c467ec88a800a1b3df3193922b7bd1377e12d610b6c75e2a7becc81cdd848138",
         "hooks/core/shell-words.mjs": "74891037cdeb47d425624a7b2161c683108d6bf90131453634a1f6d090f348d2"
       },
-      "sha256": "4d23621fac50824f9370e5ee7b5f1ba7885063f35ecf41bd9da232c4380b3fac"
+      "sha256": "4d4b72414db10054b964cb89b2c7bc44d46957ebd11462e1b1e5875860c7623a"
     },
     {
       "id": "design-first",
@@ -490,6 +490,29 @@
       "sha256": "4739f4bd94ebbcd336f1aa9a58c9610e21aa606fedc7d6bea6b277f9d0d15941"
     },
     {
+      "id": "handoff-load",
+      "kind": "hook",
+      "origin": "own",
+      "version": "0.1.0",
+      "license": "MIT",
+      "scope": "project",
+      "tools": [
+        "claude"
+      ],
+      "claude": [
+        {
+          "event": "SessionStart"
+        },
+        {
+          "event": "PreCompact"
+        }
+      ],
+      "files": {
+        "hooks/core/handoff-load.mjs": "3277c00cc8ae6372b1885248e7627978929acc5840e1eecb7360200251c976f0"
+      },
+      "sha256": "a6e52382918f92cfcf638393b04e046240e577b57be41dc2f714a1cb0d43d40c"
+    },
+    {
       "id": "implement",
       "kind": "agent",
       "origin": "own",
@@ -650,9 +673,27 @@
         "claude"
       ],
       "files": {
-        "skills/orchestrate/SKILL.md": "a8b79d7e190515204f31759e6c33b27255f29a5b2d3ba2836c6deeb52ef392af"
+        "skills/orchestrate/SKILL.md": "4642cc6e64d130be960562c1b54a545ec59694ec9f3f587e1f85479fc0ce5e36"
       },
-      "sha256": "0bbbd80a90639234959754b925200374621d5947adce013d977079b391e8d511"
+      "sha256": "201cc4c6119c7007764117e624121bf5a540641bd8db96ada34117ca6f0da6ef"
+    },
+    {
+      "id": "handoff",
+      "kind": "skill",
+      "origin": "own",
+      "version": "0.1.0",
+      "license": "MIT",
+      "scope": "project",
+      "tools": [
+        "claude",
+        "codex",
+        "cursor",
+        "gemini"
+      ],
+      "files": {
+        "skills/handoff/SKILL.md": "725c8e6ac2ec401d7143f1f0b649e8d0b2dbb4cb515993772555c9dd28ddc255"
+      },
+      "sha256": "8ac73157743cfb75498f9b283f1384a682badcbb4294067bb63b27da94a1045c"
     },
     {
       "id": "pending",

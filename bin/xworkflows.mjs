@@ -278,7 +278,7 @@ const QMARK = ".qmd/xworkflows";
 const MARK_TEXT = "written by xworkflows install: uninstall removes index.yml and its database here only while this file exists\n";
 // qmd reads index.yaml before index.yml: either one is a local config
 const localYml = (root) => [".qmd/index.yaml", YML].find((f) => existsSync(join(root, f)));
-const IGNORE = [["graphify-out/", "graphify-out/x"], [".claude/settings.local.json", ".claude/settings.local.json"], [".qmd/", ".qmd/x"]];
+const IGNORE = [["graphify-out/", "graphify-out/x"], [".claude/settings.local.json", ".claude/settings.local.json"], [".qmd/", ".qmd/x"], [".xworkflows/handoff.md", ".xworkflows/handoff.md"]];
 // `.qmd/` is added only in a run that writes the yml
 function mergeIgnore(root, qmd) {
   const path = ".gitignore";
@@ -1014,7 +1014,10 @@ async function doctor() {
     for (let i = 0; i <= Math.min(Number.isInteger(after) && after > 0 ? after : DEFAULTS.dream.suggestAfterSessions, 1000); i++) writeFileSync(join(sessions, `${i}.jsonl`), "");
     for (const h of (st.hooks?.SessionStart ?? []).flatMap((e) => e.hooks ?? [])) {
       if (!`${h.command} `.includes('/.xworkflows/hooks/run.mjs" claude ')) continue;
-      bytes += Buffer.byteLength(fire(h.command, { session_id: `doctor-${process.pid}`, cwd: ROOT, hook_event_name: "SessionStart", source: "startup", transcript_path: join(sessions, "0.jsonl") }).stdout ?? "");
+      const out = fire(h.command, { session_id: `doctor-${process.pid}`, cwd: ROOT, hook_event_name: "SessionStart", source: "startup", transcript_path: join(sessions, "0.jsonl") }).stdout ?? "";
+      // the hand-off is the last session's text, not the hook's: its bytes stay out of the measure, and the hook alone says whether it loads
+      if (!isOurs({ hooks: [h] }, "handoff-load")) bytes += Buffer.byteLength(out);
+      else if (out.includes("was not loaded")) say("warn", ".xworkflows/handoff.md was not loaded: it is over tokens.handoffBytes; shorten it");
     }
     rmSync(sessions, { recursive: true, force: true });
     const sb = conf.tokens.sessionStartBytes;
@@ -1243,6 +1246,8 @@ function uninstall() {
   if (marked) {
     for (const f of [YML, ".qmd/index.sqlite", ".qmd/index.sqlite-wal", ".qmd/index.sqlite-shm", QMARK]) if (lstatSync(join(ROOT, f), { throwIfNoEntry: false })?.isFile()) rm(f);
   }
+  const hand = ".xworkflows/handoff.md"; // only the skill handoff writes it; nothing of the user's
+  if (clean(ROOT, hand) && lstatSync(join(ROOT, hand), { throwIfNoEntry: false })?.isFile()) { rm(hand); out.push(`deleted ${hand}`); }
   const ir = ".xworkflows/installed.json";
   if (clean(ROOT, ir)) rm(ir); else out.push(`kept (not ours): ${ir}`);
   for (const p of gone) {
