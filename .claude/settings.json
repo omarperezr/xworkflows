@@ -107,7 +107,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"$(git rev-parse --show-toplevel)/.xworkflows/hooks/run.mjs\" claude handoff"
+            "command": "node \"$(git rev-parse --show-toplevel)/.xworkflows/hooks/run.mjs\" claude handoff-load"
           }
         ]
       }
@@ -125,7 +125,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"$(git rev-parse --show-toplevel)/.xworkflows/hooks/run.mjs\" claude handoff"
+            "command": "node \"$(git rev-parse --show-toplevel)/.xworkflows/hooks/run.mjs\" claude handoff-load"
           }
         ]
       }

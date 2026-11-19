@@ -9,7 +9,7 @@ Read `.xworkflows/config.json`: `mainBranch` (default `main`), `tokens.handoffBy
 
 Write `.xworkflows/handoff.md`. It points, it does not copy: ids and paths, never the plan or the cards pasted in.
 
-1. First line: `main: <full sha>`, from `git rev-parse <mainBranch>`. A hook loads the file only while this sha is still the branch's.
+1. First line: `main: <full sha>`, from `git rev-parse <mainBranch>`. A hook loads the file only while this sha is both the branch's and `HEAD`'s, so write it as the last step, after any commit or merge.
 2. Done: the batch, its merge sha, the result.
 3. The owner's recent instructions still in force and not yet written in a plan, a spec or the pending list, quoted.
 4. Every relevant next task, one line each: its id (plan task or card) and the path of its plan or of the pending list.

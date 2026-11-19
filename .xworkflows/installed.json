@@ -84,9 +84,9 @@
       "version": "0.1.0",
       "sha256": "4739f4bd94ebbcd336f1aa9a58c9610e21aa606fedc7d6bea6b277f9d0d15941"
     },
-    "handoff": {
+    "handoff-load": {
       "version": "0.1.0",
-      "sha256": "7a38c5aaf6fca8b6111bb7d682097c429eec3b75bc794f347f080d4fb8659ea5"
+      "sha256": "a6e52382918f92cfcf638393b04e046240e577b57be41dc2f714a1cb0d43d40c"
     },
     "implement": {
       "version": "0.1.0",
@@ -131,6 +131,10 @@
     "orchestrate": {
       "version": "0.1.0",
       "sha256": "201cc4c6119c7007764117e624121bf5a540641bd8db96ada34117ca6f0da6ef"
+    },
+    "handoff": {
+      "version": "0.1.0",
+      "sha256": "49d2e36876cced991ed8ee1317c3c581e2091f99cb02b95783ef02f21f008e57"
     },
     "pending": {
       "version": "0.1.0",
@@ -238,9 +242,9 @@
       "piece": "modes",
       "sha256": "b07109cb1c24818c5e9562e9b9acf033bd996430ca37d57b480b7d53f0e380ec"
     },
-    ".xworkflows/hooks/core/handoff.mjs": {
-      "piece": "handoff",
-      "sha256": "1ed5ab85138c55bfc58d6055975f1c63e8d6dd54be6d927d00ffb104cbecc12f"
+    ".xworkflows/hooks/core/handoff-load.mjs": {
+      "piece": "handoff-load",
+      "sha256": "3277c00cc8ae6372b1885248e7627978929acc5840e1eecb7360200251c976f0"
     },
     ".xworkflows/templates/PENDING.md": {
       "piece": "pending",
@@ -452,7 +456,7 @@
     },
     ".claude/skills/handoff/SKILL.md": {
       "piece": "handoff",
-      "sha256": "80df6f9602e0f6e267b69f3a3f9d0cdd80aaa3cfbcd2a64248f56afc1d52cee4"
+      "sha256": "d3374ae9b256a576fa6db6ec44ef75abfbfb5398ef9acbe6fee82ad14a738b2c"
     },
     ".claude/skills/pending/SKILL.md": {
       "piece": "pending",
@@ -767,7 +771,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"$(git rev-parse --show-toplevel)/.xworkflows/hooks/run.mjs\" claude handoff"
+            "command": "node \"$(git rev-parse --show-toplevel)/.xworkflows/hooks/run.mjs\" claude handoff-load"
           }
         ]
       },
@@ -783,7 +787,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"$(git rev-parse --show-toplevel)/.xworkflows/hooks/run.mjs\" claude handoff"
+            "command": "node \"$(git rev-parse --show-toplevel)/.xworkflows/hooks/run.mjs\" claude handoff-load"
           }
         ]
       },
