@@ -45,8 +45,8 @@ export function run(range, ctx) {
       const full = ctx.tryGit("rev-parse", "-q", "--verify", `${sha}^{commit}`);
       if (full.code !== 0) continue;
       const isRisk = who === roles.riskReviewer;
-      if (isRisk) riskShas.push(full.out);
-      // on a risk batch the reviewer's seal counts only after a risk seal of an ancestor sha
+      // on a risk batch the reviewer's seal counts only after a risk seal of an ancestor sha, and that one names a commit of the pushed range
+      if (isRisk) { if (range.commits.includes(full.out)) riskShas.push(full.out); }
       else if (risk && !riskShas.some((r) => ancestor(r, full.out))) continue;
       if (unsealed.every((c) => ancestor(c, full.out))) return { ok: true, lines: [] };
     }
