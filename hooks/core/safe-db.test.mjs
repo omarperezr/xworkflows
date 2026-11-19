@@ -36,7 +36,7 @@ test("heredoc: ask", () => {
 });
 
 test("allowed SQL", () => {
-  for (const s of ["DELETE FROM users WHERE id = 1", "UPDATE users SET a=1 WHERE id=2", "CREATE TABLE t (a int)", "ALTER TABLE t ADD COLUMN b int", "SELECT * FROM users", "DELETE FROM users WHERE 1=1 AND id = 3"])
+  for (const s of ["DELETE FROM users WHERE id = 1", "UPDATE users SET a=1 WHERE id=2", "CREATE TABLE t (a int)", "ALTER TABLE t ADD COLUMN b int", "SELECT * FROM users"])
     assert.ok(allowed(`psql -c "${s}"`), s);
 });
 
@@ -100,9 +100,9 @@ test("CLI forms count only when the command word is that tool or its runner", ()
   assert.ok(allowed("cat dropdb.txt && ls rails"));
 });
 
-test("a grant or revoke of truncate is not a truncate", () => {
-  assert.ok(allowed('psql -c "REVOKE TRUNCATE ON t FROM anon; GRANT TRUNCATE ON t TO app"'));
-  assert.ok(asks('psql -c "GRANT TRUNCATE ON t TO app; TRUNCATE t"'));
+test("a grant or revoke of truncate is no exception: any statement with truncate asks", () => {
+  for (const s of ["REVOKE TRUNCATE ON t FROM anon; GRANT TRUNCATE ON t TO app", "GRANT TRUNCATE ON t TO app; TRUNCATE t", "GRANT TRUNCATE ON t TO app", "TRUNCATE sessions -- revoke all logins", "TRUNCATE grant.tokens"])
+    assert.ok(asks(`psql -c "${s}"`), s);
 });
 
 test("a SQL file resolves from the event's cwd, then from each cd before the client", () => {
@@ -191,12 +191,14 @@ test("dropdb asks whenever it runs: a name follows it or it is the command word"
 });
 
 test("the allowlist: a statement with delete, update, drop or truncate passes only as the two plain forms", () => {
-  for (const s of ["DELETE FROM users WHERE id = 1", "delete from t where a >= 3 and b <> 4", "UPDATE t SET a = 1 WHERE id = 2 AND b = 3", "UPDATE t SET a = 1, b = c WHERE t.id != 2", "UPDATE t SET a = NULL WHERE id < 9", "DELETE FROM users WHERE id = 1  ", "SELECT * FROM t", "SELECT deleted_at FROM t"])
+  for (const s of ["DELETE FROM users WHERE id = 1", "UPDATE t SET a = 1 WHERE id = 2 AND b = 3", "UPDATE t SET a = 1, b = c WHERE t.id = 2", "DELETE FROM t WHERE id = 1", "DELETE FROM users WHERE id = 1  ", "SELECT * FROM t", "SELECT deleted_at FROM t"])
     assert.ok(allowed(`psql -c "${s}"`), s);
   for (const s of ["DELETE FROM users -- where id = 1", "DELETE FROM users /* where id = 1 */", "DELETE FROM users WHERE id = 1 -- x", "UPDATE users u SET email = NULL", "UPDATE users u SET email = NULL WHERE u.id = 1",
     "DELETE s FROM sessions s JOIN users u ON s.uid = u.id", "DELETE FROM a, b WHERE a.id = b.id", "DELETE FROM users WHERE id = 1 || 1=1", "DELETE FROM users WHERE id = 1 XOR 1=1", "DELETE FROM sessions WHERE 1",
     "DELETE FROM t WHERE id = 1 OR 1 = 1", "DELETE FROM t WHERE NOT id = 1", "DELETE FROM t WHERE 1 = 1", "DELETE FROM t WHERE a = a", "DELETE FROM t WHERE 2 > 1", "DELETE FROM t WHERE true", "DELETE FROM t",
-    "UPDATE t SET a = 1", "UPDATE t SET a = a + 1 WHERE id = 1", "ALTER TABLE t DROP COLUMN a", "DROP TABLE t", "TRUNCATE t", "SELECT 1; DELETE FROM users WHERE 1"])
+    "UPDATE t SET a = 1", "UPDATE t SET a = a + 1 WHERE id = 1", "ALTER TABLE t DROP COLUMN a", "DROP TABLE t", "TRUNCATE t", "SELECT 1; DELETE FROM users WHERE 1",
+    "DELETE FROM users WHERE 1=1 AND id = 3", "DELETE FROM t WHERE true <> false", "DELETE FROM t WHERE true != false", "UPDATE users SET a = 1 WHERE true = 1", "DELETE FROM t WHERE users.id = id", "UPDATE t SET a = 1 WHERE t.a = a", "DELETE FROM t WHERE 1e0 = 1",
+    "DELETE FROM t WHERE id > 0", "DELETE FROM t WHERE id <> 0", "DELETE FROM t WHERE id >= 3 AND b <> 4", "UPDATE t SET a = NULL WHERE id < 9", "UPDATE t SET a = 1 WHERE t.id != 2", "DELETE FROM t WHERE false = false", "DELETE FROM t WHERE NULL = 1", "DELETE FROM t WHERE TRUE = true"])
     assert.ok(asks(`psql -c "${s}"`), s);
   assert.ok(asks("psql <<EOF\nDELETE FROM users -- where id = 1\nEOF"));
   assert.ok(asks("mysql -e 'DELETE FROM users # where id = 1'"));
@@ -243,6 +245,12 @@ test("SQL read from sqlcmd -i, \\i, \\include, source and cat | client", () => {
   assert.ok(allowed("cat igood.sql | psql"));
   assert.ok(allowed(`psql -c "\\i igood.sql"`));
   assert.ok(allowed("cat ibad.sql"));
+  writeFileSync(join(root, "ok.sql"), "SELECT 1;");
+  writeFileSync(join(root, "bad.sql"), "DROP TABLE users");
+  assert.ok(asks("psql <<EOF\n\\i ok.sql\n\\i bad.sql\nEOF"));
+  assert.ok(asks("psql <<EOF\n\\i bad.sql\nSELECT 1;\nEOF"));
+  assert.ok(asks("mysql app <<EOF\nsource ok.sql\nsource bad.sql\nEOF"));
+  assert.ok(allowed("psql <<EOF\n\\i ok.sql\nSELECT 1;\nEOF"));
   assert.ok(allowed("cat missing.sql | psql"));
 });
 
@@ -262,4 +270,17 @@ test("a subagent is denied every new form", () => {
   for (const c of [`psql -c "DELETE FROM users -- where id = 1"`, "docker volume prune", "find . -name '*.db' -delete", ": > x.db", `mongosh --eval "db.a.drop()"`]) {
     assert.equal(decide(ev(c, { isSubagent: true }), ctx).decision, "deny", c);
   }
+});
+
+test("a piping cat is read only when a database client takes the pipe", () => {
+  const seen = [];
+  const strict = { readFile: (p) => { seen.push(p); if (p.includes("urandom")) throw new Error("read an endless file"); return readFileSync(p, "utf8"); } };
+  for (const c of ["cat /dev/urandom | head -c 32 | base64", "cat /dev/urandom | head -c 32"]) {
+    let d;
+    assert.doesNotThrow(() => { d = decide(ev(c), strict); }, c);
+    assert.equal(d.decision, "allow", c);
+  }
+  assert.deepEqual(seen, []);
+  writeFileSync(join(root, "cbad.sql"), "DELETE FROM users;");
+  assert.equal(decide(ev("cat cbad.sql | head -n 5 | psql"), strict).decision, "ask");
 });

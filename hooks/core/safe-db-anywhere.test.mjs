@@ -17,7 +17,7 @@ test("commands that only mention SQL or CLI words are allowed", () => {
   }
 });
 
-test("an additive migration with grant truncate run by psql -f is allowed", () => {
+test("a migration with grant truncate run by psql -f asks: no grant exception", () => {
   writeFileSync(join(root, "m.sql"), 'grant truncate on table x to "anon";\n');
-  assert.equal(run("psql -f m.sql"), "allow");
+  assert.equal(run("psql -f m.sql"), "ask");
 });
