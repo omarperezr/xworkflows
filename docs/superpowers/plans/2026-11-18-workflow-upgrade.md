@@ -112,6 +112,15 @@ Root cause: the hook tells safe SQL from dangerous by reading SQL text with patt
 - The design above; delete the code it makes dead.
 - Done: tests first (the three passing forms above ask or deny; `UPDATE users SET name='x' WHERE id=1` asks; `DELETE FROM t WHERE id = 1` passes; `git rm -r "$DIR"` passes; every earlier round's ask case still asks), red before; `node --test hooks/` passes.
 
+Possible design error in hooks/core/safe-db.mjs decide, fifth finding (confirmation of ebafed9)
+Root cause: the hook still lists the dangerous forms (a blocklist), and a new spelling always slips past it: a `WHERE` in a comment (`DELETE FROM users -- where id = 1`), dollar quotes, a table alias (`UPDATE users u SET ...`), a multi-table `DELETE s FROM ...`, `||` and `XOR`. New design, an allowlist: a SQL statement that holds `delete`, `update`, `drop`, `truncate` or `alter ... drop` passes only when it is exactly `DELETE FROM <name> WHERE <cond>` or `UPDATE <name> SET <name> = <value> [, ...] WHERE <cond>`, where `<cond>` is `<name> <op> <value>` joined by `AND`, `<op>` is one of `= < > <= >= <> !=`, and `<name>`/`<value>` are letters, digits, `_` and `.` only; anything else asks. Owner, 2026-11-19: "Sí, lista de permitidos (Recommended)"; more forms: "a, b y c (Recommended)" (mongosh `.drop()`/`dropDatabase`/`deleteMany`, `mysqladmin drop`, `prisma db execute` as a client, `ALTER TABLE ... DROP`; SQL from `sqlcmd -i`, `psql -c "\i x"`, `source x`, `cat x.sql | <client>`; `docker compose down -v` / `docker volume rm` / `docker-compose down -v`, `find ... -name "*.db|*.sqlite*" -delete`, `: > x.db` and `> x.db`); rm-seguro: "Sí, los dos (Recommended)" (`xargs rm` with a recursive flag fed by a pipe denies; any prefix `--rec...` of `--recursive` counts); closing rule: "Sí, así (Recommended)": after this round, a confirmation that finds only forms the hook does not cover yet, and no error in what it does, lets the batch merge, with those forms as cards.
+
+**T15: the allowlist** (confirmation of ebafed9, findings 1 to 6)
+- Files: `hooks/core/safe-db.mjs`, `hooks/core/safe-db.test.mjs`, `hooks/core/safe-rm.mjs`, `hooks/core/safe-rm.test.mjs`, `hooks/core/shell-words.mjs`, `hooks/core/shell-words.test.mjs`
+- Role: implement
+- The design and the forms above; `command -v dropdb`, `which dropdb`, `type dropdb` pass. Delete the code the allowlist makes dead.
+- Done: tests first, one per form of the confirmation of ebafed9 and per added form, red before; every earlier ask or deny case still holds; `node --test hooks/` passes.
+
 After the merge, the main session runs `node bin/xworkflows.mjs install` in this repository and `doctor`, and, on the owner's word, the same in the pilot project before its first batch.
 
 ## Review Focus
