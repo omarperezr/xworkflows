@@ -129,6 +129,14 @@ Owner's answer on the confirmation of e6e3df5 (2026-11-19): "El paquete completo
 - `cat <file>` is read only when its pipe feeds a database client; a WHERE term's left side is a name that is not TRUE, FALSE or NULL, its sides are compared with the qualifier stripped, and the operator is `=` only; `\i`, `\ir`, `\include` and `source` end at a newline as well as `;`; no GRANT/REVOKE exception; the `>|` branch goes.
 - Done: tests first (`cat /dev/urandom | head -c 32 | base64` answers at once and allows, `WHERE true <> false`, `WHERE users.id = id`, `WHERE 1e0 = 1`, `WHERE id > 0`, two `\i` lines in a heredoc, `TRUNCATE sessions -- revoke all` and `GRANT TRUNCATE ON t TO app` ask), red before; `node --test hooks/` passes.
 
+Owner's answers on the confirmation of 12c8941 (2026-11-19): the right side of every allowlisted WHERE term is a number literal: "Sí, solo números (Recommended)"; a text filter (`grep`, `rg`, `awk`, `sed`, `head`, `tail`, `wc`) run as the command word never counts as a database client: "Filtros de texto no cuentan (Recommended)". The two new forms go to card P-214.
+
+**T17: number literals and text filters** (confirmation of 12c8941, findings 1 and 2)
+- Files: `hooks/core/safe-db.mjs`, `hooks/core/safe-db.test.mjs`
+- Role: implement
+- The two answers above.
+- Done: tests first (`DELETE FROM sessions WHERE user = current_user`, `UPDATE users SET is_admin = 1 WHERE user = current_user`, `sqlite3 app.db "DELETE FROM t WHERE rowid = oid"`, `WHERE name = x` ask; `DELETE FROM t WHERE id = 5` passes; `cat CHANGELOG.md | grep -i sqlite` and `git log --oneline | grep -i drop | grep psql` pass), red before; `node --test hooks/` passes.
+
 After the merge, the main session runs `node bin/xworkflows.mjs install` in this repository and `doctor`, and, on the owner's word, the same in the pilot project before its first batch.
 
 ## Review Focus
