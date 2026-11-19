@@ -1015,8 +1015,8 @@ async function doctor() {
     for (let i = 0; i <= Math.min(Number.isInteger(after) && after > 0 ? after : DEFAULTS.dream.suggestAfterSessions, 1000); i++) writeFileSync(join(sessions, `${i}.jsonl`), "");
     for (const h of (st.hooks?.SessionStart ?? []).flatMap((e) => e.hooks ?? [])) {
       if (!`${h.command} `.includes('/.xworkflows/hooks/run.mjs" claude ')) continue;
-      // the hand-off is the last session's text, not the hook's: its escaped copy leaves the measure
-      bytes += Buffer.byteLength((fire(h.command, { session_id: `doctor-${process.pid}`, cwd: ROOT, hook_event_name: "SessionStart", source: "startup", transcript_path: join(sessions, "0.jsonl") }).stdout ?? "").replace(ho ? JSON.stringify(ho).slice(1, -1) : "\0", ""));
+      if (isOurs({ hooks: [h] }, "handoff")) continue; // the hand-off is the last session's text, not the hook's: it stays out of the measure
+      bytes += Buffer.byteLength(fire(h.command, { session_id: `doctor-${process.pid}`, cwd: ROOT, hook_event_name: "SessionStart", source: "startup", transcript_path: join(sessions, "0.jsonl") }).stdout ?? "");
     }
     rmSync(sessions, { recursive: true, force: true });
     if (ho && Buffer.byteLength(ho) > handoffCap) say("warn", `.xworkflows/handoff.md is ${Buffer.byteLength(ho)} bytes, over tokens.handoffBytes ${handoffCap}: it is not loaded; shorten it`);
