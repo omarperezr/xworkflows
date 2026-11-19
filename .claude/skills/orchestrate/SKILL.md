@@ -7,7 +7,7 @@ Before anything else, run `node .xworkflows/mark.mjs orchestrate` in the shell.
 
 You are the main session: you decide, dispatch and judge. Agents read, write and test. What you read stays in context for the rest of the session; what an agent reads is gone when it reports.
 
-Read `.xworkflows/config.json`: the names below are its keys. A key it lacks takes its default: `mainBranch` `main`; `paths.plans` `docs/superpowers/plans`; `paths.specs` `docs/superpowers/specs`; `paths.pending` `docs/PENDING.md`; `paths.nonCode` `docs/`, `.claude/`, `.xworkflows/`, `**/*.md`, `.gitignore`; `paths.curated` `AGENTS.md`, `CLAUDE.md`, `.claude/rules/`, `docs/BUSINESS.md`; `roles.implementers` `implement`, `mechanical`; `roles.lookup` `explore`; `roles.verifier` `verify-finding`; `roles.reviewer` `review`; `roles.riskReviewer` `risk-review`; `limits.inlineReadLines` 40; `limits.agentsBeforeWorkflow` 2; `lookup.index.command` `graphify query`; `lookup.index.minutes` 30. `paths.risk`, `paths.heavyRead` and `paths.codeAnyway` have none.
+Read `.xworkflows/config.json`: the names below are its keys. A key it lacks takes its default: `mainBranch` `main`; `paths.plans` `docs/superpowers/plans`; `paths.specs` `docs/superpowers/specs`; `paths.pending` `docs/PENDING.md`; `paths.nonCode` `docs/`, `.claude/`, `.xworkflows/`, `**/*.md`, `.gitignore`; `paths.curated` `AGENTS.md`, `CLAUDE.md`, `.claude/rules/`, `docs/BUSINESS.md`; `roles.implementers` `implement`, `implement-sql`, `implement-front`, `mechanical`; `roles.lookup` `explore`; `roles.verifier` `verify-finding`; `roles.reviewer` `review`; `roles.riskReviewer` `risk-review`; `roles.smallReviewer` `review-small`; `limits.inlineReadLines` 40; `limits.agentsBeforeWorkflow` 2; `lookup.index.command` `graphify query`; `lookup.index.minutes` 30. `paths.risk`, `paths.heavyRead` and `paths.codeAnyway` have none.
 
 ## The main session
 
@@ -46,7 +46,7 @@ The `handback` hook denies a report that lacks a key of its role. A key counts a
 | Agent | Keys |
 |---|---|
 | `roles.implementers` | `red:`, `green:`, `skipped:`, `sha:`. A change with no logic gives `no-test:` in place of `red:` and `green:` |
-| `roles.reviewer`, `roles.riskReviewer` | `reviewed:`, `not checked:` |
+| `roles.reviewer`, `roles.riskReviewer`, `roles.smallReviewer` | `reviewed:`, `not checked:` |
 | `roles.verifier` | `red:` or `discarded:` |
 | An agent that cannot do its task | `blocked:`; an implementer also `needs judgment:` or `cannot test:` |
 
@@ -78,7 +78,7 @@ Change the plan only on the batch branch: the merge then carries the pending lis
 
 One review per batch, before the batch merges.
 
-1. Pick the reviewer: `roles.riskReviewer` when the batch touches `paths.risk`; otherwise `roles.reviewer`; none when the batch is docs only (every changed path under `paths.nonCode`, none under `paths.codeAnyway`).
+1. Pick the reviewer: `roles.riskReviewer` when the batch touches `paths.risk`; `roles.smallReviewer` when the batch changes under 50 code lines (the `paths.nonCode` count rule of `plan`) and touches no `paths.risk`; otherwise `roles.reviewer`; none when the batch is docs only (every changed path under `paths.nonCode`, none under `paths.codeAnyway`).
 2. Commit every task, note `<reviewed sha>` (the `HEAD` of the batch branch) and dispatch; the risk reviewer's first review of a batch runs at effort `xhigh`. The prompt names the plan or spec file, the range `<mainBranch>...<reviewed sha>` and the commit id to review. The hook denies the risk reviewer when its prompt names no `.md` file under `paths.plans` or `paths.specs`, and when it already ran on the same named commit at the same root `HEAD`: it never runs twice on one commit.
 3. Sort the findings. Only an error of the app, money, permissions or data blocks; the rest become cards.
    - `blocking`: dispatch `roles.verifier` with the finding and a short id of letters, digits and `-`. The finding enters the plan, as a fix task, only after the answer `red: <test path> <command>`; that test is on branch `verify/<id>`. On any `discarded:`, the finding does not enter the plan: write a card with the verifier's reason, and on `cannot run here` also tell the owner in one line.
@@ -90,7 +90,7 @@ One review per batch, before the batch merges.
      - An alternative design exists: ask the owner in the question dialog, with that design: redesign, or for a blocking finding patch once more, for a pending one leave it as its card. Redesign replaces the fix by a redesign task in the plan. Dispatch no fix in that place before the answer.
      - None exists: the fix goes on, with no question.
 4. Fix: dispatch, at effort `high`, a new implementer, not the one that wrote the code, with the verified findings and the test path and branch of each (`git show verify/<id>:<test path>` gives the test). Commit the fix and its test together, with the subject `fix: <what>`: the `fix-has-test` brake checks the commits whose subject starts with `fix:` or `fix(`, and runs the test on the parent commit, where it must fail. Then delete the `verify/<id>` branches.
-5. Confirm: dispatch, at effort `high`, a fresh reviewer of the same role and model, never the one that asked for the fix. The prompt names the plan or spec file, the findings, `<reviewed sha>` and the commit id of the fix to review (the new `HEAD`); the hook takes a second review of the same named commit at the same root `HEAD` as the same review; the reviewer reads the findings and only `git diff <reviewed sha>..HEAD`. The `HEAD` it read is the next `<reviewed sha>`.
+5. Confirm: dispatch a fresh `roles.reviewer` at effort `high`, never the one that asked for the fix and never a second risk reviewer; a `roles.smallReviewer` or `roles.reviewer` batch is confirmed by a fresh one of the same role. The prompt names the plan or spec file, the findings, `<reviewed sha>` and the commit id of the fix to review (the new `HEAD`); the hook takes a second review of the same named commit at the same root `HEAD` as the same review; the reviewer reads the findings and only `git diff <reviewed sha>..HEAD`. The `HEAD` it read is the next `<reviewed sha>`.
    - The prompt also names the place of each earlier finding. The prompt asks the reviewer to give, for a new finding in one of those places, the root cause and the best design that removes that class of error at the root if one exists, with its cost.
 6. Two rounds of steps 3 to 5 at most. If a `blocking` finding still stands after the second, ask the owner in the question dialog: fix, accept or revert. An accepted finding goes under `Declined findings` with the owner's reason, and the accept counts as the ok. After the second round, a repeat changes this only when it has a design: if a blocking finding still stands, `redesign` and that design join the owner's question (fix, accept, revert); if none stands, the owner is asked alone, with that design: redesign, or leave it as its card. A repeat with no design adds nothing: the two-round limit stands, so no third fix goes out without the owner's answer.
 
@@ -102,6 +102,6 @@ An ok is a review or a confirmation that leaves no `blocking` finding open. Afte
 <role> ok at <sha>
 ```
 
-`<role>` is the value of `roles.riskReviewer` or `roles.reviewer`, whichever gave the ok. `<sha>` is the `HEAD` it read, 7 to 40 hex digits. Commit that line and nothing else.
+`<role>` is the value of `roles.riskReviewer`, `roles.reviewer` or `roles.smallReviewer`, whichever gave the ok. A risk batch has two lines in this order: `risk-review ok at <first sha>` (the risk reviewer's value of `<role>`, the `HEAD` it read), then `review ok at <fix sha>` after the fresh `roles.reviewer` confirms the fixes. With no blocking finding the risk line alone stands. `<sha>` is the `HEAD` it read, 7 to 40 hex digits. Commit that line and nothing else.
 
-The `review-seal` brake refuses a push to `mainBranch` unless every code commit is that sha or an ancestor of it, and takes only the `roles.riskReviewer` seal when a commit touches `paths.risk`. A code commit after `<sha>` needs its own confirmation and a new seal line.
+The `review-seal` brake refuses a push to `mainBranch` unless every code commit is that sha or an ancestor of it, and, when a commit touches `paths.risk`, takes a `roles.reviewer` seal only after a `roles.riskReviewer` seal of the same batch's range, and never a `roles.smallReviewer` seal. A code commit after `<sha>` needs its own confirmation and a new seal line.

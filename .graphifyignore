@@ -17,8 +17,10 @@
 .claude/skills/orchestrate/
 .claude/skills/pending/
 .claude/skills/tdd/
-.claude/skills/ponytail/
 .claude/skills/ponytail-review/
 .claude/agents/dream-analyzer.md
 .claude/agents/dream-organizer.md
 .claude/skills/dream/
+.claude/agents/review-small.md
+.claude/agents/implement-sql.md
+.claude/agents/implement-front.md
