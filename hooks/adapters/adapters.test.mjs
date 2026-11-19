@@ -183,6 +183,13 @@ test("claude: PreCompact prints the context as plain text", async () => {
   assert.equal(answer({ decision: "allow" }, { event: "preCompact", hookEvent: "PreCompact" }).stdout, "");
 });
 
+test("claude: a notice is shown to the user beside the context", async () => {
+  const { answer } = await import("./claude.mjs");
+  const ss = { event: "sessionStart", hookEvent: "SessionStart" };
+  assert.deepEqual(JSON.parse(answer({ decision: "allow", context: "hi", notice: "seen" }, ss).stdout), { systemMessage: "seen", hookSpecificOutput: { hookEventName: "SessionStart", additionalContext: "hi" } });
+  assert.equal(answer({ decision: "allow", context: "hi", notice: "seen" }, { event: "preCompact", hookEvent: "PreCompact" }).stdout, "hi");
+});
+
 test("claude: ask answers permissionDecision ask with the reason, on preTool only", async () => {
   const { answer } = await import("./claude.mjs");
   const o = JSON.parse(answer({ decision: "ask", reason: "sure?" }, { event: "preTool", hookEvent: "PreToolUse" }).stdout).hookSpecificOutput;
