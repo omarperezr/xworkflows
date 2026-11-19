@@ -169,11 +169,12 @@ function setScalar(s, path, key, value, scalars) {
 const ATTRIBUTION = { commit: "", pr: "" };
 // The marketplaces and plugins the manifest declares that this project uses: a plugin with whenTracked only when git tracks a file of that extension.
 const PLUGIN_MAPS = ["extraKnownMarketplaces", "enabledPlugins"];
-function pluginWants(manifest, root) {
+// all: every plugin the manifest declares, what uninstall may take out
+function pluginWants(manifest, root, all = false) {
   let tracked = [];
   try { tracked = execFileSync("git", ["ls-files", "-z"], { cwd: root, encoding: "utf8" }).split("\0"); } catch {}
   const exts = new Set(tracked.map((f) => extname(f).toLowerCase()));
-  const on = (manifest.plugins ?? []).filter((p) => !p.whenTracked || p.whenTracked.some((e) => exts.has(e)));
+  const on = (manifest.plugins ?? []).filter((p) => all || !p.whenTracked || p.whenTracked.some((e) => exts.has(e)));
   const markets = [...new Set(on.map((p) => p.id.split("@")[1]))].filter((n) => manifest.marketplaces?.[n]);
   return [
     ...markets.map((n) => ({ key: [PLUGIN_MAPS[0], n], value: { source: { source: "github", repo: manifest.marketplaces[n] } } })),
@@ -1084,6 +1085,9 @@ function uninstall() {
     if (u) { const x = renameWrite(w, u); wanted.set(x.path, x.text); }
   }
   const wants = settingsWants(manifest);
+  // a plugin sub-key goes only when the manifest declares it: the record never names one on its own
+  const declared = pluginWants(manifest, ROOT, true);
+  const planted = (x) => x.file === SETTINGS && declared.find((w) => isDeepStrictEqual(w.key, x.key));
   // a retired unit's line too: install wrote it, and it stays while a changed file keeps the unit's folder
   const giLines = new Set([".xworkflows/", ...[...wanted.keys(), ...retiredPaths(manifest).keys()].map(giLine).filter(Boolean)]);
   // the raw value: a section the loader refuses must not keep what install wrote for the memory folder
@@ -1098,7 +1102,7 @@ function uninstall() {
   const named = {
     files: (_, p) => wanted.has(p) || hookSet.has(p),
     merged: (m) => m.file === SETTINGS && wants.some((w) => isDeepStrictEqual(w.key, m.key)),
-    scalars: (x) => (x.file === SETTINGS && (isDeepStrictEqual(x.key, ["attribution"]) || (x.key?.length === 2 && PLUGIN_MAPS.includes(x.key[0])))) || (x.file === LOCAL && isDeepStrictEqual(x.key, [LOCAL_KEY])),
+    scalars: (x) => (x.file === SETTINGS && (isDeepStrictEqual(x.key, ["attribution"]) || planted(x))) || (x.file === LOCAL && isDeepStrictEqual(x.key, [LOCAL_KEY])),
     blocks: (b) => b.file === "AGENTS.md",
     imports: (i) => !!LINES.get(i.file)?.includes(i.line) || (i.file === GI && giLines.has(i.line)) || i.line === hookLine(basename(i.file)),
     // a hook file install made for husky: the record holds the line it put there
@@ -1137,7 +1141,7 @@ function uninstall() {
     } catch (e) { if (recFiles.has(p)) out.push(`not deleted (${e.code}): ${p}`); }
   }
   const merged = rec.merged;
-  const plugs = rec.scalars.filter((x) => x.file === SETTINGS && x.key?.length === 2 && PLUGIN_MAPS.includes(x.key[0]));
+  const plugs = rec.scalars.filter(planted);
   const text = merged.length || plugs.length ? read(ROOT, SETTINGS) : null;
   if (text !== null) {
     let s;
@@ -1152,7 +1156,8 @@ function uninstall() {
         if (i >= 0) { arr.splice(i, 1); changed = true; }
         else if (arr.some(w.ours)) out.push(`kept (changed locally): ${SETTINGS} ${w.key.join(".")}`);
       }
-      for (const { key: [map, name], value } of plugs) {
+      for (const x of plugs) {
+        const { key: [map, name] } = x, { value } = planted(x); // the value the manifest writes, not the record's
         if (!(name in (s[map] ?? {}))) continue;
         if (isDeepStrictEqual(s[map][name], value)) { delete s[map][name]; changed = true; }
         else out.push(`kept (changed locally): ${SETTINGS} ${map}.${name}`);
