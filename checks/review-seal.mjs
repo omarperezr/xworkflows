@@ -35,7 +35,7 @@ export function run(range, ctx) {
   }
   if (!unsealed.length) return { ok: true, lines: [] };
 
-  const re = new RegExp(`^\\s*(?:[-*>]\\s*)?\`?(${esc(roles.reviewer)}|${esc(roles.riskReviewer)}) ok at ([0-9a-f]{7,40})\`?\\.?\\s*$`, "gm");
+  const re = new RegExp(`^\\s*(?:[-*>]\\s*)?\`?(${[roles.reviewer, roles.riskReviewer, roles.smallReviewer].map(esc).join("|")}) ok at ([0-9a-f]{7,40})\`?\\.?\\s*$`, "gm");
   const docs = ctx.git("ls-tree", "-r", "--name-only", "-z", range.head).split("\0")
     .filter((f) => inPaths(f, [paths.plans, paths.specs]));
   const ancestor = (a, b) => ctx.tryGit("merge-base", "--is-ancestor", a, b).code === 0;
@@ -47,11 +47,12 @@ export function run(range, ctx) {
       const isRisk = who === roles.riskReviewer;
       // on a risk batch the reviewer's seal counts only after a risk seal of an ancestor sha, and that one names a commit of the pushed range
       if (isRisk) { if (range.commits.includes(full.out)) riskShas.push(full.out); }
-      else if (risk && !riskShas.some((r) => ancestor(r, full.out))) continue;
+      // the small reviewer's seal never counts on a risk batch
+      else if (risk && (who === roles.smallReviewer || !riskShas.some((r) => ancestor(r, full.out)))) continue;
       if (unsealed.every((c) => ancestor(c, full.out))) return { ok: true, lines: [] };
     }
   }
-  const who = risk ? roles.riskReviewer : `${roles.reviewer} or ${roles.riskReviewer}`;
+  const who = risk ? roles.riskReviewer : `${roles.reviewer}, ${roles.smallReviewer} or ${roles.riskReviewer}`;
   return {
     ok: false,
     lines: [

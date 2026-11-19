@@ -7,7 +7,7 @@ Before anything else, run `node .xworkflows/mark.mjs orchestrate` in the shell.
 
 You are the main session: you decide, dispatch and judge. Agents read, write and test. What you read stays in context for the rest of the session; what an agent reads is gone when it reports.
 
-Read `.xworkflows/config.json`: the names below are its keys. A key it lacks takes its default: `mainBranch` `main`; `paths.plans` `docs/superpowers/plans`; `paths.specs` `docs/superpowers/specs`; `paths.pending` `docs/PENDING.md`; `paths.nonCode` `docs/`, `.claude/`, `.xworkflows/`, `**/*.md`, `.gitignore`; `paths.curated` `AGENTS.md`, `CLAUDE.md`, `.claude/rules/`, `docs/BUSINESS.md`; `roles.implementers` `implement`, `mechanical`; `roles.lookup` `explore`; `roles.verifier` `verify-finding`; `roles.reviewer` `review`; `roles.riskReviewer` `risk-review`; `limits.inlineReadLines` 40; `limits.agentsBeforeWorkflow` 2; `lookup.index.command` `graphify query`; `lookup.index.minutes` 30. `paths.risk`, `paths.heavyRead` and `paths.codeAnyway` have none.
+Read `.xworkflows/config.json`: the names below are its keys. A key it lacks takes its default: `mainBranch` `main`; `paths.plans` `docs/superpowers/plans`; `paths.specs` `docs/superpowers/specs`; `paths.pending` `docs/PENDING.md`; `paths.nonCode` `docs/`, `.claude/`, `.xworkflows/`, `**/*.md`, `.gitignore`; `paths.curated` `AGENTS.md`, `CLAUDE.md`, `.claude/rules/`, `docs/BUSINESS.md`; `roles.implementers` `implement`, `implement-sql`, `implement-front`, `mechanical`; `roles.lookup` `explore`; `roles.verifier` `verify-finding`; `roles.reviewer` `review`; `roles.riskReviewer` `risk-review`; `roles.smallReviewer` `review-small`; `limits.inlineReadLines` 40; `limits.agentsBeforeWorkflow` 2; `lookup.index.command` `graphify query`; `lookup.index.minutes` 30. `paths.risk`, `paths.heavyRead` and `paths.codeAnyway` have none.
 
 ## The main session
 
@@ -46,7 +46,7 @@ The `handback` hook denies a report that lacks a key of its role. A key counts a
 | Agent | Keys |
 |---|---|
 | `roles.implementers` | `red:`, `green:`, `skipped:`, `sha:`. A change with no logic gives `no-test:` in place of `red:` and `green:` |
-| `roles.reviewer`, `roles.riskReviewer` | `reviewed:`, `not checked:` |
+| `roles.reviewer`, `roles.riskReviewer`, `roles.smallReviewer` | `reviewed:`, `not checked:` |
 | `roles.verifier` | `red:` or `discarded:` |
 | An agent that cannot do its task | `blocked:`; an implementer also `needs judgment:` or `cannot test:` |
 
@@ -104,4 +104,4 @@ An ok is a review or a confirmation that leaves no `blocking` finding open. Afte
 
 `<role>` is the value of `roles.riskReviewer`, `roles.reviewer` or `roles.smallReviewer`, whichever gave the ok. A risk batch has two lines in this order: `risk-review ok at <first sha>` (the risk reviewer's value of `<role>`, the `HEAD` it read), then `review ok at <fix sha>` after the fresh `roles.reviewer` confirms the fixes. With no blocking finding the risk line alone stands. `<sha>` is the `HEAD` it read, 7 to 40 hex digits. Commit that line and nothing else.
 
-The `review-seal` brake refuses a push to `mainBranch` unless every code commit is that sha or an ancestor of it, and, when a commit touches `paths.risk`, takes a `roles.reviewer` seal only after a `roles.riskReviewer` seal of the same batch. A code commit after `<sha>` needs its own confirmation and a new seal line.
+The `review-seal` brake refuses a push to `mainBranch` unless every code commit is that sha or an ancestor of it, and, when a commit touches `paths.risk`, takes a `roles.reviewer` seal only after a `roles.riskReviewer` seal of the same batch's range, and never a `roles.smallReviewer` seal. A code commit after `<sha>` needs its own confirmation and a new seal line.

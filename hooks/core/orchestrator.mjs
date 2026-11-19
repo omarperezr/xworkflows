@@ -52,7 +52,7 @@ export function decide(ev, ctx) {
   }
 
   if (ev.kind === "write") {
-    const roles = [config.roles.reviewer, config.roles.riskReviewer].map(esc).join("|");
+    const roles = [config.roles.reviewer, config.roles.riskReviewer, config.roles.smallReviewer].map(esc).join("|");
     const seal = new RegExp(`^\\s*(?:[-*>]\\s*)?\`?(?:${roles}) ok at [0-9a-f]{7,40}\`?\\.?\\s*$`);
     for (const w of ev.writes ?? []) {
       if (!under(w.path, [config.paths.plans, config.paths.specs])) continue;
