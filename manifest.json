@@ -114,9 +114,9 @@
         }
       ],
       "files": {
-        "hooks/core/safe-rm.mjs": "318a0d1c6b633aa54a5e88d41ed855769089d81cdb03ca5a5158f1d630ff9ed6"
+        "hooks/core/safe-rm.mjs": "f8b541dd07759f9f2713a0e54ffa8e2fb06c27cfaad15f992f47a76bcedbf1d3"
       },
-      "sha256": "0bc787bff4a8b2fb5e76313d7ad787040091c43e617a8707b1564f1c7b07aea6"
+      "sha256": "3766f96d335b4b422cd04d8448606694a242be9d791d243b7a75d6fd51546ffe"
     },
     {
       "id": "safe-db",
@@ -135,9 +135,9 @@
         }
       ],
       "files": {
-        "hooks/core/safe-db.mjs": "75aaab8347fdfe23f94bb5d93aa350d6ca99be5b973d304842fbb074ba577d31"
+        "hooks/core/safe-db.mjs": "d6dae4d877070d430a0cc940781281bc74e232f6b5aa6c5800eeff793eaadc82"
       },
-      "sha256": "4737376aa1007dcc509c1549e184d0c19af19ebabaf807a0a8e4dadeb840c0c9"
+      "sha256": "097d0e9a382b41734b1de363bcd3e64fada3879949f250d97d60e9aa7e7e51b1"
     },
     {
       "id": "adapt-gates",
