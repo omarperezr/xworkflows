@@ -94,6 +94,15 @@ Root cause: the hook knows a database tool only as the command word, found after
 - One export in `hooks/core/config.mjs` gives the reviewer roles and the seal pattern; the five readers use it. `agents/skills-one-name.test.mjs` goes (skills/method.test.mjs keeps the rule).
 - Done: `node --test checks/ hooks/ proof/` passes, behavior unchanged.
 
+Possible design error in hooks/core/safe-db.mjs decide, third finding (confirmation of f091f5b)
+Root cause: literals are blanked on one joined string with standard-SQL quoting only, so a `\'` apostrophe or a lone quote pairs with a later quote and blanks a whole `DELETE` with no WHERE between them. Alternative design: a literal whose content holds a form keyword (`drop`, `truncate`, `delete from`, `update ... set`) stays raw, so a wrong pairing ends in a question, never a miss. Owner, 2026-11-19, after the second round: "Arreglar así (Recommended)"; one rule for `rm` in both hooks, a word `rm` counts unless the word before it is `git`: "Sí, en los dos (Recommended)"; `dropdb` asks only when a name follows it: "Sí, ahora (Recommended)".
+
+**T13: owner's fix after round 2** (confirmation of f091f5b, findings 1 to 3)
+- Files: `hooks/core/safe-db.mjs`, `hooks/core/safe-db.test.mjs`, `hooks/core/safe-rm.mjs`, `hooks/core/safe-rm.test.mjs`
+- Role: implement
+- The three answers above.
+- Done: tests first (the mysql `\'` line, `E'it\'s'`, `exec rm prod.db`, `docker exec db rm /var/lib/app.db` ask; `git rm -r --cached "$DIR"` and `which dropdb` pass), red before; `node --test hooks/` passes.
+
 After the merge, the main session runs `node bin/xworkflows.mjs install` in this repository and `doctor`, and, on the owner's word, the same in the pilot project before its first batch.
 
 ## Review Focus
