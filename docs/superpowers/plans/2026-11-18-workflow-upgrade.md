@@ -103,6 +103,15 @@ Root cause: literals are blanked on one joined string with standard-SQL quoting 
 - The three answers above.
 - Done: tests first (the mysql `\'` line, `E'it\'s'`, `exec rm prod.db`, `docker exec db rm /var/lib/app.db` ask; `git rm -r --cached "$DIR"` and `which dropdb` pass), red before; `node --test hooks/` passes.
 
+Possible design error in hooks/core/safe-db.mjs decide, fourth finding (confirmation of 9fdc6d1)
+Root cause: the hook tells safe SQL from dangerous by reading SQL text with patterns, and every refinement made to ask less (blanking literals, counting brackets, a raw literal, `dropdb` with a name, the `git` word before `rm`) opened a new miss: `UPDATE docs SET body = 'Drop us a line where you live'` passes, `echo app | xargs dropdb` passes, `sudo -u git rm -rf "$DIR/"` passes. A pattern never reads SQL whole. New design, doubt asks: a `DELETE` or `UPDATE` statement passes only when it has a `WHERE`, that `WHERE` is not always true, and the statement holds no quote mark and no bracket; any quote or bracket asks. `DROP` and `TRUNCATE` always ask. `dropdb` asks whenever it runs (a name follows it or it is the command word). The `git` exception for `rm` holds only when `git` is the program the segment runs (its command word), never an option value. No literal blanking and no bracket counting remain. Owner, 2026-11-19: "En la duda, pregunta (Recommended)". Cost the owner accepted: more questions, and in a subagent those are denied and handed to the main session.
+
+**T14: doubt asks** (confirmation of 9fdc6d1, findings 1 to 3)
+- Files: `hooks/core/safe-db.mjs`, `hooks/core/safe-db.test.mjs`, `hooks/core/safe-rm.mjs`, `hooks/core/safe-rm.test.mjs`
+- Role: implement
+- The design above; delete the code it makes dead.
+- Done: tests first (the three passing forms above ask or deny; `UPDATE users SET name='x' WHERE id=1` asks; `DELETE FROM t WHERE id = 1` passes; `git rm -r "$DIR"` passes; every earlier round's ask case still asks), red before; `node --test hooks/` passes.
+
 After the merge, the main session runs `node bin/xworkflows.mjs install` in this repository and `doctor`, and, on the owner's word, the same in the pilot project before its first batch.
 
 ## Review Focus
