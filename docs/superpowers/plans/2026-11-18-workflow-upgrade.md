@@ -124,7 +124,7 @@ Root cause: the hook still lists the dangerous forms (a blocklist), and a new sp
 Owner's answer on the confirmation of e6e3df5 (2026-11-19): "El paquete completo (Recommended)": the four errors are fixed, the GRANT/REVOKE TRUNCATE exception goes, the allowlisted WHERE takes `=` only, and the dead `>|` branch goes; the new forms go to cards (P-211 to P-213).
 
 **T16: the owner's package after the confirmation of e6e3df5** (findings 1 to 4, 6, 8)
-- Files: `hooks/core/safe-db.mjs`, `hooks/core/safe-db.test.mjs`
+- Files: `hooks/core/safe-db.mjs`, `hooks/core/safe-db.test.mjs`, `hooks/core/safe-db-anywhere.test.mjs`
 - Role: implement
 - `cat <file>` is read only when its pipe feeds a database client; a WHERE term's left side is a name that is not TRUE, FALSE or NULL, its sides are compared with the qualifier stripped, and the operator is `=` only; `\i`, `\ir`, `\include` and `source` end at a newline as well as `;`; no GRANT/REVOKE exception; the `>|` branch goes.
 - Done: tests first (`cat /dev/urandom | head -c 32 | base64` answers at once and allows, `WHERE true <> false`, `WHERE users.id = id`, `WHERE 1e0 = 1`, `WHERE id > 0`, two `\i` lines in a heredoc, `TRUNCATE sessions -- revoke all` and `GRANT TRUNCATE ON t TO app` ask), red before; `node --test hooks/` passes.
