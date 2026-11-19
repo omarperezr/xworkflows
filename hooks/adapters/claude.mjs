@@ -23,6 +23,7 @@ export function normalize(raw, env) {
 export function answer(d, ev) {
   let stdout = "";
   if ((d.decision === "deny" || d.decision === "ask") && (!ev || ev.event === "preTool")) stdout = JSON.stringify({ hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: d.decision, permissionDecisionReason: d.reason } });
+  else if (d.decision !== "deny" && d.decision !== "ask" && typeof d.context === "string" && d.context && ev?.event === "preCompact") stdout = d.context; // the plain stdout of PreCompact becomes the summary instructions
   else if (d.decision !== "deny" && d.decision !== "ask" && typeof d.context === "string" && d.context) stdout = JSON.stringify({ hookSpecificOutput: { hookEventName: ev?.hookEvent, additionalContext: d.context } });
   return { stdout, exitCode: 0 };
 }

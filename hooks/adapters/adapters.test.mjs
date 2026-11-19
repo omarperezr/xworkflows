@@ -177,6 +177,12 @@ test("claude: answer carries context, and a deny only on preTool", async () => {
   assert.equal(JSON.parse(answer({ decision: "deny", reason: "no" }).stdout).hookSpecificOutput.permissionDecision, "deny");
 });
 
+test("claude: PreCompact prints the context as plain text", async () => {
+  const { answer } = await import("./claude.mjs");
+  assert.equal(answer({ decision: "allow", context: "hand-off" }, { event: "preCompact", hookEvent: "PreCompact" }).stdout, "hand-off");
+  assert.equal(answer({ decision: "allow" }, { event: "preCompact", hookEvent: "PreCompact" }).stdout, "");
+});
+
 test("claude: ask answers permissionDecision ask with the reason, on preTool only", async () => {
   const { answer } = await import("./claude.mjs");
   const o = JSON.parse(answer({ decision: "ask", reason: "sure?" }, { event: "preTool", hookEvent: "PreToolUse" }).stdout).hookSpecificOutput;

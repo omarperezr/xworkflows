@@ -490,6 +490,29 @@
       "sha256": "4739f4bd94ebbcd336f1aa9a58c9610e21aa606fedc7d6bea6b277f9d0d15941"
     },
     {
+      "id": "handoff",
+      "kind": "hook",
+      "origin": "own",
+      "version": "0.1.0",
+      "license": "MIT",
+      "scope": "project",
+      "tools": [
+        "claude"
+      ],
+      "claude": [
+        {
+          "event": "SessionStart"
+        },
+        {
+          "event": "PreCompact"
+        }
+      ],
+      "files": {
+        "hooks/core/handoff.mjs": "stale"
+      },
+      "sha256": "stale"
+    },
+    {
       "id": "implement",
       "kind": "agent",
       "origin": "own",
@@ -653,6 +676,24 @@
         "skills/orchestrate/SKILL.md": "a8b79d7e190515204f31759e6c33b27255f29a5b2d3ba2836c6deeb52ef392af"
       },
       "sha256": "0bbbd80a90639234959754b925200374621d5947adce013d977079b391e8d511"
+    },
+    {
+      "id": "handoff",
+      "kind": "skill",
+      "origin": "own",
+      "version": "0.1.0",
+      "license": "MIT",
+      "scope": "project",
+      "tools": [
+        "claude",
+        "codex",
+        "cursor",
+        "gemini"
+      ],
+      "files": {
+        "skills/handoff/SKILL.md": "stale"
+      },
+      "sha256": "stale"
     },
     {
       "id": "pending",
