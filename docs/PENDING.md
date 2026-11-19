@@ -58,6 +58,7 @@ One living list. The `pending` brake checks these rules:
 
 ## Check runner and brakes
 
+- **P-221** — `checks/pending.mjs`: a batch branch that adds its own card and closes it before the merge leaves no net change to the list in its `--no-ff` merge, so the brake fails the branch's plan commits ("a commit changes a plan without docs/PENDING.md") although every step followed the `pending` skill; the batch needs an extra list commit with `pending-for:`. Wanted: the merge counts when any commit of the merged branch changed the list. Origin: push of `handoff-notice`, 2026-11-19. Status: unscheduled.
 
 
 
