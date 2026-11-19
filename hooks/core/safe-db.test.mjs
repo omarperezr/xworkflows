@@ -146,8 +146,30 @@ test("SQL string literals are blanked before the statement split and the bracket
   assert.ok(allowed(`psql -c "UPDATE t SET note = 'size (L' WHERE id = 1"`));
   assert.ok(allowed(`psql -c "UPDATE t SET note = 'a; b' WHERE id = 1"`));
   assert.ok(allowed(`psql -c "UPDATE t SET note = 'it''s; (x' WHERE id = 1"`));
-  assert.ok(allowed(`psql -c "UPDATE t SET note = 'drop table x -- y' WHERE id = 1"`));
+  assert.ok(asks(`psql -c "UPDATE t SET note = 'drop table x -- y' WHERE id = 1"`));
   assert.ok(asks(`psql -c "UPDATE t SET note = 'a; b'"`));
   assert.ok(asks(`psql -c "SELECT 'x'; DROP TABLE users"`));
   assert.ok(asks(`psql -c "DELETE FROM t WHERE 'a'='a'"`));
+});
+
+test("a literal that holds a form keyword stays raw, so a wrong quote pairing asks", () => {
+  const sql = `UPDATE users SET bio='I\\'m back' WHERE id=1; DELETE FROM sessions; UPDATE t SET a='x' WHERE id=2`;
+  assert.ok(asks(`mysql app -e "${sql}"`));
+  assert.ok(asks(`psql -c "UPDATE t SET a = E'it\\'s' WHERE id=1; DELETE FROM sessions; UPDATE u SET b='x' WHERE id=2"`));
+  writeFileSync(join(root, "q.sql"), sql);
+  assert.ok(asks("mysql app < q.sql"));
+  assert.ok(asks(`psql -v "who=O'Brien" -c "DELETE FROM sessions" -c "UPDATE t SET a='x' WHERE id=2"`));
+  assert.ok(allowed(`psql -c "UPDATE t SET a = 'it''s' WHERE id = 1; UPDATE u SET b = 'x' WHERE id = 2"`));
+});
+
+test("rm counts as a database delete behind any runner, unless git runs it", () => {
+  for (const c of ["exec rm prod.db", "timeout 60 rm prod.db", "docker exec db rm /var/lib/app.db"]) assert.ok(asks(c), c);
+  assert.ok(allowed("git rm --cached dev.db"));
+});
+
+test("dropdb counts only when a name follows it", () => {
+  assert.ok(allowed("which dropdb"));
+  assert.ok(allowed("man dropdb"));
+  assert.ok(asks("dropdb app"));
+  assert.ok(asks("npx dropdb app"));
 });

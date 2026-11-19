@@ -1,11 +1,12 @@
 import { resolve } from "node:path";
 import { segments, commandWord, base } from "./shell-words.mjs";
+import { isRm } from "./safe-rm.mjs";
 
 const CLIENT = /^(?:psql|mysql|mariadb|sqlite3?|sqlcmd|duckdb|usql|clickhouse-client|supabase)$/;
 const SCRIPT = /^(?:rake|rails|bundle|sequelize|sequelize-cli|npm|yarn|pnpm|bunx?|npx|node|deno|tsx)$/;
 // [a tool word, the words from it on]: a CLI form counts when an unquoted word is that tool, whatever runs it
 const CLI = [
-  [/^dropdb$/, /./], [/^supabase$/, /\bdb\s+reset\b/],
+  [/^dropdb$/, /\s\S/], [/^supabase$/, /\bdb\s+reset\b/],
   [/^prisma$/, /\bprisma\s+migrate\s+reset\b|\bprisma\s+db\s+push\b.*(?:--force-reset|--accept-data-loss)/],
   [SCRIPT, /\bdb:(?:drop|reset|schema:load)\b/],
   [/^manage\.py$/, /\bmanage\.py\s+flush\b/],
@@ -13,12 +14,13 @@ const CLI = [
   [/^redis-cli$/, /\bflush(?:all|db)\b/i],
   [/^mongosh?$/, /\bdropDatabase\s*\(|\bdeleteMany\(\s*\{\s*\}\s*\)/],
 ];
-// a file named .db or .sqlite goes only when rm is the command word, so `git rm --cached dev.db` passes
+// a file named .db or .sqlite goes when a word rm names it (not `git rm --cached dev.db`)
 const RM_DB = /\.(?:db|sqlite3?)(?:\s|$)/;
-// a literal's content is blanked to _ (so 'a'='a' stays a true form); the first match wins, so a quote inside a comment or a -- inside a literal is read right
+// a literal's content is blanked to _ (so 'a'='a' stays a true form), unless it holds a form keyword: it stays raw, so a quote paired wrong (\' or a lone quote) ends in a question, never a miss; the first match wins, so a quote inside a comment or a -- inside a literal is read right
+const FORM = /\bdrop\b|\btruncate\b|\bdelete\s+from\b|\bupdate\b[\s\S]*\bset\b/i;
 const TRUE = /^\s*\(?\s*(?:1\s*=\s*1|true|'_*'\s*=\s*'_*')(?![\w.])(?!\s*and\b)/i;
 
-const stripComments = (t, loose) => t.replace(new RegExp(`'(?:[^']|'')*'|/\\*[\\s\\S]*?\\*/|${loose ? "--[^\\n]*" : "(?<!\\S)--(?=\\s|$)[^\\n]*"}`, "g"), (m) => (m[0] === "'" ? `'${"_".repeat(m.length - 2)}'` : " "));
+const stripComments = (t, loose) => t.replace(new RegExp(`'(?:[^']|'')*'|/\\*[\\s\\S]*?\\*/|${loose ? "--[^\\n]*" : "(?<!\\S)--(?=\\s|$)[^\\n]*"}`, "g"), (m) => (m[0] !== "'" ? " " : FORM.test(m) ? m : `'${"_".repeat(m.length - 2)}'`));
 
 // the words as SQL text: a word that holds whitespace (a quoted -c value) is a statement of its own
 const sqlText = (words) => words.reduce((t, w, i) => (i ? `${t}${/\s/.test(w) || /\s/.test(words[i - 1]) ? ";\n" : " "}${w}` : w), "");
@@ -67,7 +69,7 @@ export function decide(ev, ctx) {
     fed = seg.pipe ? `${fed};\n${own}` : "";
     const cmd = commandWord(seg.words);
     if (cmd?.word === "cd") dir = resolve(dir, seg.words.slice(cmd.at + 1).find((a) => !a.startsWith("-")) ?? ".");
-    if (cmd?.word === "rm" && RM_DB.test(seg.words.slice(cmd.at).join(" "))) form = "a database reset or delete command";
+    if (seg.words.some((_, i) => isRm(seg.words, i) && RM_DB.test(seg.words.slice(i).join(" ")))) form = "a database reset or delete command";
     for (let i = 0; i < seg.words.length && !form; i++) {
       const tool = base(seg.words[i]), args = seg.words.slice(i + 1), line = seg.words.slice(i).join(" ");
       if (CLI.some(([word, re]) => word.test(tool) && re.test(line))) form = "a database reset or delete command";

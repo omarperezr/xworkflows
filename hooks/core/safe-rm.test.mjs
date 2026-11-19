@@ -71,3 +71,10 @@ test("a later rm with a literal path is allowed", () => {
   assert.ok(allowed("timeout 60 rm -rf build"));
   assert.ok(allowed('f() { rm -f "$X"; }'));
 });
+
+test("git rm is not the shell rm: allow; every other runner still denies", () => {
+  assert.ok(allowed('git rm -r --cached "$DIR"'));
+  assert.ok(allowed('git rm -r "$DIR"'));
+  assert.ok(denied('sudo git rm -r "$DIR"; exec rm -rf "$DIR"'));
+  assert.ok(denied('echo git rm; rm -rf "$DIR"'));
+});
