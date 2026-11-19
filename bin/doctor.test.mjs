@@ -186,6 +186,16 @@ test("doctor prints the session-start bytes and fails above the budget", () => {
   assert.equal(over.status, 1);
   assert.match(over.stdout, /^fail session-start text: [1-9]\d* bytes of 10: /m);
 });
+test("doctor does not count the hand-off in the session-start bytes and warns on one over the cap", () => {
+  const r = repo(); cli(r, ["install"]);
+  const base = doctor(r, { HOME: EMPTY_HOME }).stdout.match(/session-start text: (\d+) bytes/)[1];
+  writeFileSync(join(r, ".xworkflows/handoff.md"), `main: ${git(r, "rev-parse main")}\nNext: x\n`);
+  const out = doctor(r, { HOME: EMPTY_HOME }).stdout;
+  assert.match(out, new RegExp(`^ok +session-start text: ${base} bytes of 2000$`, "m"));
+  assert.doesNotMatch(out, /^warn .*handoff/m);
+  writeFileSync(join(r, ".xworkflows/handoff.md"), "x".repeat(1501));
+  assert.match(doctor(r, { HOME: EMPTY_HOME }).stdout, /^warn \.xworkflows\/handoff\.md is 1501 bytes, over tokens\.handoffBytes 1500: it is not loaded; shorten it$/m);
+});
 test("doctor warns on an attribution that shows an AI line and on a memory folder outside the repository", () => {
   const r = repo(); cli(r, ["install"]);
   assert.doesNotMatch(doctor(r).stdout, /^warn (attribution|autoMemoryDirectory)/m);
