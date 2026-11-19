@@ -13,6 +13,7 @@ Spec: docs/superpowers/specs/2026-11-18-workflow-upgrade.md
 - The database hook asks the owner ("Te pregunta a ti (Recommended)"); in a subagent it denies ("Bloquear en agentes (Recommended)").
 - Tests build their repositories in a private `TMPDIR` and delete only inside it.
 - Owner, 2026-11-18, after seeing that superpowers adds about 3 KB at every session start and its own method: tdd stays our own guide: "Guia tdd nuestra"; the SQL and front plugins are enabled only where the project uses them: "Solo si el proyecto los usa (Recommended)". superpowers is never enabled.
+- Owner's answers on the risk review of e59867d (2026-11-19): the ponytail plugin stays on although it adds about 2.4 KB to every session and agent: "Activar el plugin igual"; SQL and screen files count only under `paths.code`: "Solo carpetas de código (Recommended)"; impeccable and supabase stay enabled where used: "Sí, así (Recommended)"; the inner `try`/`catch` of `safe-db` and `safe-rm` goes: "Sí, quitarlo (Recommended)".
 
 ## Tasks
 
