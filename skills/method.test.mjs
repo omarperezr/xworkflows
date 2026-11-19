@@ -32,7 +32,9 @@ test("every skill an agent lists travels with the package", () => {
   const plugins = new Set(manifest.plugins.map((p) => p.id.split("@")[0]));
   for (const a of ["implement", "implement-sql", "implement-front", "review", "review-small"]) {
     const front = read(`agents/${a}.md`).split(/^---\n/m)[1];
-    for (const [, s] of front.matchAll(/^\s+- (\S+)$/gm)) {
+    for (const [, item] of front.matchAll(/^\s+- (.*)$/gm)) {
+      const s = item.trim();
+      assert.match(s, /^\S+$/, `${a}: "${s}" is more than one name`);
       const declared = s.includes(":") && plugins.has(s.split(":")[0]);
       assert.ok(declared || existsSync(join(root, "skills", s, "SKILL.md")), `${a} -> ${s}`);
     }

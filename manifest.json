@@ -545,9 +545,9 @@
         "claude"
       ],
       "files": {
-        "agents/implement-front.md": "5ac4ea536041b9d85771692b8492d45c1bc4df44e69fc56489ba6cf57bbaf153"
+        "agents/implement-front.md": "0974288962afa2ad6dd559c5d3e00b5016a2d5109cf385bca273ab3f69087c36"
       },
-      "sha256": "226d3af9c274b090c32fe20a72c73eca8dddb96ce82061e032a67968e8979bc1"
+      "sha256": "98f2c8f592f6fc4dae0ebef608f2f9857eeeff455ae5d03b3b88a0932ee7a305"
     },
     {
       "id": "mechanical",
@@ -781,7 +781,7 @@
         "checks/fix-has-test.mjs": "63ba9b3dbbf9251be58632b667ed69f611aa0c6a7fb6c893a114c1a2610defc4",
         "checks/change-size.mjs": "be1366d8e2f5fa80b0616cf4a22c660526316b988df38d28643c31c46ac8b855",
         "checks/comment-ratio.mjs": "20112da90275485c4cfa149cb2164517aa308873b49a97d1f5d8c98f9a621310",
-        "checks/skills-travel.mjs": "912be9319395715a3beec405e039567ceecbad7173bc76922981cf9679f07685",
+        "checks/skills-travel.mjs": "8d07b0a7a7ff0bddd5e8896957adee0a687d10b8f34a1bb97ddd3bae49204ddd",
         "checks/patterns.mjs": "b76bd62236b34035c628147793d6d428959a91036f7700389bd6d7c443805e12",
         "checks/ratchet.mjs": "5eaaeeecccfd4cc62ceba0961f39d99dc162c1b0592efee6a576d643946d2a88",
         "checks/graph-current.mjs": "3a174bf16b0e546ade3c5dfc5a7633e570020adb527a9385724880b41dd93c21",
@@ -789,7 +789,7 @@
         "checks/index-current.mjs": "e76348a0862428fa5ee2754746a77a5bddb0a734a9ac037668cb5837977a10be",
         "checks/project.mjs": "3756970ca6af156dc599cdae8afcb7f2adc0982d5be72cb0c79b04d2777ce901"
       },
-      "sha256": "936e0d61222e3df4d01d26e489b00e96c275a95346118912b015bb749c287a1a"
+      "sha256": "739c6324eaa48de5fe81675d871895f88f29cb905a08228249b005844cec1420"
     },
     {
       "id": "lint",

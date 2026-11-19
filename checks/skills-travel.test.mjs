@@ -80,3 +80,11 @@ test("agent files with accented letters or spaces are read", async () => {
     assert.match(r.lines.join("\n"), /gone/);
   }
 });
+
+test("one list item holding two names fails, plugin:skill form or not", async () => {
+  for (const item of ["plug:a plug:b", "one two"]) {
+    const r = await check({ ".claude/agents/a.md": agent(`skills:\n  - ${item}\n`), ...skill("one"), ...skill("two") });
+    assert.equal(r.ok, false, item);
+    assert.match(r.lines.join("\n"), new RegExp(item));
+  }
+});

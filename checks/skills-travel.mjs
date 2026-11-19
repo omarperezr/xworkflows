@@ -28,7 +28,8 @@ export function run(range, ctx) {
   for (const f of tree.filter((p) => /^\.claude\/agents\/[^/]+\.md$/.test(p))) {
     const agent = f.slice(f.lastIndexOf("/") + 1, -3);
     for (const n of skillNames(ctx.show(range.head, f) ?? "")) {
-      if (!n.includes(":") && !inTree.has(`.claude/skills/${n}/SKILL.md`)) bad.push(`${agent}: ${n} is not in git; commit .claude/skills/${n}/SKILL.md`);
+      if (/\s/.test(n)) bad.push(`${agent}: "${n}" is more than one name; give each skill its own list item`);
+      else if (!n.includes(":") && !inTree.has(`.claude/skills/${n}/SKILL.md`)) bad.push(`${agent}: ${n} is not in git; commit .claude/skills/${n}/SKILL.md`);
     }
   }
   return bad.length ? { ok: false, lines: [`${bad.length} agent skill(s) do not travel with the repository`, ...bad] } : { ok: true, lines: [] };

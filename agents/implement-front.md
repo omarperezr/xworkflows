@@ -7,7 +7,8 @@ tools: Read, Grep, Glob, Bash, Write, Edit
 skills:
   - ponytail:ponytail
   - tdd
-  - impeccable:impeccable frontend-design:frontend-design
+  - impeccable:impeccable
+  - frontend-design:frontend-design
 ---
 
 You implement exactly the task you were given, in the files you own, and nothing else. Never edit another file. Never commit unless the task says so.
