@@ -34,20 +34,17 @@ function sqlFiles(cmd) {
 }
 
 export function decide(ev, ctx) {
-  try {
-    if (ev?.kind !== "shell" || typeof ev.command !== "string") return { decision: "allow" };
-    let form = CLI.some((re) => re.test(ev.command)) ? "a database reset or delete command" : sqlForm(ev.command, false);
-    if (!form && CLIENT.test(ev.command)) {
-      for (const f of sqlFiles(ev.command)) {
-        const text = ctx.readFile(resolve(ev.root, f));
-        if (typeof text === "string" && (form = sqlForm(text, true))) { form = `${form} in ${f}`; break; }
-      }
+  if (ev?.kind !== "shell" || typeof ev.command !== "string") return { decision: "allow" };
+  let form = CLI.some((re) => re.test(ev.command)) ? "a database reset or delete command" : sqlForm(ev.command, false);
+  if (!form && CLIENT.test(ev.command)) {
+    for (const f of sqlFiles(ev.command)) {
+      const text = ctx.readFile(resolve(ev.root, f));
+      if (typeof text === "string" && (form = sqlForm(text, true))) { form = `${form} in ${f}`; break; }
     }
-    if (!form) return { decision: "allow" };
-    return ev.isSubagent
-      ? { decision: "deny", reason: `This command would delete data (${form}). A subagent may not run it: hand the command to the main session, which asks the owner.` }
-      : { decision: "ask", reason: `This command would delete data (${form}). Confirm with the owner before it runs.` };
-  } catch {}
-  return { decision: "allow" };
+  }
+  if (!form) return { decision: "allow" };
+  return ev.isSubagent
+    ? { decision: "deny", reason: `This command would delete data (${form}). A subagent may not run it: hand the command to the main session, which asks the owner.` }
+    : { decision: "ask", reason: `This command would delete data (${form}). Confirm with the owner before it runs.` };
 }
 // shortcut: no shell or SQL parser; aliases, scripts that hold the SQL, eval, bash -c "...", variables holding SQL and a WHERE that is only true in a way other than 1=1, true or 'a'='a' are not followed, upgrade by parsing the nested command.

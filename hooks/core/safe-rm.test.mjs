@@ -50,3 +50,12 @@ test("non-shell and broken input: allow", () => {
   assert.ok(allowed("rm -rf $D", { kind: "write" }));
   assert.equal(decide(null, ctx).decision, "allow");
 });
+
+test("rm behind NAME=value, while, until, elif and else: deny", () => {
+  for (const c of ['FOO=1 rm -rf "$X"', 'while rm -rf "$X"; do :; done', 'until rm -rf "$X"; do :; done', 'if a; then b; elif rm -rf "$X"; then c; fi', 'if a; then b; else rm -rf "$X"; fi', "rm -rf $*"]) assert.ok(denied(c), c);
+});
+
+test("rm only named in a heredoc or as an argument: allow", () => {
+  assert.ok(allowed("cat <<EOF\nrm -rf $X\nEOF"));
+  assert.ok(allowed("sudo -u app ls $X"));
+});

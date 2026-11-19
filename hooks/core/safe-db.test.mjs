@@ -77,9 +77,8 @@ test("subagent: deny and hand to the main session", () => {
   assert.match(d.reason, /main session/);
 });
 
-test("broken input and exceptions allow", () => {
+test("broken input allows", () => {
   assert.equal(decide(undefined, ctx).decision, "allow");
   assert.equal(decide({ kind: "write" }, ctx).decision, "allow");
   assert.equal(decide(ev(null), ctx).decision, "allow");
-  assert.equal(decide(ev("psql -f x.sql"), { readFile: () => { throw new Error("x"); } }).decision, "allow");
 });
