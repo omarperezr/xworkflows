@@ -6,7 +6,7 @@ import { execFileSync } from "node:child_process";
 import { homedir, tmpdir } from "node:os";
 import { basename, join, resolve } from "node:path";
 import { parseArgs } from "node:util";
-import { loadLenient } from "../hooks/core/config.mjs";
+import { loadLenient, reviewerRoles } from "../hooks/core/config.mjs";
 
 // Prices in USD per million tokens: input / output / 5-minute cache write / 1-hour cache write / cache read.
 // Source: https://platform.claude.com/docs/en/about-claude/pricing, read 2026-11-18.
@@ -129,7 +129,7 @@ const group = (recs, key) => {
 const usdOf = (g) => Object.values(g).some((e) => e.usd === null) ? null : Object.values(g).reduce((s, e) => s + e.usd, 0);
 
 // One row per batch. Sessions bound by time only: other work in the window counts too.
-export function buildRows(repo, main, sessions, log, judged) {
+export function buildRows(repo, main, sessions, log, judged, roles) {
   const batches = readBatches(repo, main);
   const batchOf = new Map();
   batches.forEach((b, i) => { batchOf.set(b.sha, i); b.commits.forEach((c) => batchOf.set(c.sha, i)); });
@@ -156,7 +156,7 @@ export function buildRows(repo, main, sessions, log, judged) {
     return {
       merge: b.sha, branch: b.branch, windowStart: Number.isFinite(start) ? new Date(start).toISOString() : null, windowEnd: new Date(b.time).toISOString(), partial: start < sessions.first,
       byModel, byAgent, usd: start < sessions.first ? null : usdOf(byModel), notes: unpriced,
-      riskReviewRuns: runs.filter((r) => r.agent === "risk-review").length, reviewRounds: runs.filter((r) => r.agent === "review" || r.agent === "risk-review").length,
+      riskReviewRuns: runs.filter((r) => r.agent === roles.riskReviewer).length, reviewRounds: runs.filter((r) => reviewerRoles(roles).includes(r.agent)).length,
       commits: b.commits.length, changedLines: lines, fixCommits: fixes.length, fixOfFix, failuresAfterSeal,
       denials: wd, falseDenials: Array.isArray(wd) ? wd.filter((d) => judged.has(d.time)).length : 0,
     };
@@ -192,8 +192,8 @@ export function measure(argv, deps = {}) {
     if (!existsSync(sdir)) { err(`measure: no session folder ${sdir}`); return 2; }
     const sessions = readSessions(sdir);
     if (!sessions.records.length) { err("measure: no assistant message with an id and usage in the session files"); return 2; }
-    const main = loadLenient(project).config.mainBranch;
-    const rows = buildRows(project, main, sessions, denialsOf(env.XWORKFLOWS_STATE_DIR ?? tmpdir()), new Set(judgedRows().map((j) => j.time)));
+    const { mainBranch: main, roles } = loadLenient(project).config;
+    const rows = buildRows(project, main, sessions, denialsOf(env.XWORKFLOWS_STATE_DIR ?? tmpdir()), new Set(judgedRows().map((j) => j.time)), roles);
     mkdirSync(out, { recursive: true });
     writeFileSync(join(out, `${basename(project)}.jsonl`), rows.map((r) => JSON.stringify(r) + "\n").join(""));
     for (const r of rows) for (const f of r.failuresAfterSeal) log(`failure after the seal: ${r.branch} came back in fix ${f.fix} of ${f.fixBatch}, from commit ${f.commit}`);

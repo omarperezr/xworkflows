@@ -390,3 +390,27 @@ test("install: a retired entry naming a file this tool's adapter never installs 
   const out = cliAt(copy, repo(), ["install", "--yes"]);
   assert.equal(out.status, 0, out.stderr);
 });
+
+// the copy of ponytail an earlier version shipped, read at the fixed commit b0f0430 (HEAD no longer holds it): gone on install when unchanged, kept when edited; the plugin replaces it
+const OLD_PONY = () => Object.fromEntries(["SKILL.md", "LICENSE", "SOURCE.md"].map((f) => [f, spawnSync("git", ["show", `b0f0430:skills/ponytail/${f}`], { cwd: PKG_ROOT, encoding: "utf8" }).stdout]));
+const withOldPony = (edit) => {
+  const r = repo();
+  cli(r, ["install"]);
+  const rec = readJson(r, ".xworkflows/installed.json");
+  mkdirSync(join(r, ".claude/skills/ponytail"), { recursive: true });
+  for (const [f, text] of Object.entries(OLD_PONY())) {
+    const p = `.claude/skills/ponytail/${f}`;
+    writeFileSync(join(r, p), f === "SKILL.md" && edit ? text + "mine\n" : text);
+    rec.files[p] = { sha256: sha(text) };
+  }
+  writeJson(r, ".xworkflows/installed.json", rec);
+  return r;
+};
+test("install removes an unchanged old ponytail copy and keeps an edited one", () => {
+  const a = withOldPony(false);
+  cli(a, ["install"]);
+  assert.ok(!existsSync(join(a, ".claude/skills/ponytail")));
+  const b = withOldPony(true);
+  assert.match(cli(b, ["install"]).stdout, /kept \(no longer shipped, changed locally\): \.claude\/skills\/ponytail\/SKILL\.md/);
+  assert.ok(existsSync(join(b, ".claude/skills/ponytail/SKILL.md")));
+});

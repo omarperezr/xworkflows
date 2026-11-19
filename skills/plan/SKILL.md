@@ -9,16 +9,16 @@ A plan holds only settled decisions: if one is still open, stop and go back to `
 
 Talk to the owner in the owner's language. The plan is in English, except the owner's words, which are quoted as said.
 
-Read `.xworkflows/config.json`: `paths.plans` (default `docs/superpowers/plans`), `paths.pending` (default `docs/PENDING.md`), `paths.curated` (default `AGENTS.md`, `CLAUDE.md`, `.claude/rules/`, `docs/BUSINESS.md`), `roles.implementers` (default `implement`, `mechanical`), `roles.lookup` (default `explore`), `brakes.changeSize.warn` and `.max` (default 400 and 800), `lookup.index.command` (default `graphify query`), `tests.files`, `tests.run`.
+Read `.xworkflows/config.json`: `paths.plans` (default `docs/superpowers/plans`), `paths.pending` (default `docs/PENDING.md`), `paths.curated` (default `AGENTS.md`, `CLAUDE.md`, `.claude/rules/`, `docs/BUSINESS.md`), `roles.implementers` (default `implement`, `implement-sql`, `implement-front`, `mechanical`), `roles.lookup` (default `explore`), `brakes.changeSize.warn` and `.max` (default 400 and 800), `lookup.index.command` (default `graphify query`), `tests.files`, `tests.run`.
 
 ## Step 1: Cut the work
 
 A task is the work of one agent. A batch is the tasks on one branch: they run at the same time, get one review and merge together.
 
 - Files: a task owns every file it creates or changes, its test file included (a path `tests.files` matches). No file is in two tasks of one batch, so two agents never write the same file. Two changes to one file are one task, or go in two batches.
-- Order: a task that needs another task's result goes in a later batch. Each batch leaves the project working when it merges.
-- Size: estimate the code lines each batch changes, added plus removed. Tests, docs, fixtures, JSON, lockfiles and generated files do not count. Keep a batch under `brakes.changeSize.warn`, and join related small changes in one batch up to it: each batch pays one review; at `brakes.changeSize.max` the brake `change-size` refuses the push. A batch that cannot be cut smaller (for example one rename across many files) says so in the plan: a commit on its branch needs a line `size-ok: <reason>`.
-- Role: a name from `roles.implementers`, chosen by the agents' descriptions. A change with no logic goes to the agent for mechanical edits. No agent may write a file under `paths.curated` (the hook `orchestrator` denies it): that task has `Role: main session`.
+- Order: a task that needs another task's result goes on the same branch, after it, in the same batch. Each batch leaves the project working when it merges.
+- Size: estimate the code lines each batch changes, added plus removed. Tests, docs, fixtures, JSON, lockfiles and generated files do not count. Cut the plan into more batches only above `brakes.changeSize.max`: each batch pays one review, so keep one batch for the whole plan; at `brakes.changeSize.max` the brake `change-size` refuses the push. A batch that cannot be cut smaller (for example one rename across many files) says so in the plan: a commit on its branch needs a line `size-ok: <reason>`.
+- Role: a name from `roles.implementers`, chosen by the task's files: `implement-sql` for SQL and migrations, `implement-front` for screens, `implement` otherwise, `mechanical` for a change with no logic. No agent may write a file under `paths.curated` (the hook `orchestrator` denies it): that task has `Role: main session`.
 - Branch: `<slug>-<n>` for batch `<n>`. A branch name has only letters, digits, `/`, `_` and `-`: the brake `pending` reads no other character.
 - Done: a command and the result it must give. For example: `tests.run` on the task's test file passes, or `git grep -c <old name>` prints nothing.
 - A review finding becomes a task only when it comes with its line `red: <test path> <command>`; without that line it stays a card of the pending list. Its task names the test path and the branch `verify/<id>` that holds it: the fix commit copies that test (`orchestrate`, review step 4). The batch keeps its `<slug>-<n>` branch.

@@ -16,7 +16,8 @@ export const DEFAULTS = {
   roles: {
     reviewer: "review",
     riskReviewer: "risk-review",
-    implementers: ["implement", "mechanical"],
+    smallReviewer: "review-small",
+    implementers: ["implement", "implement-sql", "implement-front", "mechanical"],
     lookup: "explore",
     verifier: "verify-finding",
     builtIn: [],
@@ -43,6 +44,12 @@ export const DEFAULTS = {
   dream: { maxExtractBytes: 4000000, suggest: true, suggestAfterDays: 7, suggestAfterSessions: 10 },
   packs: {},
 };
+
+// the reviewer roles of a config, and the seal `<role> ok at <sha>` built from them (groups: role, sha); every reader of a seal uses these
+export const reviewerRoles = (roles) => [roles.reviewer, roles.riskReviewer, roles.smallReviewer];
+export const sealCore = (roles) => `(${reviewerRoles(roles).map((r) => r.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")}) ok at ([0-9a-f]{7,40})`;
+// a seal alone on a line, as written in a plan: bullet, quote or backticks and a final dot allowed
+export const sealRe = (roles, flags) => new RegExp(`^\\s*(?:[-*>]\\s*)?\`?${sealCore(roles)}\`?\\.?\\s*$`, flags);
 
 export const PROJECT_KEYS = [
   "paths.code", "paths.risk", "paths.heavyRead", "paths.codeAnyway",

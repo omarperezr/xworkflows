@@ -96,7 +96,7 @@ test("a pending-for naming another commit does not save it", withRepo({}, async 
 }));
 
 test("rule 3 does not ask it of a seal-only commit, a spec, or a merge-free no-op", withRepo({ files: { [PLAN]: "plan\n" } }, async (r) => {
-  r.commit("seal", { files: { [PLAN]: "plan\nreview ok at abc1234\nrisk-review ok at abc1234def\n" } });
+  r.commit("seal", { files: { [PLAN]: "plan\nreview ok at abc1234\nrisk-review ok at abc1234def\nreview-small ok at abc1234\n" } });
   r.commit("spec", { files: { "docs/superpowers/specs/s.md": "spec\n" } });
   assert.deepEqual(await r.run(pending), { ok: true, lines: [] });
 }));

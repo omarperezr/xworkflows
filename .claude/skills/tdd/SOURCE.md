@@ -8,4 +8,4 @@
 
 Modified:
 - `name` changed from `test-driven-development` to `tdd`.
-- The upstream text is otherwise unchanged.
+- 2026-11-18: rewritten and shortened (SKILL.md 330 to 136 lines, writing-good-tests.md 198 to 56) with the rules of docs/superpowers/specs/2026-11-18-workflow-upgrade.md, section 2 item 8; the red-green-refactor cycle, verify red and verify green and the bug-fix example are kept from upstream.

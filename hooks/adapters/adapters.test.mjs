@@ -177,6 +177,13 @@ test("claude: answer carries context, and a deny only on preTool", async () => {
   assert.equal(JSON.parse(answer({ decision: "deny", reason: "no" }).stdout).hookSpecificOutput.permissionDecision, "deny");
 });
 
+test("claude: ask answers permissionDecision ask with the reason, on preTool only", async () => {
+  const { answer } = await import("./claude.mjs");
+  const o = JSON.parse(answer({ decision: "ask", reason: "sure?" }, { event: "preTool", hookEvent: "PreToolUse" }).stdout).hookSpecificOutput;
+  assert.deepEqual([o.hookEventName, o.permissionDecision, o.permissionDecisionReason], ["PreToolUse", "ask", "sure?"]);
+  assert.equal(answer({ decision: "ask", reason: "sure?" }, { event: "sessionStart", hookEvent: "SessionStart" }).stdout, "");
+});
+
 test("hook log: a deny leaves a deny line, a free skip a free line", () => {
   const dir = mkdtempSync(join(tmpdir(), "xwf-test-"));
   const input = load("claude", "write-spec").input;
@@ -188,4 +195,10 @@ test("hook log: a deny leaves a deny line, a free skip a free line", () => {
   spawn("claude", input, { XWORKFLOWS_STATE_DIR: dir, XWORKFLOWS_FREE: "1" });
   assert.equal(lines().length, 2);
   assert.match(lines()[1], new RegExp(` ${input.session_id} design-first free ${input.tool_name}$`));
+});
+
+test("claude: the event carries the session's cwd next to the project root", async () => {
+  const { normalize } = await import("./claude.mjs");
+  const ev = normalize(pre("Bash", { command: "ls" }, { cwd: "/p/sub" }), { CLAUDE_PROJECT_DIR: "/p" });
+  assert.deepEqual([ev.root, ev.cwd], ["/p", "/p/sub"]);
 });

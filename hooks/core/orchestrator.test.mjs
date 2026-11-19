@@ -213,6 +213,7 @@ test("a seal resets only when added, in plans or specs, with the configured role
   const p = "/r/docs/superpowers/specs/s.md";
   assert.equal(run(w(p, { old: "", new: "risk-review ok at abc1234" })), 0);
   assert.equal(run(w(p, { content: "- review ok at abc1234\n" })), 0);
+  assert.equal(run(w(p, { content: "review-small ok at abc1234\n" })), 0);
   assert.equal(run(w(p, { content: "- review ok at abc1234\n" }), { [p]: "- review ok at abc1234\n" }), 2); // already there
   assert.equal(run(w("/r/src/a.md", { content: "review ok at abc1234" })), 2);
   assert.equal(run(w(p, { content: "reviewed ok at abc1234" })), 2);

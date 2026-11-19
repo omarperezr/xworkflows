@@ -1,13 +1,13 @@
 ---
 name: deepen
-description: Rewrite a request as a top professional of its field would write it, with facts found by agents, before any design question is asked. Use first on every new request for a change, and on the step /next-step hands over.
+description: Rewrite a request as a top professional of its field would write it, with facts found by agents, before any design question is asked. Use first on a new request for a change that is very big or very risky, and on the step /next-step hands over.
 ---
 
 Before anything else, run `node .xworkflows/mark.mjs deepen` in the shell.
 
-This stage is never skipped, however small the request. Ask the owner nothing here: agents find the facts, and decisions wait for `grill`.
+Run this stage only when the request is very big (more than `brakes.changeSize.warn` code lines, or more than one branch) or very risky (money, permissions, deleting data, security), or when the owner asks for it. Otherwise skip to `grill`. Tell the owner in one line whether it runs and why (the line starts "I run deepen:" or "I skip deepen:"). Ask the owner nothing here: agents find the facts, and decisions wait for `grill`.
 
-Read `.xworkflows/config.json`: `roles.lookup` (default `explore`), `lookup.index.command` (default `graphify query`), `limits.agentsBeforeWorkflow` (default 2), `paths.code`.
+Read `.xworkflows/config.json`: `roles.lookup` (default `explore`), `lookup.index.command` (default `graphify query`), `limits.agentsBeforeWorkflow` (default 2), `paths.code`, `brakes.changeSize.warn` (default 400).
 
 ## Step 1: What the request lacks
 

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync } from "node:fs";
 import { tmpdir } from "../../test-tmp.mjs";
 import { join } from "node:path";
-import { DEFAULTS, PROJECT_KEYS, merge, load, loadLenient, get, missing, inPaths, memoryDir, memoryFolder } from "./config.mjs";
+import { DEFAULTS, PROJECT_KEYS, merge, load, loadLenient, get, missing, inPaths, memoryDir, memoryFolder, reviewerRoles, sealCore, sealRe } from "./config.mjs";
 import { outsideLine } from "./ctx.mjs";
 
 test("DEFAULTS has the product defaults and none of the project keys", () => {
@@ -178,4 +178,19 @@ test("loadLenient: a healthy or absent file replaces nothing; a file that does n
   assert.deepEqual(loadLenient("/r", () => null), { config: DEFAULTS, replaced: [] });
   assert.throws(() => loadLenient("/r", () => "{"), /does not parse/);
   assert.throws(() => loadLenient("/r", () => "null"), /does not parse: not a JSON object/);
+});
+
+test("defaults: the small reviewer and the three implementers", () => {
+  assert.equal(DEFAULTS.roles.smallReviewer, "review-small");
+  assert.deepEqual(DEFAULTS.roles.implementers, ["implement", "implement-sql", "implement-front", "mechanical"]);
+});
+
+test("the reviewer roles and the seal pattern come from the roles of the config, names escaped", () => {
+  assert.deepEqual(reviewerRoles(DEFAULTS.roles), ["review", "risk-review", "review-small"]);
+  const re = sealRe(DEFAULTS.roles, "gm");
+  const hits = [..."review ok at abc1234\n- `review-small ok at abc1234567`.\nrisk-review ok at abc\nreview ok at abc1234 x".matchAll(re)].map((m) => [m[1], m[2]]);
+  assert.deepEqual(hits, [["review", "abc1234"], ["review-small", "abc1234567"]]);
+  const odd = { reviewer: "re.view", riskReviewer: "r(k", smallReviewer: "s|m" };
+  assert.ok(new RegExp(`^${sealCore(odd)}$`).test("s|m ok at abc1234"));
+  assert.ok(!new RegExp(`^${sealCore(odd)}$`).test("reaview ok at abc1234"));
 });

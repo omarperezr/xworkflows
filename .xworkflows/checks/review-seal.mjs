@@ -1,10 +1,8 @@
-import { inPaths } from "../hooks/core/config.mjs";
+import { inPaths, sealRe } from "../hooks/core/config.mjs";
 import { commentOnly } from "./comment-lines.mjs";
 
 export const mainOnly = true;
 export const needs = ["paths.codeAnyway", "paths.risk"];
-
-const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 // a seal inside a fenced code block is an example, not a seal; an unclosed fence runs to the end
 function unfenced(text) {
@@ -35,24 +33,30 @@ export function run(range, ctx) {
   }
   if (!unsealed.length) return { ok: true, lines: [] };
 
-  const role = risk ? esc(roles.riskReviewer) : `${esc(roles.reviewer)}|${esc(roles.riskReviewer)}`;
-  const re = new RegExp(`^\\s*(?:[-*>]\\s*)?\`?(?:${role}) ok at ([0-9a-f]{7,40})\`?\\.?\\s*$`, "gm");
+  const re = sealRe(roles, "gm");
   const docs = ctx.git("ls-tree", "-r", "--name-only", "-z", range.head).split("\0")
     .filter((f) => inPaths(f, [paths.plans, paths.specs]));
+  const ancestor = (a, b) => ctx.tryGit("merge-base", "--is-ancestor", a, b).code === 0;
   for (const f of docs) {
-    for (const [, sha] of unfenced(ctx.show(range.head, f) ?? "").matchAll(re)) {
+    const riskShas = [];
+    for (const [, who, sha] of unfenced(ctx.show(range.head, f) ?? "").matchAll(re)) {
       const full = ctx.tryGit("rev-parse", "-q", "--verify", `${sha}^{commit}`);
       if (full.code !== 0) continue;
-      if (unsealed.every((c) => ctx.tryGit("merge-base", "--is-ancestor", c, full.out).code === 0)) return { ok: true, lines: [] };
+      const isRisk = who === roles.riskReviewer;
+      // on a risk batch the reviewer's seal counts only after a risk seal of an ancestor sha, and that one names a commit of the pushed range
+      if (isRisk) { if (range.commits.includes(full.out)) riskShas.push(full.out); }
+      // the small reviewer's seal never counts on a risk batch
+      else if (risk && (who === roles.smallReviewer || !riskShas.some((r) => ancestor(r, full.out)))) continue;
+      if (unsealed.every((c) => ancestor(c, full.out))) return { ok: true, lines: [] };
     }
   }
-  const who = risk ? roles.riskReviewer : `${roles.reviewer} or ${roles.riskReviewer}`;
+  const who = risk ? roles.riskReviewer : `${roles.reviewer}, ${roles.smallReviewer} or ${roles.riskReviewer}`;
   return {
     ok: false,
     lines: [
       "code without a final review seal:",
       ...unsealed.map((c) => `  ${line(c)}`),
-      `add the line "${risk ? roles.riskReviewer : roles.reviewer} ok at <sha>" to a file under ${paths.plans} or ${paths.specs}, with <sha> equal to or after every commit above (role: ${who})`,
+      `add the line "${risk ? roles.riskReviewer : roles.reviewer} ok at <sha>" to a file under ${paths.plans} or ${paths.specs}, with <sha> equal to or after every commit above (role: ${who})${risk ? `; a "${roles.reviewer} ok at <sha>" line counts only after a "${roles.riskReviewer} ok at <sha>" line of the same file` : ""}`,
       risk ? "a commit touching the risk paths takes no no-review: escape" : "or put a body line \"no-review: <reason>\" in a commit",
     ],
   };

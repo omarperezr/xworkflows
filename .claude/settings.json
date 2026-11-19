@@ -45,6 +45,24 @@
             "command": "node \"$(git rev-parse --show-toplevel)/.xworkflows/hooks/run.mjs\" claude memory"
           }
         ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$(git rev-parse --show-toplevel)/.xworkflows/hooks/run.mjs\" claude safe-rm"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$(git rev-parse --show-toplevel)/.xworkflows/hooks/run.mjs\" claude safe-db"
+          }
+        ]
       }
     ],
     "PostToolUse": [
@@ -115,5 +133,16 @@
   "attribution": {
     "commit": "",
     "pr": ""
+  },
+  "extraKnownMarketplaces": {
+    "ponytail": {
+      "source": {
+        "source": "github",
+        "repo": "DietrichGebert/ponytail"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "ponytail@ponytail": true
   }
 }

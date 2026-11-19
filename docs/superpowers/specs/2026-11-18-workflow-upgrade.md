@@ -18,6 +18,7 @@ Material:
 - `skills/deepen/SKILL.md:8`: "This stage is never skipped, however small the request." `read not tested`
 
 Proof:
+- Rules of item 8: https://abseil.io/resources/swe-book/html/ch12.html, https://newsletter.kentbeck.com/p/canon-tdd, https://martinfowler.com/articles/mocksArentStubs.html, https://martinfowler.com/bliki/UnitTest.html, https://testdesiderata.com/, https://code.claude.com/docs/en/best-practices `read not tested`
 - A PreToolUse hook may answer `permissionDecision: "ask"`, and the user is asked; hooks of the settings file also run for subagent tool calls. Whether that ask reaches the user from a subagent is not documented. https://code.claude.com/docs/en/hooks `read not tested`
 - A project's `.claude/settings.json` takes `extraKnownMarketplaces` and `enabledPlugins`, and Claude Code offers to install them in a trusted folder. https://code.claude.com/docs/en/plugins `not confirmed`
 - An agent's `skills:` frontmatter naming a plugin skill (`plugin:skill`) is reported not to load it in some cases. https://github.com/anthropics/claude-code/issues (reports 29441, 67251) `not confirmed`
@@ -29,13 +30,25 @@ Proof:
 2. **One review per plan.** A task that needs another task's result goes on the same branch, after it, in the same batch; a plan is cut into more batches only above `brakes.changeSize.max`. Each batch still gets one review before it merges.
 3. **Reviewers by size and risk.** A batch whose code diff is under 50 lines and touches no `paths.risk` goes to a new `review-small` agent (tier medium, effort high). Others as today. The fixes asked by `roles.riskReviewer` are confirmed by a fresh `roles.reviewer` (Opus), never by a second risk reviewer; the seal of a risk batch is then `risk-review ok at <first sha>` followed by `review ok at <fix sha>`, and `review-seal` takes a reviewer seal on a risk path only when a risk-review seal of the same batch precedes it.
 4. **Three implementers.** `implement` (any language), `implement-sql` and `implement-front`. Each names its external skills and carries a short guide of its own in its body, used when the skill is not installed:
-   - `implement`: `ponytail:ponytail`, `superpowers:test-driven-development`.
+   - `implement`: `ponytail:ponytail` and our own `tdd` (item 8).
    - `implement-sql`: the above plus `supabase:supabase-postgres-best-practices`; its own guide holds the general lessons of the reference project's SQL implementer, with no name of that project.
    - `implement-front`: the generic two plus `impeccable:impeccable` and `frontend-design:frontend-design`; its guide holds the phone, tablet and desktop widths rule.
-   `install` adds those marketplaces and plugins to `.claude/settings.json` (`extraKnownMarketplaces`, `enabledPlugins`) as merged keys, so uninstall removes them. The copies `skills/ponytail` and `skills/tdd` stop shipping; `ponytail-review` stays as long as no external one replaces it. `plan` picks the implementer by the task's files.
+   `install` adds those marketplaces and plugins to `.claude/settings.json` (`extraKnownMarketplaces`, `enabledPlugins`) as merged keys, so uninstall removes them: `ponytail` always, the SQL plugin only when the project tracks SQL files, the front plugins only when it tracks screen files. The copy `skills/ponytail` stops shipping; `ponytail-review` stays as long as no external one replaces it. `plan` picks the implementer by the task's files.
 5. **Hook `safe-rm`.** A Bash `rm` with `-r` or `-R` whose path holds a `$` variable not written `${NAME:?...}`, or a command substitution, is denied, with the reason. Pure `decide(ev, ctx)` with its test.
 6. **Hook `safe-db`.** A Bash command that would delete all, much or part of a database asks the owner (`permissionDecision: "ask"`) with the reason: SQL `DROP DATABASE|SCHEMA|TABLE`, `TRUNCATE`, `DELETE` or `UPDATE` with no `WHERE` or with an always-true `WHERE`, given with `-c`, a heredoc, or a SQL file the command names (`-f <file>`, `< <file>`); CLI resets (`dropdb`, `supabase db reset`, `prisma migrate reset`, `prisma db push --force-reset` or `--accept-data-loss`, `rails db:drop|db:reset|db:schema:load`, `manage.py flush`, `sequelize db:drop`, `knex migrate:rollback --all`); `redis-cli FLUSHALL|FLUSHDB`; `dropDatabase` and `deleteMany({})`; `rm` of a `*.db`, `*.sqlite`, `*.sqlite3` file. In a subagent the hook denies and says to hand the command to the main session, until a test shows that an ask from a subagent reaches the owner (card P-205); the owner's answer for that case is to block.
 7. Everything installed keeps the rules of this project: Node standard library, manifest pieces with their hash, values from `.xworkflows/config.json`.
+8. **Our tdd guide.** `skills/tdd` stays ours (superpowers is never enabled: it adds about 3 KB at every session start and a method of its own). Its rules, from the owner's transcript of Ian Cooper's talk "TDD, Where Did It All Go Wrong" and checked against the sources below:
+   - A new test starts from a behavior the software must have, never from a new method or class; first write the list of scenarios, and add a scenario found midway to the list (Beck, Canon TDD).
+   - Test through the public contract (the module's exports, its port), not implementation details; the unit of isolation is the test, not the class; never make an internal public to test it (Software Engineering at Google, ch. 12; Fowler, UnitTest).
+   - Red: the test fails on its behavior assertion before the code exists. A missing module, a syntax error or an import error is not red: add the empty export first. A test that never failed proves nothing.
+   - Green: the quickest code that passes; no design during red to green (Canon TDD).
+   - Refactor: remove duplication and smells, patterns enter here; no new test and no new behavior; a new branch or condition is a new behavior, back to red. Changing a public interface is a change of behavior, not a refactor (Google, ch. 12).
+   - Mocks only for a resource that is slow, costly or shared, at a port; never to isolate a class or to pin the order of internal calls; assert the final state (Fowler, Mocks Aren't Stubs).
+   - A real database or file system is fine when each test gets a fresh fixture and the suite stays fast and deterministic (Test Desiderata).
+   - A test written to explore internals is deleted before hand-back.
+   - Never edit an existing test to make it pass; when the requirement changed, say so in the report. Never hard-code the expected output in the code. Never test by matching source text.
+   - A test name states the behavior, so a red test says what broke.
+   The guide gets shorter, not longer: every implementer loads it.
 
 ## Owner's answers
 
@@ -47,4 +60,5 @@ Proof:
 - Small reviewer: "deberiamos usar un Revisor Sonnet barato para menos de 50 líneas sin riesgo" (2026-11-18).
 - Confirmation of the risk reviewer's fixes by Opus: "Sí, confirma Opus (Recommended)" (2026-11-18).
 - No price notice ("es indiferente") and no CI template ("es simplemente parte de [the reference project]") (2026-11-18).
+- tdd: "Guia tdd nuestra, ademas de lo que tienes te pasar una transcripcion en el chat que analizaras y convertiras en reglas. Ademas, vas a comprobar y complementar la data que tenemos buscando en internet." (2026-11-18). Plugins for SQL and front only where the project uses them: "Solo si el proyecto los usa (Recommended)".
 - Hooks: "debemos tener tambien Hook rm-seguro ... y deberiamos tener lo mismo para evitar eliminar de bases de datos" (2026-11-18); the database hook asks the owner: "Te pregunta a ti (Recommended)"; in a subagent, if the ask cannot reach the owner: "Bloquear en agentes (Recommended)".

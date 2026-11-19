@@ -67,7 +67,7 @@ fail not configured: paths.code (needed by fix-has-test, graph-current), run /ad
 
 **3. Teach it your project.** Open Claude Code in the project and type `/adapt`. It studies your code and its history, shows you a summary, asks you about what it found, and then writes the rules for your project. After that, `doctor` has nothing left to say about `/adapt`.
 
-**4. Start working.** Type `/next-step`: it shows what is left to do, and `/next-step` hands the chosen step to `/deepen`, the first stage of the method.
+**4. Start working.** Type `/next-step`: it shows what is left to do, and `/next-step` hands the chosen step to `/deepen` when it is very big or very risky, and to `/grill` otherwise.
 
 Good to know:
 

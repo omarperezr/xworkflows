@@ -32,10 +32,13 @@ test("missing skill fails naming agent and skill", async () => {
   assert.doesNotMatch(r.lines.join("\n"), /\bone\b/);
 });
 
-test("plugin:name fails", async () => {
-  const r = await check({ ".claude/agents/a.md": agent("skills:\n  - plug:thing\n") });
+test("plugin:skill travels by the plugin declaration and passes, a bare name still must be committed", async () => {
+  const r = await check({ ".claude/agents/a.md": agent("skills:\n  - plug:thing\n  - gone\n") });
   assert.equal(r.ok, false);
-  assert.match(r.lines.join("\n"), /plug:thing/);
+  assert.match(r.lines.join("\n"), /gone/);
+  assert.doesNotMatch(r.lines.join("\n"), /plug:thing/);
+  const ok = await check({ ".claude/agents/a.md": agent("skills:\n  - plug:thing\n  - one\n"), ...skill("one") });
+  assert.equal(ok.ok, true);
 });
 
 test("skill on disk but not committed fails", async () => {
@@ -75,5 +78,13 @@ test("agent files with accented letters or spaces are read", async () => {
     const r = await check({ [`.claude/agents/${name}.md`]: agent("skills:\n  - gone\n") });
     assert.equal(r.ok, false, name);
     assert.match(r.lines.join("\n"), /gone/);
+  }
+});
+
+test("one list item holding two names fails, plugin:skill form or not", async () => {
+  for (const item of ["plug:a plug:b", "one two"]) {
+    const r = await check({ ".claude/agents/a.md": agent(`skills:\n  - ${item}\n`), ...skill("one"), ...skill("two") });
+    assert.equal(r.ok, false, item);
+    assert.match(r.lines.join("\n"), new RegExp(item));
   }
 });

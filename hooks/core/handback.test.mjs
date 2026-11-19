@@ -129,3 +129,11 @@ test("through the real runner: deny, then allow and reset", () => {
   assert.equal(spawn(full).stdout, "");
   assert.equal(readFileSync(join(dir, "xwf-agents-s1"), "utf8"), "0");
 });
+
+test("the small reviewer is asked for the reviewer's keys", () => {
+  assert.ok(denied(run("all fine", "review-small")));
+  assert.equal(run("reviewed: a.mjs\nnot checked: nothing", "review-small").decision, "allow");
+});
+test("the new implementers are asked for the implementer's keys", () => {
+  for (const a of ["implement-sql", "implement-front"]) assert.ok(denied(run("done", a, { ...fake(), config: { ...config, roles: DEFAULTS.roles } })), a);
+});
