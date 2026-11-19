@@ -46,6 +46,9 @@ export function segments(cmd) {
   return out;
 }
 
+// the last path part of a word, without leading brackets: /usr/bin/psql -> psql
+export const base = (w) => w.replace(/^\(+/, "").split("/").pop();
+
 // where the command runs in a segment's words, after keywords, `(`, NAME=value and wrapper options: { at, word } or null
 export function commandWord(words) {
   let wrap = null;
@@ -53,7 +56,7 @@ export function commandWord(words) {
     const t = words[i].replace(/^\(+/, "");
     if (!t || KEYWORDS.has(t) || /^\w+=/.test(t)) continue;
     if (wrap !== null && t.startsWith("-")) { if (t.length === 2 && wrap.includes(t[1])) i++; continue; }
-    const word = t.split("/").pop();
+    const word = base(t);
     if (Object.hasOwn(WRAPPERS, word)) { wrap = WRAPPERS[word]; continue; }
     return { at: i, word };
   }

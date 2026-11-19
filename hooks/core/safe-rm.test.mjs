@@ -35,7 +35,8 @@ test("literal path, guarded variable, non-recursive rm: allow", () => {
   assert.ok(allowed("rm $FILE"));
   assert.ok(allowed("rm -rf 'a$b'"));
   assert.ok(allowed("rm -rf a\\$b"));
-  assert.ok(allowed("echo rm -rf $D"));
+  assert.ok(allowed('echo "rm -rf $D"'));
+  assert.ok(allowed('git commit -m "rm -rf $D"'));
   assert.ok(allowed("ls $D && rm -rf build"));
   assert.ok(allowed("find . | xargs rm -rf"));
 });
@@ -58,4 +59,15 @@ test("rm behind NAME=value, while, until, elif and else: deny", () => {
 test("rm only named in a heredoc or as an argument: allow", () => {
   assert.ok(allowed("cat <<EOF\nrm -rf $X\nEOF"));
   assert.ok(allowed("sudo -u app ls $X"));
+});
+
+test("rm as any unquoted word, behind any runner, keyword or definition: deny", () => {
+  for (const c of ['exec rm -rf "$X"', 'timeout 60 rm -rf "$X"', 'nice -n 5 rm -rf "$X"', 'sudo --user app rm -rf "$X"', 'case $x in a) rm -rf "$X";; esac',
+    'f() { rm -rf "$X"; }', 'docker exec app rm -rf "$X"', "/bin/rm -rf $X", 'ssh host rm -rf "$X"'])
+    assert.ok(denied(c), c);
+});
+
+test("a later rm with a literal path is allowed", () => {
+  assert.ok(allowed("timeout 60 rm -rf build"));
+  assert.ok(allowed('f() { rm -f "$X"; }'));
 });

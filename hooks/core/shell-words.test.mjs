@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { segments, commandWord } from "./shell-words.mjs";
+import { segments, commandWord, base } from "./shell-words.mjs";
 
 const words = (c) => segments(c).map((s) => s.words);
 
@@ -31,4 +31,11 @@ test("commandWord skips keywords, brackets, NAME=value, wrappers and their optio
   assert.equal(at("echo rm x").word, "echo");
   assert.equal(commandWord([]), null);
   assert.equal(commandWord(["sudo"]), null);
+});
+
+test("base is the last path part of a word without leading brackets", () => {
+  assert.equal(base("/usr/bin/psql"), "psql");
+  assert.equal(base("(rm"), "rm");
+  assert.equal(base("./manage.py"), "manage.py");
+  assert.equal(base("psql -c x"), "psql -c x");
 });

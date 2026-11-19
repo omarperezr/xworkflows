@@ -1,22 +1,27 @@
 import { resolve } from "node:path";
-import { segments, commandWord } from "./shell-words.mjs";
+import { segments, commandWord, base } from "./shell-words.mjs";
 
 const CLIENT = /^(?:psql|mysql|mariadb|sqlite3?|sqlcmd|duckdb|usql|clickhouse-client|supabase)$/;
-const via = (tools) => new RegExp(`^(?:${tools}|npm|yarn|pnpm|bunx?|npx|node|deno|tsx)$`);
-// [command word, the command from its word on]: a CLI form counts only when the command word is that tool or a runner of it
+const SCRIPT = /^(?:rake|rails|bundle|sequelize|sequelize-cli|npm|yarn|pnpm|bunx?|npx|node|deno|tsx)$/;
+// [a tool word, the words from it on]: a CLI form counts when an unquoted word is that tool, whatever runs it
 const CLI = [
   [/^dropdb$/, /./], [/^supabase$/, /\bdb\s+reset\b/],
-  [via("prisma"), /\bprisma\s+migrate\s+reset\b|\bprisma\s+db\s+push\b.*(?:--force-reset|--accept-data-loss)/],
-  [via("rake|rails|bundle|sequelize|sequelize-cli"), /\bdb:(?:drop|reset|schema:load)\b/],
-  [/^(?:python[\d.]*|manage\.py)$/, /\bmanage\.py\s+flush\b/],
-  [via("knex"), /\bknex\s+migrate:rollback\b.*--all\b/],
+  [/^prisma$/, /\bprisma\s+migrate\s+reset\b|\bprisma\s+db\s+push\b.*(?:--force-reset|--accept-data-loss)/],
+  [SCRIPT, /\bdb:(?:drop|reset|schema:load)\b/],
+  [/^manage\.py$/, /\bmanage\.py\s+flush\b/],
+  [/^knex$/, /\bknex\s+migrate:rollback\b.*--all\b/],
   [/^redis-cli$/, /\bflush(?:all|db)\b/i],
-  [via("mongosh?"), /\bdropDatabase\s*\(|\bdeleteMany\(\s*\{\s*\}\s*\)/],
-  [/^rm$/, /\.(?:db|sqlite3?)(?:\s|$)/],
+  [/^mongosh?$/, /\bdropDatabase\s*\(|\bdeleteMany\(\s*\{\s*\}\s*\)/],
 ];
-const TRUE = /^\s*\(?\s*(?:1\s*=\s*1|true|'a'\s*=\s*'a')(?![\w.])(?!\s*and\b)/i;
+// a file named .db or .sqlite goes only when rm is the command word, so `git rm --cached dev.db` passes
+const RM_DB = /\.(?:db|sqlite3?)(?:\s|$)/;
+// a literal's content is blanked to _ (so 'a'='a' stays a true form); the first match wins, so a quote inside a comment or a -- inside a literal is read right
+const TRUE = /^\s*\(?\s*(?:1\s*=\s*1|true|'_*'\s*=\s*'_*')(?![\w.])(?!\s*and\b)/i;
 
-const stripComments = (t, loose) => t.replace(/\/\*[\s\S]*?\*\//g, " ").replace(loose ? /--[^\n]*/g : /(^|\s)--(?=\s|$)[^\n]*/gm, "$1");
+const stripComments = (t, loose) => t.replace(new RegExp(`'(?:[^']|'')*'|/\\*[\\s\\S]*?\\*/|${loose ? "--[^\\n]*" : "(?<!\\S)--(?=\\s|$)[^\\n]*"}`, "g"), (m) => (m[0] === "'" ? `'${"_".repeat(m.length - 2)}'` : " "));
+
+// the words as SQL text: a word that holds whitespace (a quoted -c value) is a statement of its own
+const sqlText = (words) => words.reduce((t, w, i) => (i ? `${t}${/\s/.test(w) || /\s/.test(words[i - 1]) ? ";\n" : " "}${w}` : w), "");
 
 // where the first WHERE outside any parentheses starts at or after `from`, or -1 (a WHERE in a subquery does not count)
 function topWhere(st, from) {
@@ -58,18 +63,20 @@ export function decide(ev, ctx) {
   if (ev?.kind !== "shell" || typeof ev.command !== "string") return { decision: "allow" };
   let form = null, fed = "", dir = ev.cwd ?? ev.root;
   for (const seg of segments(ev.command)) {
-    const own = `${seg.words.join("\n")}\n${seg.doc}`, input = fed;
-    fed = seg.pipe ? `${fed}\n${own}` : "";
+    const own = `${sqlText(seg.words)};\n${seg.doc}`, input = fed;
+    fed = seg.pipe ? `${fed};\n${own}` : "";
     const cmd = commandWord(seg.words);
-    if (!cmd) continue;
-    const args = seg.words.slice(cmd.at + 1), line = seg.words.slice(cmd.at).join(" ");
-    if (cmd.word === "cd") dir = resolve(dir, args.find((a) => !a.startsWith("-")) ?? ".");
-    if (CLI.some(([word, re]) => word.test(cmd.word) && re.test(line))) form = "a database reset or delete command";
-    else if (CLIENT.test(cmd.word)) {
-      form = sqlForm(`${args.join("\n")}\n${seg.doc}\n${input}`, false);
-      if (!form) for (const f of sqlFiles(args)) {
-        const text = ctx.readFile(resolve(dir, f));
-        if (typeof text === "string" && (form = sqlForm(text, true))) { form = `${form} in ${f}`; break; }
+    if (cmd?.word === "cd") dir = resolve(dir, seg.words.slice(cmd.at + 1).find((a) => !a.startsWith("-")) ?? ".");
+    if (cmd?.word === "rm" && RM_DB.test(seg.words.slice(cmd.at).join(" "))) form = "a database reset or delete command";
+    for (let i = 0; i < seg.words.length && !form; i++) {
+      const tool = base(seg.words[i]), args = seg.words.slice(i + 1), line = seg.words.slice(i).join(" ");
+      if (CLI.some(([word, re]) => word.test(tool) && re.test(line))) form = "a database reset or delete command";
+      else if (CLIENT.test(tool)) {
+        form = sqlForm(`${sqlText(args)};\n${seg.doc};\n${input}`, false);
+        if (!form) for (const f of sqlFiles(args)) {
+          const text = ctx.readFile(resolve(dir, f));
+          if (typeof text === "string" && (form = sqlForm(text, true))) { form = `${form} in ${f}`; break; }
+        }
       }
     }
     if (form) break;

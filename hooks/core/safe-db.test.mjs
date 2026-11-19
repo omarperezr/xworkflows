@@ -96,7 +96,7 @@ test("CLI forms count only when the command word is that tool or its runner", ()
   assert.ok(asks("FOO=1 bundle exec rake db:drop"));
   assert.ok(asks("./manage.py flush"));
   assert.ok(allowed('echo "dropdb app"'));
-  assert.ok(allowed("cat dropdb.txt && echo rails db:reset"));
+  assert.ok(allowed("cat dropdb.txt && ls rails"));
 });
 
 test("a grant or revoke of truncate is not a truncate", () => {
@@ -117,4 +117,37 @@ test("only a WHERE outside parentheses counts", () => {
   assert.ok(asks('psql -c "DELETE FROM t USING (SELECT id FROM u WHERE a = 1) x"'));
   assert.ok(allowed('psql -c "DELETE FROM t WHERE (1=2) OR id = 1"'));
   assert.ok(asks('psql -c "UPDATE t SET a = (SELECT b FROM u WHERE u.id = 1)"'));
+});
+
+test("a tool is an unquoted word anywhere, behind any runner: ask", () => {
+  for (const c of ["npx supabase db reset", "pnpm supabase db reset", "bunx supabase db reset", 'docker exec -i db psql -U postgres -c "DROP TABLE users"',
+    "docker exec redis redis-cli FLUSHALL", "poetry run python manage.py flush", "dotenv -- npx prisma migrate reset", "npx dropdb app",
+    "timeout 60 supabase db reset", "mise exec -- rails db:reset", "kubectl exec pod -- redis-cli flushdb", "/usr/bin/env FOO=1 dropdb app"])
+    assert.ok(asks(c), c);
+});
+
+test("a tool name inside a larger quoted word never counts; rm counts only as the command word", () => {
+  for (const c of ['git commit -m "docs: npx supabase db reset"', `git commit -m "run psql -c 'DROP TABLE x'"`, 'echo "docker exec redis redis-cli FLUSHALL"',
+    "git rm --cached dev.db", "git rm -f data/app.sqlite"])
+    assert.ok(allowed(c), c);
+  assert.ok(asks("sudo rm app.db"));
+});
+
+test("separate -c values, heredoc body and piped input are separate statements", () => {
+  assert.ok(asks('psql -c "TRUNCATE users" -c "GRANT SELECT ON t TO app"'));
+  assert.ok(asks('psql -c "DELETE FROM users" -c "SELECT * FROM t WHERE id=1"'));
+  assert.ok(asks('psql -c "UPDATE t SET a=1 WHERE id=1" -c "UPDATE u SET b=2"'));
+  assert.ok(asks('echo "DELETE FROM users" | psql -c "SELECT * FROM t WHERE id=1"'));
+  assert.ok(allowed('psql -c "DELETE FROM users WHERE id=1" -c "UPDATE u SET b=2 WHERE id=3"'));
+  assert.ok(allowed("psql -U app mydb -c 'DELETE FROM users WHERE id=1'"));
+});
+
+test("SQL string literals are blanked before the statement split and the bracket count", () => {
+  assert.ok(allowed(`psql -c "UPDATE t SET note = 'size (L' WHERE id = 1"`));
+  assert.ok(allowed(`psql -c "UPDATE t SET note = 'a; b' WHERE id = 1"`));
+  assert.ok(allowed(`psql -c "UPDATE t SET note = 'it''s; (x' WHERE id = 1"`));
+  assert.ok(allowed(`psql -c "UPDATE t SET note = 'drop table x -- y' WHERE id = 1"`));
+  assert.ok(asks(`psql -c "UPDATE t SET note = 'a; b'"`));
+  assert.ok(asks(`psql -c "SELECT 'x'; DROP TABLE users"`));
+  assert.ok(asks(`psql -c "DELETE FROM t WHERE 'a'='a'"`));
 });
