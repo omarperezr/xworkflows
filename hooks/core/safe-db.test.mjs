@@ -82,3 +82,24 @@ test("broken input allows", () => {
   assert.equal(decide({ kind: "write" }, ctx).decision, "allow");
   assert.equal(decide(ev(null), ctx).decision, "allow");
 });
+
+test("SQL piped to a client or run by a client behind a keyword or wrapper: ask", () => {
+  assert.ok(asks("cat <<EOF | psql mydb\nDROP TABLE users\nEOF"));
+  assert.ok(asks('echo "TRUNCATE users" | psql'));
+  assert.ok(asks('if true; then sudo -u pg psql -c "TRUNCATE users"; fi'));
+  assert.ok(allowed("cat <<EOF\nDROP TABLE users\nEOF"));
+  assert.ok(allowed('echo "TRUNCATE users"'));
+});
+
+test("CLI forms count only when the command word is that tool or its runner", () => {
+  assert.ok(asks("npm run db:reset"));
+  assert.ok(asks("FOO=1 bundle exec rake db:drop"));
+  assert.ok(asks("./manage.py flush"));
+  assert.ok(allowed('echo "dropdb app"'));
+  assert.ok(allowed("cat dropdb.txt && echo rails db:reset"));
+});
+
+test("a grant or revoke of truncate is not a truncate", () => {
+  assert.ok(allowed('psql -c "REVOKE TRUNCATE ON t FROM anon; GRANT TRUNCATE ON t TO app"'));
+  assert.ok(asks('psql -c "GRANT TRUNCATE ON t TO app; TRUNCATE t"'));
+});

@@ -1,11 +1,18 @@
 import { resolve } from "node:path";
+import { segments, commandWord } from "./shell-words.mjs";
 
-const CLIENT = /\b(?:psql|mysql|mariadb|sqlite3?|sqlcmd|duckdb|usql|clickhouse-client|supabase)\b/;
+const CLIENT = /^(?:psql|mysql|mariadb|sqlite3?|sqlcmd|duckdb|usql|clickhouse-client|supabase)$/;
+const via = (tools) => new RegExp(`^(?:${tools}|npm|yarn|pnpm|bunx?|npx|node|deno|tsx)$`);
+// [command word, the command from its word on]: a CLI form counts only when the command word is that tool or a runner of it
 const CLI = [
-  /\bdropdb\b/, /\bsupabase\s+db\s+reset\b/, /\bprisma\s+migrate\s+reset\b/, /\bprisma\s+db\s+push\b.*(?:--force-reset|--accept-data-loss)/,
-  /\bdb:(?:drop|reset|schema:load)\b/, /\bmanage\.py\s+flush\b/, /\bknex\s+migrate:rollback\b.*--all\b/,
-  /\bredis-cli\b.*\bflush(?:all|db)\b/i, /\bdropDatabase\s*\(/, /\bdeleteMany\(\s*\{\s*\}\s*\)/,
-  /\brm\s[^;|&\n]*\.(?:db|sqlite3?)["']?(?=\s|$|[;&|])/,
+  [/^dropdb$/, /./], [/^supabase$/, /\bdb\s+reset\b/],
+  [via("prisma"), /\bprisma\s+migrate\s+reset\b|\bprisma\s+db\s+push\b.*(?:--force-reset|--accept-data-loss)/],
+  [via("rake|rails|bundle|sequelize|sequelize-cli"), /\bdb:(?:drop|reset|schema:load)\b/],
+  [/^(?:python[\d.]*|manage\.py)$/, /\bmanage\.py\s+flush\b/],
+  [via("knex"), /\bknex\s+migrate:rollback\b.*--all\b/],
+  [/^redis-cli$/, /\bflush(?:all|db)\b/i],
+  [via("mongosh?"), /\bdropDatabase\s*\(|\bdeleteMany\(\s*\{\s*\}\s*\)/],
+  [/^rm$/, /\.(?:db|sqlite3?)(?:\s|$)/],
 ];
 const TRUE = /^\s*\(?\s*(?:1\s*=\s*1|true|'a'\s*=\s*'a')(?![\w.])(?!\s*and\b)/i;
 
@@ -14,7 +21,7 @@ const stripComments = (t, loose) => t.replace(/\/\*[\s\S]*?\*\//g, " ").replace(
 // the form of the SQL text that would delete all or part of the data, or null
 function sqlForm(text, loose) {
   for (const st of stripComments(text, loose).split(";")) {
-    if (/\b(?:drop\s+(?:database|schema|table)|truncate)\b/i.test(st)) return "DROP or TRUNCATE";
+    if (/\bdrop\s+(?:database|schema|table)\b/i.test(st) || (/\btruncate\b/i.test(st) && !/\b(?:grant|revoke)\b/i.test(st))) return "DROP or TRUNCATE";
     for (const [re, name] of [[/\bdelete\s+from\s+\S+/i, "DELETE"], [/\bupdate\s+\S+\s+set\b/i, "UPDATE"]]) {
       const m = re.exec(st);
       if (!m) continue;
@@ -25,22 +32,35 @@ function sqlForm(text, loose) {
   return null;
 }
 
-// the files the command names as SQL input: -f x, --file=x, --file x, < x
-function sqlFiles(cmd) {
+// the files a client's words name as SQL input: -f x, -fx, --file=x, --file x, < x, <x
+function sqlFiles(words) {
   const out = [];
-  for (const re of [/(?:^|\s)(?:-f\s*|--file[=\s]\s*)(["']?)([^\s"';|&<>]+)\1/g, /(?<!<)<(?!<)\s*(["']?)([^\s"';|&<>()]+)\1/g])
-    for (const m of cmd.matchAll(re)) out.push(m[2]);
+  words.forEach((w, i) => {
+    const m = /^(?:-f|--file=)(.+)$/.exec(w) ?? /^<([^<].*)$/.exec(w);
+    if (m) out.push(m[1]);
+    else if (w === "-f" || w === "--file" || w === "<") { if (words[i + 1]) out.push(words[i + 1]); }
+  });
   return out;
 }
 
 export function decide(ev, ctx) {
   if (ev?.kind !== "shell" || typeof ev.command !== "string") return { decision: "allow" };
-  let form = CLI.some((re) => re.test(ev.command)) ? "a database reset or delete command" : sqlForm(ev.command, false);
-  if (!form && CLIENT.test(ev.command)) {
-    for (const f of sqlFiles(ev.command)) {
-      const text = ctx.readFile(resolve(ev.root, f));
-      if (typeof text === "string" && (form = sqlForm(text, true))) { form = `${form} in ${f}`; break; }
+  let form = null, fed = "";
+  for (const seg of segments(ev.command)) {
+    const own = `${seg.words.join("\n")}\n${seg.doc}`, input = fed;
+    fed = seg.pipe ? `${fed}\n${own}` : "";
+    const cmd = commandWord(seg.words);
+    if (!cmd) continue;
+    const args = seg.words.slice(cmd.at + 1), line = seg.words.slice(cmd.at).join(" ");
+    if (CLI.some(([word, re]) => word.test(cmd.word) && re.test(line))) form = "a database reset or delete command";
+    else if (CLIENT.test(cmd.word)) {
+      form = sqlForm(`${args.join("\n")}\n${seg.doc}\n${input}`, false);
+      if (!form) for (const f of sqlFiles(args)) {
+        const text = ctx.readFile(resolve(ev.root, f));
+        if (typeof text === "string" && (form = sqlForm(text, true))) { form = `${form} in ${f}`; break; }
+      }
     }
+    if (form) break;
   }
   if (!form) return { decision: "allow" };
   return ev.isSubagent
