@@ -78,3 +78,13 @@ test("git rm is not the shell rm: allow; every other runner still denies", () =>
   assert.ok(denied('sudo git rm -r "$DIR"; exec rm -rf "$DIR"'));
   assert.ok(denied('echo git rm; rm -rf "$DIR"'));
 });
+
+test("git is exempt only as the command word with rm as its subcommand", () => {
+  assert.ok(allowed('git rm -r "$DIR"'));
+  assert.ok(allowed('git rm -r --cached "$DIR"'));
+  assert.ok(allowed('/usr/bin/git rm -r "$DIR"'));
+  assert.ok(denied('sudo -u git rm -rf "$DIR/"'));
+  assert.ok(denied('sudo -u git rm -rf "$DIR"'));
+  assert.ok(denied('echo git rm -rf "$DIR"'));
+  assert.ok(denied('git commit -m x && git rm -r "$A" ; xargs -I git rm -rf "$B"'));
+});

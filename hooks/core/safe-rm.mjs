@@ -1,7 +1,10 @@
-import { segments, base } from "./shell-words.mjs";
+import { segments, base, commandWord } from "./shell-words.mjs";
 
-// the one rule for rm in both hooks: a word rm counts unless git runs it (`git rm` only touches the index and the tree it names)
-export const isRm = (words, i) => base(words[i]) === "rm" && base(words[i - 1] ?? "") !== "git";
+// the one rule for rm in both hooks: a word rm counts unless it is the subcommand of git, the segment's command word (`git rm` only touches the index and the tree it names; `sudo -u git rm` runs rm)
+export const isRm = (words, i) => {
+  const cmd = commandWord(words);
+  return base(words[i]) === "rm" && !(cmd?.word === "git" && i === cmd.at + 1);
+};
 
 const UNSAFE = /\$(?:\{(?!\w+:\?)|[\w@*(])|`/;
 

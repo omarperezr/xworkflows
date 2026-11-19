@@ -20,9 +20,10 @@ test("SQL forms given with -c: ask", () => {
   }
 });
 
-test("comments are ignored and statements split on ;", () => {
-  assert.ok(allowed(`psql -c "SELECT 1 -- DROP TABLE x"`));
-  assert.ok(allowed(`psql -c "SELECT /* DROP TABLE x */ 1"`));
+test("comments stay text, so a form inside one asks; statements split on ;", () => {
+  assert.ok(asks(`psql -c "SELECT 1 -- DROP TABLE x"`));
+  assert.ok(asks(`psql -c "SELECT /* DROP TABLE x */ 1"`));
+  assert.ok(asks(`psql -c "SELECT '/*'; DROP TABLE x; SELECT '*/'"`));
   assert.ok(asks(`psql -c "SELECT 1; DELETE FROM users"`));
   assert.ok(allowed(`psql -c "DELETE FROM users WHERE id = 1; UPDATE t SET a=1 WHERE id=2"`));
   assert.ok(asks(`psql --dbname=x -c "DROP TABLE a"`));
@@ -112,11 +113,13 @@ test("a SQL file resolves from the event's cwd, then from each cd before the cli
   assert.ok(allowed("psql -f deep/bad.sql"));
 });
 
-test("only a WHERE outside parentheses counts", () => {
-  assert.ok(allowed('psql -c "DELETE FROM t WHERE id IN (SELECT id FROM u WHERE a = 1) OR 1=1"'));
+test("any bracket in a DELETE or UPDATE statement asks, a WHERE or not", () => {
+  assert.ok(asks('psql -c "DELETE FROM t WHERE id IN (SELECT id FROM u WHERE a = 1) OR 1=1"'));
   assert.ok(asks('psql -c "DELETE FROM t USING (SELECT id FROM u WHERE a = 1) x"'));
-  assert.ok(allowed('psql -c "DELETE FROM t WHERE (1=2) OR id = 1"'));
+  assert.ok(asks('psql -c "DELETE FROM t WHERE (1=2) OR id = 1"'));
+  assert.ok(asks('psql -c "DELETE FROM t WHERE id = 1)"'));
   assert.ok(asks('psql -c "UPDATE t SET a = (SELECT b FROM u WHERE u.id = 1)"'));
+  assert.ok(allowed('psql -c "DELETE FROM t WHERE id = 1 AND a = 2"'));
 });
 
 test("a tool is an unquoted word anywhere, behind any runner: ask", () => {
@@ -142,34 +145,39 @@ test("separate -c values, heredoc body and piped input are separate statements",
   assert.ok(allowed("psql -U app mydb -c 'DELETE FROM users WHERE id=1'"));
 });
 
-test("SQL string literals are blanked before the statement split and the bracket count", () => {
-  assert.ok(allowed(`psql -c "UPDATE t SET note = 'size (L' WHERE id = 1"`));
-  assert.ok(allowed(`psql -c "UPDATE t SET note = 'a; b' WHERE id = 1"`));
-  assert.ok(allowed(`psql -c "UPDATE t SET note = 'it''s; (x' WHERE id = 1"`));
+test("any quote mark in a DELETE or UPDATE statement asks, a WHERE or not", () => {
+  assert.ok(asks(`psql -c "UPDATE users SET name='x' WHERE id=1"`));
+  assert.ok(asks(`psql -c "UPDATE docs SET body = 'Drop us a line where you live'"`));
+  assert.ok(asks(`psql -c "UPDATE jobs SET sql = 'DELETE FROM x WHERE id = 1'"`));
+  assert.ok(asks(`psql -c "UPDATE t SET note = 'size (L' WHERE id = 1"`));
+  assert.ok(asks(`psql -c "UPDATE t SET note = 'a; b' WHERE id = 1"`));
+  assert.ok(asks(`psql -c "UPDATE t SET note = 'it''s; (x' WHERE id = 1"`));
   assert.ok(asks(`psql -c "UPDATE t SET note = 'drop table x -- y' WHERE id = 1"`));
   assert.ok(asks(`psql -c "UPDATE t SET note = 'a; b'"`));
   assert.ok(asks(`psql -c "SELECT 'x'; DROP TABLE users"`));
   assert.ok(asks(`psql -c "DELETE FROM t WHERE 'a'='a'"`));
+  assert.ok(asks(`psql -c "DELETE FROM t WHERE name = \\"x\\""`));
 });
 
-test("a literal that holds a form keyword stays raw, so a wrong quote pairing asks", () => {
+test("a wrong quote pairing asks, never passes", () => {
   const sql = `UPDATE users SET bio='I\\'m back' WHERE id=1; DELETE FROM sessions; UPDATE t SET a='x' WHERE id=2`;
   assert.ok(asks(`mysql app -e "${sql}"`));
   assert.ok(asks(`psql -c "UPDATE t SET a = E'it\\'s' WHERE id=1; DELETE FROM sessions; UPDATE u SET b='x' WHERE id=2"`));
   writeFileSync(join(root, "q.sql"), sql);
   assert.ok(asks("mysql app < q.sql"));
   assert.ok(asks(`psql -v "who=O'Brien" -c "DELETE FROM sessions" -c "UPDATE t SET a='x' WHERE id=2"`));
-  assert.ok(allowed(`psql -c "UPDATE t SET a = 'it''s' WHERE id = 1; UPDATE u SET b = 'x' WHERE id = 2"`));
+  assert.ok(asks(`psql -c "UPDATE t SET a = 'it''s' WHERE id = 1; UPDATE u SET b = 'x' WHERE id = 2"`));
 });
 
 test("rm counts as a database delete behind any runner, unless git runs it", () => {
-  for (const c of ["exec rm prod.db", "timeout 60 rm prod.db", "docker exec db rm /var/lib/app.db"]) assert.ok(asks(c), c);
+  for (const c of ["exec rm prod.db", "timeout 60 rm prod.db", "docker exec db rm /var/lib/app.db", "sudo -u git rm /srv/app.db", "echo git rm; rm prod.db"]) assert.ok(asks(c), c);
   assert.ok(allowed("git rm --cached dev.db"));
+  assert.ok(allowed("git rm -f data/app.sqlite"));
 });
 
-test("dropdb counts only when a name follows it", () => {
+test("dropdb asks whenever it runs: a name follows it or it is the command word", () => {
+  for (const c of ["dropdb app", "npx dropdb app", "dropdb", "echo app | xargs dropdb", "sudo dropdb", "cd x && dropdb"]) assert.ok(asks(c), c);
   assert.ok(allowed("which dropdb"));
   assert.ok(allowed("man dropdb"));
-  assert.ok(asks("dropdb app"));
-  assert.ok(asks("npx dropdb app"));
+  assert.ok(allowed('echo "dropdb app"'));
 });
