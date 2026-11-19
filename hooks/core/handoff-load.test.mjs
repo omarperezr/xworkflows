@@ -47,6 +47,7 @@ test("a cap that is not a whole number above zero is the default", () => {
 test("a hand-off over the cap says so in one line", () => {
   const d = decide(ev("sessionStart", "startup"), ctx(file, { cap: 10 }));
   assert.match(d.context, /^[^\n]*not loaded[^\n]*10[^\n]*$/);
+  assert.deepEqual(d, { decision: "allow", context: d.context, notice: d.context }); // the owner sees the same line, never "loaded"
 });
 
 test("the cap counts bytes, and the sha is read from the configured main branch", () => {

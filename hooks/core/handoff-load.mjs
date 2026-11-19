@@ -13,7 +13,7 @@ export function decide(ev, ctx) {
     const sha = ctx.git("rev-parse", ctx.config?.mainBranch ?? DEFAULTS.mainBranch);
     if (!sha || text.split("\n")[0].trim() !== `main: ${sha}` || ctx.git("rev-parse", "HEAD") !== sha) return NONE;
     const c = ctx.config?.tokens?.handoffBytes, cap = Number.isInteger(c) && c > 0 ? c : DEFAULTS.tokens.handoffBytes; // not a whole number above zero: the default
-    if (Buffer.byteLength(text) > cap) return { decision: "allow", context: `The hand-off .xworkflows/handoff.md was not loaded: it is over ${cap} bytes (tokens.handoffBytes).` };
+    if (Buffer.byteLength(text) > cap) { const not = `The hand-off .xworkflows/handoff.md was not loaded: it is over ${cap} bytes (tokens.handoffBytes).`; return { decision: "allow", context: not, notice: not }; }
     return { decision: "allow", context: text, notice: `Hand-off loaded: main ${sha.slice(0, 7)}.` }; // the context reaches only the model; the notice is what the owner sees
   } catch { return NONE; } // broken input or a git error: never a block
 }

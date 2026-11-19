@@ -508,9 +508,9 @@
         }
       ],
       "files": {
-        "hooks/core/handoff-load.mjs": "dc93e5b4505f3ed71928510b1a132624e244355fff3de7d2940ce0a5b8ea83f7"
+        "hooks/core/handoff-load.mjs": "a20d4014de7150f3a3ba95d66d1101399d1a60c6f1bb852bc8f1c114c28ed14c"
       },
-      "sha256": "f4b522c4a10dabbbd8a1b4ca38df5926588ca74830466f8bc370ffdc006eb188"
+      "sha256": "3c9f12105cdfc5055f4dd9b895aad4d94eff5ffd219b165680263cb1818c7a4b"
     },
     {
       "id": "implement",
