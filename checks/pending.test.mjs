@@ -141,3 +141,28 @@ test("rule 3 is saved by a --no-ff merge whose branch added and closed its own c
   r.merge("feat", "merge feat");
   assert.deepEqual(await r.run(pending), { ok: true, lines: [] });
 }));
+
+test("rule 3 is not saved by a --no-ff merge whose branch never changed the list while main did", withRepo({ files: { [PEND]: card(1) } }, async (r) => {
+  r.branch("feat");
+  r.commit("write plan", { files: { [PLAN]: "plan\n" } });
+  r.checkout("main");
+  const base = r.commit("main list", { files: { [PEND]: card(1) + card(2) } });
+  r.merge("feat", "merge feat");
+  const res = await r.run(pending, { base });
+  assert.equal(res.ok, false);
+  assert.match(res.lines.join("\n"), /write plan/);
+}));
+
+test("rule 3 is not saved by a --no-ff merge whose branch only merged main's list change in", withRepo({ files: { [PEND]: card(1) } }, async (r) => {
+  r.branch("feat");
+  r.commit("write plan", { files: { [PLAN]: "plan\n" } });
+  r.checkout("main");
+  const base = r.commit("main list", { files: { [PEND]: card(1) + card(2) } });
+  r.checkout("feat");
+  r.merge("main", "merge main into feat");
+  r.checkout("main");
+  r.merge("feat", "merge feat");
+  const res = await r.run(pending, { base });
+  assert.equal(res.ok, false);
+  assert.match(res.lines.join("\n"), /write plan/);
+}));
