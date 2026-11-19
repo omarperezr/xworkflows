@@ -134,7 +134,7 @@
     },
     "handoff": {
       "version": "0.1.0",
-      "sha256": "49d2e36876cced991ed8ee1317c3c581e2091f99cb02b95783ef02f21f008e57"
+      "sha256": "8ac73157743cfb75498f9b283f1384a682badcbb4294067bb63b27da94a1045c"
     },
     "pending": {
       "version": "0.1.0",
@@ -456,7 +456,7 @@
     },
     ".claude/skills/handoff/SKILL.md": {
       "piece": "handoff",
-      "sha256": "d3374ae9b256a576fa6db6ec44ef75abfbfb5398ef9acbe6fee82ad14a738b2c"
+      "sha256": "725c8e6ac2ec401d7143f1f0b649e8d0b2dbb4cb515993772555c9dd28ddc255"
     },
     ".claude/skills/pending/SKILL.md": {
       "piece": "pending",
