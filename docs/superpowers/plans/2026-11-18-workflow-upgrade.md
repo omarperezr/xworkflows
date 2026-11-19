@@ -12,6 +12,7 @@ Spec: docs/superpowers/specs/2026-11-18-workflow-upgrade.md
 - The SQL and front guides draw on the reference project's agents, read only, at the paths the prompt gives. Write nothing there. No name, path, client, table or business term of that project enters a tracked file: general lessons only.
 - The database hook asks the owner ("Te pregunta a ti (Recommended)"); in a subagent it denies ("Bloquear en agentes (Recommended)").
 - Tests build their repositories in a private `TMPDIR` and delete only inside it.
+- Owner, 2026-11-18, after seeing that superpowers adds about 3 KB at every session start and its own method: tdd stays our own guide: "Guia tdd nuestra"; the SQL and front plugins are enabled only where the project uses them: "Solo si el proyecto los usa (Recommended)". superpowers is never enabled.
 
 ## Tasks
 
@@ -48,9 +49,9 @@ Spec: docs/superpowers/specs/2026-11-18-workflow-upgrade.md
 - Done: `node --test hooks/core/safe-db.test.mjs hooks/adapters/` passes, with a case per form, a `DELETE ... WHERE id = 1` passing, and the subagent deny.
 
 **T6: install ships it** (spec section 2, items 3 to 7)
-- Files: `bin/xworkflows.mjs`, `bin/xworkflows.test.mjs`, `bin/doctor.test.mjs`, `bin/upgrade.test.mjs`, `checks/skills-travel.mjs`, `checks/skills-travel.test.mjs`, `skills/method.test.mjs`, `manifest.json`, `skills/tdd/`, `skills/ponytail/`
+- Files: `bin/xworkflows.mjs`, `bin/xworkflows.test.mjs`, `bin/doctor.test.mjs`, `bin/upgrade.test.mjs`, `checks/skills-travel.mjs`, `checks/skills-travel.test.mjs`, `skills/method.test.mjs`, `manifest.json`, `skills/ponytail/`, `agents/implement.md`, `agents/implement-sql.md`, `agents/implement-front.md`
 - Role: implement
-- Runs after T1 to T5 are committed. Manifest pieces for `review-small`, `implement-sql`, `implement-front`, `safe-rm`, `safe-db`; `tdd` and `ponytail` stop shipping and go under `retired`. The plugins the agents name are declared in the manifest; `install` merges each marketplace and plugin into `.claude/settings.json` (`extraKnownMarketplaces`, `enabledPlugins`) per sub-key, never replacing a key the user set, and records each for `uninstall`, which removes only its own. `skills-travel` accepts a `plugin:skill` name. Tests that used `tdd` as a sample skill use another.
+- Runs after T1 to T5 are committed. Manifest pieces for `review-small`, `implement-sql`, `implement-front`, `safe-rm`, `safe-db`; `ponytail` stops shipping and goes under `retired`; `tdd` keeps shipping, and the three agents name `tdd` again in place of `superpowers:test-driven-development`. The plugins the agents name are declared in the manifest: `ponytail@ponytail` always; `supabase@claude-plugins-official` only when the project tracks SQL files; `impeccable@impeccable` and `frontend-design@claude-plugins-official` only when it tracks screen files (by extension, from `git ls-files`). `install` merges each marketplace and plugin into `.claude/settings.json` (`extraKnownMarketplaces`, `enabledPlugins`) per sub-key, never replacing a key the user set, and records each for `uninstall`, which removes only its own. `skills-travel` accepts a `plugin:skill` name. Tests that used `tdd` as a sample skill use another.
 - Done: `node --test` passes; `node bin/xworkflows.mjs pack --check` prints nothing.
 
 After the merge, the main session runs `node bin/xworkflows.mjs install` in this repository and `doctor`, and, on the owner's word, the same in the pilot project before its first batch.
