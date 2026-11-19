@@ -6,7 +6,7 @@
   "pieces": {
     "hook-runtime": {
       "version": "0.1.0",
-      "sha256": "4d4b72414db10054b964cb89b2c7bc44d46957ebd11462e1b1e5875860c7623a"
+      "sha256": "4736662c32780b1b7714ef6b8a7866007bf3740b8a24982fbf9d306220ec86b4"
     },
     "design-first": {
       "version": "0.1.0",
@@ -86,7 +86,7 @@
     },
     "handoff-load": {
       "version": "0.1.0",
-      "sha256": "a6e52382918f92cfcf638393b04e046240e577b57be41dc2f714a1cb0d43d40c"
+      "sha256": "3c9f12105cdfc5055f4dd9b895aad4d94eff5ffd219b165680263cb1818c7a4b"
     },
     "implement": {
       "version": "0.1.0",
@@ -188,7 +188,7 @@
     },
     ".xworkflows/hooks/adapters/claude.mjs": {
       "piece": "hook-runtime",
-      "sha256": "46115da47afb78c7207c83c6d4b058efb7676804d43b0b7a9a36114322b8160d"
+      "sha256": "43836faaab18cffa02853bf98b64f3a3a14150fbeef84e7b52009e526fab69ad"
     },
     ".xworkflows/hooks/core/config.mjs": {
       "piece": "hook-runtime",
@@ -244,7 +244,7 @@
     },
     ".xworkflows/hooks/core/handoff-load.mjs": {
       "piece": "handoff-load",
-      "sha256": "3277c00cc8ae6372b1885248e7627978929acc5840e1eecb7360200251c976f0"
+      "sha256": "a20d4014de7150f3a3ba95d66d1101399d1a60c6f1bb852bc8f1c114c28ed14c"
     },
     ".xworkflows/templates/PENDING.md": {
       "piece": "pending",

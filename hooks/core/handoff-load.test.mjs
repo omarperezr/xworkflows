@@ -12,7 +12,7 @@ const ev = (event, source) => ({ event, source, root: "/r" });
 const file = `main: ${SHA}\ndone: batch x\nnext: T2 in docs/p.md\n`;
 
 test("a fresh hand-off loads at startup and clear, not at resume or compact", () => {
-  for (const s of ["startup", "clear"]) assert.deepEqual(decide(ev("sessionStart", s), ctx(file)), { decision: "allow", context: file });
+  for (const s of ["startup", "clear"]) assert.deepEqual(decide(ev("sessionStart", s), ctx(file)), { decision: "allow", context: file, notice: `Hand-off loaded: main ${SHA.slice(0, 7)}.` });
   for (const s of ["resume", "compact"]) assert.deepEqual(decide(ev("sessionStart", s), ctx(file)), { decision: "allow" });
 });
 
@@ -47,6 +47,7 @@ test("a cap that is not a whole number above zero is the default", () => {
 test("a hand-off over the cap says so in one line", () => {
   const d = decide(ev("sessionStart", "startup"), ctx(file, { cap: 10 }));
   assert.match(d.context, /^[^\n]*not loaded[^\n]*10[^\n]*$/);
+  assert.deepEqual(d, { decision: "allow", context: d.context, notice: d.context }); // the owner sees the same line, never "loaded"
 });
 
 test("the cap counts bytes, and the sha is read from the configured main branch", () => {
