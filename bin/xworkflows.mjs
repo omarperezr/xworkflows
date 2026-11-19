@@ -7,7 +7,7 @@ import { homedir, tmpdir } from "node:os";
 import { basename, dirname, extname, isAbsolute, join, normalize, posix, relative, resolve, sep } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { DEFAULTS, PROJECT_KEYS, load as loadConfig, memoryFolder, missing } from "../hooks/core/config.mjs";
+import { DEFAULTS, PROJECT_KEYS, inPaths, load as loadConfig, memoryFolder, missing } from "../hooks/core/config.mjs";
 
 export const PKG = dirname(dirname(fileURLToPath(import.meta.url)));
 export let ROOT;
@@ -173,7 +173,10 @@ const PLUGIN_MAPS = ["extraKnownMarketplaces", "enabledPlugins"];
 function pluginWants(manifest, root, all = false) {
   let tracked = [];
   try { tracked = execFileSync("git", ["ls-files", "-z"], { cwd: root, encoding: "utf8" }).split("\0"); } catch {}
-  const exts = new Set(tracked.map((f) => extname(f).toLowerCase()));
+  let code = [];
+  try { code = loadConfig(root).paths.code; } catch {} // a config that does not parse is said by the other readers
+  // SQL and screen files count only under paths.code
+  const exts = new Set(tracked.filter((f) => Array.isArray(code) && inPaths(f, code)).map((f) => extname(f).toLowerCase()));
   const on = (manifest.plugins ?? []).filter((p) => all || !p.whenTracked || p.whenTracked.some((e) => exts.has(e)));
   const markets = [...new Set(on.map((p) => p.id.split("@")[1]))].filter((n) => manifest.marketplaces?.[n]);
   return [

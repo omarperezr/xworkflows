@@ -727,28 +727,33 @@ test("install: a folder under .xworkflows made a file stops install with one lin
 // plugins the manifest declares: merged per sub-key into .claude/settings.json
 const PONY = { extraKnownMarketplaces: { ponytail: { source: { source: "github", repo: "DietrichGebert/ponytail" } } }, enabledPlugins: { "ponytail@ponytail": true } };
 const track = (r, ...paths) => { for (const p of paths) { mkdirSync(dirname(join(r, p)), { recursive: true }); writeFileSync(join(r, p), "x\n"); } git(r, `add ${paths.join(" ")}`); };
+const codeIn = (r, ...paths) => { mkdirSync(join(r, ".xworkflows"), { recursive: true }); writeFileSync(join(r, ".xworkflows/config.json"), JSON.stringify({ paths: { code: paths } })); };
 const plug = (r) => { const s = readJson(r, ".claude/settings.json"); return { m: Object.keys(s.extraKnownMarketplaces ?? {}).sort(), p: Object.keys(s.enabledPlugins ?? {}).sort() }; };
 
-test("plugins: ponytail always; sql and front plugins only when the project tracks such files", () => {
+test("plugins: ponytail always; sql and front plugins only when the project tracks such files under paths.code", () => {
   const plain = repo();
   cli(plain, ["install"]);
   const s = readJson(plain, ".claude/settings.json");
   assert.deepEqual(s.extraKnownMarketplaces, PONY.extraKnownMarketplaces);
   assert.deepEqual(s.enabledPlugins, PONY.enabledPlugins);
-  const sql = repo(); track(sql, "db/a.sql"); cli(sql, ["install"]);
+  const sql = repo(); codeIn(sql, "db/", "ui/"); track(sql, "db/a.sql"); cli(sql, ["install"]);
   assert.deepEqual(plug(sql), { m: ["ponytail"], p: ["ponytail@ponytail", "supabase@claude-plugins-official"] });
   for (const ext of ["tsx", "jsx", "vue", "svelte", "astro", "html", "css", "scss"]) {
-    const front = repo(); track(front, `ui/a.${ext}`); cli(front, ["install"]);
+    const front = repo(); codeIn(front, "db/", "ui/"); track(front, `ui/a.${ext}`); cli(front, ["install"]);
     assert.deepEqual(plug(front), { m: ["impeccable", "ponytail"], p: ["frontend-design@claude-plugins-official", "impeccable@impeccable", "ponytail@ponytail"] }, ext);
     assert.deepEqual(readJson(front, ".claude/settings.json").extraKnownMarketplaces.impeccable, { source: { source: "github", repo: "pbakaus/impeccable" } });
   }
   const untracked = repo({ "a.sql": "x\n", "b.tsx": "x\n" }); cli(untracked, ["install"]);
   assert.deepEqual(plug(untracked).p, ["ponytail@ponytail"]);
+  const outside = repo(); codeIn(outside, "db/"); track(outside, "vendor/a.sql", "vendor/b.tsx"); cli(outside, ["install"]);
+  assert.deepEqual(plug(outside).p, ["ponytail@ponytail"]);
+  const none = repo(); track(none, "db/a.sql", "ui/b.tsx"); cli(none, ["install"]);
+  assert.deepEqual(plug(none).p, ["ponytail@ponytail"]);
 });
 test("plugins: a sub-key the user set stays, any value; install twice changes nothing; uninstall leaves the user's keys", () => {
   const mine = { extraKnownMarketplaces: { ponytail: { source: { source: "github", repo: "me/fork" } }, other: { source: { source: "github", repo: "a/b" } } }, enabledPlugins: { "ponytail@ponytail": false, "x@y": true } };
   const r = repo({ ".claude/settings.json": JSON.stringify(mine) });
-  track(r, "a.sql");
+  codeIn(r, "db/"); track(r, "db/a.sql");
   cli(r, ["install"]);
   const s = readJson(r, ".claude/settings.json");
   assert.deepEqual(s.extraKnownMarketplaces, mine.extraKnownMarketplaces);
@@ -760,7 +765,7 @@ test("plugins: a sub-key the user set stays, any value; install twice changes no
   assert.deepEqual(u.enabledPlugins, mine.enabledPlugins);
 });
 test("plugins: uninstall removes its own sub-keys and the maps it made, keeps one the user changed since", () => {
-  const r = repo(); track(r, "a.sql");
+  const r = repo(); codeIn(r, "db/"); track(r, "db/a.sql");
   cli(r, ["install"]);
   const s = readJson(r, ".claude/settings.json");
   s.enabledPlugins["supabase@claude-plugins-official"] = false;
