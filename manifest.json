@@ -66,9 +66,9 @@
         "hooks/adapters/gemini.mjs": "eff8f29bce46d7c4a7c62845f3762a16c6fd38e831e6c4a5d6b54361ec599175",
         "hooks/core/config.mjs": "dcd2518da5eae28fe5ba57687a23cfcad0a587150ca0743c1746c1aa623d0928",
         "hooks/core/ctx.mjs": "c467ec88a800a1b3df3193922b7bd1377e12d610b6c75e2a7becc81cdd848138",
-        "hooks/core/shell-words.mjs": "aa31524c3aebc4d149c807fe1184d6bb494e936811bdc4ebd38ef63ddb1750bf"
+        "hooks/core/shell-words.mjs": "74891037cdeb47d425624a7b2161c683108d6bf90131453634a1f6d090f348d2"
       },
-      "sha256": "aa40f0f4697eb679b1a1ffe6fcd23a899e7c14cbf9dab4bf0efdcfcbed6dfd78"
+      "sha256": "4d23621fac50824f9370e5ee7b5f1ba7885063f35ecf41bd9da232c4380b3fac"
     },
     {
       "id": "design-first",
@@ -114,9 +114,9 @@
         }
       ],
       "files": {
-        "hooks/core/safe-rm.mjs": "f8b541dd07759f9f2713a0e54ffa8e2fb06c27cfaad15f992f47a76bcedbf1d3"
+        "hooks/core/safe-rm.mjs": "fc2733fc86e3adde8f554623a5a125b561251bef5bdb78a2915b024cb2f9e4da"
       },
-      "sha256": "3766f96d335b4b422cd04d8448606694a242be9d791d243b7a75d6fd51546ffe"
+      "sha256": "69ebe2318d5aad4fa85e08381c30e92334625dced378b1322c9dc58b3d8cab8e"
     },
     {
       "id": "safe-db",
@@ -135,9 +135,9 @@
         }
       ],
       "files": {
-        "hooks/core/safe-db.mjs": "d6dae4d877070d430a0cc940781281bc74e232f6b5aa6c5800eeff793eaadc82"
+        "hooks/core/safe-db.mjs": "6e42cd66f9ab8843f9f1339cfcdee583eb48db125b32f906c34509e010e064ab"
       },
-      "sha256": "097d0e9a382b41734b1de363bcd3e64fada3879949f250d97d60e9aa7e7e51b1"
+      "sha256": "3f36bae074d62694eee9b8fef2a5e63762c39443bbb6ca0ca1ac98916410a871"
     },
     {
       "id": "adapt-gates",
