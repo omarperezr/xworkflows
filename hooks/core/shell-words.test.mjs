@@ -39,3 +39,11 @@ test("base is the last path part of a word without leading brackets", () => {
   assert.equal(base("./manage.py"), "manage.py");
   assert.equal(base("psql -c x"), "psql -c x");
 });
+
+test("in double quotes a backslash escapes only $, backtick, quote, backslash and newline; any other keeps it", () => {
+  assert.deepEqual(words('psql -c "\\i x.sql"'), [["psql", "-c", "\\i x.sql"]]);
+  assert.deepEqual(words('echo "a\\"b\\\\c"'), [["echo", 'a"b\\c']]);
+  assert.deepEqual(words('echo "I\\\'m"'), [["echo", "I\\'m"]]);
+  assert.deepEqual(words("echo \\i"), [["echo", "i"]]);
+  assert.deepEqual(words("echo '\\i'"), [["echo", "\\i"]]);
+});

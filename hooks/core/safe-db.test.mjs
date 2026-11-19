@@ -68,7 +68,7 @@ test("CLI resets: ask", () => {
 });
 
 test("ordinary commands pass", () => {
-  for (const c of ["ls", "prisma migrate dev", "prisma db push", "rails db:migrate", "knex migrate:rollback", "redis-cli GET a", `mongosh --eval "db.users.deleteMany({a:1})"`, "rm app.txt", "rm dbfile", "psql -c 'SELECT 1'", "tail -f log.txt", "rm -f notes.md"])
+  for (const c of ["ls", "prisma migrate dev", "prisma db push", "rails db:migrate", "knex migrate:rollback", "redis-cli GET a", "rm app.txt", "rm dbfile", "psql -c 'SELECT 1'", "tail -f log.txt", "rm -f notes.md"])
     assert.ok(allowed(c), c);
 });
 
@@ -188,4 +188,78 @@ test("dropdb asks whenever it runs: a name follows it or it is the command word"
   assert.ok(allowed("which dropdb"));
   assert.ok(allowed("man dropdb"));
   assert.ok(allowed('echo "dropdb app"'));
+});
+
+test("the allowlist: a statement with delete, update, drop or truncate passes only as the two plain forms", () => {
+  for (const s of ["DELETE FROM users WHERE id = 1", "delete from t where a >= 3 and b <> 4", "UPDATE t SET a = 1 WHERE id = 2 AND b = 3", "UPDATE t SET a = 1, b = c WHERE t.id != 2", "UPDATE t SET a = NULL WHERE id < 9", "DELETE FROM users WHERE id = 1  ", "SELECT * FROM t", "SELECT deleted_at FROM t"])
+    assert.ok(allowed(`psql -c "${s}"`), s);
+  for (const s of ["DELETE FROM users -- where id = 1", "DELETE FROM users /* where id = 1 */", "DELETE FROM users WHERE id = 1 -- x", "UPDATE users u SET email = NULL", "UPDATE users u SET email = NULL WHERE u.id = 1",
+    "DELETE s FROM sessions s JOIN users u ON s.uid = u.id", "DELETE FROM a, b WHERE a.id = b.id", "DELETE FROM users WHERE id = 1 || 1=1", "DELETE FROM users WHERE id = 1 XOR 1=1", "DELETE FROM sessions WHERE 1",
+    "DELETE FROM t WHERE id = 1 OR 1 = 1", "DELETE FROM t WHERE NOT id = 1", "DELETE FROM t WHERE 1 = 1", "DELETE FROM t WHERE a = a", "DELETE FROM t WHERE 2 > 1", "DELETE FROM t WHERE true", "DELETE FROM t",
+    "UPDATE t SET a = 1", "UPDATE t SET a = a + 1 WHERE id = 1", "ALTER TABLE t DROP COLUMN a", "DROP TABLE t", "TRUNCATE t", "SELECT 1; DELETE FROM users WHERE 1"])
+    assert.ok(asks(`psql -c "${s}"`), s);
+  assert.ok(asks("psql <<EOF\nDELETE FROM users -- where id = 1\nEOF"));
+  assert.ok(asks("mysql -e 'DELETE FROM users # where id = 1'"));
+  assert.ok(asks("psql -c 'DELETE FROM users WHERE name = $$a where b$$'"));
+  assert.ok(asks("psql -c 'DELETE FROM users WHERE name = `x`'"));
+  assert.ok(asks(`sqlite3 app.db "DELETE FROM sessions WHERE 1"`));
+  assert.ok(asks(`mysql -e "DELETE FROM users WHERE id = 1 XOR 1=1"`));
+});
+
+test("a foreign key action is not a delete", () => {
+  assert.ok(allowed('psql -c "CREATE TABLE t (u int REFERENCES users ON DELETE CASCADE ON UPDATE SET NULL)"'));
+  assert.ok(asks('psql -c "CREATE TABLE t (u int REFERENCES users ON DELETE CASCADE); DELETE FROM t"'));
+});
+
+test("mongo shells, mysqladmin and docker volumes ask", () => {
+  for (const c of [`mongosh --eval "db.users.drop()"`, `mongo --eval "db.dropDatabase()"`, `mongosh --eval "db.users.deleteMany({a:1})"`, `mongosh --eval "db.users.remove({a:1})"`, "mysqladmin -u root drop app",
+    "docker compose down -v", "docker compose -f x.yml down --volumes", "docker-compose down -v", "docker-compose down --volumes", "docker volume rm pgdata", "docker volume prune", "docker volume prune -f"])
+    assert.ok(asks(c), c);
+  for (const c of [`mongosh --eval "db.users.find()"`, "mysqladmin status", "docker compose down", "docker-compose up -d", "docker volume ls", "docker compose up -v"]) assert.ok(allowed(c), c);
+});
+
+test("prisma db execute reads its --file and --stdin as SQL", () => {
+  writeFileSync(join(root, "pbad.sql"), "TRUNCATE users;");
+  assert.ok(asks("prisma db execute --file pbad.sql --schema s.prisma"));
+  assert.ok(asks('echo "DELETE FROM users" | prisma db execute --stdin'));
+  assert.ok(asks("prisma db execute --stdin <<EOF\nDROP TABLE x\nEOF"));
+  assert.ok(allowed('echo "DELETE FROM users WHERE id = 1" | prisma db execute --stdin'));
+  assert.ok(allowed("prisma db pull"));
+});
+
+test("SQL read from sqlcmd -i, \\i, \\include, source and cat | client", () => {
+  writeFileSync(join(root, "ibad.sql"), "DELETE FROM users;");
+  writeFileSync(join(root, "igood.sql"), "DELETE FROM users WHERE id = 1;");
+  assert.ok(asks("sqlcmd -S srv -i ibad.sql"));
+  assert.ok(allowed("sqlcmd -S srv -i igood.sql"));
+  assert.ok(asks(`psql -c "\\i ibad.sql"`));
+  assert.ok(asks(`psql -c "\\include ibad.sql"`));
+  assert.ok(asks(`psql -c '\\i ibad.sql'`));
+  assert.ok(asks("psql <<EOF\n\\i ibad.sql\nEOF"));
+  assert.ok(asks(`mysql -e "source ibad.sql"`));
+  assert.ok(asks("mysql <<EOF\nsource ibad.sql\nEOF"));
+  assert.ok(asks("cat ibad.sql | psql"));
+  assert.ok(asks("cat ibad.sql | sudo -u pg psql mydb"));
+  assert.ok(allowed("cat igood.sql | psql"));
+  assert.ok(allowed(`psql -c "\\i igood.sql"`));
+  assert.ok(allowed("cat ibad.sql"));
+  assert.ok(allowed("cat missing.sql | psql"));
+});
+
+test("find that deletes a database file, and a redirect or truncate that empties one, ask", () => {
+  for (const c of ["find . -name '*.db' -delete", "find . -name '*.sqlite3' -exec rm {} ;", "find / -type f \\( -name '*.sqlite' -o -name '*.db' \\) -delete", "find data -iname '*.sqlite*' -exec rm -f {} +", "find . -name '*.db' -execdir rm {} ;",
+    ": > app.db", "> app.sqlite", ">app.sqlite3", "echo -n > data/x.db", "2> x.db", "truncate -s 0 app.db", "sudo truncate -s0 /var/app.sqlite"])
+    assert.ok(asks(c), c);
+  for (const c of ["find . -name '*.log' -delete", "find . -name '*.db'", ": >> app.db", "echo hi > notes.txt", "truncate -s 0 app.log", 'git commit -m "> x.db"', "ls 2>&1 | tee out.txt", "cat app.db > copy.txt"]) assert.ok(allowed(c), c);
+});
+
+test("command -v, which and type look dropdb up and pass; running it asks", () => {
+  for (const c of ["command -v dropdb", "command -V dropdb", "which dropdb", "type dropdb", "which dropdb && echo yes"]) assert.ok(allowed(c), c);
+  for (const c of ["command dropdb app", "dropdb app", "which dropdb; dropdb app", "command -v dropdb && dropdb"]) assert.ok(asks(c), c);
+});
+
+test("a subagent is denied every new form", () => {
+  for (const c of [`psql -c "DELETE FROM users -- where id = 1"`, "docker volume prune", "find . -name '*.db' -delete", ": > x.db", `mongosh --eval "db.a.drop()"`]) {
+    assert.equal(decide(ev(c, { isSubagent: true }), ctx).decision, "deny", c);
+  }
 });

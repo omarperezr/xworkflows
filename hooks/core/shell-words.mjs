@@ -16,7 +16,8 @@ export function segments(cmd) {
   for (let i = 0; i < cmd.length; i++) {
     const c = cmd[i];
     if (q === "'") { if (c === "'") q = ""; else tok += lit(c); continue; }
-    if (c === "\\" && i + 1 < cmd.length) { tok += lit(cmd[++i]); has = true; continue; }
+    // in double quotes a backslash escapes only $ ` " \ and newline; before any other character it stays
+    if (c === "\\" && i + 1 < cmd.length && (q !== '"' || /["$`\\\n]/.test(cmd[i + 1]))) { tok += lit(cmd[++i]); has = true; continue; }
     if (q === '"') { if (c === '"') q = ""; else tok += c; continue; }
     if (c === "'" || c === '"') { q = c; has = true; continue; }
     const h = c === "<" && cmd[i - 1] !== "<" && /^<<(-?)\s*(["']?)([^\s"';|&<>()]+)\2/.exec(cmd.slice(i));

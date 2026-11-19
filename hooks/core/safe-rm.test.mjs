@@ -38,7 +38,6 @@ test("literal path, guarded variable, non-recursive rm: allow", () => {
   assert.ok(allowed('echo "rm -rf $D"'));
   assert.ok(allowed('git commit -m "rm -rf $D"'));
   assert.ok(allowed("ls $D && rm -rf build"));
-  assert.ok(allowed("find . | xargs rm -rf"));
 });
 
 test("guarded and unguarded mixed: deny", () => {
@@ -87,4 +86,19 @@ test("git is exempt only as the command word with rm as its subcommand", () => {
   assert.ok(denied('sudo -u git rm -rf "$DIR"'));
   assert.ok(denied('echo git rm -rf "$DIR"'));
   assert.ok(denied('git commit -m x && git rm -r "$A" ; xargs -I git rm -rf "$B"'));
+});
+
+test("a prefix of --recursive counts as recursive", () => {
+  for (const f of ["--r", "--rec", "--recu", "--recurs", "--recursiv", "--recursive"]) assert.ok(denied(`rm ${f} $DIR`), f);
+  assert.ok(allowed("rm --force $DIR"));
+  assert.ok(allowed("rm --verbose $DIR"));
+  assert.ok(allowed("rm --recx $DIR"));
+});
+
+test("xargs rm with a recursive flag fed by a pipe: deny; not recursive or not piped: allow", () => {
+  const xdenied = (c) => decide(ev(c), ctx).decision === "deny";
+  for (const c of ['echo "$HOME/$SUB" | xargs rm -rf', "find . | xargs rm -rf", "ls | xargs -n1 rm -r", "cat list | sudo xargs rm --recursive", "echo a | xargs -I{} rm -fr {}", 'echo "$A" | xargs rm --rec'])
+    assert.ok(xdenied(c), c);
+  for (const c of ["find . | xargs rm -f", "echo a | xargs rm", "xargs rm -rf", "xargs rm -rf build", "git ls-files | xargs git rm -r"]) assert.ok(allowed(c), c);
+  assert.equal(decide(ev("echo a | xargs rm -rf", { isSubagent: true }), ctx).decision, "deny");
 });

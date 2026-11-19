@@ -12,59 +12,92 @@ const CLI = [
   [/^manage\.py$/, /\bmanage\.py\s+flush\b/],
   [/^knex$/, /\bknex\s+migrate:rollback\b.*--all\b/],
   [/^redis-cli$/, /\bflush(?:all|db)\b/i],
-  [/^mongosh?$/, /\bdropDatabase\s*\(|\bdeleteMany\(\s*\{\s*\}\s*\)/],
+  [/^mongo(?:sh)?$/, /\.drop\s*\(|\bdropDatabase\b|\bdeleteMany\b|\bremove\s*\(/],
+  [/^mysqladmin$/, /\bdrop\b/],
+  [/^docker$/, /\bcompose\s.*\bdown\b.*(?:^|\s)(?:-v|--volumes)(?=\s|$)|\bvolume\s+(?:rm|remove|prune)\b/],
+  [/^docker-compose$/, /\bdown\b.*(?:^|\s)(?:-v|--volumes)(?=\s|$)/],
+  [/^find$/, /\.(?:db|sqlite3?)\*?(?![\w.]).*\s(?:-delete\b|-exec(?:dir)?\s+(?:\S*\/)?rm\b)/],
+  [/^truncate$/, /\.(?:db|sqlite3?)(?:\s|$)/],
 ];
 // a file named .db or .sqlite goes when a word rm names it (not `git rm --cached dev.db`)
 const RM_DB = /\.(?:db|sqlite3?)(?:\s|$)/;
-const TRUE = /^\s*(?:1\s*=\s*1|true)(?![\w.])(?!\s*and\b)/i;
 
 // the words as SQL text: a word that holds whitespace (a quoted -c value) is a statement of its own
 const sqlText = (words) => words.reduce((t, w, i) => (i ? `${t}${/\s/.test(w) || /\s/.test(words[i - 1]) ? ";\n" : " "}${w}` : w), "");
 
-// the form of the SQL text that would delete all or part of the data, or null. Doubt asks: a DELETE or UPDATE passes only with a WHERE that is not always true, holds no OR or NOT, and no quote mark or bracket in the statement
+// Allowlist. A statement that holds delete, update, drop or truncate passes only as one of two plain forms:
+// DELETE FROM <name> WHERE <cond>, UPDATE <name> SET <name> = <value>[, ...] WHERE <cond>, with <cond> = <name> <op> <value> joined by AND,
+// names and values only letters, digits, _ and . ; the WHERE must not be always true. Anything else asks.
+const N = "[\\w.]+", OP = "(?:<=|>=|<>|!=|=|<|>)", SET = `${N}\\s*=\\s*${N}`;
+const DELETE = new RegExp(`^\\s*delete\\s+from\\s+${N}\\s+where\\s+(.+?)\\s*$`, "is");
+const UPDATE = new RegExp(`^\\s*update\\s+${N}\\s+set\\s+${SET}(?:\\s*,\\s*${SET})*\\s+where\\s+(.+?)\\s*$`, "is");
+const TERM = new RegExp(`^(${N})\\s*(${OP})\\s*(${N})$`);
+const NUM = /^\d+(?:\.\d+)?$/;
+// a comparison that is true for every row: equal sides with = <= >=, or two numbers that satisfy it
+const holds = (l, op, r) => (l.toLowerCase() === r.toLowerCase() ? /^(?:=|<=|>=)$/.test(op) : NUM.test(l) && NUM.test(r) && { "=": +l === +r, "<": +l < +r, ">": +l > +r, "<=": +l <= +r, ">=": +l >= +r, "<>": +l !== +r, "!=": +l !== +r }[op]);
+// a plain condition: only name op value terms joined by AND, and not every term always true
+function plainCond(cond) {
+  const terms = cond.split(/\s+and\s+/i).map((t) => TERM.exec(t));
+  return terms.every(Boolean) && !terms.every(([, l, op, r]) => holds(l, op, r));
+}
+
+// why the SQL text would delete data, or null: its statements split on ;
 function sqlForm(text) {
   for (const st of text.split(";")) {
-    if (/\bdrop\s+(?:database|schema|table)\b/i.test(st) || (/\btruncate\b/i.test(st) && !/\b(?:grant|revoke)\b/i.test(st))) return "DROP or TRUNCATE";
-    for (const [re, name] of [[/\bdelete\s+from\s+\S+/i, "DELETE"], [/\bupdate\s+\S+\s+set\b/i, "UPDATE"]]) {
-      const m = re.exec(st);
-      if (!m) continue;
-      const at = st.slice(m.index).search(/\bwhere\b/i);
-      const cond = st.slice(m.index + at + 5);
-      if (at < 0 || TRUE.test(cond) || /\b(?:or|not)\b/i.test(cond)) return `${name} without a real WHERE`;
-      if (/['"()]/.test(st)) return `${name} with a quote or a bracket`;
-    }
+    // ON DELETE CASCADE and its kin name an action of a foreign key, not a delete
+    const bare = st.replace(/\bon\s+(?:delete|update)\s+(?:cascade|restrict|no\s+action|set\s+(?:null|default))\b/gi, "");
+    if (!/\b(?:delete|update|drop)\b/i.test(bare) && !(/\btruncate\b/i.test(bare) && !/\b(?:grant|revoke)\b/i.test(bare))) continue;
+    const m = DELETE.exec(st) ?? UPDATE.exec(st);
+    if (!m || !plainCond(m[1])) return "a DELETE, UPDATE, DROP or TRUNCATE that is not a plain DELETE or UPDATE with a real WHERE";
   }
   return null;
 }
 
-// the files a client's words name as SQL input: -f x, -fx, --file=x, --file x, < x, <x
-function sqlFiles(words) {
+// the SQL files a statement reads: psql \i x, \include x, \ir x, mysql source x, \. x
+const includes = (text) => text.split(";").flatMap((st) => { const m = /^\s*(?:\\(?:i|ir|include|include_relative|\.)|source)\s+(\S+)\s*$/i.exec(st); return m ? [m[1]] : []; });
+
+// the files a client's words name as SQL input: -f x, -fx, --file=x, --file x, < x, <x, and sqlcmd -i x,y
+function sqlFiles(tool, words) {
   const out = [];
   words.forEach((w, i) => {
     const m = /^(?:-f|--file=)(.+)$/.exec(w) ?? /^<([^<].*)$/.exec(w);
     if (m) out.push(m[1]);
     else if (w === "-f" || w === "--file" || w === "<") { if (words[i + 1]) out.push(words[i + 1]); }
+    else if (tool === "sqlcmd" && w === "-i" && words[i + 1]) out.push(...words[i + 1].split(","));
   });
   return out;
 }
 
+// a redirect that truncates a file named .db or .sqlite: > x, >x, 2> x ( >> appends and a word holding spaces is text)
+const truncates = (words) => words.some((w, i) => {
+  const m = /^(?:\d*|&)>(?![>&])\|?(.*)$/.exec(w);
+  const target = m && (m[1] || words[i + 1] || "");
+  return m && /\.(?:db|sqlite3?)$/.test(target) && !/\s/.test(target);
+});
+
 export function decide(ev, ctx) {
   if (ev?.kind !== "shell" || typeof ev.command !== "string") return { decision: "allow" };
   let form = null, fed = "", dir = ev.cwd ?? ev.root;
+  const read = (f) => ctx.readFile(resolve(dir, f));
   for (const seg of segments(ev.command)) {
-    const own = `${sqlText(seg.words)};\n${seg.doc}`, input = fed;
-    fed = seg.pipe ? `${fed};\n${own}` : "";
     const cmd = commandWord(seg.words);
     if (cmd?.word === "cd") dir = resolve(dir, seg.words.slice(cmd.at + 1).find((a) => !a.startsWith("-")) ?? ".");
-    if (seg.words.some((_, i) => isRm(seg.words, i) && RM_DB.test(seg.words.slice(i).join(" ")))) form = "a database reset or delete command";
+    // a pipe carries what it holds to the next command: `cat x.sql | psql` feeds the file
+    const files = cmd?.word === "cat" && seg.pipe ? seg.words.slice(cmd.at + 1).filter((a) => !a.startsWith("-")).map(read).filter((t) => typeof t === "string") : [];
+    const own = `${sqlText(seg.words)};\n${seg.doc};\n${files.join(";\n")}`, input = fed;
+    fed = seg.pipe ? `${fed};\n${own}` : "";
+    // which, type and command -v only look a command up
+    const lookup = /^(?:which|type)$/.test(cmd?.word) || (/^-[vV]$/.test(seg.words[cmd?.at - 1]) && base(seg.words[cmd.at - 2] ?? "") === "command");
+    if (truncates(seg.words) || seg.words.some((_, i) => isRm(seg.words, i) && RM_DB.test(seg.words.slice(i).join(" ")))) form = "a database reset or delete command";
     for (let i = 0; i < seg.words.length && !form; i++) {
       const tool = base(seg.words[i]), args = seg.words.slice(i + 1), line = seg.words.slice(i).join(" ");
-      if (CLI.some(([word, re]) => word.test(tool) && re.test(line)) || (tool === "dropdb" && (args.length || cmd?.at === i))) form = "a database reset or delete command";
-      else if (CLIENT.test(tool)) {
-        form = sqlForm(`${sqlText(args)};\n${seg.doc};\n${input}`);
-        if (!form) for (const f of sqlFiles(args)) {
-          const text = ctx.readFile(resolve(dir, f));
-          if (typeof text === "string" && (form = sqlForm(text))) { form = `${form} in ${f}`; break; }
+      if (CLI.some(([word, re]) => word.test(tool) && re.test(line)) || (tool === "dropdb" && !lookup && (args.length || cmd?.at === i))) form = "a database reset or delete command";
+      else if (CLIENT.test(tool) || (tool === "prisma" && /\bdb\s+execute\b/.test(line))) {
+        const text = `${sqlText(args)};\n${seg.doc};\n${input}`;
+        form = sqlForm(text);
+        if (!form) for (const f of [...sqlFiles(tool, args), ...includes(text)]) {
+          const code = read(f);
+          if (typeof code === "string" && (form = sqlForm(code))) { form = `${form} in ${f}`; break; }
         }
       }
     }
@@ -75,4 +108,4 @@ export function decide(ev, ctx) {
     ? { decision: "deny", reason: `This command would delete data (${form}). A subagent may not run it: hand the command to the main session, which asks the owner.` }
     : { decision: "ask", reason: `This command would delete data (${form}). Confirm with the owner before it runs.` };
 }
-// shortcut: no shell or SQL parser; aliases, scripts that hold the SQL, eval, bash -c "...", variables holding SQL and a WHERE that is only true in a way other than 1=1, true or 'a'='a' are not followed, upgrade by parsing the nested command.
+// shortcut: no shell or SQL parser; aliases, scripts that hold the SQL, eval, bash -c "...", variables holding SQL and a pipe that rebuilds a command are not followed, upgrade by parsing the nested command.
