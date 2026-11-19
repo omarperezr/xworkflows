@@ -201,9 +201,18 @@ test("doctor does not count the hand-off in the session-start bytes and warns on
   over("b".repeat(40)); // stale: silent at any size
   assert.doesNotMatch(doctor(r, { HOME: EMPTY_HOME }).stdout, /^warn .*handoff/m);
   over(git(r, "rev-parse main"));
-  assert.match(doctor(r, { HOME: EMPTY_HOME }).stdout, /^warn \.xworkflows\/handoff\.md is 1547 bytes, over tokens\.handoffBytes 1500: it is not loaded; shorten it$/m);
-  withConfig(r, { tokens: { handoffBytes: 0 } }); // not a whole number above zero: the default cap
-  assert.match(doctor(r, { HOME: EMPTY_HOME }).stdout, /^warn \.xworkflows\/handoff\.md is 1547 bytes, over tokens\.handoffBytes 1500:/m);
+  assert.match(doctor(r, { HOME: EMPTY_HOME }).stdout, /^warn \.xworkflows\/handoff\.md was not loaded: /m);
+  git(r, "checkout -q -b topic");
+  git(r, "-c user.name=t -c user.email=t@t commit --allow-empty -m ahead");
+  assert.doesNotMatch(doctor(r, { HOME: EMPTY_HOME }).stdout, /^warn .*handoff/m); // HEAD ahead of main: not loaded at any size, so no warning
+});
+test("doctor and the hand-off hook agree on a config with one bad section and another main branch", () => {
+  const r = repo(); cli(r, ["install"]);
+  git(r, "-c user.name=t -c user.email=t@t commit --allow-empty -m c");
+  git(r, "branch -m trunk");
+  withConfig(r, { memory: 5, mainBranch: "trunk", tokens: { handoffBytes: 100 } });
+  writeFileSync(join(r, ".xworkflows/handoff.md"), `main: ${git(r, "rev-parse trunk")}\n${"x".repeat(200)}`);
+  assert.match(doctor(r, { HOME: EMPTY_HOME }).stdout, /^warn \.xworkflows\/handoff\.md was not loaded: /m);
 });
 test("doctor warns on an attribution that shows an AI line and on a memory folder outside the repository", () => {
   const r = repo(); cli(r, ["install"]);

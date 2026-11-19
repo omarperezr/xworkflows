@@ -16,7 +16,9 @@ Write `.xworkflows/handoff.md`. It points, it does not copy: ids and paths, neve
 
 Run `wc -c .xworkflows/handoff.md`: at most `tokens.handoffBytes`. Over it, cut words, not instructions.
 
-Then choose. Does everything the next session needs already stand written in the plan, the pending list and the hand-off? Yes: `/clear`. No (an owner question still open, a design round half done, a debugging in progress, a nuance that matters and does not fit): `/compact`. In doubt: `/compact`.
+Off `mainBranch` (`git rev-parse HEAD` is not the sha on line 1) the file will not load: the owner's next line is `Next: /compact`, and it says the file will not load.
+
+Otherwise choose. Does everything the next session needs already stand written in the plan, the pending list and the hand-off? Yes: `/clear`. No (an owner question still open, a design round half done, a debugging in progress, a nuance that matters and does not fit): `/compact`. In doubt: `/compact`.
 
 Tell the owner one line that starts `Next: /clear` or `Next: /compact`, with the reason.
 

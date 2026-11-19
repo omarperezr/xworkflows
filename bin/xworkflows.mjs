@@ -1008,20 +1008,18 @@ async function doctor() {
     try { st = JSON.parse(readFileSync(join(ROOT, ".claude/settings.json"), "utf8")); } catch {}
     try { local = JSON.parse(readFileSync(join(ROOT, ".claude/settings.local.json"), "utf8")); } catch {}
     let bytes = 0;
-    const ho = read(ROOT, ".xworkflows/handoff.md") ?? "", hc = conf.tokens?.handoffBytes, handoffCap = Number.isInteger(hc) && hc > 0 ? hc : DEFAULTS.tokens.handoffBytes; // the hook's cap rule
-    const sha = (rev) => { try { return execFileSync("git", ["rev-parse", rev], { cwd: ROOT, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim(); } catch { return ""; } };
-    const fresh = sha(conf.mainBranch) !== "" && ho.split("\n")[0].trim() === `main: ${sha(conf.mainBranch)}` && sha("HEAD") === sha(conf.mainBranch); // a stale hand-off is not loaded at any size, so its size is no warning
     // a session file with as many sessions beside it as make the memory hook suggest dream, as the hook reads the threshold
     // shortcut: a threshold over 1000 is probed with 1000 sessions, so its line is not measured; raise it when a project sets one
     const after = conf.dream?.suggestAfterSessions, sessions = mkdtempSync(join(tmpdir(), "xwf-doctor-sessions-"));
     for (let i = 0; i <= Math.min(Number.isInteger(after) && after > 0 ? after : DEFAULTS.dream.suggestAfterSessions, 1000); i++) writeFileSync(join(sessions, `${i}.jsonl`), "");
     for (const h of (st.hooks?.SessionStart ?? []).flatMap((e) => e.hooks ?? [])) {
       if (!`${h.command} `.includes('/.xworkflows/hooks/run.mjs" claude ')) continue;
-      if (isOurs({ hooks: [h] }, "handoff-load")) continue; // the hand-off is the last session's text, not the hook's: it stays out of the measure
-      bytes += Buffer.byteLength(fire(h.command, { session_id: `doctor-${process.pid}`, cwd: ROOT, hook_event_name: "SessionStart", source: "startup", transcript_path: join(sessions, "0.jsonl") }).stdout ?? "");
+      const out = fire(h.command, { session_id: `doctor-${process.pid}`, cwd: ROOT, hook_event_name: "SessionStart", source: "startup", transcript_path: join(sessions, "0.jsonl") }).stdout ?? "";
+      // the hand-off is the last session's text, not the hook's: its bytes stay out of the measure, and the hook alone says whether it loads
+      if (!isOurs({ hooks: [h] }, "handoff-load")) bytes += Buffer.byteLength(out);
+      else if (out.includes("was not loaded")) say("warn", ".xworkflows/handoff.md was not loaded: it is over tokens.handoffBytes; shorten it");
     }
     rmSync(sessions, { recursive: true, force: true });
-    if (fresh && Buffer.byteLength(ho) > handoffCap) say("warn", `.xworkflows/handoff.md is ${Buffer.byteLength(ho)} bytes, over tokens.handoffBytes ${handoffCap}: it is not loaded; shorten it`);
     const sb = conf.tokens.sessionStartBytes;
     say(bytes > sb ? "fail" : "ok", `session-start text: ${bytes} bytes of ${sb}${bytes > sb ? ": raise tokens.sessionStartBytes in .xworkflows/config.json or cut what the hook prints" : ""}`);
     const ai = st.attribution && typeof st.attribution === "object" ? [st.attribution.commit, st.attribution.pr].some((x) => x) : !!st.attribution;
