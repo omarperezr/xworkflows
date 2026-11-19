@@ -154,7 +154,7 @@
     },
     "checks": {
       "version": "0.1.0",
-      "sha256": "4be2aebe401f33d7586a336472ca36511b670c0e8a4358a868a85c232c38d8f7"
+      "sha256": "90800d61ee6e79ba945f8e34f59983e595bdb08ad08d2d493ee9e77887a5c5be"
     },
     "lint": {
       "version": "0.1.0",
@@ -272,7 +272,7 @@
     },
     ".xworkflows/checks/pending.mjs": {
       "piece": "checks",
-      "sha256": "4ed8286963595f02938520206478503d25686f91ba1af728eba69b63d7cf3ef4"
+      "sha256": "dbb043a46aa19d3c3466d1a6d54bd2de718989410134b09a05068324c7bcee5e"
     },
     ".xworkflows/checks/fix-has-test.mjs": {
       "piece": "checks",
