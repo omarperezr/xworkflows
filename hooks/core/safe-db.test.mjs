@@ -284,3 +284,20 @@ test("a piping cat is read only when a database client takes the pipe", () => {
   writeFileSync(join(root, "cbad.sql"), "DELETE FROM users;");
   assert.equal(decide(ev("cat cbad.sql | head -n 5 | psql"), strict).decision, "ask");
 });
+
+test("the right side of a WHERE term is a number literal; a name or a function asks", () => {
+  for (const s of ["DELETE FROM sessions WHERE user = current_user", "UPDATE users SET is_admin = 1 WHERE user = current_user", "DELETE FROM t WHERE name = x", "DELETE FROM t WHERE id = 5 AND b = c"])
+    assert.ok(asks(`psql -c "${s}"`), s);
+  assert.ok(asks(`sqlite3 app.db "DELETE FROM t WHERE rowid = oid"`));
+  for (const s of ["DELETE FROM t WHERE id = 5", "UPDATE t SET a = 1 WHERE id = 2 AND b = 3", "DELETE FROM t WHERE id = -5", "DELETE FROM t WHERE price = 1.5 AND qty = +2"])
+    assert.ok(allowed(`psql -c "${s}"`), s);
+});
+
+test("a text filter as the command word is never a database client", () => {
+  writeFileSync(join(root, "CHANGELOG.md"), "Update the parser\nDrop support for old nodes\nsqlite notes\n");
+  for (const c of ["cat CHANGELOG.md | grep -i sqlite", "grep -rn update src | grep -i sqlite", "git log --oneline | grep -i drop | grep psql", "cat CHANGELOG.md | sed -n 1p | wc -l | rg mysql"])
+    assert.ok(allowed(c), c);
+  writeFileSync(join(root, "bad.sql"), "DROP TABLE users");
+  assert.ok(asks("cat bad.sql | psql"));
+  assert.ok(asks("cat bad.sql | grep x | psql"));
+});

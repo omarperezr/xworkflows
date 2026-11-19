@@ -3,6 +3,7 @@ import { segments, commandWord, base } from "./shell-words.mjs";
 import { isRm } from "./safe-rm.mjs";
 
 const CLIENT = /^(?:psql|mysql|mariadb|sqlite3?|sqlcmd|duckdb|usql|clickhouse-client|supabase)$/;
+const TEXT_FILTER = /^(?:grep|rg|awk|sed|head|tail|wc)$/;
 const SCRIPT = /^(?:rake|rails|bundle|sequelize|sequelize-cli|npm|yarn|pnpm|bunx?|npx|node|deno|tsx)$/;
 // [a tool word, the words from it on]: a CLI form counts when an unquoted word is that tool, whatever runs it
 const CLI = [
@@ -27,17 +28,13 @@ const sqlText = (words) => words.reduce((t, w, i) => (i ? `${t}${/\s/.test(w) ||
 
 // Allowlist. A statement that holds delete, update, drop or truncate passes only as one of two plain forms:
 // DELETE FROM <name> WHERE <cond>, UPDATE <name> SET <name> = <value>[, ...] WHERE <cond>, with <cond> = <name> = <value> joined by AND,
-// names and values only letters, digits, _ and . ; the left side is a name (not TRUE, FALSE or NULL) and the WHERE must not be always true. Anything else asks.
+// names and SET values only letters, digits, _ and . ; in a WHERE the left side is a name (not TRUE, FALSE or NULL) and the right side a number literal. Anything else asks.
 const N = "[\\w.]+", SET = `${N}\\s*=\\s*${N}`;
 const DELETE = new RegExp(`^\\s*delete\\s+from\\s+${N}\\s+where\\s+(.+?)\\s*$`, "is");
 const UPDATE = new RegExp(`^\\s*update\\s+${N}\\s+set\\s+${SET}(?:\\s*,\\s*${SET})*\\s+where\\s+(.+?)\\s*$`, "is");
-const TERM = new RegExp(`^([a-z_][\\w.]*)\\s*=\\s*(${N})$`, "i");
-const bare = (n) => n.toLowerCase().split(".").pop();
-// a plain condition: only name = value terms joined by AND, and not every term always true (equal sides, qualifier stripped)
-function plainCond(cond) {
-  const terms = cond.split(/\s+and\s+/i).map((t) => TERM.exec(t));
-  return terms.every((m) => m && !/^(?:true|false|null)$/i.test(m[1])) && !terms.every(([, l, r]) => bare(l) === bare(r));
-}
+const TERM = /^([a-z_][\w.]*)\s*=\s*[+-]?(?:\d+\.?\d*|\.\d+)$/i;
+// a plain condition: only name = number terms joined by AND (a name never equals a number, so it is never always true)
+const plainCond = (cond) => cond.split(/\s+and\s+/i).every((t) => { const m = TERM.exec(t); return m && !/^(?:true|false|null)$/i.test(m[1]); });
 
 // why the SQL text would delete data, or null: its statements split on ;
 function sqlForm(text) {
@@ -89,10 +86,12 @@ export function decide(ev, ctx) {
     // which, type and command -v only look a command up
     const lookup = /^(?:which|type)$/.test(cmd?.word) || (/^-[vV]$/.test(seg.words[cmd?.at - 1]) && base(seg.words[cmd.at - 2] ?? "") === "command");
     if (truncates(seg.words) || seg.words.some((_, i) => isRm(seg.words, i) && RM_DB.test(seg.words.slice(i).join(" ")))) form = "a database reset or delete command";
+    // a text filter only reads text: a client name among its arguments is a pattern, not a client
+    const filter = TEXT_FILTER.test(cmd?.word);
     for (let i = 0; i < seg.words.length && !form; i++) {
       const tool = base(seg.words[i]), args = seg.words.slice(i + 1), line = seg.words.slice(i).join(" ");
       if (CLI.some(([word, re]) => word.test(tool) && re.test(line)) || (tool === "dropdb" && !lookup && (args.length || cmd?.at === i))) form = "a database reset or delete command";
-      else if (CLIENT.test(tool) || (tool === "prisma" && /\bdb\s+execute\b/.test(line))) {
+      else if (!filter && (CLIENT.test(tool) || (tool === "prisma" && /\bdb\s+execute\b/.test(line)))) {
         const text = `${sqlText(args)};\n${seg.doc};\n${input};\n${inFiles.map(read).filter((t) => typeof t === "string").join(";\n")}`;
         form = sqlForm(text);
         if (!form) for (const f of [...sqlFiles(tool, args), ...includes(text)]) {
