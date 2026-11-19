@@ -145,6 +145,14 @@ test("separate -c values, heredoc body and piped input are separate statements",
   assert.ok(allowed("psql -U app mydb -c 'DELETE FROM users WHERE id=1'"));
 });
 
+test("a WHERE that holds OR or NOT as a word asks", () => {
+  assert.ok(asks('psql -c "DELETE FROM t WHERE id = 1 OR 1=1"'));
+  assert.ok(asks('psql -c "UPDATE t SET a=1 WHERE NOT id = 2"'));
+  assert.ok(asks('psql -c "delete from t where id = 1 or id = 2"'));
+  assert.ok(allowed('psql -c "DELETE FROM t WHERE id = 1 AND a = 2"'));
+  assert.ok(allowed('psql -c "DELETE FROM t WHERE order_id = 1 AND notes_id = 2"'));
+});
+
 test("any quote mark in a DELETE or UPDATE statement asks, a WHERE or not", () => {
   assert.ok(asks(`psql -c "UPDATE users SET name='x' WHERE id=1"`));
   assert.ok(asks(`psql -c "UPDATE docs SET body = 'Drop us a line where you live'"`));

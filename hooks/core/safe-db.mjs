@@ -21,7 +21,7 @@ const TRUE = /^\s*(?:1\s*=\s*1|true)(?![\w.])(?!\s*and\b)/i;
 // the words as SQL text: a word that holds whitespace (a quoted -c value) is a statement of its own
 const sqlText = (words) => words.reduce((t, w, i) => (i ? `${t}${/\s/.test(w) || /\s/.test(words[i - 1]) ? ";\n" : " "}${w}` : w), "");
 
-// the form of the SQL text that would delete all or part of the data, or null. Doubt asks: a DELETE or UPDATE passes only with a WHERE that is not always true and no quote mark or bracket in the statement
+// the form of the SQL text that would delete all or part of the data, or null. Doubt asks: a DELETE or UPDATE passes only with a WHERE that is not always true, holds no OR or NOT, and no quote mark or bracket in the statement
 function sqlForm(text) {
   for (const st of text.split(";")) {
     if (/\bdrop\s+(?:database|schema|table)\b/i.test(st) || (/\btruncate\b/i.test(st) && !/\b(?:grant|revoke)\b/i.test(st))) return "DROP or TRUNCATE";
@@ -29,7 +29,8 @@ function sqlForm(text) {
       const m = re.exec(st);
       if (!m) continue;
       const at = st.slice(m.index).search(/\bwhere\b/i);
-      if (at < 0 || TRUE.test(st.slice(m.index + at + 5))) return `${name} without a real WHERE`;
+      const cond = st.slice(m.index + at + 5);
+      if (at < 0 || TRUE.test(cond) || /\b(?:or|not)\b/i.test(cond)) return `${name} without a real WHERE`;
       if (/['"()]/.test(st)) return `${name} with a quote or a bracket`;
     }
   }
