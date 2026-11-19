@@ -63,7 +63,7 @@ Batches run in the plan's order, one at a time.
 3. Review and seal, as below.
 4. With the `pending` skill, on the batch branch: close the batch's card, or set it back to `scheduled` when a later batch shares it.
 5. Merge the batch branch into `mainBranch` with `--no-ff`, then delete the `verify/<id>` branches its tasks name. Ask the owner whether to push; do not hold a merged batch for an unrelated one.
-6. Give the owner the `/compact` command, ready to paste, with what to keep.
+6. Invoke the `handoff` skill: it writes the hand-off and tells the owner `/clear` or `/compact`.
 
 `git.rules` holds the git rules the owner confirmed. The defaults:
 
