@@ -191,14 +191,19 @@ test("doctor does not count the hand-off in the session-start bytes and warns on
   git(r, "-c user.name=t -c user.email=t@t commit --allow-empty -m c");
   const base = doctor(r, { HOME: EMPTY_HOME }).stdout.match(/session-start text: (\d+) bytes/)[1];
   writeFileSync(join(r, ".xworkflows/handoff.md"), `main: ${git(r, "rev-parse main")}\nNext: x\n`);
-  const hook = readJson(r, ".claude/settings.json").hooks.SessionStart.flatMap((e) => e.hooks).find((h) => `${h.command} `.includes(" claude handoff "));
+  const hook = readJson(r, ".claude/settings.json").hooks.SessionStart.flatMap((e) => e.hooks).find((h) => `${h.command} `.includes(" claude handoff-load "));
   const fired = spawnSync("sh", ["-c", hook.command], { cwd: r, encoding: "utf8", input: JSON.stringify({ session_id: "s", cwd: r, hook_event_name: "SessionStart", source: "startup" }) });
   assert.match(fired.stdout, /Next: x/); // the hook really prints it, so the measure has something to leave out
   const out = doctor(r, { HOME: EMPTY_HOME }).stdout;
   assert.match(out, new RegExp(`^ok +session-start text: ${base} bytes of 2000$`, "m"));
   assert.doesNotMatch(out, /^warn .*handoff/m);
-  writeFileSync(join(r, ".xworkflows/handoff.md"), "x".repeat(1501));
-  assert.match(doctor(r, { HOME: EMPTY_HOME }).stdout, /^warn \.xworkflows\/handoff\.md is 1501 bytes, over tokens\.handoffBytes 1500: it is not loaded; shorten it$/m);
+  const over = (sha) => writeFileSync(join(r, ".xworkflows/handoff.md"), `main: ${sha}\n${"x".repeat(1500)}`);
+  over("b".repeat(40)); // stale: silent at any size
+  assert.doesNotMatch(doctor(r, { HOME: EMPTY_HOME }).stdout, /^warn .*handoff/m);
+  over(git(r, "rev-parse main"));
+  assert.match(doctor(r, { HOME: EMPTY_HOME }).stdout, /^warn \.xworkflows\/handoff\.md is 1547 bytes, over tokens\.handoffBytes 1500: it is not loaded; shorten it$/m);
+  withConfig(r, { tokens: { handoffBytes: 0 } }); // not a whole number above zero: the default cap
+  assert.match(doctor(r, { HOME: EMPTY_HOME }).stdout, /^warn \.xworkflows\/handoff\.md is 1547 bytes, over tokens\.handoffBytes 1500:/m);
 });
 test("doctor warns on an attribution that shows an AI line and on a memory folder outside the repository", () => {
   const r = repo(); cli(r, ["install"]);

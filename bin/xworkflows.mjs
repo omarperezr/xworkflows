@@ -1008,18 +1008,20 @@ async function doctor() {
     try { st = JSON.parse(readFileSync(join(ROOT, ".claude/settings.json"), "utf8")); } catch {}
     try { local = JSON.parse(readFileSync(join(ROOT, ".claude/settings.local.json"), "utf8")); } catch {}
     let bytes = 0;
-    const ho = read(ROOT, ".xworkflows/handoff.md") ?? "", handoffCap = conf.tokens.handoffBytes;
+    const ho = read(ROOT, ".xworkflows/handoff.md") ?? "", hc = conf.tokens?.handoffBytes, handoffCap = Number.isInteger(hc) && hc > 0 ? hc : DEFAULTS.tokens.handoffBytes; // the hook's cap rule
+    const sha = (rev) => { try { return execFileSync("git", ["rev-parse", rev], { cwd: ROOT, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim(); } catch { return ""; } };
+    const fresh = sha(conf.mainBranch) !== "" && ho.split("\n")[0].trim() === `main: ${sha(conf.mainBranch)}` && sha("HEAD") === sha(conf.mainBranch); // a stale hand-off is not loaded at any size, so its size is no warning
     // a session file with as many sessions beside it as make the memory hook suggest dream, as the hook reads the threshold
     // shortcut: a threshold over 1000 is probed with 1000 sessions, so its line is not measured; raise it when a project sets one
     const after = conf.dream?.suggestAfterSessions, sessions = mkdtempSync(join(tmpdir(), "xwf-doctor-sessions-"));
     for (let i = 0; i <= Math.min(Number.isInteger(after) && after > 0 ? after : DEFAULTS.dream.suggestAfterSessions, 1000); i++) writeFileSync(join(sessions, `${i}.jsonl`), "");
     for (const h of (st.hooks?.SessionStart ?? []).flatMap((e) => e.hooks ?? [])) {
       if (!`${h.command} `.includes('/.xworkflows/hooks/run.mjs" claude ')) continue;
-      if (isOurs({ hooks: [h] }, "handoff")) continue; // the hand-off is the last session's text, not the hook's: it stays out of the measure
+      if (isOurs({ hooks: [h] }, "handoff-load")) continue; // the hand-off is the last session's text, not the hook's: it stays out of the measure
       bytes += Buffer.byteLength(fire(h.command, { session_id: `doctor-${process.pid}`, cwd: ROOT, hook_event_name: "SessionStart", source: "startup", transcript_path: join(sessions, "0.jsonl") }).stdout ?? "");
     }
     rmSync(sessions, { recursive: true, force: true });
-    if (ho && Buffer.byteLength(ho) > handoffCap) say("warn", `.xworkflows/handoff.md is ${Buffer.byteLength(ho)} bytes, over tokens.handoffBytes ${handoffCap}: it is not loaded; shorten it`);
+    if (fresh && Buffer.byteLength(ho) > handoffCap) say("warn", `.xworkflows/handoff.md is ${Buffer.byteLength(ho)} bytes, over tokens.handoffBytes ${handoffCap}: it is not loaded; shorten it`);
     const sb = conf.tokens.sessionStartBytes;
     say(bytes > sb ? "fail" : "ok", `session-start text: ${bytes} bytes of ${sb}${bytes > sb ? ": raise tokens.sessionStartBytes in .xworkflows/config.json or cut what the hook prints" : ""}`);
     const ai = st.attribution && typeof st.attribution === "object" ? [st.attribution.commit, st.attribution.pr].some((x) => x) : !!st.attribution;
@@ -1246,6 +1248,8 @@ function uninstall() {
   if (marked) {
     for (const f of [YML, ".qmd/index.sqlite", ".qmd/index.sqlite-wal", ".qmd/index.sqlite-shm", QMARK]) if (lstatSync(join(ROOT, f), { throwIfNoEntry: false })?.isFile()) rm(f);
   }
+  const hand = ".xworkflows/handoff.md"; // only the skill handoff writes it; nothing of the user's
+  if (clean(ROOT, hand) && lstatSync(join(ROOT, hand), { throwIfNoEntry: false })?.isFile()) { rm(hand); out.push(`deleted ${hand}`); }
   const ir = ".xworkflows/installed.json";
   if (clean(ROOT, ir)) rm(ir); else out.push(`kept (not ours): ${ir}`);
   for (const p of gone) {

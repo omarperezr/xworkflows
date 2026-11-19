@@ -1,12 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { decide } from "./handoff.mjs";
+import { decide } from "./handoff-load.mjs";
 
 const SHA = "a".repeat(40);
-const ctx = (text, { sha = SHA, cap = 1500, branch = "main" } = {}) => ({
+const ctx = (text, { sha = SHA, head = sha, cap = 1500, branch = "main" } = {}) => ({
   config: { mainBranch: branch, tokens: { handoffBytes: cap } },
   readFile: (p) => (p.endsWith(".xworkflows/handoff.md") ? text : null),
-  git: (...a) => (a.join(" ") === "rev-parse " + branch ? sha : null),
+  git: (...a) => (a.join(" ") === "rev-parse " + branch ? sha : a.join(" ") === "rev-parse HEAD" ? head : null),
 });
 const ev = (event, source) => ({ event, source, root: "/r" });
 const file = `main: ${SHA}\ndone: batch x\nnext: T2 in docs/p.md\n`;
@@ -25,6 +25,23 @@ test("a stale, foreign or missing hand-off adds nothing", () => {
   assert.deepEqual(decide(ev("sessionStart", "startup"), ctx("done\n" + file)), { decision: "allow" });
   assert.deepEqual(decide(ev("sessionStart", "startup"), ctx(null)), { decision: "allow" });
   assert.deepEqual(decide(ev("sessionStart", "startup"), ctx(file, { sha: null })), { decision: "allow" });
+});
+
+test("a hand-off loads only while HEAD is also its sha, at session start and on PreCompact", () => {
+  const other = { head: "c".repeat(40) };
+  assert.deepEqual(decide(ev("sessionStart", "startup"), ctx(file, other)), { decision: "allow" });
+  assert.deepEqual(decide(ev("preCompact"), ctx(file, other)), { decision: "allow" });
+  assert.deepEqual(decide(ev("preCompact"), ctx(file, { head: null })), { decision: "allow" });
+});
+
+test("a stale hand-off is silent at any size, even over the cap", () => {
+  assert.deepEqual(decide(ev("sessionStart", "startup"), ctx(file, { cap: 10, sha: "b".repeat(40) })), { decision: "allow" });
+  assert.deepEqual(decide(ev("preCompact"), ctx(file, { cap: 10, head: "c".repeat(40) })), { decision: "allow" });
+});
+
+test("a cap that is not a whole number above zero is the default", () => {
+  for (const cap of [0, -1, 1.5, "10", null, NaN]) assert.equal(decide(ev("sessionStart", "startup"), ctx(file, { cap })).context, file, String(cap));
+  assert.match(decide(ev("sessionStart", "startup"), ctx(file + "x".repeat(1500), { cap: 0 })).context, /not loaded[^\n]*1500/);
 });
 
 test("a hand-off over the cap says so in one line", () => {

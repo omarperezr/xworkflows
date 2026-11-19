@@ -417,6 +417,14 @@ test("gitignore and settings already there are left alone; memory.dir is honored
   cli(q, ["install"]);
   assert.equal(readJson(q, ".claude/settings.local.json").autoMemoryDirectory, join(realpathSync(q), "notes"));
 });
+test("uninstall deletes the hand-off file and says so", () => {
+  const r = repo();
+  cli(r, ["install"]);
+  writeFileSync(join(r, ".xworkflows/handoff.md"), "main: x\n");
+  assert.match(cli(r, ["uninstall"]).stdout, /^deleted \.xworkflows\/handoff\.md$/m);
+  assert.deepEqual(readdirSync(r).sort(), [".git"]);
+});
+
 test("a scalar setting the user changed stays on uninstall", () => {
   const r = repo();
   cli(r, ["install"]);

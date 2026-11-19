@@ -490,7 +490,7 @@
       "sha256": "4739f4bd94ebbcd336f1aa9a58c9610e21aa606fedc7d6bea6b277f9d0d15941"
     },
     {
-      "id": "handoff",
+      "id": "handoff-load",
       "kind": "hook",
       "origin": "own",
       "version": "0.1.0",
@@ -508,7 +508,7 @@
         }
       ],
       "files": {
-        "hooks/core/handoff.mjs": "1ed5ab85138c55bfc58d6055975f1c63e8d6dd54be6d927d00ffb104cbecc12f"
+        "hooks/core/handoff-load.mjs": "1ed5ab85138c55bfc58d6055975f1c63e8d6dd54be6d927d00ffb104cbecc12f"
       },
       "sha256": "2b0bb57aae3ed36374000ee53e8df31cf871016e62d66c39cf393a67ddb53a49"
     },
