@@ -1,13 +1,13 @@
 // The memory job, run detached by the memory hook: the project's own step, then qmd update, embed, cleanup, in series, under a lock.
 import { createHash } from "node:crypto";
-import { readdirSync, writeFileSync, appendFileSync, statSync, unlinkSync, mkdirSync } from "node:fs";
+import { readdirSync, readFileSync, writeFileSync, appendFileSync, statSync, unlinkSync, mkdirSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { tmpdir, homedir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadLenient } from "./config.mjs";
 
-const STEP_MS = 30 * 60000; // the limit of the project's step, and the age at which a lock is stale
+const STEP_MS = 30 * 60000; // the limit of the project's step
 
 const real = (cmd, args, o) => {
   const r = spawnSync(cmd, args, { ...o, stdio: "ignore", killSignal: "SIGKILL", detached: true }); // its own process group
@@ -16,17 +16,21 @@ const real = (cmd, args, o) => {
   return { code: r.status, timedOut };
 };
 
+// shortcut: a pid the system gave to another process after the job died looks alive, and its lock stays until that process ends; upgrade if a lock is ever seen stuck.
+const alive = (pid) => { if (!Number.isInteger(pid) || pid < 1) return false; try { process.kill(pid, 0); return true; } catch (e) { return e.code === "EPERM"; } };
+
 const modelsIn = (dir) => { try { return readdirSync(dir).some((f) => /embed.*\.gguf$/i.test(f)); } catch { return false; } };
 
-export function runJob({ root, config, stateDir, modelsDir, run = real, beforeMs = STEP_MS, now = Date.now }) {
+export function runJob({ root, config, stateDir, modelsDir, run = real, beforeMs = STEP_MS }) {
   const before = config.memory?.before;
   const index = config.memory?.index;
   const id = createHash("sha1").update(`${root}\0${index ?? ""}`).digest("hex").slice(0, 12);
   const lock = join(stateDir, `xwf-memory-${id}.lock`);
-  const log = (step, what) => { try { appendFileSync(join(stateDir, `xwf-memory-${id}.log`), `${new Date(now()).toISOString()} ${step} ${what}\n`); } catch { /* a log failure stops nothing */ } };
+  const log = (step, what) => { try { appendFileSync(join(stateDir, `xwf-memory-${id}.log`), `${new Date().toISOString()} ${step} ${what}\n`); } catch { /* a log failure stops nothing */ } };
+  const mine = () => { try { return readFileSync(lock, "utf8") === String(process.pid); } catch { return false; } };
   const take = () => {
     try { writeFileSync(lock, String(process.pid), { flag: "wx" }); return true; } catch (e) { if (e.code !== "EEXIST") return false; }
-    try { if (now() - statSync(lock).mtimeMs <= beforeMs) return false; unlinkSync(lock); writeFileSync(lock, String(process.pid), { flag: "wx" }); return true; } catch { return false; }
+    try { if (alive(Number(readFileSync(lock, "utf8")))) return false; unlinkSync(lock); writeFileSync(lock, String(process.pid), { flag: "wx" }); return true; } catch { return false; }
   };
   mkdirSync(stateDir, { recursive: true });
   if (!take()) return { ran: false };
@@ -40,7 +44,7 @@ export function runJob({ root, config, stateDir, modelsDir, run = real, beforeMs
     qmd("update");
     if (modelsIn(modelsDir)) qmd("embed"); else log("embed", "skipped: models missing, run qmd pull");
     qmd("cleanup");
-  } finally { try { unlinkSync(lock); } catch { /* already gone */ } }
+  } finally { if (mine()) try { unlinkSync(lock); } catch { /* already gone */ } }
   return { ran: true };
 }
 

@@ -48,16 +48,23 @@ test("the lock is released at the end: a later job runs", () => {
   assert.equal(b.calls.length, 3);
 });
 
-test("a lock older than the step limit is stale and is taken", () => {
-  const { state, models } = dirs(); const { calls, run } = recorder();
+test("a lock held by a dead pid is stale and is taken; one held by a live pid is not, however old", () => {
+  const { state, models } = dirs(); const { run } = recorder();
   const o = { root: "/r", config: cfg(), stateDir: state, modelsDir: models, beforeMs: 1000 };
   let held;
-  runJob({ ...o, run: () => { held = fs.readdirSync(state).find((f) => f.endsWith(".lock")); return { code: 0 }; } });
-  writeFileSync(join(state, held), "1");
-  const old = new Date(Date.now() - 5000); utimesSync(join(state, held), old, old);
+  runJob({ ...o, run: () => { held = join(state, fs.readdirSync(state).find((f) => f.endsWith(".lock"))); return { code: 0 }; } });
+  const dead = spawnSync(process.execPath, ["-e", ""]).pid;
+  writeFileSync(held, String(dead));
   assert.equal(runJob({ ...o, run }).ran, true);
-  writeFileSync(join(state, held), "1"); // fresh: not stale
+  writeFileSync(held, String(process.ppid)); // alive, and old
+  const old = new Date(Date.now() - 5000); utimesSync(held, old, old);
   assert.equal(runJob({ ...o, run }).ran, false);
+});
+
+test("a job removes only the lock that holds its own pid", () => {
+  const { state, models } = dirs();
+  runJob({ root: "/r", config: cfg(), stateDir: state, modelsDir: models, run: () => { writeFileSync(join(state, fs.readdirSync(state).find((f) => f.endsWith(".lock"))), String(process.ppid)); return { code: 0 }; } });
+  assert.ok(fs.readdirSync(state).some((f) => f.endsWith(".lock")));
 });
 
 test("a failing step is logged and does not stop the next one", () => {
