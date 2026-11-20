@@ -448,3 +448,9 @@ test("doctor: warns with qmd pull when qmd's models are not in its cache; says n
   for (const f of ["embeddinggemma-300M-Q8_0", "qwen3-reranker-0.6b-q8_0", "qmd-query-expansion-1.7B-q4_k_m"]) writeFileSync(join(cache, `hf_x_${f}.gguf`), "");
   assert.doesNotMatch(doctor(r, { ...env, XDG_CACHE_HOME: join(cache, "../..") }).stdout, /models/);
 });
+test("doctor: does not warn when only the embed model is present, the one the job needs", () => {
+  const r = repo(); cli(r, ["install"]);
+  const cache = join(tmp("xwf-models-"), "qmd/models"); mkdirSync(cache, { recursive: true });
+  writeFileSync(join(cache, "hf_x_embeddinggemma-300M-Q8_0.gguf"), "");
+  assert.doesNotMatch(doctor(r, { PATH: tools({ qmd: COVERS }), XDG_CACHE_HOME: join(cache, "../..") }).stdout, /models/);
+});
