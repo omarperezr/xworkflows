@@ -1,6 +1,6 @@
 // The memory job, run detached by the memory hook: the project's own step, then qmd update, embed, cleanup, in series, under a lock.
 import { createHash } from "node:crypto";
-import { readdirSync, readFileSync, writeFileSync, appendFileSync, statSync, unlinkSync, mkdirSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, writeFileSync, appendFileSync, statSync, unlinkSync, mkdirSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { tmpdir, homedir } from "node:os";
 import { join } from "node:path";
@@ -24,6 +24,7 @@ const modelsIn = (dir) => { try { return readdirSync(dir).some((f) => /embed.*\.
 export function runJob({ root, config, stateDir, modelsDir, run = real, beforeMs = STEP_MS }) {
   const before = config.memory?.before;
   const index = config.memory?.index;
+  const own = !index && [".qmd/index.yml", ".qmd/index.yaml"].some((f) => existsSync(join(root, f)));
   const id = createHash("sha1").update(`${root}\0${index ?? ""}`).digest("hex").slice(0, 12);
   const lock = join(stateDir, `xwf-memory-${id}.lock`);
   const log = (step, what) => { try { appendFileSync(join(stateDir, `xwf-memory-${id}.log`), `${new Date().toISOString()} ${step} ${what}\n`); } catch { /* a log failure stops nothing */ } };
@@ -42,8 +43,10 @@ export function runJob({ root, config, stateDir, modelsDir, run = real, beforeMs
     if (Array.isArray(before) && before.length && before.every((a) => typeof a === "string" && a)) step("before", before[0], before.slice(1), { timeout: beforeMs });
     const qmd = (name) => step(name, "qmd", [...(index ? ["--index", index] : []), name]);
     qmd("update");
-    if (modelsIn(modelsDir)) qmd("embed"); else log("embed", "skipped: models missing, run qmd pull");
-    qmd("cleanup");
+    if (own) { // embed and cleanup change the whole index: only the project's own
+      if (modelsIn(modelsDir)) qmd("embed"); else log("embed", "skipped: models missing, run qmd pull");
+      qmd("cleanup");
+    }
   } finally { if (mine()) try { unlinkSync(lock); } catch { /* already gone */ } }
   return { ran: true };
 }

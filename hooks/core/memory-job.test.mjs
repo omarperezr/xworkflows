@@ -11,7 +11,9 @@ const dirs = () => {
   const state = mkdtempSync(join(tmpdir(), "xwf-job-"));
   const models = join(state, "models"); mkdirSync(models);
   writeFileSync(join(models, "hf_x_embeddinggemma-300M-Q8_0.gguf"), "");
-  return { state, models };
+  const root = join(state, "root"); mkdirSync(join(root, ".qmd"), { recursive: true }); // the project's own index
+  writeFileSync(join(root, ".qmd", "index.yml"), "");
+  return { state, models, root };
 };
 const cfg = (memory = {}) => ({ memory: { before: [], ...memory } });
 const recorder = (codes = {}) => {
@@ -21,36 +23,46 @@ const recorder = (codes = {}) => {
 const logOf = (state) => readFileSync(join(state, fs.readdirSync(state).find((f) => f.endsWith(".log"))), "utf8");
 
 test("the steps run in series: the project's step, update, embed, cleanup", () => {
-  const { state, models } = dirs(); const { calls, run } = recorder();
-  const r = runJob({ root: "/r", config: cfg({ before: ["node", "scripts/export.mjs"] }), stateDir: state, modelsDir: models, run });
+  const { state, models, root } = dirs(); const { calls, run } = recorder();
+  const r = runJob({ root, config: cfg({ before: ["node", "scripts/export.mjs"] }), stateDir: state, modelsDir: models, run });
   assert.equal(r.ran, true);
   assert.deepEqual(calls, [["node", "scripts/export.mjs"], ["qmd", "update"], ["qmd", "embed"], ["qmd", "cleanup"]]);
 });
 
-test("with no memory.before the job starts at update; memory.index goes in front of each qmd step", () => {
-  const { state, models } = dirs(); const { calls, run } = recorder();
-  runJob({ root: "/r", config: cfg({ index: "proj" }), stateDir: state, modelsDir: models, run });
-  assert.deepEqual(calls, [["qmd", "--index", "proj", "update"], ["qmd", "--index", "proj", "embed"], ["qmd", "--index", "proj", "cleanup"]]);
+test("with no memory.before the job starts at update", () => {
+  const { state, models, root } = dirs(); const { calls, run } = recorder();
+  runJob({ root, config: cfg(), stateDir: state, modelsDir: models, run });
+  assert.deepEqual(calls, [["qmd", "update"], ["qmd", "embed"], ["qmd", "cleanup"]]);
+});
+
+test("on a shared index only update runs: memory.index names it, or the project has no index of its own", () => {
+  const { state, models, root } = dirs();
+  const a = recorder();
+  runJob({ root, config: cfg({ index: "proj" }), stateDir: state, modelsDir: models, run: a.run });
+  assert.deepEqual(a.calls, [["qmd", "--index", "proj", "update"]]);
+  const b = recorder();
+  runJob({ root: join(state, "bare"), config: cfg(), stateDir: state, modelsDir: models, run: b.run });
+  assert.deepEqual(b.calls, [["qmd", "update"]]);
 });
 
 test("a second job finds the lock and exits without running anything", () => {
-  const { state, models } = dirs(); const { calls, run } = recorder();
-  const inner = () => runJob({ root: "/r", config: cfg(), stateDir: state, modelsDir: models, run: (...a) => { if (!inner.done) { inner.done = true; inner.second = runJob({ root: "/r", config: cfg(), stateDir: state, modelsDir: models, run }); } return { code: 0 }; } });
+  const { state, models, root } = dirs(); const { calls, run } = recorder();
+  const inner = () => runJob({ root, config: cfg(), stateDir: state, modelsDir: models, run: (...a) => { if (!inner.done) { inner.done = true; inner.second = runJob({ root, config: cfg(), stateDir: state, modelsDir: models, run }); } return { code: 0 }; } });
   assert.equal(inner().ran, true);
   assert.equal(inner.second.ran, false);
   assert.deepEqual(calls, []);
 });
 
 test("the lock is released at the end: a later job runs", () => {
-  const { state, models } = dirs(); const a = recorder(), b = recorder();
-  runJob({ root: "/r", config: cfg(), stateDir: state, modelsDir: models, run: a.run });
-  assert.equal(runJob({ root: "/r", config: cfg(), stateDir: state, modelsDir: models, run: b.run }).ran, true);
+  const { state, models, root } = dirs(); const a = recorder(), b = recorder();
+  runJob({ root, config: cfg(), stateDir: state, modelsDir: models, run: a.run });
+  assert.equal(runJob({ root, config: cfg(), stateDir: state, modelsDir: models, run: b.run }).ran, true);
   assert.equal(b.calls.length, 3);
 });
 
 test("a lock held by a dead pid is stale and is taken; one held by a live pid is not, however old", () => {
-  const { state, models } = dirs(); const { run } = recorder();
-  const o = { root: "/r", config: cfg(), stateDir: state, modelsDir: models, beforeMs: 1000 };
+  const { state, models, root } = dirs(); const { run } = recorder();
+  const o = { root, config: cfg(), stateDir: state, modelsDir: models, beforeMs: 1000 };
   let held;
   runJob({ ...o, run: () => { held = join(state, fs.readdirSync(state).find((f) => f.endsWith(".lock"))); return { code: 0 }; } });
   const dead = spawnSync(process.execPath, ["-e", ""]).pid;
@@ -62,41 +74,43 @@ test("a lock held by a dead pid is stale and is taken; one held by a live pid is
 });
 
 test("a job removes only the lock that holds its own pid", () => {
-  const { state, models } = dirs();
-  runJob({ root: "/r", config: cfg(), stateDir: state, modelsDir: models, run: () => { writeFileSync(join(state, fs.readdirSync(state).find((f) => f.endsWith(".lock"))), String(process.ppid)); return { code: 0 }; } });
+  const { state, models, root } = dirs();
+  runJob({ root, config: cfg(), stateDir: state, modelsDir: models, run: () => { writeFileSync(join(state, fs.readdirSync(state).find((f) => f.endsWith(".lock"))), String(process.ppid)); return { code: 0 }; } });
   assert.ok(fs.readdirSync(state).some((f) => f.endsWith(".lock")));
 });
 
 test("a failing step is logged and does not stop the next one", () => {
-  const { state, models } = dirs(); const { calls, run } = recorder({ update: 3 });
-  runJob({ root: "/r", config: cfg(), stateDir: state, modelsDir: models, run });
+  const { state, models, root } = dirs(); const { calls, run } = recorder({ update: 3 });
+  runJob({ root, config: cfg(), stateDir: state, modelsDir: models, run });
   assert.deepEqual(calls.map((c) => c.at(-1)), ["update", "embed", "cleanup"]);
   assert.match(logOf(state), /update exit 3/);
   assert.match(logOf(state), /cleanup exit 0/);
 });
 
 test("embed is skipped when qmd's models are missing; update and cleanup still run", () => {
-  const { state } = dirs(); const { calls, run } = recorder();
-  runJob({ root: "/r", config: cfg(), stateDir: state, modelsDir: join(state, "nowhere"), run });
+  const { state, root } = dirs(); const { calls, run } = recorder();
+  runJob({ root, config: cfg(), stateDir: state, modelsDir: join(state, "nowhere"), run });
   assert.deepEqual(calls.map((c) => c.at(-1)), ["update", "cleanup"]);
   assert.match(logOf(state), /embed skipped: models missing/);
 });
 
-test("a hung memory.before step is killed at its limit and logged; the qmd steps still run", () => {
-  const { state, models } = dirs(); const { calls, run: fake } = recorder();
-  const run = (cmd, args, o) => cmd === "qmd" ? fake(cmd, args, o) : (() => { const r = spawnSync(cmd, args, { ...o, killSignal: "SIGKILL" }); return { code: r.status, timedOut: r.error?.code === "ETIMEDOUT" }; })();
+test("a hung memory.before step is killed at its limit and logged; the qmd steps still run (the real runner)", () => {
+  const { state, models, root } = dirs();
+  const oldPath = process.env.PATH; process.env.PATH = join(state, "nobin"); // no qmd: its steps exit without a code
   const t = Date.now();
-  runJob({ root: process.cwd(), config: cfg({ before: [process.execPath, "-e", "setTimeout(()=>{},60000)"] }), stateDir: state, modelsDir: models, beforeMs: 300, run });
+  try { runJob({ root, config: cfg({ before: [process.execPath, "-e", "setTimeout(()=>{},60000)"] }), stateDir: state, modelsDir: models, beforeMs: 300 }); } finally { process.env.PATH = oldPath; }
   assert.ok(Date.now() - t < 10000);
-  assert.match(logOf(state), /before timed out after 300 ms/);
-  assert.deepEqual(calls.map((c) => c.at(-1)), ["update", "embed", "cleanup"]);
+  const log = logOf(state);
+  assert.match(log, /before timed out after 300 ms/);
+  assert.match(log, /update exit/);
+  assert.match(log, /cleanup exit/);
 });
 
 test("memory.before that is not a list of texts is ignored", () => {
-  const { state, models } = dirs();
+  const { state, models, root } = dirs();
   for (const before of ["node x", [1], [""], {}]) {
     const { calls, run } = recorder();
-    runJob({ root: "/r", config: cfg({ before }), stateDir: state, modelsDir: models, run });
+    runJob({ root, config: cfg({ before }), stateDir: state, modelsDir: models, run });
     assert.equal(calls.length, 3, JSON.stringify(before));
   }
 });
