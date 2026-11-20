@@ -37,8 +37,7 @@ export function run(range, ctx) {
 
   // the lite reviewer's seal is a risk seal only when every risk path of the range is one it may review
   const liteOk = paths.riskLite.length > 0 && riskFiles.every((f) => inPaths(f, paths.riskLite));
-  // sealCore knows three roles: the lite one joins its first group
-  const re = new RegExp(sealRe(roles).source.replace("`?(", `\`?(${roles.riskReviewerLite.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}|`), "gm");
+  const re = sealRe(roles, "gm");
   const docs = ctx.git("ls-tree", "-r", "--name-only", "-z", range.head).split("\0")
     .filter((f) => inPaths(f, [paths.plans, paths.specs]));
   const ancestor = (a, b) => ctx.tryGit("merge-base", "--is-ancestor", a, b).code === 0;

@@ -4,8 +4,7 @@ export const mainOnly = true;
 
 // a patch that only adds seal lines (the lite reviewer's too)
 function sealOnly(roles, patch) {
-  const lite = roles.riskReviewerLite.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const seal = new RegExp(`^\\+(${sealCore(roles)}|${lite} ok at [0-9a-f]{7,40})\\s*$`);
+  const seal = new RegExp(`^\\+${sealCore(roles)}\\s*$`);
   let hunk = false, added = 0;
   for (const l of patch.split("\n")) {
     if (l.startsWith("diff --git")) hunk = false;

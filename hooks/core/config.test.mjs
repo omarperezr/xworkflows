@@ -188,11 +188,11 @@ test("defaults: the small reviewer and the three implementers", () => {
 });
 
 test("the reviewer roles and the seal pattern come from the roles of the config, names escaped", () => {
-  assert.deepEqual(reviewerRoles(DEFAULTS.roles), ["review", "risk-review", "review-small"]);
+  assert.deepEqual(reviewerRoles(DEFAULTS.roles), ["review", "risk-review", "review-small", "risk-review-lite"]);
   const re = sealRe(DEFAULTS.roles, "gm");
   const hits = [..."review ok at abc1234\n- `review-small ok at abc1234567`.\nrisk-review ok at abc\nreview ok at abc1234 x".matchAll(re)].map((m) => [m[1], m[2]]);
   assert.deepEqual(hits, [["review", "abc1234"], ["review-small", "abc1234567"]]);
-  const odd = { reviewer: "re.view", riskReviewer: "r(k", smallReviewer: "s|m" };
+  const odd = { reviewer: "re.view", riskReviewer: "r(k", smallReviewer: "s|m", riskReviewerLite: "l.t" };
   assert.ok(new RegExp(`^${sealCore(odd)}$`).test("s|m ok at abc1234"));
   assert.ok(!new RegExp(`^${sealCore(odd)}$`).test("reaview ok at abc1234"));
 });

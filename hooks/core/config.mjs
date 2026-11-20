@@ -50,7 +50,7 @@ export const DEFAULTS = {
 };
 
 // the reviewer roles of a config, and the seal `<role> ok at <sha>` built from them (groups: role, sha); every reader of a seal uses these
-export const reviewerRoles = (roles) => [roles.reviewer, roles.riskReviewer, roles.smallReviewer];
+export const reviewerRoles = (roles) => [roles.reviewer, roles.riskReviewer, roles.smallReviewer, roles.riskReviewerLite];
 export const sealCore = (roles) => `(${reviewerRoles(roles).map((r) => r.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")}) ok at ([0-9a-f]{7,40})`;
 // a seal alone on a line, as written in a plan: bullet, quote or backticks and a final dot allowed
 export const sealRe = (roles, flags) => new RegExp(`^\\s*(?:[-*>]\\s*)?\`?${sealCore(roles)}\`?\\.?\\s*$`, flags);
