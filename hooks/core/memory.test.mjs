@@ -11,6 +11,7 @@ const madeTmp = [];
 const mkdtempSync = (p) => { const d = makeTmp(p); madeTmp.push(d); return d; };
 test.after(() => { for (const d of madeTmp) rmSync(d, { recursive: true, force: true }); });
 
+const job = join(import.meta.dirname, "memory-job.mjs");
 const run = join(import.meta.dirname, "..", "run.mjs");
 const DAY = 86400000;
 const NOW = Date.UTC(2026, 10, 12);
@@ -41,18 +42,18 @@ const write = (path, content) => ev("preTool", { tool: "Write", kind: "write", w
 const note = (type) => `---\nname: n\ntype: ${type}\n---\nbody`;
 const MEM = { "docs/memory/b.md": "---\nname: B\ndescription: bee\n---\n", "docs/memory/a.md": "x" };
 
-test("preCompact: allowed with no context, the index is rebuilt and qmd update starts in the background", () => {
+test("preCompact: allowed with no context, the index is rebuilt and the memory job starts in the background", () => {
   const { ctx, calls } = fake({ files: MEM });
   const d = decide(ev("preCompact"), ctx);
   assert.deepEqual(d, { decision: "allow" });
   assert.equal(calls.written["docs/memory/MEMORY.md"], "- [a](a.md) — \n- [B](b.md) — bee\n");
-  assert.deepEqual(calls.bg, [["qmd", ["update"]]]);
+  assert.deepEqual(calls.bg, [[process.execPath, [job, "/r"]]]);
 });
 
-test("sessionEnd with memory.index: --index goes in front", () => {
+test("sessionEnd with memory.index: the same job starts; the runner reads the index itself", () => {
   const { ctx, calls } = fake({ files: MEM, config: { ...base, memory: { dir: "docs/memory", index: "proj" } } });
   assert.deepEqual(decide(ev("sessionEnd"), ctx), { decision: "allow" });
-  assert.deepEqual(calls.bg, [["qmd", ["--index", "proj", "update"]]]);
+  assert.deepEqual(calls.bg, [[process.execPath, [job, "/r"]]]); // the runner reads memory.index itself
 });
 
 test("the index is written only when its text changes; MEMORY.md is not indexed", () => {

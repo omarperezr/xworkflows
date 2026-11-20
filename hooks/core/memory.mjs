@@ -18,7 +18,7 @@ function rebuild(ev, ctx) {
   const index = path.join(dir, "MEMORY.md");
   const text = buildIndex(files);
   if (read(index) !== text && (text || ctx.exists(index))) ctx.writeFile(index, text);
-  ctx.background("qmd", qmd(ctx, "update"));
+  ctx.background(process.execPath, [path.join(import.meta.dirname, "memory-job.mjs"), ev.root]); // the runner does the steps; the hook returns at once
 }
 
 function typed(transcript) {

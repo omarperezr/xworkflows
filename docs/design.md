@@ -439,6 +439,7 @@ a valid answer. The reference column is not the default (owner, 2026-11-11).
 | `checks.patterns`, `checks.ratchets` | Forbidden patterns; counters that may only go down | project lists |
 | `packs` | Enabled check packs with their options: an object keyed by pack name | `{ "semgrep": { "configs": ["p/default"] }, "trivy": {}, "lint": { "run": "npm run lint" } }` |
 | `memory.index` | Optional: the name of a `qmd` index the project already has. When it is set, `install` writes no `.qmd/index.yml` and every `qmd` call names that index | not set: the project-local `.qmd/index.yml` |
+| `memory.before` | Optional: an argument list the memory job runs first, in the same job, so what it writes is indexed in the same run; limit 30 minutes, and a hung step is killed and logged | not set: `[]`, no step |
 | `tokens.alwaysLoadedBytes` | The budget of section 13 | 24000 |
 | `memory.dir` | The one memory folder | `docs/memory` |
 | `dream.maxExtractBytes` | Most session text one `dream` run may read | proposal: 4000000 |

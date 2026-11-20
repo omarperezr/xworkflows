@@ -5,6 +5,7 @@ import { createInterface } from "node:readline/promises";
 import { accessSync, chmodSync, constants, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, readlinkSync, realpathSync, renameSync, rmSync, rmdirSync, statSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { basename, dirname, extname, isAbsolute, join, normalize, posix, relative, resolve, sep } from "node:path";
+import { modelsIn } from "../hooks/core/memory-job.mjs";
 import { isDeepStrictEqual } from "node:util";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { DEFAULTS, PROJECT_KEYS, inPaths, load as loadConfig, memoryFolder, missing } from "../hooks/core/config.mjs";
@@ -1030,6 +1031,8 @@ async function doctor() {
       const v = spawnSync("qmd", ["--version"], { cwd: ROOT, encoding: "utf8", timeout: TIMEOUT });
       const ver = v.error || v.status !== 0 ? "" : (v.stdout ?? "").trim().split("\n")[0];
       say(ver ? "ok" : "warn", ver || "qmd does not answer --version: run qmd --version to see why");
+      const cache = join(process.env.XDG_CACHE_HOME || join(homedir(), ".cache"), "qmd", "models");
+      if (!modelsIn(cache)) say("warn", `qmd models are missing from ${cache}: run qmd pull`);
       const l = q("list");
       if (l.error || l.status !== 0) say("warn", `qmd did not answer: collections of ${mem} not checked: run ${qcmd} collection list to see why`);
       else {
@@ -1310,7 +1313,7 @@ function uninstall() {
     if (empty && !rec.kept.includes(p)) { rm(p); out.push(`deleted ${p}`); }
   }
   if (marked) {
-    for (const f of [YML, ".qmd/index.sqlite", ".qmd/index.sqlite-wal", ".qmd/index.sqlite-shm", QMARK]) if (lstatSync(join(ROOT, f), { throwIfNoEntry: false })?.isFile()) rm(f);
+    for (const f of [YML, ".qmd/index.sqlite", ".qmd/index.sqlite-wal", ".qmd/index.sqlite-shm", QMARK, ".qmd/.qmd-embed.lock"]) if (lstatSync(join(ROOT, f), { throwIfNoEntry: false })?.isFile()) rm(f);
   }
   const hand = ".xworkflows/handoff.md"; // only the skill handoff writes it; nothing of the user's
   if (clean(ROOT, hand) && lstatSync(join(ROOT, hand), { throwIfNoEntry: false })?.isFile()) { rm(hand); out.push(`deleted ${hand}`); }
