@@ -455,3 +455,14 @@ test("install: the module of a removed hook id that was edited stays and is said
   assert.match(out.stdout, /kept \(no longer shipped, changed locally\): \.xworkflows\/hooks\/core\/handoff\.mjs/);
   assert.ok(!ids(r).includes("handoff"));
 });
+
+test("install: a package that lacks a hook it never retired leaves that hook wired", () => {
+  const r = repo(); cli(r, ["install"]);
+  const copy = packedCopy();
+  const m = JSON.parse(readFileSync(join(copy, "manifest.json"), "utf8"));
+  delete m.pieces.find((p) => p.id === "safe-db").claude;
+  writeFileSync(join(copy, "manifest.json"), JSON.stringify(m, null, 2) + "\n");
+  assert.equal(cliAt(copy, r, ["install", "--yes"]).status, 0);
+  assert.ok(ids(r).includes("safe-db") && existsSync(join(r, ".xworkflows/hooks/core/safe-db.mjs")));
+  assert.ok(readJson(r, ".xworkflows/installed.json").merged.some((x) => x.entry?.hooks?.[0]?.command.endsWith(" claude safe-db")));
+});

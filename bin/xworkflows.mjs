@@ -51,8 +51,14 @@ function pack(check) {
     if (f.endsWith(".test.mjs") || f.startsWith("hooks/fixtures/") || listed.has(f)) continue;
     errs.push(`${f} belongs to no piece`);
   }
+  // a hook id of the manifest at HEAD that this one drops must be listed as retired: a stale copy never unwires a hook it did not retire
+  const hooks = (x) => x.pieces.filter((p) => p.claude?.length).map((p) => p.id);
+  try {
+    const head = JSON.parse(execFileSync("git", ["show", "HEAD:manifest.json"], { cwd: PKG, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }));
+    for (const id of hooks(head)) if (!hooks(m).includes(id) && !(m.retiredHooks ?? []).includes(id)) errs.push(`hook ${id} is in the manifest at HEAD and not in this one: list it in retiredHooks`);
+  } catch {} // no commit or no manifest there: nothing to compare
   if (errs.length) die(1, errs.join("\n"));
-  const out = JSON.stringify({ name: m.name, version: pkgVersion, marketplaces: m.marketplaces, plugins: m.plugins, pieces }, null, 2) + "\n";
+  const out = JSON.stringify({ name: m.name, version: pkgVersion, marketplaces: m.marketplaces, plugins: m.plugins, retiredHooks: m.retiredHooks, pieces }, null, 2) + "\n";
   const cur = readFileSync(join(PKG, "manifest.json"), "utf8");
   if (out === cur) return;
   if (check) die(1, "manifest.json is stale: run xworkflows pack");
@@ -203,10 +209,10 @@ function settingsWants(manifest) {
 
 // the hook id a recorded entry runs: orphan lookup, apply and doctor read it the same way
 const hookId = (e) => e?.hooks?.[0]?.command?.match(/\/\.xworkflows\/hooks\/run\.mjs" claude (\S+)/)?.[1];
-// hook ids the record has an entry for and the manifest no longer has: a hook renamed or dropped by a newer version
-const orphanIds = (manifest, record) => {
+// the hook ids the manifest lists as retired (renamed or dropped by this version); a copy that merely lacks a hook retires nothing
+const orphanIds = (manifest) => {
   const ids = new Set(settingsWants(manifest).map((w) => w.id));
-  return new Set(record.merged.map((m) => hookId(m.entry)).filter((id) => id && !ids.has(id)));
+  return new Set((manifest.retiredHooks ?? []).filter((id) => !ids.has(id)));
 };
 
 function mergeSettings(root, manifest, record) {
@@ -216,7 +222,7 @@ function mergeSettings(root, manifest, record) {
   const merged = [], notes = [];
   let changed = false;
   // our entries of a hook id the manifest no longer has; a container install made goes with its last entry
-  for (const id of orphanIds(manifest, record)) for (const [event, arr] of isObj(s.hooks) ? Object.entries(s.hooks) : []) {
+  for (const id of orphanIds(manifest)) for (const [event, arr] of isObj(s.hooks) ? Object.entries(s.hooks) : []) {
     // only our command leaves an entry; the entry goes when no command is left
     const left = Array.isArray(arr) ? arr.flatMap((e) => {
       if (!Array.isArray(e?.hooks) || !isOurs(e, id)) return [e];
@@ -655,7 +661,7 @@ export function plan(manifest, root, record, ans = {}) {
     else notes.push(`kept (no longer shipped, changed locally): ${p}`);
   }
   // the module of a hook id the manifest no longer has: removed when it is the text install wrote, else kept and said
-  const orphans = orphanIds(manifest, record);
+  const orphans = orphanIds(manifest);
   for (const id of orphans) {
     const p = `.xworkflows/hooks/core/${id}.mjs`, f = record.files[p];
     if (!f || shipped.has(p) || !plain(p) || !clean(root, p) || !lstatSync(join(root, p), { throwIfNoEntry: false })?.isFile()) continue;

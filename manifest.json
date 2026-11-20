@@ -42,6 +42,9 @@
       ]
     }
   ],
+  "retiredHooks": [
+    "handoff"
+  ],
   "pieces": [
     {
       "id": "hook-runtime",
