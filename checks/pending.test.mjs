@@ -2,6 +2,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { makeRepo } from "../test/helpers/repo.mjs";
 import * as pending from "./pending.mjs";
+import { makeCtx } from "./run.mjs";
+import { load } from "../hooks/core/config.mjs";
 
 delete process.env.CI; // the brake skips its "branch exists nowhere" rule under CI
 const PEND = "docs/PENDING.md";
@@ -175,3 +177,30 @@ test("rule 3 is saved by a --no-ff merge that edits the list itself", withRepo({
   r.commit("merge feat", { files: { [PEND]: card(1) + card(2) } });
   assert.deepEqual(await r.run(pending), { ok: true, lines: [] });
 }));
+
+test("rule 3 does not ask it of a lite seal-only commit", withRepo({ files: { [PLAN]: "plan\n" } }, async (r) => {
+  const sha = r.commit("seal", { files: { [PLAN]: "plan\nrisk-review-lite ok at abc1234\n" } });
+  assert.equal((await r.run(pending, { base: sha + "~1" })).ok, true);
+}));
+
+test("preCommit: a staged plan without the list fails, with it or a seal-only edit passes", withRepo({ files: { [PLAN]: "plan\n", [PEND]: card(1) } }, async (r) => {
+  const ctx = makeCtx(r.root, load(r.root));
+  r.write(PLAN, "plan v2\n"); r.git("add", PLAN);
+  const bad = pending.preCommit(ctx);
+  assert.equal(bad.ok, false);
+  assert.match(bad.lines.join("\n"), /PENDING\.md/);
+  r.write(PEND, card(1) + card(2)); r.git("add", PEND);
+  assert.equal(pending.preCommit(ctx).ok, true);
+  r.git("reset", "-q", "--hard");
+  r.write(PLAN, "plan\nreview ok at abc1234\n"); r.git("add", PLAN);
+  assert.equal(pending.preCommit(ctx).ok, true);
+}));
+
+// the staged diff is read as text: a user's diff settings must not change what a seal-only edit looks like
+for (const [name, cfg] of [["diff.external", ["diff.external", "true"]], ["a textconv", ["diff.x.textconv", "true"]], ["color.diff=always", ["color.diff", "always"]]]) {
+  test(`preCommit: a seal-only plan edit passes under ${name}`, withRepo({ files: { [PLAN]: "plan\n", [PEND]: card(1), ".gitattributes": "*.md diff=x\n" } }, async (r) => {
+    r.git("config", ...cfg);
+    r.write(PLAN, "plan\nreview ok at abc1234\n"); r.git("add", PLAN);
+    assert.equal(pending.preCommit(makeCtx(r.root, load(r.root))).ok, true);
+  }));
+}

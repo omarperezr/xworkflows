@@ -13,7 +13,7 @@ Read `.xworkflows/config.json`: `paths.pending` (default `docs/PENDING.md`), `pa
 
 1. What the owner asked for in this session, including any "next I want ..." said in the interview.
 2. Next steps written down (below).
-3. Your own suggestions, each naming the goal `G<n>` it serves from `docs/BUSINESS.md`:
+3. Your own suggestions, each naming the goal `G<n>` it serves from the file `paths.business` names (default `docs/BUSINESS.md`):
    - A full review ran: first the items the owner answered `Do it` (the latest file in `paths.reviews`, section `## Owner's decisions`), then its errors.
    - No review: the breakage hotspots and the risk paths without tests, from `.xworkflows/summary.md` and `.xworkflows/research.md`.
 

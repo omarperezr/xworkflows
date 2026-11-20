@@ -156,7 +156,7 @@ export function buildRows(repo, main, sessions, log, judged, roles) {
     return {
       merge: b.sha, branch: b.branch, windowStart: Number.isFinite(start) ? new Date(start).toISOString() : null, windowEnd: new Date(b.time).toISOString(), partial: start < sessions.first,
       byModel, byAgent, usd: start < sessions.first ? null : usdOf(byModel), notes: unpriced,
-      riskReviewRuns: runs.filter((r) => r.agent === roles.riskReviewer).length, reviewRounds: runs.filter((r) => reviewerRoles(roles).includes(r.agent)).length,
+      riskReviewRuns: runs.filter((r) => [roles.riskReviewer, roles.riskReviewerLite].includes(r.agent)).length, reviewRounds: runs.filter((r) => reviewerRoles(roles).includes(r.agent)).length,
       commits: b.commits.length, changedLines: lines, fixCommits: fixes.length, fixOfFix, failuresAfterSeal,
       denials: wd, falseDenials: Array.isArray(wd) ? wd.filter((d) => judged.has(d.time)).length : 0,
     };

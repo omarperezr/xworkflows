@@ -91,6 +91,13 @@ test("shell: cat of heavyRead denies, git/wc/grep -c pass", () => {
   assert.ok(allowed(decide(sh("wc -l src/a.ts; grep -c x src/a.ts"), mk())));
 });
 
+test("a subagent write to a moved paths.business is denied, whatever curated lists", () => {
+  const moved = { ...cfg, paths: { ...cfg.paths, business: "docs/B.md", curated: ["AGENTS.md"] } };
+  const w = (path) => ev("write", { isSubagent: true, writes: [{ path, content: "x" }] });
+  assert.ok(denied(decide(w("/r/docs/B.md"), mk({ config: moved })), /curated/));
+  assert.ok(allowed(decide(w("/r/docs/OTHER.md"), mk({ config: moved }))));
+});
+
 test("subagent passes everything except a write under curated", () => {
   const sub = (kind, x = {}) => ev(kind, { isSubagent: true, ...x });
   for (const e of [sub("web"), sub("agent", { agent: "explore" }), sub("read", { path: "src/a.ts" })]) assert.ok(allowed(decide(e, mk({ marks: [], files: {} }))));
@@ -444,4 +451,12 @@ test("shell: a continued line that ends in CR LF is joined, a redirect `>&` is n
   assert.ok(denied(at("cat $PWD/src/x")));
   assert.ok(denied(at("cat C:\\Work\\proj\\src\\x")));
   assert.ok(allowed(at("cat C:\\Work\\other\\src\\x")));
+});
+
+test("the lite risk reviewer is a risk reviewer: it needs a plan, and a second run on the same commit is denied", () => {
+  const e = agent("risk-review-lite", { prompt: "docs/superpowers/specs/x.md" });
+  assert.ok(denied(decide(agent("risk-review-lite", { prompt: "review" }), mk()), /plan or spec/));
+  const c = mk();
+  assert.ok(allowed(decide(e, c)));
+  assert.ok(denied(decide(e, c), /already reviewed/));
 });

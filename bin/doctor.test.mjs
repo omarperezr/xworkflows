@@ -454,3 +454,35 @@ test("doctor: does not warn when only the embed model is present, the one the jo
   writeFileSync(join(cache, "hf_x_embeddinggemma-300M-Q8_0.gguf"), "");
   assert.doesNotMatch(doctor(r, { PATH: tools({ qmd: COVERS }), XDG_CACHE_HOME: join(cache, "../..") }).stdout, /models/);
 });
+test("doctor states the pre-commit hook as it states the pre-push one", () => {
+  const r = repo(); cli(r, ["install"]);
+  assert.match(doctor(r).stdout, /^ok +pre-commit hook is ours$/m);
+  rmSync(join(r, ".xworkflows/git/pre-commit"));
+  assert.match(doctor(r).stdout, /^fail pre-commit hook runs \.xworkflows\/git\/pre-commit, which is missing: run xworkflows install$/m);
+  cli(r, ["install"]);
+  rmSync(join(r, ".git/hooks/pre-commit"));
+  assert.match(doctor(r).stdout, /^fail pre-commit hook is missing or not ours: run xworkflows install$/m);
+  writeFileSync(join(r, ".git/hooks/pre-commit"), "#!/bin/sh\necho hi\n");
+  assert.match(doctor(r).stdout, /^fail pre-commit hook does not run the check: add this line to \S+\/\.git\/hooks\/pre-commit as its first command: if \[ -f .*\/git\/pre-commit"/m);
+});
+const RISK = "---\nname: risk-review\nmodel: fable\n---\nEnd your reply with: risk-review ok at <sha>\n";
+test("doctor warns to install again when the lite reviewer file is not the render of its source", () => {
+  const r = repo({ ".claude/agents/risk-review.md": RISK });
+  withConfig(r, { paths: { ...ALL_KEYS.paths, risk: ["ui/"], riskLite: ["ui/"] } });
+  cli(r, ["install", "--yes"]);
+  const lite = join(r, ".claude/agents/risk-review-lite.md");
+  assert.doesNotMatch(doctor(r).stdout, /is not the render/);
+  writeFileSync(join(r, ".claude/agents/risk-review.md"), RISK + "A new rule.\n");
+  assert.match(doctor(r).stdout, /^warn \.claude\/agents\/risk-review-lite\.md is not the render of \.claude\/agents\/risk-review\.md: run xworkflows install$/m);
+  cli(r, ["install", "--yes"]);
+  assert.doesNotMatch(doctor(r).stdout, /is not the render/);
+  // one step for the file: a lite file that is missing or changed against the record is said by the files loop, not twice
+  writeFileSync(lite, readFileSync(lite, "utf8") + "mine\n");
+  const edited = doctor(r).stdout;
+  assert.match(edited, /^warn changed locally: \.claude\/agents\/risk-review-lite\.md/m);
+  assert.doesNotMatch(edited, /is not the render/);
+  rmSync(lite);
+  const gone = doctor(r).stdout;
+  assert.match(gone, /^fail missing or unreadable: \.claude\/agents\/risk-review-lite\.md/m);
+  assert.doesNotMatch(gone, /is not the render/);
+});

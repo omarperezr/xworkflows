@@ -67,11 +67,11 @@
         "hooks/adapters/codex.mjs": "0589bf97b5cec7e06fee8a70bd92d8a0f51e8bb082cc241f743a80308e44d059",
         "hooks/adapters/cursor.mjs": "394c1a81f4040089b67f0fbf1131012bbb5883bdf705ce3af12dff66d9b3cbd5",
         "hooks/adapters/gemini.mjs": "eff8f29bce46d7c4a7c62845f3762a16c6fd38e831e6c4a5d6b54361ec599175",
-        "hooks/core/config.mjs": "d83c5a1a1415b53edddd6d62556e978aa298dca74be212d375b6679650b2ac32",
+        "hooks/core/config.mjs": "ff82b1d24ab8efd3fab84522fbd42e40ebea9775ac80c6613560a0a7bf3b4899",
         "hooks/core/ctx.mjs": "c467ec88a800a1b3df3193922b7bd1377e12d610b6c75e2a7becc81cdd848138",
         "hooks/core/shell-words.mjs": "d2b55f18ca767512692d8a4aed20eaa6e91dd9e3144e180f9ea051a3861679f1"
       },
-      "sha256": "0f904b53d58594e2f2349d37a1fc7ccd0ff25e4f07e668318c2526d843619275"
+      "sha256": "82575e80da5b1f2690e0d53d7142346a7b948ccccd0c50d5c8640b5a58ede80d"
     },
     {
       "id": "design-first",
@@ -351,14 +351,14 @@
         ]
       },
       "files": {
-        "skills/adapt/SKILL.md": "20bcb381ae0cdb811aa3e78852252198f6aba2a834c47817c1845f54d3b4fbb1",
+        "skills/adapt/SKILL.md": "443befad4c3a8e0a7ba2f724054c7a857de4813383588bc5ce06401ba7364966",
         "skills/adapt/scan.mjs": "c7d9a47a268cdf6135057da9eb267826b3d5df6df574b7fc206daccacfe401e9",
         "skills/adapt/rules.mjs": "736bb9ee53874d8c9447ab4107780d9b8f5733cee26597dae96862d43d37bde2",
         "skills/adapt/research.workflow.js": "c7d72c728a5eef056d9a23f56d3334b6f2400fa9730cb96dfcad23dadd579daa",
         "skills/adapt/research.mjs": "81fd85001c9c022dc30d284d8557c037b05b35f37b5848044b0e4f7e042b5e0e",
         "skills/adapt/screens.mjs": "46218539062b06597556be39eebd0f0a6b47dfa6e31154232c55a7967c537a4c"
       },
-      "sha256": "d3e6b27d37645c4c28c414f91b524e6dc38e0de8dcd103a5b8fb1d1722490c0a"
+      "sha256": "34b0e038264ecad48d8460cead287540cf2cd90e4e23c2cf38f1d73bea0a8f1a"
     },
     {
       "id": "full-review",
@@ -392,9 +392,9 @@
         "gemini"
       ],
       "files": {
-        "skills/next-step/SKILL.md": "85170317b38f279a2a3ee48e0c4d06a5f4ee655799faac639e6255b36064d536"
+        "skills/next-step/SKILL.md": "54c08c9c200f0eb600903b99f159d2160b1175830058be5f566ae34f61e9263c"
       },
-      "sha256": "c3af9a4ebcf284f4180bac71e42424e517c203e7805852f06ec1996381950f1e"
+      "sha256": "e0538cca93f7893528b9051a3a19de2c93c30bae1efa4c2b445345df4c6fc99c"
     },
     {
       "id": "orchestrator",
@@ -416,9 +416,9 @@
         }
       ],
       "files": {
-        "hooks/core/orchestrator.mjs": "337c7c71db7ccb7e56a87440c5c89cf5ffd3d7ea355f7b9a31208eeee3bb2004"
+        "hooks/core/orchestrator.mjs": "f2110b5d226c7f0ecadf4c15ca970ad3e623105969493ddf17c7ce76bba5dca0"
       },
-      "sha256": "9c844cb5680364de00a3319ff68de602bc429100e94b6fbdb4a81e9aefd3ac35"
+      "sha256": "8977b13ce372a2051707263c84aa3a17047d9e8b554a5604373fa57e083dee80"
     },
     {
       "id": "handback",
@@ -662,9 +662,9 @@
         "claude"
       ],
       "files": {
-        "skills/plan/SKILL.md": "0dfd9ca912a88806a3e3ad4311faaa8fc205f4dd05fe729a1da577ec8b0f622b"
+        "skills/plan/SKILL.md": "0685602aaf43fc28c3ab8c94d2a210501ce2c7fe206b8a9aff7dff47e0907677"
       },
-      "sha256": "5ab691ae5f81c1bcff7aa2f9fb8ebe68e2d904e0708833cc01fb09a795b836c6"
+      "sha256": "c4f09e68d9c88f259929bb8313b5b531046f9ce74abaf5a3526a2766bb3db420"
     },
     {
       "id": "orchestrate",
@@ -677,9 +677,9 @@
         "claude"
       ],
       "files": {
-        "skills/orchestrate/SKILL.md": "4642cc6e64d130be960562c1b54a545ec59694ec9f3f587e1f85479fc0ce5e36"
+        "skills/orchestrate/SKILL.md": "2d482535ebcda09277532f7ddc7dac27252b105054e878cdb9b9193c484aca71"
       },
-      "sha256": "201cc4c6119c7007764117e624121bf5a540641bd8db96ada34117ca6f0da6ef"
+      "sha256": "c50adc415a96915ebd9fc50182da4de75caca537c8b0061979cd049f6333aa99"
     },
     {
       "id": "handoff",
@@ -728,12 +728,12 @@
         "claude"
       ],
       "files": {
-        "skills/tdd/SKILL.md": "e91fbab7dd4837770da8667929a467ebe2c3fc4c3280954a3f20881d11c12362",
+        "skills/tdd/SKILL.md": "ac05d3320e3a90238fdbcc2694a60ce34af707dcc1dd5fe314637f8241b28c3e",
         "skills/tdd/writing-good-tests.md": "2e6844a85186fe97954bf2df771145e80c7fcdc271227f4e9023ead8a87898fe",
         "skills/tdd/LICENSE": "a37e0e9697144819e1d965176ac4ae5bc3fa02d11e7812036bbcadf6dafe2400",
         "skills/tdd/SOURCE.md": "ab12e96dd4939826d898641c6796e45c4b46885de0246de4337d97b973ecb6d4"
       },
-      "sha256": "6ea222ca3e3080b84b7cf0a56ff473ef5fb6874d6b6273cabf48e39e2f0262fa"
+      "sha256": "3aaf2f93c959b3fa744fbbfb95ae16614137f46f5cf1e3059d3e4e5182f4327e"
     },
     {
       "id": "ponytail-review",
@@ -817,16 +817,16 @@
         ]
       },
       "files": {
-        "checks/run.mjs": "a9e8ea271375853592858420ae6386cf383bf22827f52be2cf977f9a8b5c18d0",
+        "checks/run.mjs": "fdc19082f935b0ef85b224b00d883932b46f71214c40035f25e28d010fee6d05",
         "checks/comment-lines.mjs": "7cc1262dc37358f5c2436e47f3808baa4af7c39d5579d5c428996c90c446dcf7",
         "checks/signature.mjs": "369f1c717d975692f082dc71d05540a2279408807969254f987ae01a0ef5d28f",
-        "checks/review-seal.mjs": "87f06b66af14316852ac009a110515fcf7e4441114e1f807053cf66370297b59",
-        "checks/goal-cited.mjs": "ece9e129e2bdb39a619bf8680195101364e67d2d6ab318eef00cf4cb11c9eb8d",
-        "checks/pending.mjs": "dbb043a46aa19d3c3466d1a6d54bd2de718989410134b09a05068324c7bcee5e",
+        "checks/review-seal.mjs": "017e45de3cc3c59cd8942faad87005b7b42863ae8f01b5d65e72dfba3ea40cea",
+        "checks/goal-cited.mjs": "567faa04ca55aa4b2fa2882e424febc9280f01b3c71f427fd6f07f2a52b38c06",
+        "checks/pending.mjs": "d6e0c2581d34c157a73fdd0302eaa96944b70c7367a43528638f7ad5b6410c5f",
         "checks/fix-has-test.mjs": "63ba9b3dbbf9251be58632b667ed69f611aa0c6a7fb6c893a114c1a2610defc4",
         "checks/change-size.mjs": "be1366d8e2f5fa80b0616cf4a22c660526316b988df38d28643c31c46ac8b855",
         "checks/comment-ratio.mjs": "20112da90275485c4cfa149cb2164517aa308873b49a97d1f5d8c98f9a621310",
-        "checks/skills-travel.mjs": "8d07b0a7a7ff0bddd5e8896957adee0a687d10b8f34a1bb97ddd3bae49204ddd",
+        "checks/skills-travel.mjs": "678c45e0c26acc5c56e5bb7bce927cedf907cfabefe7bf84d023e5544e49c7fa",
         "checks/patterns.mjs": "b76bd62236b34035c628147793d6d428959a91036f7700389bd6d7c443805e12",
         "checks/ratchet.mjs": "5eaaeeecccfd4cc62ceba0961f39d99dc162c1b0592efee6a576d643946d2a88",
         "checks/graph-current.mjs": "3a174bf16b0e546ade3c5dfc5a7633e570020adb527a9385724880b41dd93c21",
@@ -834,7 +834,7 @@
         "checks/index-current.mjs": "e76348a0862428fa5ee2754746a77a5bddb0a734a9ac037668cb5837977a10be",
         "checks/project.mjs": "3756970ca6af156dc599cdae8afcb7f2adc0982d5be72cb0c79b04d2777ce901"
       },
-      "sha256": "90800d61ee6e79ba945f8e34f59983e595bdb08ad08d2d493ee9e77887a5c5be"
+      "sha256": "1a50bb48dd92a47a860a8f4503b2e6582e298516d623ec0c59797789fb985575"
     },
     {
       "id": "lint",

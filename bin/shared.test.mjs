@@ -183,7 +183,9 @@ export function oldInstall(r) {
   for (const n of theirs) renameSync(at(n), `${at(n)}.aside`);
   assert.equal(cli(r, ["install"]).status, 0);
   rmSync(join(r, ".xworkflows/git"), { recursive: true });
+  rmSync(at("pre-commit")); // an older install wrote no pre-commit hook, and this one sources the file just removed
   const rec = readJson(r, ".xworkflows/installed.json");
+  delete rec.files[".git/hooks/pre-commit"];
   for (const n of ["pre-push", "post-merge", "post-commit"]) {
     const chain = theirs.includes(n), t = OLD_TEXT(chain ? "chained" : "own", n);
     if (chain) renameSync(`${at(n)}.aside`, `${at(n)}.before-xworkflows`);

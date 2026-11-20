@@ -105,6 +105,16 @@ test("a review-small run counts as a review round, never as a risk review run", 
   assert.equal(r2.riskReviewRuns, 0);
 });
 
+test("a risk-review-lite run counts as a risk review run and a review round", () => {
+  const [p, s, out, state] = [project(), sessions(), join(tmp(), "out"), tmp()];
+  writeFileSync(join(s, "main", "subagents", "a3.jsonl"), msg("s3", "claude-haiku-5-5", "2026-11-02T09:31:00Z", use()) + "\n");
+  writeFileSync(join(s, "main", "subagents", "a3.meta.json"), JSON.stringify({ agentType: "risk-review-lite" }));
+  run(p, s, out, state);
+  const [, r2] = rows(out, p);
+  assert.equal(r2.riskReviewRuns, 1);
+  assert.equal(r2.reviewRounds, 2);
+});
+
 test("a fix that repairs a fix of the same batch is counted, one that repairs an earlier batch is a failure after the seal against it", () => {
   const [p, s, out, state] = [project(), sessions(), join(tmp(), "out"), tmp()];
   run(p, s, out, state);

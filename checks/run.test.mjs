@@ -1,12 +1,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync as makeTmp, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync as makeTmp, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "../test-tmp.mjs";
 import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { main, PACKS, TABLE } from "./run.mjs";
 import { makeRepo } from "../test/helpers/repo.mjs";
+import * as realPending from "./pending.mjs";
 const madeTmp = [];
 const mkdtempSync = (p) => { const d = makeTmp(p); madeTmp.push(d); return d; };
 test.after(() => { for (const d of madeTmp) rmSync(d, { recursive: true, force: true }); });
@@ -512,3 +513,45 @@ test("index: the memory folder follows the one rule: empty or . refused with a M
   assert.deepEqual(await check(repo, ["index"]), { code: 0, out: [] });
   assert.equal(readFileSync(join(repo.root, "docs/memory/MEMORY.md"), "utf8"), "- [a](a.md) — one\n");
 }));
+
+const stagePlan = (repo) => { repo.write("docs/superpowers/plans/a.md", "plan v2\n"); repo.git("add", "-A"); };
+const preCommit = (repo) => check(repo, ["--pre-commit"], { pending: realPending });
+
+test("--pre-commit: a plan staged without the list is refused on main, passed off main and in a merge", withRepo({ files: { "docs/superpowers/plans/a.md": "plan\n", "docs/PENDING.md": "- **P-1** — x. Status: unscheduled.\n" } }, async (repo) => {
+  stagePlan(repo);
+  const r = await preCommit(repo);
+  assert.equal(r.code, 1);
+  assert.match(r.out.join("\n"), /PENDING\.md/);
+  writeFileSync(join(repo.root, ".git", "MERGE_HEAD"), repo.git("rev-parse", "HEAD") + "\n");
+  assert.equal((await preCommit(repo)).code, 0);
+  rmSync(join(repo.root, ".git", "MERGE_HEAD"));
+  repo.git("checkout", "-q", "-b", "batch");
+  assert.equal((await preCommit(repo)).code, 0);
+}));
+
+test("--pre-commit: a config that does not parse stops a commit on main only", withRepo({}, async (repo) => {
+  repo.write(".xworkflows/config.json", "{ not json");
+  repo.git("checkout", "-q", "-b", "batch");
+  assert.deepEqual(await preCommit(repo), { code: 0, out: [] });
+  repo.git("checkout", "-q", "main");
+  const r = await preCommit(repo);
+  assert.equal(r.code, 2);
+  assert.match(r.out[0], /config\.json does not parse/);
+}));
+
+test("--pre-commit: nothing staged passes", withRepo({}, async (repo) => {
+  assert.equal((await preCommit(repo)).code, 0);
+}));
+
+test("--pre-commit: the first commit of a repo with no commit passes, and a first commit holding a plan alone is refused", async () => {
+  const root = realpathSync(mkdtempSync(join(tmpdir(), "xwf-first-")));
+  const git = (...a) => spawnSync("git", ["-c", "init.defaultBranch=main", ...a], { cwd: root, encoding: "utf8", env: { ...process.env, GIT_CONFIG_GLOBAL: "/dev/null" } });
+  git("init", "-q");
+  const run = () => main(["--pre-commit"], { cwd: root, stdin: "", print: () => {}, load: loader({ pending: realPending }) });
+  assert.equal(await run(), 0);
+  writeFileSync(join(root, "a.txt"), "x\n"); git("add", "a.txt");
+  assert.equal(await run(), 0);
+  mkdirSync(join(root, "docs/superpowers/plans"), { recursive: true });
+  writeFileSync(join(root, "docs/superpowers/plans/a.md"), "plan\n"); git("add", "-A");
+  assert.equal(await run(), 1);
+});

@@ -238,3 +238,27 @@ test("on a risk commit a reviewer seal counts after a risk seal of an ancestor s
   seal(repo, `risk-review ok at ${c}\nreview ok at ${f}`, "docs/superpowers/plans/r.md");
   assert.equal((await repo.run(mod)).ok, true);
 }));
+
+const LITE = { paths: { ...config.paths, risk: ["db/", "auth/"], riskLite: ["db/"] } };
+const withLite = async (fn) => { const repo = makeRepo({ config: LITE, files }); try { return await fn(repo); } finally { repo.cleanup(); } };
+
+test("a lite seal is a risk seal when every risk path of the range is in paths.riskLite", () => withLite(async (repo) => {
+  const c = repo.commit("db: m", { files: { "db/m.sql": "select 2;\n" } });
+  seal(repo, `risk-review-lite ok at ${c}`);
+  assert.deepEqual(await repo.run(mod), { ok: true, lines: [] });
+}));
+
+test("a lite seal is refused when the range touches another risk path", () => withLite(async (repo) => {
+  repo.commit("db: m", { files: { "db/m.sql": "select 2;\n" } });
+  const c = repo.commit("auth: x", { files: { "auth/a.js": "x\n" } });
+  seal(repo, `risk-review-lite ok at ${c}`);
+  assert.equal((await repo.run(mod)).ok, false);
+  seal(repo, `risk-review ok at ${c}`, "docs/superpowers/plans/q.md");
+  assert.equal((await repo.run(mod)).ok, true);
+}));
+
+test("a lite seal counts for nothing when paths.riskLite is empty", () => withRepo(async (repo) => {
+  const c = repo.commit("db: m", { files: { "db/m.sql": "select 2;\n" } });
+  seal(repo, `risk-review-lite ok at ${c}`);
+  assert.equal((await repo.run(mod)).ok, false);
+}));

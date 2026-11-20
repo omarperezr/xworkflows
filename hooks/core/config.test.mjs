@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync } from "node:fs";
 import { tmpdir } from "../../test-tmp.mjs";
 import { join } from "node:path";
-import { DEFAULTS, PROJECT_KEYS, merge, load, loadLenient, get, missing, inPaths, memoryDir, memoryFolder, reviewerRoles, sealCore, sealRe } from "./config.mjs";
+import { DEFAULTS, PROJECT_KEYS, merge, load, loadLenient, get, missing, inPaths, memoryDir, memoryFolder, pluginOn, reviewerRoles, sealCore, sealRe } from "./config.mjs";
 import { outsideLine } from "./ctx.mjs";
 
 test("DEFAULTS has the product defaults and none of the project keys", () => {
@@ -188,11 +188,35 @@ test("defaults: the small reviewer and the three implementers", () => {
 });
 
 test("the reviewer roles and the seal pattern come from the roles of the config, names escaped", () => {
-  assert.deepEqual(reviewerRoles(DEFAULTS.roles), ["review", "risk-review", "review-small"]);
+  assert.deepEqual(reviewerRoles(DEFAULTS.roles), ["review", "risk-review", "review-small", "risk-review-lite"]);
   const re = sealRe(DEFAULTS.roles, "gm");
   const hits = [..."review ok at abc1234\n- `review-small ok at abc1234567`.\nrisk-review ok at abc\nreview ok at abc1234 x".matchAll(re)].map((m) => [m[1], m[2]]);
   assert.deepEqual(hits, [["review", "abc1234"], ["review-small", "abc1234567"]]);
-  const odd = { reviewer: "re.view", riskReviewer: "r(k", smallReviewer: "s|m" };
+  const odd = { reviewer: "re.view", riskReviewer: "r(k", smallReviewer: "s|m", riskReviewerLite: "l.t" };
   assert.ok(new RegExp(`^${sealCore(odd)}$`).test("s|m ok at abc1234"));
   assert.ok(!new RegExp(`^${sealCore(odd)}$`).test("reaview ok at abc1234"));
+});
+
+test("the config-b keys: defaults, and a project value read through load", () => {
+  assert.deepEqual(DEFAULTS.agents, {});
+  assert.equal(DEFAULTS.paths.business, "docs/BUSINESS.md");
+  assert.deepEqual(DEFAULTS.paths.riskLite, []);
+  assert.equal(DEFAULTS.roles.riskReviewerLite, "risk-review-lite");
+  const out = load("/r", () => JSON.stringify({ agents: { review: { effort: "low" } }, paths: { business: "docs/B.md", riskLite: ["hooks/"] }, roles: { riskReviewerLite: "rr-lite" } }));
+  assert.deepEqual(out.agents, { review: { effort: "low" } });
+  assert.equal(out.paths.business, "docs/B.md");
+  assert.deepEqual(out.paths.riskLite, ["hooks/"]);
+  assert.equal(out.roles.riskReviewerLite, "rr-lite");
+  assert.equal(out.roles.riskReviewer, "risk-review");
+  assert.throws(() => load("/r", () => '{"agents":[]}'), /agents must be an object/);
+});
+
+test("paths.business is the only source of the business file: the curated default does not name it", () => {
+  assert.ok(!DEFAULTS.paths.curated.includes(DEFAULTS.paths.business));
+  assert.ok(!load("/r", () => JSON.stringify({ paths: { business: "docs/B.md" } })).paths.curated.some((c) => /BUSINESS|docs\/B\.md/.test(c)));
+});
+
+test("pluginOn: a plugin is on only as <plugin>@<marketplace>: true", () => {
+  assert.equal(pluginOn("supabase@claude-plugins", true), true);
+  for (const [k, v] of [["supabase", true], ["supabase@m", false], ["supabase@m", "true"], ["@m", true], ["a@b@c", true]]) assert.equal(pluginOn(k, v), false, `${k}: ${v}`);
 });

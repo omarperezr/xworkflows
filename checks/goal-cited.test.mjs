@@ -71,3 +71,12 @@ test("plan added without a business file fails and says so", async () => {
       assert.match(res.lines.join("\n"), /BUSINESS\.md/);
     });
 });
+
+test("goals are read from paths.business", async () => {
+  await withRepo({ ".xworkflows/config.json": JSON.stringify({ paths: { business: "goals/B.md" } }), "goals/B.md": BIZ },
+    (r) => r.commit("plan", { files: { [PLAN]: "Goal: G1\n" } }),
+    async (r) => assert.deepEqual(await r.run(mod), { ok: true, lines: [] }));
+  await withRepo({ ".xworkflows/config.json": JSON.stringify({ paths: { business: "goals/B.md" } }), "docs/BUSINESS.md": BIZ },
+    (r) => r.commit("plan", { files: { [PLAN]: "Goal: G1\n" } }),
+    async (r) => assert.match((await r.run(mod)).lines[0], /goals\/B\.md is missing/));
+});

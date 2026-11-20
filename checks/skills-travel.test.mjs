@@ -32,13 +32,39 @@ test("missing skill fails naming agent and skill", async () => {
   assert.doesNotMatch(r.lines.join("\n"), /\bone\b/);
 });
 
-test("plugin:skill travels by the plugin declaration and passes, a bare name still must be committed", async () => {
-  const r = await check({ ".claude/agents/a.md": agent("skills:\n  - plug:thing\n  - gone\n") });
+const settings = (o) => ({ ".claude/settings.json": typeof o === "string" ? o : JSON.stringify(o) });
+const plugAgent = { ".claude/agents/a.md": agent("skills:\n  - plug:thing\n  - one\n"), ...skill("one") };
+
+test("plugin:skill passes when the committed settings enable the plugin, a bare name still must be committed", async () => {
+  const ok = await check({ ...plugAgent, ...settings({ enabledPlugins: { "plug@market": true } }) });
+  assert.deepEqual(ok, { ok: true, lines: [] });
+  const r = await check({ ".claude/agents/a.md": agent("skills:\n  - plug:thing\n  - gone\n"), ...settings({ enabledPlugins: { "plug@market": true } }) });
   assert.equal(r.ok, false);
   assert.match(r.lines.join("\n"), /gone/);
   assert.doesNotMatch(r.lines.join("\n"), /plug:thing/);
-  const ok = await check({ ".claude/agents/a.md": agent("skills:\n  - plug:thing\n  - one\n"), ...skill("one") });
-  assert.equal(ok.ok, true);
+});
+
+test("plugin:skill fails when the plugin is not enabled in the committed settings, and the line names the key form", async () => {
+  for (const files of [{}, settings({ enabledPlugins: { "other@market": true } }), settings({ enabledPlugins: { "plug@market": false } }), settings({}), settings({ enabledPlugins: { plug: true } })]) {
+    const r = await check({ ...plugAgent, ...files });
+    assert.equal(r.ok, false);
+    assert.notEqual(r.cannotRun, true);
+    assert.match(r.lines.join("\n"), /plug:thing/);
+    assert.match(r.lines.join("\n"), /<plugin>@<marketplace>/);
+  }
+});
+
+test("a settings file that cannot be read is not a pass", async () => {
+  for (const text of ["{not json", "[]", JSON.stringify({ enabledPlugins: [] })]) {
+    const r = await check({ ...plugAgent, ...settings(text) });
+    assert.equal(r.ok, false, text);
+    assert.equal(r.cannotRun, true, text);
+  }
+});
+
+test("a bare skill needs no settings file, even a broken one", async () => {
+  const r = await check({ ".claude/agents/a.md": agent("skills:\n  - one\n"), ...skill("one"), ...settings("{not json") });
+  assert.equal(r.ok, true);
 });
 
 test("skill on disk but not committed fails", async () => {
