@@ -112,7 +112,9 @@ test("memoryDir: a folder name inside the repository comes back plain, anything 
 
 test("memory.outside is an empty list by default", () => {
   assert.deepEqual(DEFAULTS.memory.outside, []);
-  assert.deepEqual(merge(DEFAULTS, { memory: { dir: "n" } }).memory, { dir: "n", outside: [] });
+  assert.deepEqual(DEFAULTS.memory.before, []);
+  assert.deepEqual(merge(DEFAULTS, { memory: { before: ["node", "x.mjs"] } }).memory.before, ["node", "x.mjs"]);
+  assert.deepEqual(merge(DEFAULTS, { memory: { dir: "n" } }).memory, { dir: "n", outside: [], before: [] });
 });
 
 test("dream.maxExtractBytes defaults to 4000000 and a project value replaces it", () => {

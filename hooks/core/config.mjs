@@ -40,7 +40,7 @@ export const DEFAULTS = {
   comments: {
     marks: { ts: ["//"], tsx: ["//"], js: ["//"], jsx: ["//"], mjs: ["//"], cjs: ["//"], sql: ["--"], sh: ["#"], py: ["#"] },
   },
-  memory: { dir: "docs/memory", outside: [] },
+  memory: { dir: "docs/memory", outside: [], before: [] },
   dream: { maxExtractBytes: 4000000, suggest: true, suggestAfterDays: 7, suggestAfterSessions: 10 },
   packs: {},
 };
