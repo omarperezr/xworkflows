@@ -466,3 +466,12 @@ test("install: a package that lacks a hook it never retired leaves that hook wir
   assert.ok(ids(r).includes("safe-db") && existsSync(join(r, ".xworkflows/hooks/core/safe-db.mjs")));
   assert.ok(readJson(r, ".xworkflows/installed.json").merged.some((x) => x.entry?.hooks?.[0]?.command.endsWith(" claude safe-db")));
 });
+test("install: an old hook entry under an event the record does not name goes without a crash", () => {
+  const r = upgradedFromOldId();
+  const s = readJson(r, ".claude/settings.json");
+  s.hooks.SessionEnd = [structuredClone(s.hooks.SessionStart.find((e) => e.hooks.some((h) => h.command.endsWith(" claude handoff"))))];
+  writeJson(r, ".claude/settings.json", s);
+  const out = inst(r, ["--yes"]);
+  assert.equal(out.status, 0, out.stderr);
+  assert.ok(!ids(r).includes("handoff") && ids(r).includes("handoff-load"));
+});

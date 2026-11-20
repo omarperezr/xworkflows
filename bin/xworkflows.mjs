@@ -232,8 +232,8 @@ function mergeSettings(root, manifest, record) {
     if (isDeepStrictEqual(left, arr)) continue;
     changed = true;
     const was = record.merged.find((m) => m.key[1] === event && hookId(m.entry) === id);
-    if (left.length || !was.createdKey) s.hooks[event] = left; else delete s.hooks[event];
-    if (!Object.keys(s.hooks).length && (was.levels ?? 2) > 1) delete s.hooks;
+    if (left.length || !was?.createdKey) s.hooks[event] = left; else delete s.hooks[event];
+    if (!Object.keys(s.hooks).length && (was?.levels ?? 2) > 1) delete s.hooks;
   }
   for (const { key, entry, ours, id, earlier } of want) {
     let o = s, made = 0;
