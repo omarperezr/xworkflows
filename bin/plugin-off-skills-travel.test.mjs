@@ -1,9 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
-import { repo, cli, git } from "./shared.test.mjs";
+import { mkdirSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { repo, cli, git, isoEnv } from "./shared.test.mjs";
+
+// no graphify on PATH: the post-commit hook starts no background job that writes into the repository the shared cleanup deletes
+const without = { ...isoEnv(), PATH: `${dirname(process.execPath)}:/usr/bin:/bin` };
 
 test("a plugin held false before install leaves skills-travel passing after a clean install", () => {
   const r = repo();
@@ -12,8 +15,7 @@ test("a plugin held false before install leaves skills-travel passing after a cl
   const i = cli(r, ["install"]);
   assert.equal(i.status, 0, i.stdout + i.stderr);
   git(r, "add -A");
-  git(r, "-c user.name=t -c user.email=t@t commit -qm install");
+  assert.equal(spawnSync("git", ["commit", "-qm", "install"], { cwd: r, env: without }).status, 0);
   const c = spawnSync("node", [".xworkflows/checks/run.mjs", "--only", "skills-travel"], { cwd: r, encoding: "utf8" });
   assert.equal(c.status, 0, c.stdout + c.stderr);
-  rmSync(r, { recursive: true, force: true });
 });
