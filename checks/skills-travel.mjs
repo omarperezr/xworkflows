@@ -1,4 +1,4 @@
-// A bare skill name named by an agent must be committed; a plugin:skill name travels by the plugin enabled in the committed settings.
+// A bare skill name named by an agent must be committed; a plugin:skill name travels by the plugin declaration in settings.
 const clean = (s) => s.trim().replace(/^(["'])(.*)\1$/, "$2");
 
 function skillNames(text) {
@@ -21,32 +21,15 @@ function skillNames(text) {
   return names.map(clean).filter(Boolean);
 }
 
-// null: the file is in the tree but cannot be read as settings; the declared plugin names otherwise
-function enabled(range, ctx, inTree) {
-  if (!inTree.has(".claude/settings.json")) return new Set();
-  try {
-    const all = JSON.parse(ctx.show(range.head, ".claude/settings.json"));
-    if (!all || typeof all !== "object" || Array.isArray(all)) return null;
-    const plugins = all.enabledPlugins ?? {};
-    if (!plugins || typeof plugins !== "object" || Array.isArray(plugins)) return null;
-    return new Set(Object.entries(plugins).filter(([, v]) => v === true).map(([k]) => k.split("@")[0]));
-  } catch { return null; }
-}
-
 export function run(range, ctx) {
   const tree = ctx.git("ls-tree", "-r", "-z", "--name-only", range.head).split("\0").filter(Boolean);
   const inTree = new Set(tree);
   const bad = [];
-  let on;
   for (const f of tree.filter((p) => /^\.claude\/agents\/[^/]+\.md$/.test(p))) {
     const agent = f.slice(f.lastIndexOf("/") + 1, -3);
     for (const n of skillNames(ctx.show(range.head, f) ?? "")) {
       if (/\s/.test(n)) bad.push(`${agent}: "${n}" is more than one name; give each skill its own list item`);
-      else if (n.includes(":")) {
-        on ??= enabled(range, ctx, inTree);
-        if (!on) return { ok: false, cannotRun: true, lines: [".claude/settings.json at the pushed commit cannot be read as settings with an enabledPlugins object"] };
-        if (!on.has(n.split(":")[0])) bad.push(`${agent}: ${n} is not enabled; declare the plugin in enabledPlugins of .claude/settings.json`);
-      } else if (!n.includes(":") && !inTree.has(`.claude/skills/${n}/SKILL.md`)) bad.push(`${agent}: ${n} is not in git; commit .claude/skills/${n}/SKILL.md`);
+      else if (!n.includes(":") && !inTree.has(`.claude/skills/${n}/SKILL.md`)) bad.push(`${agent}: ${n} is not in git; commit .claude/skills/${n}/SKILL.md`);
     }
   }
   return bad.length ? { ok: false, lines: [`${bad.length} agent skill(s) do not travel with the repository`, ...bad] } : { ok: true, lines: [] };
