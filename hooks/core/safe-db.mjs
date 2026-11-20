@@ -58,6 +58,7 @@ function sqlFiles(tool, words, at) {
   words.forEach((w, i) => {
     const after = i > at, m = (after && /^(?:-f|--file=)(.+)$/.exec(w)) || /^<([^<].*)$/.exec(w);
     if (m) out.push(m[1]);
+    else if (after && /^mongo/.test(tool) && /\.js$/.test(w)) out.push(w);
     else if ((after && (w === "-f" || w === "--file")) || w === "<") { if (words[i + 1]) out.push(words[i + 1]); }
     else if (after && tool === "sqlcmd" && w === "-i" && words[i + 1]) out.push(...words[i + 1].split(","));
   });

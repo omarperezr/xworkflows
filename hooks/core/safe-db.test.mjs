@@ -387,3 +387,12 @@ test("P-211 gaps: CREATE OR REPLACE TABLE asks, a view or function does not", ()
   assert.ok(allowed(`psql -c "CREATE OR REPLACE VIEW v AS SELECT 1"`));
   assert.ok(allowed(`psql -c "CREATE TABLE t (a int)"`));
 });
+
+test("mongosh reads a .js word of the client like --file", () => {
+  writeFileSync(join(root, "wipe.js"), "db.users.deleteMany({})");
+  writeFileSync(join(root, "ok.js"), "db.users.find({})");
+  assert.ok(asks("mongosh wipe.js"));
+  assert.ok(asks("mongosh mongodb://localhost/app wipe.js"));
+  assert.ok(allowed("mongosh ok.js"));
+  assert.ok(allowed("node wipe.js"));
+});
