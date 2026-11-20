@@ -8,7 +8,7 @@ import { basename, dirname, extname, isAbsolute, join, normalize, posix, relativ
 import { modelsIn } from "../hooks/core/memory-job.mjs";
 import { isDeepStrictEqual } from "node:util";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { DEFAULTS, PROJECT_KEYS, inPaths, load as loadConfig, memoryFolder, missing } from "../hooks/core/config.mjs";
+import { DEFAULTS, PROJECT_KEYS, inPaths, load as loadConfig, memoryFolder, missing, pluginOn } from "../hooks/core/config.mjs";
 
 export const PKG = dirname(dirname(fileURLToPath(import.meta.url)));
 export let ROOT;
@@ -566,7 +566,7 @@ function pluginsOn(manifest, root) {
   try { held = JSON.parse(read(root, SETTINGS) ?? "{}").enabledPlugins ?? {}; } catch {}
   const left = { ...(isObj(held) ? held : {}) };
   for (const w of pluginWants(manifest, root, false, () => {})) if (w.key[0] === PLUGIN_MAPS[1] && !(w.key[1] in left)) left[w.key[1]] = true;
-  return new Set(Object.entries(left).filter(([k, v]) => v === true && /^[^@]+@[^@]+$/.test(k)).map(([k]) => k.split("@")[0]));
+  return new Set(Object.entries(left).filter(([k, v]) => pluginOn(k, v)).map(([k]) => k.split("@")[0]));
 }
 // The risk reviewer /adapt wrote, as a second agent that differs by its name (seal line included) and its model: tier top where the first has strongest.
 function liteOf(src, full, name, model) {

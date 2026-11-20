@@ -1,3 +1,5 @@
+import { pluginOn } from "../hooks/core/config.mjs";
+
 // A bare skill name named by an agent must be committed; a plugin:skill name travels by the plugin enabled in the committed settings.
 const clean = (s) => s.trim().replace(/^(["'])(.*)\1$/, "$2");
 
@@ -29,7 +31,7 @@ function enabled(range, ctx, inTree) {
     if (!all || typeof all !== "object" || Array.isArray(all)) return null;
     const plugins = all.enabledPlugins ?? {};
     if (!plugins || typeof plugins !== "object" || Array.isArray(plugins)) return null;
-    return new Set(Object.entries(plugins).filter(([k, v]) => v === true && /^[^@]+@[^@]+$/.test(k)).map(([k]) => k.split("@")[0]));
+    return new Set(Object.entries(plugins).filter(([k, v]) => pluginOn(k, v)).map(([k]) => k.split("@")[0]));
   } catch { return null; }
 }
 

@@ -14,7 +14,7 @@ export const DEFAULTS = {
     business: "docs/BUSINESS.md",
     riskLite: [],
     nonCode: ["docs/", ".claude/", ".xworkflows/", "**/*.md", ".gitignore"],
-    curated: ["AGENTS.md", "CLAUDE.md", ".claude/rules/", "docs/BUSINESS.md"],
+    curated: ["AGENTS.md", "CLAUDE.md", ".claude/rules/"],
   },
   roles: {
     reviewer: "review",
@@ -123,6 +123,9 @@ export function loadLenient(root, read = readOrNull) {
   for (const k of replaced) delete user[k];
   return { config: merge(DEFAULTS, user), replaced };
 }
+
+// the one rule for a plugin being on: its key is <plugin>@<marketplace> and its value is true; a bare name counts nothing
+export const pluginOn = (key, value) => value === true && /^[^@]+@[^@]+$/.test(key);
 
 export const get = (config, key) => key.split(".").reduce((o, k) => (isObj(o) ? o[k] : undefined), config);
 

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync } from "node:fs";
 import { tmpdir } from "../../test-tmp.mjs";
 import { join } from "node:path";
-import { DEFAULTS, PROJECT_KEYS, merge, load, loadLenient, get, missing, inPaths, memoryDir, memoryFolder, reviewerRoles, sealCore, sealRe } from "./config.mjs";
+import { DEFAULTS, PROJECT_KEYS, merge, load, loadLenient, get, missing, inPaths, memoryDir, memoryFolder, pluginOn, reviewerRoles, sealCore, sealRe } from "./config.mjs";
 import { outsideLine } from "./ctx.mjs";
 
 test("DEFAULTS has the product defaults and none of the project keys", () => {
@@ -209,4 +209,14 @@ test("the config-b keys: defaults, and a project value read through load", () =>
   assert.equal(out.roles.riskReviewerLite, "rr-lite");
   assert.equal(out.roles.riskReviewer, "risk-review");
   assert.throws(() => load("/r", () => '{"agents":[]}'), /agents must be an object/);
+});
+
+test("paths.business is the only source of the business file: the curated default does not name it", () => {
+  assert.ok(!DEFAULTS.paths.curated.includes(DEFAULTS.paths.business));
+  assert.ok(!load("/r", () => JSON.stringify({ paths: { business: "docs/B.md" } })).paths.curated.some((c) => /BUSINESS|docs\/B\.md/.test(c)));
+});
+
+test("pluginOn: a plugin is on only as <plugin>@<marketplace>: true", () => {
+  assert.equal(pluginOn("supabase@claude-plugins", true), true);
+  for (const [k, v] of [["supabase", true], ["supabase@m", false], ["supabase@m", "true"], ["@m", true], ["a@b@c", true]]) assert.equal(pluginOn(k, v), false, `${k}: ${v}`);
 });
