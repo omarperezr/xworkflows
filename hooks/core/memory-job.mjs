@@ -10,8 +10,10 @@ import { loadLenient } from "./config.mjs";
 const STEP_MS = 30 * 60000; // the limit of the project's step, and the age at which a lock is stale
 
 const real = (cmd, args, o) => {
-  const r = spawnSync(cmd, args, { ...o, stdio: "ignore", killSignal: "SIGKILL" });
-  return { code: r.status, timedOut: r.error?.code === "ETIMEDOUT" };
+  const r = spawnSync(cmd, args, { ...o, stdio: "ignore", killSignal: "SIGKILL", detached: true }); // its own process group
+  const timedOut = r.error?.code === "ETIMEDOUT";
+  if (timedOut) try { process.kill(-r.pid, "SIGKILL"); } catch { /* the group is gone */ } // the limit kills the whole step, not only its child
+  return { code: r.status, timedOut };
 };
 
 const modelsIn = (dir) => { try { return readdirSync(dir).some((f) => /embed.*\.gguf$/i.test(f)); } catch { return false; } };
