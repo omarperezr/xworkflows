@@ -730,7 +730,8 @@ export function plan(manifest, root, record, ans = {}) {
     // a unit under kept, this plan's or the record's, is the user's: not judged, as uninstall does
     if ((!hashes && !lite) || kept.includes(u) || record.kept.includes(u) || shipped.has(p) || !plain(p) || !clean(root, p) || !lstatSync(join(root, p), { throwIfNoEntry: false })?.isFile()) continue;
     if (lite ? hash(read(root, p)) === record.files[p].sha256 : published(p, read(root, p), tiers).some((t) => hashes.includes(hash(t)))) retired.push(p);
-    else notes.push(`kept (no longer shipped, changed locally): ${p}`);
+    // an agent is rendered from the config: its text is the record's hash and no published text, so it is neither deleted nor changed
+    else notes.push(`kept (no longer shipped, ${p.startsWith(".claude/agents/") && hash(read(root, p)) === record.files[p]?.sha256 ? "as install recorded it" : "changed locally"}): ${p}`);
   }
   // the module of a hook id the manifest no longer has: removed when it is the text install wrote, else kept and said
   const settingsOn = !off(SETTINGS);

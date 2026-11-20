@@ -232,6 +232,15 @@ test("install: a retired agent the record holds, changed locally, is kept, named
   assert.equal(out.stdout.split("\n").filter((l) => l === `kept (no longer shipped, changed locally): ${AGENT}`).length, 1, out.stdout);
   assert.ok(!(AGENT in readJson(r, ".xworkflows/installed.json").files));
 });
+test("install: a retired agent that holds the text install rendered, the record's hash, is kept with a true message and is never deleted", () => {
+  const { copy, r } = upgradeWithAgent("a\nrendered\n");
+  withRecord(r, (rec) => { rec.files[AGENT].sha256 = sha("a\nrendered\n"); });
+  const out = cliAt(copy, r, ["install", "--yes"]);
+  assert.equal(out.status, 0, out.stderr);
+  assert.equal(readFileSync(join(r, AGENT), "utf8"), "a\nrendered\n");
+  assert.doesNotMatch(out.stdout, /changed locally/);
+  assert.equal(out.stdout.split("\n").filter((l) => l === `kept (no longer shipped, as install recorded it): ${AGENT}`).length, 1, out.stdout);
+});
 test("install: a first install into a project with its own files at retired paths, with the published text, leaves them and names nothing", () => {
   const r = repo({ [AGENT]: "a\n", [LOOSE]: "a\n" });
   const out = cliAt(retiringBoth(), r, ["install", "--yes"]);
@@ -249,7 +258,8 @@ test("install: a record edited by hand to name the user's files at retired paths
   const files = readJson(r, ".xworkflows/installed.json").files;
   for (const f of [AGENT, LOOSE]) {
     assert.equal(readFileSync(join(r, f), "utf8"), "mine\n", f);
-    assert.match(out.stdout, new RegExp(`^kept \\(no longer shipped, changed locally\\): ${f.replaceAll(".", "\\.")}$`, "m"));
+    // an agent that equals the record is said as the record has it: the rendered text is no published text
+    assert.match(out.stdout, new RegExp(`^kept \\(no longer shipped, ${f === AGENT ? "as install recorded it" : "changed locally"}\\): ${f.replaceAll(".", "\\.")}$`, "m"));
     assert.ok(!(f in files), f);
   }
 });
