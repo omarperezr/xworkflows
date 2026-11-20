@@ -2,7 +2,7 @@ import { inPaths, sealRe } from "../hooks/core/config.mjs";
 import { commentOnly } from "./comment-lines.mjs";
 
 export const mainOnly = true;
-export const needs = ["paths.codeAnyway", "paths.risk"];
+export const needs = ["paths.codeAnyway", "paths.risk", "tests.files"];
 
 // a seal inside a fenced code block is an example, not a seal; an unclosed fence runs to the end
 function unfenced(text) {
@@ -16,7 +16,8 @@ function unfenced(text) {
 }
 
 export function run(range, ctx) {
-  const { paths, roles } = ctx.config;
+  const { paths, roles, tests } = ctx.config;
+  const riskFile = (f) => inPaths(f, paths.risk) && !f.endsWith(".md") && !inPaths(f, tests.files);
   const line = (c) => ctx.git("log", "-1", "--format=%h %s", c);
   const unsealed = [];
   let risk = false;
@@ -25,12 +26,12 @@ export function run(range, ctx) {
     const files = ctx.git("diff-tree", "--cc", "--root", "--no-commit-id", "--name-only", "-r", "-z", c).split("\0").filter(Boolean);
     const isCode = files.some((f) => !inPaths(f, paths.nonCode) || inPaths(f, paths.codeAnyway));
     if (!isCode) continue;
-    const touchesRisk = files.some((f) => inPaths(f, paths.risk) && !f.endsWith(".md"));
+    const touchesRisk = files.some(riskFile);
     const escaped = ctx.git("log", "-1", "--format=%b", c).split("\n").some((l) => /^no-review: \S/.test(l));
     if (escaped && !touchesRisk) continue;
     if (commentOnly(ctx, c)) continue;
     risk ||= touchesRisk;
-    riskFiles.push(...files.filter((f) => inPaths(f, paths.risk) && !f.endsWith(".md")));
+    riskFiles.push(...files.filter(riskFile));
     unsealed.push(c);
   }
   if (!unsealed.length) return { ok: true, lines: [] };
