@@ -902,3 +902,46 @@ test("the lite reviewer follows roles.riskReviewerLite and waits for a risk revi
   cli(r, ["install", "--yes"]);
   assert.match(readFileSync(join(r, ".claude/agents/cheap-risk.md"), "utf8"), /^name: cheap-risk$/m);
 });
+const skillsOf = (r, agent) => readFileSync(join(r, `.claude/agents/${agent}.md`), "utf8").split("\n---\n")[0];
+test("a plugin counts as on only as <plugin>@<marketplace>: true: a bare key keeps no plugin skill in an agent", () => {
+  const r = repo({ ".claude/settings.json": JSON.stringify({ enabledPlugins: { impeccable: true, "frontend-design": true } }) });
+  assert.equal(cli(r, ["install", "--yes"]).status, 0);
+  assert.ok(!/impeccable:|frontend-design:/.test(skillsOf(r, "implement-front")));
+  assert.equal(readJson(r, ".claude/settings.json").enabledPlugins.impeccable, true);
+});
+test("a settings file that is a link counts nothing as on: install writes none of it, and no plugin skill stays", () => {
+  const r = repo();
+  mkdirSync(join(r, ".claude"), { recursive: true });
+  const elsewhere = join(tmp("xwf-link-"), "settings.json");
+  writeFileSync(elsewhere, JSON.stringify({ enabledPlugins: { "ponytail@ponytail": true } }));
+  symlinkSync(elsewhere, join(r, ".claude/settings.json"));
+  assert.equal(cli(r, ["install", "--yes"]).status, 0);
+  assert.ok(!/ponytail:ponytail/.test(skillsOf(r, "implement")));
+});
+test("a lite file that install wrote and is no longer wanted goes with its ignore line when unchanged, and is kept and named when edited", () => {
+  const r = repo({ ".claude/agents/risk-review.md": RISK });
+  const lite = join(r, ".claude/agents/risk-review-lite.md");
+  withKeys(r, { paths: { ...ALL_KEYS.paths, risk: ["ui/"], riskLite: ["ui/"] } });
+  cli(r, ["install", "--yes"]);
+  assert.match(readFileSync(join(r, ".graphifyignore"), "utf8"), /^\.claude\/agents\/risk-review-lite\.md$/m);
+  withKeys(r, { paths: { ...ALL_KEYS.paths, risk: ["ui/"], riskLite: [] } });
+  const out = cli(r, ["install", "--yes"]);
+  assert.match(out.stdout, /^removed \.claude\/agents\/risk-review-lite\.md$/m);
+  assert.ok(!existsSync(lite));
+  assert.doesNotMatch(readFileSync(join(r, ".graphifyignore"), "utf8"), /risk-review-lite/);
+  withKeys(r, { paths: { ...ALL_KEYS.paths, risk: ["ui/"], riskLite: ["ui/"] } });
+  cli(r, ["install", "--yes"]);
+  writeFileSync(lite, readFileSync(lite, "utf8") + "mine\n");
+  withKeys(r, { paths: { ...ALL_KEYS.paths, risk: ["ui/"], riskLite: [] } });
+  assert.match(cli(r, ["install", "--yes"]).stdout, /^kept \(no longer shipped, changed locally\): \.claude\/agents\/risk-review-lite\.md$/m);
+  assert.match(readFileSync(lite, "utf8"), /mine\n$/);
+});
+test("uninstall takes the lite file install wrote even when paths.riskLite was emptied since", () => {
+  const r = repo({ ".claude/agents/risk-review.md": RISK });
+  withKeys(r, { paths: { ...ALL_KEYS.paths, risk: ["ui/"], riskLite: ["ui/"] } });
+  cli(r, ["install", "--yes"]);
+  withKeys(r, { paths: { ...ALL_KEYS.paths, risk: ["ui/"], riskLite: [] } });
+  cli(r, ["uninstall"]);
+  assert.ok(!existsSync(join(r, ".claude/agents/risk-review-lite.md")));
+  assert.ok(!existsSync(join(r, ".graphifyignore")) || !/risk-review-lite/.test(readFileSync(join(r, ".graphifyignore"), "utf8")));
+});

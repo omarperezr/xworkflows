@@ -506,6 +506,7 @@ function mergeAgents(root) {
 }
 
 const UNIT = /^\.claude\/(skills|agents)\/[^/]+/;
+const LITE_FILE = /^\.claude\/agents\/[^/]+\.md$/;
 const IMPORT = "Add @AGENTS.md to CLAUDE.md?";
 
 const plain = (p) => typeof p === "string" && p !== "" && p !== "." && !isAbsolute(p) && normalize(p) === p && !p.split("/").includes("..");
@@ -558,15 +559,18 @@ function renderAgent(text, ov, on) {
   }) + (typeof o.append === "string" && o.append.trim() ? `\n${o.append.replace(/\s+$/, "")}\n` : "");
 }
 // the plugins on in settings.json once install has run: those it holds, and those install turns on
+// the check's rule: <plugin>@<marketplace>: true in the settings install leaves (a plugin install adds only when the key is absent); a linked settings file is not written, so counts nothing
 function pluginsOn(manifest, root) {
+  if (!clean(root, SETTINGS)) return new Set();
   let held = {};
-  try { held = JSON.parse(read(root, ".claude/settings.json") ?? "{}").enabledPlugins ?? {}; } catch {}
-  const names = Object.entries(isObj(held) ? held : {}).filter(([, v]) => v === true).map(([k]) => k);
-  return new Set([...names, ...pluginWants(manifest, root, false, () => {}).filter((w) => w.key[0] === PLUGIN_MAPS[1]).map((w) => w.key[1])].map((k) => k.split("@")[0]));
+  try { held = JSON.parse(read(root, SETTINGS) ?? "{}").enabledPlugins ?? {}; } catch {}
+  const left = { ...(isObj(held) ? held : {}) };
+  for (const w of pluginWants(manifest, root, false, () => {})) if (w.key[0] === PLUGIN_MAPS[1] && !(w.key[1] in left)) left[w.key[1]] = true;
+  return new Set(Object.entries(left).filter(([k, v]) => v === true && /^[^@]+@[^@]+$/.test(k)).map(([k]) => k.split("@")[0]));
 }
-// The risk reviewer /adapt wrote, as a second agent that differs by its name and its model: tier top where the first has strongest.
-function liteOf(src, name, model) {
-  const t = src.replace(/^name: .*$/m, `name: ${name}`);
+// The risk reviewer /adapt wrote, as a second agent that differs by its name (seal line included) and its model: tier top where the first has strongest.
+function liteOf(src, full, name, model) {
+  const t = nameAs(src, name).replaceAll(`${full} ok at`, `${name} ok at`);
   return /^model: /m.test(t) ? t.replace(/^model: .*$/m, `model: ${model}`) : t.replace(/^name: .*$/m, `$&\nmodel: ${model}`);
 }
 // Every file this package copies, with the text it copies (tier line included, config applied to the agents); plan() and uninstall share it.
@@ -586,8 +590,8 @@ function pkgWrites(manifest, root) {
     }
   }
   const { riskReviewer: full, riskReviewerLite: lite } = cfg.roles, from = `.claude/agents/${full}.md`;
-  const source = Array.isArray(cfg.paths.riskLite) && cfg.paths.riskLite.length && [full, lite].every((n) => NAME.test(n)) && full !== lite && plain(from) ? read(root, from) : null;
-  if (source !== null) writes.push({ path: `.claude/agents/${lite}.md`, text: liteOf(source, lite, JSON.parse(tiers).claude.top), piece: "installer", src: from });
+  const source = Array.isArray(cfg.paths.riskLite) && cfg.paths.riskLite.length && [full, lite].every((n) => NAME.test(n)) && full !== lite ? read(root, from) : null;
+  if (source !== null) writes.push({ path: `.claude/agents/${lite}.md`, text: liteOf(source, full, lite, JSON.parse(tiers).claude.top), piece: "installer", src: from });
   return writes;
 }
 // The xwf- form of a file of unit u.
@@ -721,9 +725,11 @@ export function plan(manifest, root, record, ans = {}) {
   const retired = [], tiers = JSON.parse(readFileSync(join(PKG, "tiers.json"), "utf8"));
   for (const p of Object.keys(record.files)) {
     const hashes = listed.get(p), u = p.match(UNIT)?.[0];
+    // the lite reviewer is install's own, rendered from the project's file: the record's hash says it is still the text install wrote
+    const lite = record.files[p]?.piece === "installer" && LITE_FILE.test(p);
     // a unit under kept, this plan's or the record's, is the user's: not judged, as uninstall does
-    if (!hashes || kept.includes(u) || record.kept.includes(u) || shipped.has(p) || !plain(p) || !clean(root, p) || !lstatSync(join(root, p), { throwIfNoEntry: false })?.isFile()) continue;
-    if (published(p, read(root, p), tiers).some((t) => hashes.includes(hash(t)))) retired.push(p);
+    if ((!hashes && !lite) || kept.includes(u) || record.kept.includes(u) || shipped.has(p) || !plain(p) || !clean(root, p) || !lstatSync(join(root, p), { throwIfNoEntry: false })?.isFile()) continue;
+    if (lite ? hash(read(root, p)) === record.files[p].sha256 : published(p, read(root, p), tiers).some((t) => hashes.includes(hash(t)))) retired.push(p);
     else notes.push(`kept (no longer shipped, changed locally): ${p}`);
   }
   // the module of a hook id the manifest no longer has: removed when it is the text install wrote, else kept and said
@@ -1117,16 +1123,16 @@ async function doctor() {
       outside: ["fail", `${P}: core.hooksPath points outside this repository, where install writes no hook; either add this line to ${at(hook.path)} as its first command${hook.guarded ? ", in place of the line an earlier xworkflows gave, which hands the rest of the hook no pushed refs" : ""}: ${hookLine(name)} ;${hook.guarded ? ` then ${INSTALL}, here and in every other project on the folder that an earlier xworkflows installed, since until then the line refuses every push there;` : ""} it runs in every repository that uses the folder, silent where xworkflows is not installed, and is yours to take out after uninstall; or point this repository at its own hooks folder, after which the hooks of the other folder no longer run here: run: git config core.hooksPath "$(git rev-parse --path-format=absolute --git-common-dir)/hooks"; then ${INSTALL}`],
     };
     say(...SAY[hook.state]);
+    }
+    // the lite reviewer is a copy of the project's risk reviewer: it follows its source only when install runs again
+    const lw = conf.paths.riskLite?.length && pkgWrites(readManifest(), ROOT).find((w) => w.src === `.claude/agents/${conf.roles.riskReviewer}.md`);
+    if (lw && read(ROOT, lw.path) !== lw.text) say("warn", `${lw.path} is not the render of ${lw.src}: ${INSTALL}`);
     let st = {}, local = {};
     try { st = JSON.parse(readFileSync(join(ROOT, ".claude/settings.json"), "utf8")); } catch {}
     try { local = JSON.parse(readFileSync(join(ROOT, ".claude/settings.local.json"), "utf8")); } catch {}
     let bytes = 0;
     // a session file with as many sessions beside it as make the memory hook suggest dream, as the hook reads the threshold
     // shortcut: a threshold over 1000 is probed with 1000 sessions, so its line is not measured; raise it when a project sets one
-    }
-    // the lite reviewer is a copy of the project's risk reviewer: it follows its source only when install runs again
-    const lw = conf.paths.riskLite?.length && pkgWrites(readManifest(), ROOT).find((w) => w.src === `.claude/agents/${conf.roles.riskReviewer}.md`);
-    if (lw && read(ROOT, lw.path) !== lw.text) say("warn", `${lw.path} is not the render of ${lw.src}: ${INSTALL}`);
     const after = conf.dream?.suggestAfterSessions, sessions = mkdtempSync(join(tmpdir(), "xwf-doctor-sessions-"));
     for (let i = 0; i <= Math.min(Number.isInteger(after) && after > 0 ? after : DEFAULTS.dream.suggestAfterSessions, 1000); i++) writeFileSync(join(sessions, `${i}.jsonl`), "");
     for (const h of (st.hooks?.SessionStart ?? []).flatMap((e) => e.hooks ?? [])) {
@@ -1209,6 +1215,10 @@ function uninstall() {
     const u = w.path.match(UNIT)?.[0];
     if (u) { const x = renameWrite(w, u); wanted.set(x.path, x.text); }
   }
+  // the lite reviewer file stays named when paths.riskLite was emptied since install: the record says whether install wrote it
+  let lite = DEFAULTS.roles.riskReviewerLite;
+  try { lite = loadConfig(ROOT).roles.riskReviewerLite; } catch {}
+  if (typeof lite === "string" && NAME.test(lite) && !wanted.has(`.claude/agents/${lite}.md`)) wanted.set(`.claude/agents/${lite}.md`, "");
   const wants = settingsWants(manifest);
   // a recorded entry belongs to a want by its key and its hook id, not by the event alone
   const theirs = (w, m) => isDeepStrictEqual(w.key, m.key) && (w.id ? w.ours(m.entry) : isDeepStrictEqual(w.entry, m.entry));
@@ -1253,7 +1263,8 @@ function uninstall() {
   for (const [p, text] of wanted) {
     if (!recFiles.has(p) || rec.kept.includes(p) || rec.kept.includes(p.match(UNIT)?.[0])) continue;
     if (!lstatSync(join(ROOT, p), { throwIfNoEntry: false })?.isFile()) continue;
-    if (hash(read(ROOT, p)) === hash(text)) { rm(p); out.push(`deleted ${p}`); }
+    // an agent is rendered from the config and the plugins: it is install's when it holds the text the record has, never by today's render
+    if (hash(read(ROOT, p)) === hash(text) || (p.startsWith(".claude/agents/") && hash(read(ROOT, p)) === rec.files[p]?.sha256)) { rm(p); out.push(`deleted ${p}`); }
     else out.push(`kept (changed locally): ${p}`);
   }
   for (const [name, p] of hookRel) {
