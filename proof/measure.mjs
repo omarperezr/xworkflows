@@ -167,8 +167,8 @@ const metrics = (r) => ({ ...(typeof r.usd === "number" && r.changedLines ? { us
 const median = (xs) => { const s = [...xs].sort((a, b) => a - b); return s.length ? (s[(s.length - 1) >> 1] + s[s.length >> 1]) / 2 : 0; };
 export function worseThanBaseline(rows, baseRows) {
   const base = baseRows.filter((r) => r.usd && r.changedLines).map(metrics); // a row with no cost or no changed line says nothing
-  if (!base.length) return [];
-  return rows.flatMap((r) => Object.entries(metrics(r)).filter(([k, v]) => v > median(base.map((m) => m[k]))).map(([k, v]) => `${r.branch}: ${k} ${v} is worse than the baseline median ${median(base.map((m) => m[k]))}`));
+  if (!base.length) throw new Error("the baseline has no row with a cost and changed lines: nothing to compare");
+  return rows.flatMap((r) => (r.usd && r.changedLines ? [] : [`${r.branch}: not compared, it has no cost`])).concat(rows.flatMap((r) => Object.entries(metrics(r)).filter(([k, v]) => v > median(base.map((m) => m[k]))).map(([k, v]) => `${r.branch}: ${k} ${v} is worse than the baseline median ${median(base.map((m) => m[k]))}`)));
 }
 
 // Returns the exit code: 0 done, 2 could not run.

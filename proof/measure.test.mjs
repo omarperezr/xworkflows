@@ -392,3 +392,22 @@ test("a file header that does not parse stops the tool with one line that names 
   assert.equal(r.lines.length, 1);
   assert.doesNotMatch(r.lines[0], /\n|Command failed/);
 });
+
+test("a baseline with no row that has a cost and changed lines stops the tool with one line, exit 2", () => {
+  const [p, s, out, state] = [project(), sessions(), join(tmp(), "out"), tmp()];
+  mkdirSync(out, { recursive: true });
+  writeFileSync(join(out, "ref.jsonl"), JSON.stringify({ usd: null, changedLines: 100, fixOfFix: 0, reviewRounds: 3, failuresAfterSeal: [] }) + "\n");
+  const r = run(p, s, out, state, "--baseline", "/somewhere/ref");
+  assert.equal(r.code, 2);
+  assert.equal(r.lines.filter((l) => /^measure: .*baseline/.test(l)).length, 1); // the failure-after-seal lines print before
+});
+
+test("a measured row with no cost gets one line saying it was not compared", () => {
+  const [p, s, out, state] = [project(), sessions(), join(tmp(), "out"), tmp()];
+  mkdirSync(out, { recursive: true });
+  const base = { usd: 1000, changedLines: 100, fixOfFix: 0, reviewRounds: 3, failuresAfterSeal: [] };
+  writeFileSync(join(out, "ref.jsonl"), JSON.stringify(base) + "\n");
+  const { lines } = run(p, s, out, state, "--baseline", "/somewhere/ref"); // both rows have usd null
+  assert.equal(lines.filter((l) => /^b1: not compared/.test(l)).length, 1);
+  assert.equal(lines.filter((l) => /^b2: not compared/.test(l)).length, 1);
+});
