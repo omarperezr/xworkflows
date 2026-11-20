@@ -411,3 +411,10 @@ test("cp -t names a directory: the last word is a source, not a write target", (
   for (const c of ["cp -t backup app.db", "cp --target-directory=backup app.db", "cp -rt backup app.db", "mv -t backup app.sqlite3"]) assert.ok(allowed(c), c);
   for (const c of ["cp /dev/null app.db", "cp -r a b.db", "cp -T a b.db"]) assert.ok(asks(c), c);
 });
+
+test("docker compose down matches only as a whole word: a service named like it is not the command", () => {
+  assert.ok(allowed("docker compose logs my-down -v"));
+  assert.ok(allowed("docker compose exec app-down --volumes"));
+  assert.ok(asks("docker compose down -v"));
+  assert.ok(asks("docker compose -f x.yml down --volumes"));
+});
