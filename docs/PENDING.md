@@ -14,7 +14,7 @@ One living list. The `pending` brake checks these rules:
 
 
 ## Workflow upgrade
-- **P-238** — A test file under `paths.risk` still asks for the risk reviewer (`checks/review-seal.mjs:28,33`, `skills/orchestrate/SKILL.md:79,85,111`); the owner: "ninguna prueba va en riesgo". Origin: docs/superpowers/plans/2026-11-20-tests-not-risk.md. Status: scheduled.
+- **P-238** — A test file under `paths.risk` still asks for the risk reviewer (`checks/review-seal.mjs:28,33`, `skills/orchestrate/SKILL.md:79,85,111`); the owner: "ninguna prueba va en riesgo". Origin: docs/superpowers/plans/2026-11-20-tests-not-risk.md. Status: in progress on tests-not-risk-1.
 
 
 ## Memory and agents
