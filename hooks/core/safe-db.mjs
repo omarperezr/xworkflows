@@ -15,8 +15,8 @@ const CLI = [
   [/^redis-cli$/, /\bflush(?:all|db)\b/i],
   [/^mongo(?:sh)?$/, /\.drop\s*\(|\bdropDatabase\b|\bdeleteMany\b|\bremove\s*\(|\bupdateMany\s*\(\s*\{\s*\}/],
   [/^mysqladmin$/, /\bdrop\b/],
-  [/^docker$/, /\bcompose\s.*\bdown\b.*(?:^|\s)(?:-v|--volumes)(?=\s|$)|\bvolume\s+(?:rm|remove|prune)\b|\bsystem\s+prune\b.*--volumes\b|\bcompose\s.*\brm\b.*(?:^|\s)(?:-[a-zA-Z]*v|--volumes)(?=\s|$)/],
-  [/^docker-compose$/, /\b(?:down|rm)\b.*(?:^|\s)(?:-[a-zA-Z]*v|--volumes)(?=\s|$)/],
+  [/^docker$/, /\bcompose\s.*\bdown\b.*(?:^|\s)(?:-v|--volumes)(?=\s|$)|\bvolume\s+(?:rm|remove|prune)\b|\bsystem\s+prune\b.*--volumes\b|\bcompose(?=\s).*(?:^|\s)rm(?=\s).*(?:^|\s)(?:-[a-zA-Z]*v[a-zA-Z]*|--volumes)(?=\s|$)/],
+  [/^docker-compose$/, /(?:^|\s)(?:down|rm)(?=\s).*(?:^|\s)(?:-[a-zA-Z]*v[a-zA-Z]*|--volumes)(?=\s|$)/],
   [/^find$/, /\.(?:db|sqlite3?)\*?(?![\w.]).*\s(?:-delete\b|-exec(?:dir)?\s+(?:\S*\/)?(?:rm|unlink)\b)/],
   [/^truncate$/, /\.(?:db|sqlite3?)(?:\s|$)/],
 ];
