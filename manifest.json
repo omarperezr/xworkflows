@@ -67,11 +67,11 @@
         "hooks/adapters/codex.mjs": "0589bf97b5cec7e06fee8a70bd92d8a0f51e8bb082cc241f743a80308e44d059",
         "hooks/adapters/cursor.mjs": "394c1a81f4040089b67f0fbf1131012bbb5883bdf705ce3af12dff66d9b3cbd5",
         "hooks/adapters/gemini.mjs": "eff8f29bce46d7c4a7c62845f3762a16c6fd38e831e6c4a5d6b54361ec599175",
-        "hooks/core/config.mjs": "cad6ac085e777de8ab633bf8aa8de1531f6e22f8746502d37fe42f6160cad0fd",
+        "hooks/core/config.mjs": "ff82b1d24ab8efd3fab84522fbd42e40ebea9775ac80c6613560a0a7bf3b4899",
         "hooks/core/ctx.mjs": "c467ec88a800a1b3df3193922b7bd1377e12d610b6c75e2a7becc81cdd848138",
         "hooks/core/shell-words.mjs": "d2b55f18ca767512692d8a4aed20eaa6e91dd9e3144e180f9ea051a3861679f1"
       },
-      "sha256": "0d48460f160176b601124fddfe76c367bb4097caa6ed7cbfdc85e144771a2be3"
+      "sha256": "82575e80da5b1f2690e0d53d7142346a7b948ccccd0c50d5c8640b5a58ede80d"
     },
     {
       "id": "design-first",
@@ -826,7 +826,7 @@
         "checks/fix-has-test.mjs": "63ba9b3dbbf9251be58632b667ed69f611aa0c6a7fb6c893a114c1a2610defc4",
         "checks/change-size.mjs": "be1366d8e2f5fa80b0616cf4a22c660526316b988df38d28643c31c46ac8b855",
         "checks/comment-ratio.mjs": "20112da90275485c4cfa149cb2164517aa308873b49a97d1f5d8c98f9a621310",
-        "checks/skills-travel.mjs": "0081532ead40125f21bfdb10116b89fe0b89406b6b0ba1d244ca82c52b6820a4",
+        "checks/skills-travel.mjs": "678c45e0c26acc5c56e5bb7bce927cedf907cfabefe7bf84d023e5544e49c7fa",
         "checks/patterns.mjs": "b76bd62236b34035c628147793d6d428959a91036f7700389bd6d7c443805e12",
         "checks/ratchet.mjs": "5eaaeeecccfd4cc62ceba0961f39d99dc162c1b0592efee6a576d643946d2a88",
         "checks/graph-current.mjs": "3a174bf16b0e546ade3c5dfc5a7633e570020adb527a9385724880b41dd93c21",
@@ -834,7 +834,7 @@
         "checks/index-current.mjs": "e76348a0862428fa5ee2754746a77a5bddb0a734a9ac037668cb5837977a10be",
         "checks/project.mjs": "3756970ca6af156dc599cdae8afcb7f2adc0982d5be72cb0c79b04d2777ce901"
       },
-      "sha256": "3ae877dad4e1bf250b74ac9e6142d548b7acc511763ff10b8a1a5e5bb043d2b1"
+      "sha256": "1a50bb48dd92a47a860a8f4503b2e6582e298516d623ec0c59797789fb985575"
     },
     {
       "id": "lint",
