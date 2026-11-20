@@ -58,11 +58,11 @@ const includes = (text) => text.split(/[;\n]/).flatMap((st) => { const m = /^\s*
 function sqlFiles(tool, words, at) {
   const out = [];
   words.forEach((w, i) => {
-    const after = i > at, f = after && /^(?:-f|--file=)(.+)$/.exec(w), r = /^<([^<].*)$/.exec(w);
+    const after = i > at, f = after && /^(?:-f|--file=)(.+)$/.exec(w), r = /^\d*<([^<].*)$/.exec(w);
     if (f) out.push([f[1], false]);
     else if (r) out.push([r[1], true]);
     else if (after && /^mongo/.test(tool) && /\.js$/.test(w)) out.push([w, false]);
-    else if (w === "<" || (after && (w === "-f" || w === "--file"))) { if (words[i + 1]) out.push([words[i + 1], w === "<"]); }
+    else if (/^\d*<$/.test(w) || (after && (w === "-f" || w === "--file"))) { if (words[i + 1]) out.push([words[i + 1], w.endsWith("<")]); }
     else if (after && tool === "sqlcmd" && w === "-i" && words[i + 1]) out.push(...words[i + 1].split(",").map((n) => [n, false]));
   });
   return out;

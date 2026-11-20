@@ -418,3 +418,9 @@ test("docker compose down matches only as a whole word: a service named like it 
   assert.ok(asks("docker compose down -v"));
   assert.ok(asks("docker compose -f x.yml down --volumes"));
 });
+
+test("stdin given as 0< reads the file like <", () => {
+  writeFileSync(join(root, "fd0.sql"), "TRUNCATE users;");
+  for (const c of ["psql 0< fd0.sql", "psql 0<fd0.sql", "psql mydb 0< fd0.sql"]) assert.ok(asks(c), c);
+  assert.ok(allowed("psql 0< missing.sql"));
+});
