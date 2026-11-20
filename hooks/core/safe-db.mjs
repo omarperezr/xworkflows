@@ -1,4 +1,4 @@
-import { resolve } from "node:path";
+import { resolve, dirname } from "node:path";
 import { segments, commandWord, base } from "./shell-words.mjs";
 import { isRm } from "./safe-rm.mjs";
 
@@ -49,8 +49,8 @@ function sqlForm(text) {
   return null;
 }
 
-// the SQL files a statement reads: psql \i x, \include x, \ir x, mysql source x, \. x
-const includes = (text) => text.split(/[;\n]/).flatMap((st) => { const m = /^\s*(?:\\(?:i|ir|include|include_relative|\.)|\.read|source)\s+(\S+)\s*$/i.exec(st); return m ? [m[1]] : []; });
+// the SQL files a statement reads, as [name, relative]: psql \i x, \include x, \ir x, \include_relative x (relative: from the including file's folder), mysql source x, \. x; quotes around the name go
+const includes = (text) => text.split(/[;\n]/).flatMap((st) => { const m = /^\s*(?:\\(i|ir|include|include_relative|\.)|(\.read|source))\s+(\S+)\s*$/i.exec(st); return m ? [[m[3].replace(/^(["'])(.*)\1$/, "$2"), /^(?:ir|include_relative)$/i.test(m[1] ?? "")]] : []; });
 
 // the files a client's words name as SQL input: -f x, -fx, --file=x, --file x and sqlcmd -i x,y after the client at `at`, and < x, <x anywhere
 function sqlFiles(tool, words, at) {
@@ -81,13 +81,13 @@ export function decide(ev, ctx) {
   let form = null, fed = "", fedWords = "", fedFiles = [], dir = ev.cwd ?? ev.root;
   const read = (f) => ctx.readFile(resolve(dir, f));
   // why the SQL text, or a file it includes (up to 5 levels, each file once), would delete data; an include that cannot be read is skipped
-  const scan = (text, depth, seen) => {
+  const scan = (text, depth, seen, from = dir) => {
     const why = sqlForm(text);
     if (why || depth >= 5) return why;
-    for (const f of includes(text)) {
-      const p = resolve(dir, f), code = seen.has(p) ? null : read(f);
+    for (const [f, rel] of includes(text)) {
+      const p = resolve(rel ? from : dir, f), code = seen.has(p) ? null : ctx.readFile(p);
       seen.add(p);
-      const inner = typeof code === "string" && scan(code, depth + 1, seen);
+      const inner = typeof code === "string" && scan(code, depth + 1, seen, dirname(p));
       if (inner) return `${inner} in ${f}`;
     }
     return null;
@@ -115,7 +115,7 @@ export function decide(ev, ctx) {
         const seen = new Set();
         form = scan(text, 0, seen);
         // the whole segment, not the words after the tool: `<bad.sql psql` redirects before it
-        if (!form) for (const f of sqlFiles(tool, seg.words, i)) { const code = read(f); if (typeof code === "string" && (form = scan(code, 1, seen))) { form = `${form} in ${f}`; break; } }
+        if (!form) for (const f of sqlFiles(tool, seg.words, i)) { const code = read(f); if (typeof code === "string" && (form = scan(code, 1, seen, dirname(resolve(dir, f))))) { form = `${form} in ${f}`; break; } }
         if (!form && seg.words.some((_, j) => writesDb(seg.words, j, cmd, true))) form = "a database reset or delete command";
       }
     }
