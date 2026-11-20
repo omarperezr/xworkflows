@@ -4,7 +4,7 @@ import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, renameSync, rmSync
 import { tmpdir } from "../test-tmp.mjs";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
-import { measure, price, readSessions } from "./measure.mjs";
+import { measure, price, readSessions, worseThanBaseline } from "./measure.mjs";
 
 const made = [];
 after(() => made.forEach((d) => rmSync(d, { recursive: true, force: true })));
@@ -167,7 +167,7 @@ test("a number worse than the baseline median prints its line, a number not wors
   assert.match(lines, /b1.*fixOfFix.*1.*0/);
   assert.match(lines, /b1.*failuresAfterSeal/);
   assert.doesNotMatch(lines, /reviewRounds/);
-  assert.doesNotMatch(lines, /usdPer100/);
+  assert.doesNotMatch(lines, /usdPer100 \S+ is worse/);
 });
 
 test("baseline rows with no USD or no changed line stay out of the medians", () => {
@@ -391,4 +391,29 @@ test("a file header that does not parse stops the tool with one line that names 
   assert.equal(r.code, 2);
   assert.equal(r.lines.length, 1);
   assert.doesNotMatch(r.lines[0], /\n|Command failed/);
+});
+
+test("a baseline with no row that has a cost and changed lines stops the tool with one line, exit 2", () => {
+  const [p, s, out, state] = [project(), sessions(), join(tmp(), "out"), tmp()];
+  mkdirSync(out, { recursive: true });
+  writeFileSync(join(out, "ref.jsonl"), JSON.stringify({ usd: null, changedLines: 100, fixOfFix: 0, reviewRounds: 3, failuresAfterSeal: [] }) + "\n");
+  const r = run(p, s, out, state, "--baseline", "/somewhere/ref");
+  assert.equal(r.code, 2);
+  assert.equal(r.lines.filter((l) => /^measure: .*baseline/.test(l)).length, 1); // the failure-after-seal lines print before
+});
+
+test("a measured row with no cost gets one line saying it was not compared", () => {
+  const [p, s, out, state] = [project(), sessions(), join(tmp(), "out"), tmp()];
+  mkdirSync(out, { recursive: true });
+  const base = { usd: 1000, changedLines: 100, fixOfFix: 0, reviewRounds: 3, failuresAfterSeal: [] };
+  writeFileSync(join(out, "ref.jsonl"), JSON.stringify(base) + "\n");
+  const { lines } = run(p, s, out, state, "--baseline", "/somewhere/ref"); // both rows have usd null
+  assert.equal(lines.filter((l) => /^b1: usdPer100 not compared, it has no cost or no changed line$/.test(l)).length, 1);
+  assert.equal(lines.filter((l) => /^b2: usdPer100 not compared, it has no cost or no changed line$/.test(l)).length, 1);
+});
+
+test("a row with a cost and zero changed lines, like one with no cost, says usdPer100 was not compared and why", () => {
+  const row = (branch, usd, changedLines) => ({ branch, usd, changedLines, fixOfFix: 0, reviewRounds: 0, failuresAfterSeal: [] });
+  const out = worseThanBaseline([row("nocost", null, 10), row("nolines", 5, 0)], [row("ref", 10, 10)]);
+  assert.deepEqual(out, ["nocost: usdPer100 not compared, it has no cost or no changed line", "nolines: usdPer100 not compared, it has no cost or no changed line"]);
 });
