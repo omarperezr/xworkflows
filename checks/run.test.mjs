@@ -529,6 +529,16 @@ test("--pre-commit: a plan staged without the list is refused on main, passed of
   assert.equal((await preCommit(repo)).code, 0);
 }));
 
+test("--pre-commit: a config that does not parse stops a commit on main only", withRepo({}, async (repo) => {
+  repo.write(".xworkflows/config.json", "{ not json");
+  repo.git("checkout", "-q", "-b", "batch");
+  assert.deepEqual(await preCommit(repo), { code: 0, out: [] });
+  repo.git("checkout", "-q", "main");
+  const r = await preCommit(repo);
+  assert.equal(r.code, 2);
+  assert.match(r.out[0], /config\.json does not parse/);
+}));
+
 test("--pre-commit: nothing staged passes", withRepo({}, async (repo) => {
   assert.equal((await preCommit(repo)).code, 0);
 }));

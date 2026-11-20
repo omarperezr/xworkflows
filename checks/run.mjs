@@ -2,7 +2,7 @@ import { lstatSync, readFileSync, readdirSync, realpathSync, writeFileSync } fro
 import { spawnSync } from "node:child_process";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { load as loadConfig, memoryFolder, missing } from "../hooks/core/config.mjs";
+import { DEFAULTS, load as loadConfig, memoryFolder, missing } from "../hooks/core/config.mjs";
 import { buildIndex } from "../hooks/core/memory-index.mjs";
 
 export const TABLE = ["signature", "review-seal", "goal-cited", "pending", "fix-has-test", "change-size",
@@ -12,10 +12,11 @@ export const PACKS = ["lint", "semgrep", "trivy"];
 const noNl = (s) => s.replace(/\n$/, "");
 const isZero = (s) => /^0+$/.test(s);
 
-export function makeCtx(root, config) {
+export function makeCtx(root, config, keepIndex = false) {
   // git exports these inside hooks when pushing from a worktree; they would point every call at the wrong repository
+  // (a pre-commit hook keeps its index: `git commit -a` stages into a temporary one)
   const env = { ...process.env };
-  for (const k of ["GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE"]) delete env[k];
+  for (const k of ["GIT_DIR", "GIT_WORK_TREE", ...keepIndex ? [] : ["GIT_INDEX_FILE"]]) delete env[k];
   const exec = (cmd, args, opts = {}) => {
     const r = spawnSync(cmd, args, { cwd: root, env, encoding: "utf8", maxBuffer: 1 << 28, ...opts });
     return { code: r.status, out: r.stdout ?? "", err: r.stderr ?? "" };
@@ -92,7 +93,7 @@ export async function main(argv, io = {}) {
     if (pos.length > 2 || (remote !== null && pos.length)) throw new Error(`unexpected argument ${pos.at(-1)}`);
     const top = makeCtx(cwd, null).tryGit("rev-parse", "--show-toplevel");
     if (top.code !== 0) throw new Error("not a git repository");
-    ctx = makeCtx(top.out, loadConfig(top.out));
+    ctx = makeCtx(top.out, preCommit ? null : loadConfig(top.out), preCommit); // --pre-commit loads it after asking the branch
     const bad = only?.findIndex((n) => !TABLE.includes(n) && !PACKS.includes(n)) ?? -1; // an empty name is unknown too: "--only ," must not run nothing and pass
     if (bad >= 0) throw new Error(`unknown brake ${only[bad] || "(empty)"}`);
     const rev = (r) => {
@@ -101,7 +102,7 @@ export async function main(argv, io = {}) {
       return x.out;
     };
     const mergeBase = (head, other) => { const x = ctx.tryGit("merge-base", head, other); return x.code === 0 ? x.out : null; };
-    const main = ctx.config.mainBranch;
+    const main = ctx.config?.mainBranch;
     if (preCommit) { /* the staged tree is judged: no HEAD, no range */ } else if (remote === null) {
       const head = rev(pos[1] ?? "HEAD");
       ranges = [afterReview(ctx, rangeFor(ctx, { head, base: pos[0] ? rev(pos[0]) : mergeBase(head, main) }), print)];
@@ -129,8 +130,11 @@ export async function main(argv, io = {}) {
 
   if (preCommit) {
     try {
-      // a merge in progress, or a branch that is not main, is not asked
-      if (ctx.tryGit("rev-parse", "-q", "--verify", "MERGE_HEAD").code === 0 || ctx.tryGit("symbolic-ref", "--short", "-q", "HEAD").out !== ctx.config.mainBranch) return 0;
+      // a merge in progress, or a branch that is not main, is not asked; a config that does not parse stops only a commit on the default main
+      if (ctx.tryGit("rev-parse", "-q", "--verify", "MERGE_HEAD").code === 0) return 0;
+      const branch = ctx.tryGit("symbolic-ref", "--short", "-q", "HEAD").out;
+      try { ctx.config = loadConfig(ctx.root); } catch (e) { if (branch !== DEFAULTS.mainBranch) return 0; throw e; }
+      if (branch !== ctx.config.mainBranch) return 0;
       const r = (await load("pending")).preCommit(ctx);
       if (!r.ok) for (const [i, l] of r.lines.entries()) print(i ? `  ${l}` : `pending: ${l}`);
       return r.ok ? 0 : 1;
