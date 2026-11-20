@@ -52,14 +52,14 @@ function sqlForm(text) {
 // the SQL files a statement reads: psql \i x, \include x, \ir x, mysql source x, \. x
 const includes = (text) => text.split(/[;\n]/).flatMap((st) => { const m = /^\s*(?:\\(?:i|ir|include|include_relative|\.)|\.read|source)\s+(\S+)\s*$/i.exec(st); return m ? [m[1]] : []; });
 
-// the files a client's words name as SQL input: -f x, -fx, --file=x, --file x, < x, <x, and sqlcmd -i x,y
-function sqlFiles(tool, words) {
+// the files a client's words name as SQL input: -f x, -fx, --file=x, --file x and sqlcmd -i x,y after the client at `at`, and < x, <x anywhere
+function sqlFiles(tool, words, at) {
   const out = [];
   words.forEach((w, i) => {
-    const m = /^(?:-f|--file=)(.+)$/.exec(w) ?? /^<([^<].*)$/.exec(w);
+    const after = i > at, m = (after && /^(?:-f|--file=)(.+)$/.exec(w)) || /^<([^<].*)$/.exec(w);
     if (m) out.push(m[1]);
-    else if (w === "-f" || w === "--file" || w === "<") { if (words[i + 1]) out.push(words[i + 1]); }
-    else if (tool === "sqlcmd" && w === "-i" && words[i + 1]) out.push(...words[i + 1].split(","));
+    else if ((after && (w === "-f" || w === "--file")) || w === "<") { if (words[i + 1]) out.push(words[i + 1]); }
+    else if (after && tool === "sqlcmd" && w === "-i" && words[i + 1]) out.push(...words[i + 1].split(","));
   });
   return out;
 }
@@ -109,13 +109,13 @@ export function decide(ev, ctx) {
     if (seg.words.some((_, i) => writesDb(seg.words, i, cmd, false)) || seg.words.some((_, i) => isRm(seg.words, i) && RM_DB.test(`${feeds} ${seg.words.slice(i).join(" ")}`))) form = "a database reset or delete command";
     for (let i = 0; i < seg.words.length && !form && !reads; i++) {
       const tool = base(seg.words[i]), args = seg.words.slice(i + 1), line = seg.words.slice(i).join(" ");
-      if (CLI.some(([word, re]) => word.test(tool) && (re.test(line) || (/^mongo/.test(tool) && sqlFiles(tool, seg.words).some((f) => re.test(read(f) ?? ""))))) || (tool === "dropdb" && (args.length || cmd?.at === i))) form = "a database reset or delete command";
+      if (CLI.some(([word, re]) => word.test(tool) && (re.test(line) || (/^mongo/.test(tool) && sqlFiles(tool, seg.words, i).some((f) => re.test(read(f) ?? ""))))) || (tool === "dropdb" && (args.length || cmd?.at === i))) form = "a database reset or delete command";
       else if ((CLIENT.test(tool) || (tool === "prisma" && /\bdb\s+execute\b/.test(line)))) {
         const text = `${sqlText(args)};\n${seg.doc};\n${input};\n${inFiles.map(read).filter((t) => typeof t === "string").join(";\n")}`;
         const seen = new Set();
         form = scan(text, 0, seen);
         // the whole segment, not the words after the tool: `<bad.sql psql` redirects before it
-        if (!form) for (const f of sqlFiles(tool, seg.words)) { const code = read(f); if (typeof code === "string" && (form = scan(code, 1, seen))) { form = `${form} in ${f}`; break; } }
+        if (!form) for (const f of sqlFiles(tool, seg.words, i)) { const code = read(f); if (typeof code === "string" && (form = scan(code, 1, seen))) { form = `${form} in ${f}`; break; } }
         if (!form && seg.words.some((_, j) => writesDb(seg.words, j, cmd, true))) form = "a database reset or delete command";
       }
     }
