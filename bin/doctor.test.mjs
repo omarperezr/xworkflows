@@ -438,3 +438,13 @@ test("doctor: an installed folder made a file gives its line and doctor does not
   assert.equal(readFileSync(d, "utf8"), "x\n");
   rmSync(r, { recursive: true, force: true });
 });
+test("doctor: warns with qmd pull when qmd's models are not in its cache; says nothing when they are", () => {
+  const r = repo(); cli(r, ["install"]);
+  const env = { PATH: tools({ qmd: COVERS }) };
+  const cache = join(tmp("xwf-models-"), "qmd/models"); mkdirSync(cache, { recursive: true });
+  const miss = doctor(r, { ...env, XDG_CACHE_HOME: join(cache, "../..") });
+  assert.match(miss.stdout, /^warn qmd models are missing from .*models: run qmd pull$/m);
+  assert.equal(miss.status, 0, miss.stdout);
+  for (const f of ["embeddinggemma-300M-Q8_0", "qwen3-reranker-0.6b-q8_0", "qmd-query-expansion-1.7B-q4_k_m"]) writeFileSync(join(cache, `hf_x_${f}.gguf`), "");
+  assert.doesNotMatch(doctor(r, { ...env, XDG_CACHE_HOME: join(cache, "../..") }).stdout, /models/);
+});
