@@ -1095,7 +1095,8 @@ async function doctor() {
       }
     }
     // one sentence per state of the hook git runs; it says ok only where a push runs the check, and every other one names a step that works
-    const hook = hookState(readManifest(), ROOT, rec, "pre-push"), at = (p) => p && sh(join(ROOT, p)), P = "pre-push hook";
+    for (const name of ["pre-push", "pre-commit"]) {
+    const hook = hookState(readManifest(), ROOT, rec, name), at = (p) => p && sh(join(ROOT, p)), P = `${name} hook`;
     let exec = false;
     try { accessSync(join(ROOT, hook.path), constants.X_OK); exec = true; } catch {}
     const of = hook.outside ? " of the folder outside this repository" : "";
@@ -1106,14 +1107,14 @@ async function doctor() {
       own: ours,
       chained: ours,
       old: ["warn", `${P} holds an earlier text of the package: ${INSTALL} replaces it`],
-      missing: ["fail", `${P} runs .xworkflows/git/pre-push, which is missing: ${INSTALL}`],
-      changed: ["fail", `${P} runs .xworkflows/git/pre-push, which no longer holds the package's text: delete .xworkflows/git/pre-push, then ${INSTALL}`],
+      missing: ["fail", `${P} runs .xworkflows/git/${name}, which is missing: ${INSTALL}`],
+      changed: ["fail", `${P} runs .xworkflows/git/${name}, which no longer holds the package's text: delete .xworkflows/git/${name}, then ${INSTALL}`],
       line: [exec ? "ok" : "fail", exec ? `${P}${of} runs the check` : `${P}${of} holds the check but is not executable, so git ignores it: chmod +x ${at(hook.path)}`],
-      add: ["fail", `${P} does not run the check: add this line to ${at(hook.file)} as its first command: ${hookLine("pre-push")}${hook.link ? " ; it is a link, which uninstall does not write through: the line is yours to take out after uninstall" : ""}`],
+      add: ["fail", `${P} does not run the check: add this line to ${at(hook.file)} as its first command: ${hookLine(name)}${hook.link ? " ; it is a link, which uninstall does not write through: the line is yours to take out after uninstall" : ""}`],
       chain: ["fail", `${P} cannot take the xworkflows line and is not chained: ${INSTALL} and answer yes to chain it`],
       blocked: ["fail", `${P} cannot take the xworkflows line, and ${at(hook.before)} is in the way of chaining it: move that file out of the hooks folder, ${hook.declined ? `${UNDECLINE}, ` : ""}then ${INSTALL} and answer yes to chain it`],
-      declined: ["fail", `${P} does not run the check: its line or its chain was declined at install; to be asked again, ${UNDECLINE}, then ${INSTALL} and answer yes${hook.takes && !hook.chain ? `; or add this line to ${at(hook.file)} as its first command: ${hookLine("pre-push")}` : ""}`],
-      outside: ["fail", `${P}: core.hooksPath points outside this repository, where install writes no hook; either add this line to ${at(hook.path)} as its first command${hook.guarded ? ", in place of the line an earlier xworkflows gave, which hands the rest of the hook no pushed refs" : ""}: ${hookLine("pre-push")} ;${hook.guarded ? ` then ${INSTALL}, here and in every other project on the folder that an earlier xworkflows installed, since until then the line refuses every push there;` : ""} it runs in every repository that uses the folder, silent where xworkflows is not installed, and is yours to take out after uninstall; or point this repository at its own hooks folder, after which the hooks of the other folder no longer run here: run: git config core.hooksPath "$(git rev-parse --path-format=absolute --git-common-dir)/hooks"; then ${INSTALL}`],
+      declined: ["fail", `${P} does not run the check: its line or its chain was declined at install; to be asked again, ${UNDECLINE}, then ${INSTALL} and answer yes${hook.takes && !hook.chain ? `; or add this line to ${at(hook.file)} as its first command: ${hookLine(name)}` : ""}`],
+      outside: ["fail", `${P}: core.hooksPath points outside this repository, where install writes no hook; either add this line to ${at(hook.path)} as its first command${hook.guarded ? ", in place of the line an earlier xworkflows gave, which hands the rest of the hook no pushed refs" : ""}: ${hookLine(name)} ;${hook.guarded ? ` then ${INSTALL}, here and in every other project on the folder that an earlier xworkflows installed, since until then the line refuses every push there;` : ""} it runs in every repository that uses the folder, silent where xworkflows is not installed, and is yours to take out after uninstall; or point this repository at its own hooks folder, after which the hooks of the other folder no longer run here: run: git config core.hooksPath "$(git rev-parse --path-format=absolute --git-common-dir)/hooks"; then ${INSTALL}`],
     };
     say(...SAY[hook.state]);
     let st = {}, local = {};
@@ -1122,6 +1123,10 @@ async function doctor() {
     let bytes = 0;
     // a session file with as many sessions beside it as make the memory hook suggest dream, as the hook reads the threshold
     // shortcut: a threshold over 1000 is probed with 1000 sessions, so its line is not measured; raise it when a project sets one
+    }
+    // the lite reviewer is a copy of the project's risk reviewer: it follows its source only when install runs again
+    const lw = conf.paths.riskLite?.length && pkgWrites(readManifest(), ROOT).find((w) => w.src === `.claude/agents/${conf.roles.riskReviewer}.md`);
+    if (lw && read(ROOT, lw.path) !== lw.text) say("warn", `${lw.path} is not the render of ${lw.src}: ${INSTALL}`);
     const after = conf.dream?.suggestAfterSessions, sessions = mkdtempSync(join(tmpdir(), "xwf-doctor-sessions-"));
     for (let i = 0; i <= Math.min(Number.isInteger(after) && after > 0 ? after : DEFAULTS.dream.suggestAfterSessions, 1000); i++) writeFileSync(join(sessions, `${i}.jsonl`), "");
     for (const h of (st.hooks?.SessionStart ?? []).flatMap((e) => e.hooks ?? [])) {
