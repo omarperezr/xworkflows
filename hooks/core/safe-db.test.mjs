@@ -406,3 +406,8 @@ test("xargs rm tests the names the pipe carries with the find pattern; a databas
   assert.ok(allowed("cat app.db | xargs rm tmp.txt"));
   assert.ok(allowed("cat app.db | rm tmp.txt"));
 });
+
+test("cp -t names a directory: the last word is a source, not a write target", () => {
+  for (const c of ["cp -t backup app.db", "cp --target-directory=backup app.db", "cp -rt backup app.db", "mv -t backup app.sqlite3"]) assert.ok(allowed(c), c);
+  for (const c of ["cp /dev/null app.db", "cp -r a b.db", "cp -T a b.db"]) assert.ok(asks(c), c);
+});

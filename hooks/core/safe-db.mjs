@@ -72,7 +72,8 @@ const DB_FILE = /\.(?:db|sqlite3?)$/;
 const writesDb = (words, i, cmd, client) => {
   const w = words[i], m = /^(?:\d*|&)>\|?(?![>&])(.*)$/.exec(w);
   if (m) { const t = m[1] || words[i + 1] || ""; return DB_FILE.test(t) && !/\s/.test(t); }
-  if (i === cmd?.at && /^(?:cp|mv|install)$/.test(cmd.word)) return DB_FILE.test(words.filter((a, j) => j > i && !a.startsWith("-")).at(-1) ?? "");
+  // -t DIR or --target-directory=DIR makes the last word a source, not the target
+  if (i === cmd?.at && /^(?:cp|mv|install)$/.test(cmd.word)) return !words.slice(i).some((a) => /^-[a-zA-Z]*t|^--target-directory/.test(a)) && DB_FILE.test(words.filter((a, j) => j > i && !a.startsWith("-")).at(-1) ?? "");
   if (i === cmd?.at && cmd.word === "unlink") return DB_FILE.test(words[i + 1] ?? "");
   if (!client) return false;
   const o = /^(?:-o|--output=)(.+)$/.exec(w);
