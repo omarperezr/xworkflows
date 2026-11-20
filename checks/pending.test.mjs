@@ -195,3 +195,12 @@ test("preCommit: a staged plan without the list fails, with it or a seal-only ed
   r.write(PLAN, "plan\nreview ok at abc1234\n"); r.git("add", PLAN);
   assert.equal(pending.preCommit(ctx).ok, true);
 }));
+
+// the staged diff is read as text: a user's diff settings must not change what a seal-only edit looks like
+for (const [name, cfg] of [["diff.external", ["diff.external", "true"]], ["a textconv", ["diff.x.textconv", "true"]], ["color.diff=always", ["color.diff", "always"]]]) {
+  test(`preCommit: a seal-only plan edit passes under ${name}`, withRepo({ files: { [PLAN]: "plan\n", [PEND]: card(1), ".gitattributes": "*.md diff=x\n" } }, async (r) => {
+    r.git("config", ...cfg);
+    r.write(PLAN, "plan\nreview ok at abc1234\n"); r.git("add", PLAN);
+    assert.equal(pending.preCommit(makeCtx(r.root, load(r.root))).ok, true);
+  }));
+}

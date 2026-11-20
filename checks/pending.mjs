@@ -21,7 +21,7 @@ export function preCommit(ctx) {
   const { paths, roles } = ctx.config;
   const files = ctx.git("diff", "--cached", "--name-only", "-z", "--no-renames").split("\0").filter(Boolean);
   const plans = files.filter((f) => inPaths(f, [paths.plans]));
-  if (!plans.length || files.includes(paths.pending) || sealOnly(roles, ctx.git("diff", "--cached", "-p", "-U0", "--no-renames", "--", ...plans))) return { ok: true, lines: [] };
+  if (!plans.length || files.includes(paths.pending) || sealOnly(roles, ctx.git("diff", "--cached", "-p", "-U0", "--no-renames", "--no-ext-diff", "--no-color", "--no-textconv", "--", ...plans))) return { ok: true, lines: [] };
   return { ok: false, lines: [`a staged plan changes without ${paths.pending}:`, ...plans, `fix: stage ${paths.pending} with it`] };
 }
 
