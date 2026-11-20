@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { appendFileSync, existsSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { repo, git, cli, readJson, writeJson, PKG_ROOT, cliAt, packedCopy, tmp, GOOD, theirs, EMPTY_HOME, sha, withRecord, files, qmdLog, spy, inst, tree, lines } from "./shared.test.mjs";
 
@@ -474,4 +474,16 @@ test("install: an old hook entry under an event the record does not name goes wi
   const out = inst(r, ["--yes"]);
   assert.equal(out.status, 0, out.stderr);
   assert.ok(!ids(r).includes("handoff") && ids(r).includes("handoff-load"));
+});
+test("install: with settings.json a symlink, a retired hook's module and record lines stay", () => {
+  const r = upgradedFromOldId();
+  const real = join(tmp("xwf-real-"), "settings.json");
+  writeFileSync(real, readFileSync(join(r, ".claude/settings.json")));
+  rmSync(join(r, ".claude/settings.json")); symlinkSync(real, join(r, ".claude/settings.json"));
+  const out = inst(r, ["--yes"]);
+  assert.equal(out.status, 0, out.stderr);
+  assert.match(out.stdout, /not written \(symlink\): \.claude\/settings\.json/);
+  assert.ok(existsSync(join(r, OLD_MOD)));
+  const rec = readJson(r, ".xworkflows/installed.json");
+  assert.ok(OLD_MOD in rec.files && rec.merged.some((m) => m.entry?.hooks?.[0]?.command.endsWith(" claude handoff")));
 });

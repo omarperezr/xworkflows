@@ -661,11 +661,14 @@ export function plan(manifest, root, record, ans = {}) {
     else notes.push(`kept (no longer shipped, changed locally): ${p}`);
   }
   // the module of a hook id the manifest no longer has: removed when it is the text install wrote, else kept and said
+  const settingsOn = !off(SETTINGS);
   const orphans = orphanIds(manifest);
   for (const id of orphans) {
     const p = `.xworkflows/hooks/core/${id}.mjs`, f = record.files[p];
     if (!f || shipped.has(p) || !plain(p) || !clean(root, p) || !lstatSync(join(root, p), { throwIfNoEntry: false })?.isFile()) continue;
-    if (hash(read(root, p)) === f.sha256) retired.push(p);
+    // the settings merge drops the entries: skipped, the module and its record line stay for a later install
+    if (!settingsOn) dropped.push({ path: p });
+    else if (hash(read(root, p)) === f.sha256) retired.push(p);
     else notes.push(`kept (no longer shipped, changed locally): ${p}`);
   }
   const merges = [];
@@ -681,7 +684,7 @@ export function plan(manifest, root, record, ans = {}) {
     // the marker passes the yml's test and is never written over something that is there
     if (qmd && !off(QMARK) && !lstatSync(join(root, QMARK), { throwIfNoEntry: false })) merges.push({ path: QMARK, text: MARK_TEXT, verb: "write", rec: {} });
   }
-  if (!off(SETTINGS)) { const ms = mergeSettings(root, manifest, record); notes.push(...ms.notes); merges.push(ms); }
+  if (settingsOn) { const ms = mergeSettings(root, manifest, record); notes.push(...ms.notes); merges.push(ms); }
   if (!off(LOCAL)) { const local = mergeLocal(root); if (local.note) notes.push(local.note); merges.push(local); }
   if (!off(".gitignore")) merges.push(mergeIgnore(root, qmd));
   if (!off(GI)) merges.push(mergeGraphifyIgnore(root, writes));
@@ -696,7 +699,7 @@ export function plan(manifest, root, record, ans = {}) {
       merges.push({ path: "CLAUDE.md", text: claude + (claude.endsWith("\n") ? "" : "\n") + "@AGENTS.md\n", rec: { imports: [claude.endsWith("\n") ? { file: "CLAUDE.md", line: "@AGENTS.md" } : { file: "CLAUDE.md", line: "@AGENTS.md", addedNewline: true }] } });
     } else merges.push({ path: "CLAUDE.md", text: null, rec: { declined: [{ file: "CLAUDE.md", what: "import" }] } });
   }
-  return { writes, dropped, merges, questions, kept, renamed, notes, retired, orphans };
+  return { writes, dropped, merges, questions, kept, renamed, notes, retired, orphans: settingsOn ? orphans : new Set() };
 }
 
 const differs = (root, w) => !existsSync(join(root, w.path)) || readFileSync(join(root, w.path), "utf8") !== w.text;
