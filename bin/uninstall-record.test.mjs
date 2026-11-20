@@ -14,3 +14,12 @@ test("uninstall: a plugin the record names but the package never installs stays 
   assert.equal(s.enabledPlugins?.["mine@corp"], true);
   assert.equal(s.extraKnownMarketplaces?.corp, true);
 });
+
+test("uninstall: of two hooks on one event, the record naming one takes out that one only", () => {
+  const r = repo();
+  cli(r, ["install"]);
+  withRecord(r, (rec) => { rec.merged = rec.merged.filter((m) => !(m.key[1] === "PreToolUse" && !m.entry.hooks[0].command.endsWith(" claude safe-rm"))); });
+  cli(r, ["uninstall"]);
+  const pre = readJson(r, ".claude/settings.json").hooks.PreToolUse.map((e) => e.hooks[0].command.split(" claude ")[1]);
+  assert.ok(!pre.includes("safe-rm") && pre.includes("safe-db") && pre.includes("design-first"));
+});

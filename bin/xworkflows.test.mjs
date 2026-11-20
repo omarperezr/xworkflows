@@ -794,3 +794,24 @@ test("plugins: doctor reports a declared sub-key that is missing", () => {
   writeJson(r, ".claude/settings.json", s);
   assert.match(doctor(r).stdout, /^fail merged entry missing: \.claude\/settings\.json enabledPlugins\.ponytail@ponytail: /m);
 });
+
+// P-206: a list that grows with the repository is read with a big buffer; a failed read warns
+const fakeGit = (lsFiles) => {
+  const d = tmp("xwf-fakegit-");
+  const real = spawnSync("sh", ["-c", "command -v git"], { encoding: "utf8" }).stdout.trim();
+  writeFileSync(join(d, "git"), `#!/bin/sh\ncase "$1" in ls-files) if [ "$2" = -z ]; then ${lsFiles}; fi;; *) exec ${real} "$@";; esac\n`);
+  chmodSync(join(d, "git"), 0o755);
+  return `${d}:${process.env.PATH}`;
+};
+test("plugins: a file list of more than 1 MiB is read whole", () => {
+  const r = repo(); codeIn(r, "db/");
+  cli(r, ["install"], { env: { PATH: fakeGit("head -c 2097152 /dev/zero; printf 'db/a.sql\\0'") } });
+  assert.ok(plug(r).p.includes("supabase@claude-plugins-official"));
+});
+test("plugins: a file list git cannot give is said, and the install goes on", () => {
+  const r = repo(); codeIn(r, "db/");
+  const out = cli(r, ["install"], { env: { PATH: fakeGit("exit 1") } });
+  assert.equal(out.status, 0, out.stderr);
+  assert.match(out.stderr, /^warn: git ls-files /m);
+  assert.deepEqual(plug(r).p, ["ponytail@ponytail"]);
+});

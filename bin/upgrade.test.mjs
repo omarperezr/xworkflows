@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { appendFileSync, existsSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { repo, git, cli, readJson, writeJson, PKG_ROOT, cliAt, packedCopy, tmp, GOOD, EMPTY_HOME, sha, withRecord, files, qmdLog, spy, inst, tree, lines } from "./shared.test.mjs";
+import { repo, git, cli, readJson, writeJson, PKG_ROOT, cliAt, packedCopy, tmp, GOOD, theirs, EMPTY_HOME, sha, withRecord, files, qmdLog, spy, inst, tree, lines } from "./shared.test.mjs";
 
 // install keeps the method's own files out of the code graph: a .graphifyignore with the folders it writes
 const SKILLS = [...new Set(JSON.parse(readFileSync(join(PKG_ROOT, "manifest.json"), "utf8")).pieces.flatMap((p) => Object.keys(p.files)).map((f) => f.match(/^skills\/([^/]+)\//)?.[1]).filter(Boolean))];
@@ -413,4 +413,45 @@ test("install removes an unchanged old ponytail copy and keeps an edited one", (
   const b = withOldPony(true);
   assert.match(cli(b, ["install"]).stdout, /kept \(no longer shipped, changed locally\): \.claude\/skills\/ponytail\/SKILL\.md/);
   assert.ok(existsSync(join(b, ".claude/skills/ponytail/SKILL.md")));
+});
+
+// P-218: a hook id the manifest no longer has leaves the project when install runs
+// the package's copy as an earlier version shipped it: the handoff-load hook under the id "handoff"
+function oldIdCopy() {
+  const copy = packedCopy();
+  const m = JSON.parse(readFileSync(join(copy, "manifest.json"), "utf8"));
+  const p = m.pieces.find((q) => q.id === "handoff-load");
+  p.id = "handoff";
+  p.files = { "hooks/core/handoff.mjs": p.files["hooks/core/handoff-load.mjs"] };
+  writeFileSync(join(copy, "hooks/core/handoff.mjs"), readFileSync(join(copy, "hooks/core/handoff-load.mjs")));
+  writeFileSync(join(copy, "manifest.json"), JSON.stringify(m, null, 2) + "\n");
+  return copy;
+}
+const OLD_MOD = ".xworkflows/hooks/core/handoff.mjs";
+const ids = (r) => Object.values(readJson(r, ".claude/settings.json").hooks).flat().flatMap((e) => e.hooks.map((h) => h.command.split(" claude ")[1]));
+const upgradedFromOldId = () => {
+  const r = repo(); assert.equal(cliAt(oldIdCopy(), r, ["install", "--yes"]).status, 0);
+  assert.ok(ids(r).includes("handoff") && existsSync(join(r, OLD_MOD)));
+  return r;
+};
+test("install: a hook id the manifest no longer has leaves settings, record and modules", () => {
+  const r = upgradedFromOldId();
+  const mine = readJson(r, ".claude/settings.json"); mine.hooks.SessionStart.push(theirs); writeJson(r, ".claude/settings.json", mine);
+  assert.equal(inst(r, ["--yes"]).status, 0);
+  assert.ok(ids(r).includes("handoff-load") && !ids(r).includes("handoff"));
+  assert.ok(readJson(r, ".claude/settings.json").hooks.SessionStart.some((e) => e.hooks[0].command === "/opt/guard.sh"));
+  assert.ok(!existsSync(join(r, OLD_MOD)));
+  const rec = readJson(r, ".xworkflows/installed.json");
+  assert.ok(!(OLD_MOD in rec.files) && !JSON.stringify(rec.merged).includes(" claude handoff\""));
+  const again = tree(r); inst(r, ["--yes"]); assert.equal(tree(r), again);
+  assert.equal(cli(r, ["uninstall"]).status, 0);
+  assert.ok(!existsSync(join(r, ".xworkflows")));
+});
+test("install: the module of a removed hook id that was edited stays and is said", () => {
+  const r = upgradedFromOldId();
+  appendFileSync(join(r, OLD_MOD), "// mine\n");
+  const out = inst(r, ["--yes"]);
+  assert.ok(existsSync(join(r, OLD_MOD)));
+  assert.match(out.stdout, /kept \(no longer shipped, changed locally\): \.xworkflows\/hooks\/core\/handoff\.mjs/);
+  assert.ok(!ids(r).includes("handoff"));
 });
