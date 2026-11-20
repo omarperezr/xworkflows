@@ -23,6 +23,7 @@ export function segments(cmd) {
     const h = c === "<" && cmd[i - 1] !== "<" && /^<<(-?)\s*(["']?)([^\s"';|&<>()]+)\2/.exec(cmd.slice(i));
     if (h && cmd[i + 2] !== "<") { push(); pending.push({ seg: cur(), delim: h[3], dash: h[1] }); i += h[0].length - 1; continue; }
     if (/\s/.test(c) && c !== "\n") { push(); continue; }
+    if (c === "|" && cmd[i - 1] === ">") { tok += c; continue; } // >| forces a truncating redirect: one word, not a pipe
     if (c === "\n" || c === ";" || c === "|" || c === "&") {
       push();
       if (c === "&" && (/[<>]/.test(cmd[i - 1] ?? "") || cmd[i + 1] === ">")) continue;

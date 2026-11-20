@@ -13,11 +13,11 @@ const CLI = [
   [/^manage\.py$/, /\bmanage\.py\s+flush\b/],
   [/^knex$/, /\bknex\s+migrate:rollback\b.*--all\b/],
   [/^redis-cli$/, /\bflush(?:all|db)\b/i],
-  [/^mongo(?:sh)?$/, /\.drop\s*\(|\bdropDatabase\b|\bdeleteMany\b|\bremove\s*\(/],
+  [/^mongo(?:sh)?$/, /\.drop\s*\(|\bdropDatabase\b|\bdeleteMany\b|\bremove\s*\(|\bupdateMany\s*\(\s*\{\s*\}/],
   [/^mysqladmin$/, /\bdrop\b/],
-  [/^docker$/, /\bcompose\s.*\bdown\b.*(?:^|\s)(?:-v|--volumes)(?=\s|$)|\bvolume\s+(?:rm|remove|prune)\b/],
-  [/^docker-compose$/, /\bdown\b.*(?:^|\s)(?:-v|--volumes)(?=\s|$)/],
-  [/^find$/, /\.(?:db|sqlite3?)\*?(?![\w.]).*\s(?:-delete\b|-exec(?:dir)?\s+(?:\S*\/)?rm\b)/],
+  [/^docker$/, /\bcompose\s.*\bdown\b.*(?:^|\s)(?:-v|--volumes)(?=\s|$)|\bvolume\s+(?:rm|remove|prune)\b|\bsystem\s+prune\b.*--volumes\b|\bcompose\s.*\brm\b.*(?:^|\s)(?:-[a-zA-Z]*v|--volumes)(?=\s|$)/],
+  [/^docker-compose$/, /\b(?:down|rm)\b.*(?:^|\s)(?:-[a-zA-Z]*v|--volumes)(?=\s|$)/],
+  [/^find$/, /\.(?:db|sqlite3?)\*?(?![\w.]).*\s(?:-delete\b|-exec(?:dir)?\s+(?:\S*\/)?(?:rm|unlink)\b)/],
   [/^truncate$/, /\.(?:db|sqlite3?)(?:\s|$)/],
 ];
 // a file named .db or .sqlite goes when a word rm names it (not `git rm --cached dev.db`)
@@ -40,6 +40,7 @@ const plainCond = (cond) => cond.split(/\s+and\s+/i).every((t) => { const m = TE
 function sqlForm(text) {
   for (const st of text.split(";")) {
     // ON DELETE CASCADE and its kin name an action of a foreign key, not a delete
+    if (/\bcreate\s+or\s+replace\s+table\b/i.test(st)) return "a CREATE OR REPLACE TABLE, which drops the table it replaces";
     const kept = st.replace(/\bon\s+(?:delete|update)\s+(?:cascade|restrict|no\s+action|set\s+(?:null|default))\b/gi, "");
     if (!/\b(?:delete|update|drop|truncate)\b/i.test(kept)) continue;
     const m = DELETE.exec(st) ?? UPDATE.exec(st);
@@ -49,7 +50,7 @@ function sqlForm(text) {
 }
 
 // the SQL files a statement reads: psql \i x, \include x, \ir x, mysql source x, \. x
-const includes = (text) => text.split(/[;\n]/).flatMap((st) => { const m = /^\s*(?:\\(?:i|ir|include|include_relative|\.)|source)\s+(\S+)\s*$/i.exec(st); return m ? [m[1]] : []; });
+const includes = (text) => text.split(/[;\n]/).flatMap((st) => { const m = /^\s*(?:\\(?:i|ir|include|include_relative|\.)|\.read|source)\s+(\S+)\s*$/i.exec(st); return m ? [m[1]] : []; });
 
 // the files a client's words name as SQL input: -f x, -fx, --file=x, --file x, < x, <x, and sqlcmd -i x,y
 function sqlFiles(tool, words) {
@@ -63,39 +64,59 @@ function sqlFiles(tool, words) {
   return out;
 }
 
-// a redirect that truncates a file named .db or .sqlite: > x, >x, 2> x ( >> appends and a word holding spaces is text)
-const truncates = (words) => words.some((w, i) => {
-  const m = /^(?:\d*|&)>(?![>&])(.*)$/.exec(w);
-  const target = m && (m[1] || words[i + 1] || "");
-  return m && /\.(?:db|sqlite3?)$/.test(target) && !/\s/.test(target);
-});
+const DB_FILE = /\.(?:db|sqlite3?)$/;
+// a write onto a file named .db or .sqlite: a redirect > x, >x, >| x, 2> x ( >> appends and a word holding spaces is text), cp or mv to it, unlink of it, -o x or --output x of a client
+const writesDb = (words, i, cmd, client) => {
+  const w = words[i], m = /^(?:\d*|&)>\|?(?![>&])(.*)$/.exec(w);
+  if (m) { const t = m[1] || words[i + 1] || ""; return DB_FILE.test(t) && !/\s/.test(t); }
+  if (i === cmd?.at && /^(?:cp|mv|install)$/.test(cmd.word)) return DB_FILE.test(words.filter((a, j) => j > i && !a.startsWith("-")).at(-1) ?? "");
+  if (i === cmd?.at && cmd.word === "unlink") return DB_FILE.test(words[i + 1] ?? "");
+  if (!client) return false;
+  const o = /^(?:-o|--output=)(.+)$/.exec(w);
+  return DB_FILE.test(o ? o[1] : /^(?:-o|--output)$/.test(w) ? words[i + 1] ?? "" : "");
+};
 
 export function decide(ev, ctx) {
   if (ev?.kind !== "shell" || typeof ev.command !== "string") return { decision: "allow" };
-  let form = null, fed = "", fedFiles = [], dir = ev.cwd ?? ev.root;
+  let form = null, fed = "", fedWords = "", fedFiles = [], dir = ev.cwd ?? ev.root;
   const read = (f) => ctx.readFile(resolve(dir, f));
+  // why the SQL text, or a file it includes (up to 5 levels, each file once), would delete data; an include that cannot be read is skipped
+  const scan = (text, depth, seen) => {
+    const why = sqlForm(text);
+    if (why || depth >= 5) return why;
+    for (const f of includes(text)) {
+      const p = resolve(dir, f), code = seen.has(p) ? null : read(f);
+      seen.add(p);
+      const inner = typeof code === "string" && scan(code, depth + 1, seen);
+      if (inner) return `${inner} in ${f}`;
+    }
+    return null;
+  };
   for (const seg of segments(ev.command)) {
     const cmd = commandWord(seg.words);
     if (cmd?.word === "cd") dir = resolve(dir, seg.words.slice(cmd.at + 1).find((a) => !a.startsWith("-")) ?? ".");
     // a pipe carries what it holds to the next command: `cat x.sql | psql` feeds the file
     // the file names only: a file is read when a client takes the pipe, never for `cat /dev/urandom | head`
     const names = cmd?.word === "cat" && seg.pipe ? seg.words.slice(cmd.at + 1).filter((a) => !a.startsWith("-")) : [];
+    const feeds = fedWords;
     const own = `${sqlText(seg.words)};\n${seg.doc}`, input = fed, inFiles = fedFiles;
     fed = seg.pipe ? `${fed};\n${own}` : "";
+    fedWords = seg.pipe ? `${fedWords} ${seg.words.join(" ")}` : "";
     fedFiles = seg.pipe ? [...fedFiles, ...names] : [];
     // the command word only reads: a text filter, or which, type and command -v looking a command up; no word in its arguments is a tool or a client
     const reads = TEXT_FILTER.test(cmd?.word) || /^(?:which|type)$/.test(cmd?.word) || (/^-[vV]$/.test(seg.words[cmd?.at - 1]) && base(seg.words[cmd.at - 2] ?? "") === "command");
-    if (truncates(seg.words) || seg.words.some((_, i) => isRm(seg.words, i) && RM_DB.test(seg.words.slice(i).join(" ")))) form = "a database reset or delete command";
+    // `find -name '*.db' | xargs rm`: the rm takes the names the pipe carries
+    if (seg.words.some((_, i) => writesDb(seg.words, i, cmd, false)) || seg.words.some((_, i) => isRm(seg.words, i) && RM_DB.test(`${feeds} ${seg.words.slice(i).join(" ")}`))) form = "a database reset or delete command";
     for (let i = 0; i < seg.words.length && !form && !reads; i++) {
       const tool = base(seg.words[i]), args = seg.words.slice(i + 1), line = seg.words.slice(i).join(" ");
-      if (CLI.some(([word, re]) => word.test(tool) && re.test(line)) || (tool === "dropdb" && (args.length || cmd?.at === i))) form = "a database reset or delete command";
+      if (CLI.some(([word, re]) => word.test(tool) && (re.test(line) || (/^mongo/.test(tool) && sqlFiles(tool, seg.words).some((f) => re.test(read(f) ?? ""))))) || (tool === "dropdb" && (args.length || cmd?.at === i))) form = "a database reset or delete command";
       else if ((CLIENT.test(tool) || (tool === "prisma" && /\bdb\s+execute\b/.test(line)))) {
         const text = `${sqlText(args)};\n${seg.doc};\n${input};\n${inFiles.map(read).filter((t) => typeof t === "string").join(";\n")}`;
-        form = sqlForm(text);
-        if (!form) for (const f of [...sqlFiles(tool, args), ...includes(text)]) {
-          const code = read(f);
-          if (typeof code === "string" && (form = sqlForm(code))) { form = `${form} in ${f}`; break; }
-        }
+        const seen = new Set();
+        form = scan(text, 0, seen);
+        // the whole segment, not the words after the tool: `<bad.sql psql` redirects before it
+        if (!form) for (const f of sqlFiles(tool, seg.words)) { const code = read(f); if (typeof code === "string" && (form = scan(code, 1, seen))) { form = `${form} in ${f}`; break; } }
+        if (!form && seg.words.some((_, j) => writesDb(seg.words, j, cmd, true))) form = "a database reset or delete command";
       }
     }
     if (form) break;

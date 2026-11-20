@@ -323,3 +323,67 @@ test("a text filter as the command word is never a database client", () => {
   assert.ok(asks("cat bad.sql | psql"));
   assert.ok(asks("cat bad.sql | grep x | psql"));
 });
+
+test("P-211 gaps: an include inside a file that is read asks, to depth 5, and a loop or a missing include never traps", () => {
+  writeFileSync(join(root, "bad.sql"), "DROP TABLE users");
+  writeFileSync(join(root, "main.sql"), "SELECT 1;\n\\i bad.sql\n");
+  assert.ok(asks("psql -f main.sql"));
+  assert.ok(asks("psql < main.sql"));
+  writeFileSync(join(root, "l1.sql"), "\\ir l2.sql");
+  writeFileSync(join(root, "l2.sql"), "\\ir l3.sql");
+  writeFileSync(join(root, "l3.sql"), "\\ir l4.sql");
+  writeFileSync(join(root, "l4.sql"), "\\ir bad.sql");
+  assert.ok(asks("psql -f l1.sql"));
+  writeFileSync(join(root, "loop1.sql"), "\\i loop2.sql");
+  writeFileSync(join(root, "loop2.sql"), "SELECT 1;\n\\i loop1.sql");
+  assert.ok(allowed("psql -f loop1.sql"));
+  writeFileSync(join(root, "gone.sql"), "\\i nowhere.sql");
+  assert.ok(allowed("psql -f gone.sql"));
+  writeFileSync(join(root, "deep.sql"), "\\i d1.sql");
+  for (let i = 1; i < 7; i++) writeFileSync(join(root, `d${i}.sql`), i < 6 ? `\\i d${i + 1}.sql` : "DROP TABLE users");
+  assert.ok(allowed("psql -f deep.sql"));
+});
+
+test("P-211 gaps: sqlite3 .read, a redirect before the tool", () => {
+  writeFileSync(join(root, "bad.sql"), "DROP TABLE users");
+  assert.ok(asks('sqlite3 app.db ".read bad.sql"'));
+  assert.ok(asks("<bad.sql psql"));
+  assert.ok(asks("< bad.sql psql"));
+});
+
+test("P-211 gaps: xargs rm and find -exec unlink on database files", () => {
+  assert.ok(asks("find . -name '*.db' -print0 | xargs -0 rm"));
+  assert.ok(asks("find . -name '*.sqlite' | xargs rm -f"));
+  assert.ok(asks("find . -name '*.db' -exec unlink {} \;"));
+  assert.ok(allowed("find . -name '*.log' -print0 | xargs -0 rm"));
+  assert.ok(allowed("find . -name '*.db' -print"));
+});
+
+test("P-211 gaps: a write or delete onto a database file asks (cp, mv, unlink, >|, psql -o)", () => {
+  for (const c of ["cp /dev/null app.db", "mv new.db app.sqlite3", "unlink app.db", "echo x >| app.db", "psql -o app.db -c 'SELECT 1'", "psql --output=app.db -c 'SELECT 1'", "psql --output app.sqlite -c 'SELECT 1'"])
+    assert.ok(asks(c), c);
+  for (const c of ["cp a.txt b.txt", "cp app.db app.db.bak", "cp app.db backup/", "> out.log", "echo x >| out.log", "psql -c 'SELECT 1'", "psql -o out.txt -c 'SELECT 1'", "echo a | cat"])
+    assert.ok(allowed(c), c);
+});
+
+test("P-211 gaps: mongosh --file and --eval with updateMany({}), docker prune and compose rm with volumes", () => {
+  writeFileSync(join(root, "wipe.js"), "db.users.deleteMany({})");
+  writeFileSync(join(root, "ok.js"), "db.users.find({})");
+  assert.ok(asks("mongosh --file wipe.js"));
+  assert.ok(allowed("mongosh --file ok.js"));
+  assert.ok(asks(`mongosh --eval "db.users.updateMany({}, {\\$set: {a: 1}})"`));
+  assert.ok(allowed(`mongosh --eval "db.users.updateMany({a: 1}, {\\$set: {a: 2}})"`));
+  assert.ok(asks("docker system prune --volumes"));
+  assert.ok(asks("docker compose rm -v"));
+  assert.ok(asks("docker compose rm -fsv"));
+  assert.ok(asks("docker-compose rm -v"));
+  assert.ok(allowed("docker system prune"));
+  assert.ok(allowed("docker compose rm"));
+  assert.ok(allowed("docker compose rm -f"));
+});
+
+test("P-211 gaps: CREATE OR REPLACE TABLE asks, a view or function does not", () => {
+  assert.ok(asks(`psql -c "CREATE OR REPLACE TABLE t (a int)"`));
+  assert.ok(allowed(`psql -c "CREATE OR REPLACE VIEW v AS SELECT 1"`));
+  assert.ok(allowed(`psql -c "CREATE TABLE t (a int)"`));
+});

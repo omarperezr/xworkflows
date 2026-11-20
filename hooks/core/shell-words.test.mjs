@@ -47,3 +47,9 @@ test("in double quotes a backslash escapes only $, backtick, quote, backslash an
   assert.deepEqual(words("echo \\i"), [["echo", "i"]]);
   assert.deepEqual(words("echo '\\i'"), [["echo", "\\i"]]);
 });
+
+test(">| is one redirect word, not a pipe", () => {
+  assert.deepEqual(words("echo x >| app.db"), [["echo", "x", ">|", "app.db"]]);
+  assert.deepEqual(words("a | b"), [["a"], ["b"]]);
+  assert.deepEqual(words("echo '>'| b"), [["echo", ">"], ["b"]]);
+});
