@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { appendFileSync, existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { repo, git, cli, readJson, writeJson, PKG_ROOT, cliAt, packedCopy, tmp, GOOD, theirs, EMPTY_HOME, sha, withRecord, files, qmdLog, spy, inst, tree, lines } from "./shared.test.mjs";
+import { ALL_KEYS, repo, git, cli, readJson, writeJson, PKG_ROOT, cliAt, packedCopy, tmp, GOOD, theirs, EMPTY_HOME, sha, withRecord, files, qmdLog, spy, inst, tree, lines } from "./shared.test.mjs";
 
 // install keeps the method's own files out of the code graph: a .graphifyignore with the folders it writes
 const SKILLS = [...new Set(JSON.parse(readFileSync(join(PKG_ROOT, "manifest.json"), "utf8")).pieces.flatMap((p) => Object.keys(p.files)).map((f) => f.match(/^skills\/([^/]+)\//)?.[1]).filter(Boolean))];
@@ -486,4 +486,24 @@ test("install: with settings.json a symlink, a retired hook's module and record 
   assert.ok(existsSync(join(r, OLD_MOD)));
   const rec = readJson(r, ".xworkflows/installed.json");
   assert.ok(OLD_MOD in rec.files && rec.merged.some((m) => m.entry?.hooks?.[0]?.command.endsWith(" claude handoff")));
+});
+
+test("install: an agent rendered from agents.<id> keeps its override across an upgrade, which is no change made locally", () => {
+  const copy = packedCopy();
+  const r = repo();
+  mkdirSync(join(r, ".xworkflows"), { recursive: true });
+  writeJson(r, ".xworkflows/config.json", { ...ALL_KEYS, agents: { implement: { effort: "low", append: "Project rule." } } });
+  assert.equal(cliAt(copy, r, ["install", "--yes"]).status, 0);
+  writeFileSync(join(copy, "agents/implement.md"), readFileSync(join(copy, "agents/implement.md"), "utf8").replace("You implement", "You really implement"));
+  assert.equal(cliAt(copy, copy, ["pack"]).status, 0);
+  const m = JSON.parse(readFileSync(join(copy, "manifest.json"), "utf8"));
+  m.version = "9.9.9";
+  writeFileSync(join(copy, "manifest.json"), JSON.stringify(m, null, 2) + "\n");
+  const out = cliAt(copy, r, ["install", "--yes"]);
+  assert.equal(out.status, 0, out.stderr);
+  assert.ok(!/kept \(changed locally\)/.test(out.stdout), out.stdout);
+  const t = readFileSync(join(r, ".claude/agents/implement.md"), "utf8");
+  assert.match(t, /You really implement/);
+  assert.match(t, /^effort: low$/m);
+  assert.match(t, /Project rule\.\n$/);
 });

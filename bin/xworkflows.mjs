@@ -361,7 +361,9 @@ function mergeGraphifyIgnore(root, writes) {
   return { path: GI, text: imports.length ? text : null, rec: { imports, created: old === null && imports.length ? [GI] : [] } };
 }
 
-const HOOKS = ["pre-push", "post-merge", "post-commit"];
+const HOOKS = ["pre-push", "pre-commit", "post-merge", "post-commit"];
+// pre-push and pre-commit stop the git command when their check fails; the two post hooks never fail it
+const STOPS = (name) => name.startsWith("pre-");
 const hooksFolder = (root) => resolve(root, execFileSync("git", ["rev-parse", "--git-path", "hooks"], { cwd: root, encoding: "utf8" }).trim());
 // the record's name for a hook: .git/hooks/<name> in every checkout, unless core.hooksPath moved the folder
 const hookKey = (root, name) => {
@@ -371,6 +373,7 @@ const hookKey = (root, name) => {
 const CHECK = 'node "$(git rev-parse --show-toplevel)/.xworkflows/checks/run.mjs" --pre-push "$1"';
 // the line an earlier version gave for the hook of a folder outside the repository: doctor still knows it, since it hands the rest of
 // that hook no pushed refs
+const PRE_COMMIT = 'node "$(git rev-parse --show-toplevel)/.xworkflows/checks/run.mjs" --pre-commit';
 const GUARDED = 'f="$(git rev-parse --show-toplevel)/.xworkflows/checks/run.mjs"; if [ -f "$f" ]; then node "$f" --pre-push "$1" || exit $?; fi';
 // a value of .xworkflows/config.json read at hook time, `d` when the file or the key is not there
 const CFG = (expr, d) => `node -e 'try{process.stdout.write(${expr}||"${d}")}catch{process.stdout.write("${d}")}'`;
@@ -386,14 +389,15 @@ const earlierHook = (manifest, name, cur) => (manifest.pieces.find((p) => p.id =
 // nothing after the line needs no saved file; the file is made in the environment's temp folder and goes when a signal cuts the check.
 function gitText(name) {
   if (name === "pre-push") return `if awk 'f{r=1} / # xworkflows/{f=1} END{exit !(f && !r)}' 2>/dev/null < "$0"; then\n${CHECK} || exit $?\nelse\nxwf_in=$(mktemp "\${TMPDIR:-/tmp}/xworkflows.XXXXXX") || exit 1\ntrap 'rm -f "$xwf_in"; exit 1' HUP INT TERM\ncat > "$xwf_in"\n${CHECK} < "$xwf_in" || { xwf_c=$?; rm -f "$xwf_in"; exit $xwf_c; }\nexec < "$xwf_in"\nrm -f "$xwf_in"\ntrap - HUP INT TERM\nunset xwf_in xwf_c\nfi\n`;
+  if (name === "pre-commit") return `${PRE_COMMIT} || exit $?\n`;
   return `#!/bin/sh\nc=0\ncd "$(git rev-parse --show-toplevel)" || exit $c\nmain=$(${MAIN}) || main=main\n[ "$(git symbolic-ref --short -q HEAD)" = "$main" ] || exit $c\ntool=$(${TOOL}) || tool=graphify\nfolder=$(${FOLDER}) || folder=graphify-out\ncommand -v "$tool" >/dev/null 2>&1 || exit $c\nmkdir -p "$folder"\n{ "$tool" update . && touch -c -h -- "$folder/graph.json"; } > "$folder/.update.log" 2>&1 < /dev/null &\nexit $c\n`;
 }
 // The one line install puts in a hook: the two post hooks run its file as a child that never fails them. It is silent only where the
 // method is not installed; where the checks are and its file is not, pre-push refuses the push and a post hook says so on stderr.
 const hookLine = (name) => {
   const x = `"$(git rev-parse --show-toplevel)/.xworkflows`, f = `${x}/git/${name}"`;
-  const gone = `echo "xworkflows: .xworkflows/git/${name} is missing: run xworkflows install" >&2${name === "pre-push" ? "; exit 1" : " || :"}`;
-  return `if [ -f ${f} ]; then ${name === "pre-push" ? `. ${f}` : `sh ${f} "$@" || :`}; elif [ -f ${x}/checks/run.mjs" ]; then ${gone}; fi # xworkflows`;
+  const gone = `echo "xworkflows: .xworkflows/git/${name} is missing: run xworkflows install" >&2${STOPS(name) ? "; exit 1" : " || :"}`;
+  return `if [ -f ${f} ]; then ${STOPS(name) ? `. ${f}` : `sh ${f} "$@" || :`}; elif [ -f ${x}/checks/run.mjs" ]; then ${gone}; fi # xworkflows`;
 };
 // a hook manager is known by its hook's text: husky's shim reads the file h beside it; lefthook's and pre-commit's hooks name their tool
 const manager = (t) => (/^\.\s+"?(\$\{0%\/\*\}|\$\(dirname "\$0"\))\/h"?\s*$/m.test(t) ? "husky" : /lefthook/i.test(t) ? "lefthook" : /pre-commit\.com/.test(t) ? "pre-commit" : null);
@@ -408,6 +412,7 @@ function chainText(name) {
   const old = `old="$(dirname "$0")/${name}.before-xworkflows"\n`;
   // git feeds the pushed refs on stdin once: keep them for both runs
   if (name === "pre-push") return `#!/bin/sh\nin=$(mktemp) || exit 1\ncat > "$in"\n${old}if [ -x "$old" ]; then "$old" "$@" < "$in" || { c=$?; rm -f "$in"; exit $c; }; fi\n${CHECK} < "$in"\nc=$?\nrm -f "$in"\nexit $c\n`;
+  if (name === "pre-commit") return `#!/bin/sh\n${old}if [ -x "$old" ]; then "$old" "$@" || exit $?; fi\n${PRE_COMMIT}\n`;
   return gitText(name).replace("c=0\n", `c=0\n${old}[ -x "$old" ] && { "$old" "$@"; c=$?; }\n`);
 }
 // the line goes after the #! line, else first; uninstall takes that line out alone, which gives every one of these bytes back
@@ -528,19 +533,60 @@ const tierToModel = (text, tiers) => text.replace(/^tier: (\w+)$/m, (_, k) => `m
 const nameAs = (text, name) => text.replace(/^name: .*$/m, `name: ${name}`);
 // the file of a unit that carries its name line: the agent file, or a skill's SKILL.md
 const named = (p, u) => p === u || p.endsWith("/SKILL.md");
-// Every file this package copies, with the text it copies (tier line included); plan() and uninstall share it.
-function pkgWrites(manifest) {
+// The agent's file as this project has it: the config's agents.<id> block (a bad value is ignored), and a `plugin:skill` only where
+// the plugin is on after install, else the skill check refuses every push.
+const NAME = /^[\w.:-]+$/;
+function renderAgent(text, ov, on) {
+  const o = isObj(ov) ? ov : {};
+  return text.replace(/^---\n([\s\S]*?)\n---\n/, (_, fm) => {
+    const lines = fm.split("\n"), at = lines.indexOf("skills:");
+    let n = 0;
+    while (at >= 0 && /^\s+- /.test(lines[at + 1 + n] ?? "")) n++;
+    const have = at < 0 ? [] : lines.slice(at + 1, at + 1 + n).map((l) => l.replace(/^\s+- /, "").trim());
+    const asked = Array.isArray(o.skills) && o.skills.every((k) => typeof k === "string" && NAME.test(k));
+    const want = (asked ? o.skills : have).filter((k) => !k.includes(":") || on.has(k.split(":")[0]));
+    if (!isDeepStrictEqual(want, have) || asked) {
+      const list = want.length ? ["skills:", ...want.map((k) => `  - ${k}`)] : [];
+      if (at < 0) lines.push(...list); else lines.splice(at, 1 + n, ...list);
+    }
+    if (typeof o.effort === "string" && NAME.test(o.effort)) {
+      const e = lines.findIndex((l) => l.startsWith("effort:"));
+      if (e < 0) lines.push(`effort: ${o.effort}`); else lines[e] = `effort: ${o.effort}`;
+    }
+    return `---\n${lines.join("\n")}\n---\n`;
+  }) + (typeof o.append === "string" && o.append.trim() ? `\n${o.append.replace(/\s+$/, "")}\n` : "");
+}
+// the plugins on in settings.json once install has run: those it holds, and those install turns on
+function pluginsOn(manifest, root) {
+  let held = {};
+  try { held = JSON.parse(read(root, ".claude/settings.json") ?? "{}").enabledPlugins ?? {}; } catch {}
+  const names = Object.entries(isObj(held) ? held : {}).filter(([, v]) => v === true).map(([k]) => k);
+  return new Set([...names, ...pluginWants(manifest, root, false, () => {}).filter((w) => w.key[0] === PLUGIN_MAPS[1]).map((w) => w.key[1])].map((k) => k.split("@")[0]));
+}
+// The risk reviewer /adapt wrote, as a second agent that differs by its name and its model: tier top where the first has strongest.
+function liteOf(src, name, model) {
+  const t = src.replace(/^name: .*$/m, `name: ${name}`);
+  return /^model: /m.test(t) ? t.replace(/^model: .*$/m, `model: ${model}`) : t.replace(/^name: .*$/m, `$&\nmodel: ${model}`);
+}
+// Every file this package copies, with the text it copies (tier line included, config applied to the agents); plan() and uninstall share it.
+function pkgWrites(manifest, root) {
   const tiers = readFileSync(join(PKG, "tiers.json"), "utf8");
+  let cfg = DEFAULTS;
+  try { cfg = loadConfig(root); } catch {} // a config that does not parse is said by the other readers
+  const on = pluginsOn(manifest, root);
   const writes = [{ path: ".xworkflows/tiers.json", text: tiers, piece: "installer", src: "tiers.json" }];
   for (const p of manifest.pieces) {
     for (const f of Object.keys(p.files)) {
       const t = target(f);
       if (!t) continue;
       let text = readFileSync(join(PKG, f), "utf8");
-      if (f.startsWith("agents/")) text = tierToModel(text, JSON.parse(tiers));
+      if (f.startsWith("agents/")) text = renderAgent(tierToModel(text, JSON.parse(tiers)), cfg.agents?.[basename(f, ".md")], on);
       writes.push({ path: t, text, piece: p.id, src: f });
     }
   }
+  const { riskReviewer: full, riskReviewerLite: lite } = cfg.roles, from = `.claude/agents/${full}.md`;
+  const source = Array.isArray(cfg.paths.riskLite) && cfg.paths.riskLite.length && [full, lite].every((n) => NAME.test(n)) && full !== lite && plain(from) ? read(root, from) : null;
+  if (source !== null) writes.push({ path: `.claude/agents/${lite}.md`, text: liteOf(source, lite, JSON.parse(tiers).claude.top), piece: "installer", src: from });
   return writes;
 }
 // The xwf- form of a file of unit u.
@@ -570,7 +616,7 @@ function retiredPaths(manifest) {
 }
 
 export function plan(manifest, root, record, ans = {}) {
-  let writes = pkgWrites(manifest);
+  let writes = pkgWrites(manifest, root);
   const questions = [], kept = [], renamed = {}, notes = [];
   const ask = (id, text, labels, yes = 1) => {
     if (ans[id] === undefined) questions.push({ id, text, labels, yes });
@@ -1144,7 +1190,7 @@ function uninstall() {
   const manifest = readManifest();
   const out = [], gone = [];
   // the package's own folders go when empty, listed or not; the shared parents only when the record lists them, or has no list at all
-  const units = pkgWrites(manifest).map((w) => w.path.match(UNIT)?.[0]).filter(Boolean).flatMap((u) => [u, `${dirname(u)}/xwf-${basename(u)}`]);
+  const units = pkgWrites(manifest, ROOT).map((w) => w.path.match(UNIT)?.[0]).filter(Boolean).flatMap((u) => [u, `${dirname(u)}/xwf-${basename(u)}`]);
   const own = (d) => d === ".xworkflows" || d.startsWith(".xworkflows/") || units.some((u) => d === u || d.startsWith(`${u}/`));
   if (rec.xworkflows !== manifest.version) out.push(`record written by xworkflows ${rec.xworkflows || "unknown"}; this is ${manifest.version}`);
 
@@ -1152,7 +1198,7 @@ function uninstall() {
   const hookRel = new Map(hooksDir ? HOOKS.map((n) => [n, hookKey(ROOT, n)]) : []);
   const hookSet = new Set(hookRel.values());
   const wanted = new Map(HOOKS.map((n) => [`.xworkflows/git/${n}`, gitText(n)])); // path -> the text plan() writes there, renamed units included
-  for (const w of pkgWrites(manifest)) {
+  for (const w of pkgWrites(manifest, ROOT)) {
     wanted.set(w.path, w.text);
     const u = w.path.match(UNIT)?.[0];
     if (u) { const x = renameWrite(w, u); wanted.set(x.path, x.text); }

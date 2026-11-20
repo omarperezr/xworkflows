@@ -5,7 +5,7 @@ import { appendFileSync, chmodSync, existsSync, mkdirSync, readdirSync, readFile
 import { tmpdir } from "../test-tmp.mjs";
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
-import { mkdtempSync, GOOD, ISO, isoEnv, repo, git, cli, readJson, writeJson, PKG_ROOT, WIRED, PRE, packageCopy, SHARED, BIN, cliAt, packedCopy, theirs, OLD_MATCHER, CURRENT, installedOld, KEPT_EDIT, config, BAD, commit, marked, OLD, chained, tmp, doctor, outside, hasHook, OLD_TEXT, oldInstall, withRecord, files, at } from "./shared.test.mjs";
+import { mkdtempSync, GOOD, ISO, isoEnv, repo, git, cli, readJson, writeJson, PKG_ROOT, WIRED, PRE, packageCopy, SHARED, BIN, cliAt, packedCopy, theirs, OLD_MATCHER, CURRENT, installedOld, KEPT_EDIT, config, BAD, commit, marked, OLD, chained, tmp, doctor, outside, hasHook, OLD_TEXT, oldInstall, withRecord, files, at, ALL_KEYS, sha } from "./shared.test.mjs";
 // the answers are typed at a terminal: a pty from python3, each line sent once the previous question is out; EOF sends end of input,
 // INT sends Ctrl-C. It exits with the code of the command, 255 when a signal ended it
 const PTY = `import os, pty, sys, time
@@ -824,4 +824,81 @@ test("plugins: doctor counts a file list git cannot give as a warn", () => {
   assert.match(out.stdout, /^warn git ls-files /m);
   assert.equal(warns(out), warns(base) + 1);
   assert.doesNotMatch(out.stderr, /^warn: /m);
+});
+
+// the agents block of the config and the lite risk reviewer: install renders them from one source, the package's agent files and the project's risk reviewer
+const withKeys = (r, extra) => { mkdirSync(join(r, ".xworkflows"), { recursive: true }); writeJson(r, ".xworkflows/config.json", { ...ALL_KEYS, ...extra }); };
+const RISK = "---\nname: risk-review\ndescription: The project's risk reviewer.\nmodel: fable\ntools: Read, Grep, Glob, Bash\neffort: xhigh\n---\n\nCheck the money paths.\n";
+test("a clean install passes skills-travel: no plugin skill is named for a plugin install did not turn on", () => {
+  const r = repo();
+  assert.equal(cli(r, ["install", "--yes"]).status, 0);
+  git(r, "add -A");
+  assert.equal(spawnSync("git", ["commit", "-q", "-n", "-m", "base"], { cwd: r, env: isoEnv() }).status, 0);
+  const out = spawnSync("node", [".xworkflows/checks/run.mjs", "--only", "skills-travel"], { cwd: r, encoding: "utf8", env: isoEnv() });
+  assert.equal(out.status, 0, out.stdout + out.stderr);
+  assert.ok(!/supabase|impeccable|frontend-design/.test(readFileSync(join(r, ".claude/agents/implement-sql.md"), "utf8").split("\n---\n")[0]));
+});
+test("a plugin skill stays in an agent when the project's settings already turn the plugin on", () => {
+  const r = repo({ ".claude/settings.json": JSON.stringify({ enabledPlugins: { "supabase@claude-plugins-official": true } }) });
+  assert.equal(cli(r, ["install", "--yes"]).status, 0);
+  assert.match(readFileSync(join(r, ".claude/agents/implement-sql.md"), "utf8"), /^  - supabase:supabase-postgres-best-practices$/m);
+});
+test("agents.<id>: effort, skills and append are rendered into the agent file; a second install changes nothing and uninstall takes the file", () => {
+  const r = repo();
+  withKeys(r, { agents: { implement: { effort: "low", skills: ["tdd"], append: "Extra rule of the project." } } });
+  assert.equal(cli(r, ["install", "--yes"]).status, 0);
+  const f = join(r, ".claude/agents/implement.md"), t = readFileSync(f, "utf8");
+  assert.match(t, /^effort: low$/m);
+  assert.match(t, /^skills:\n  - tdd\n---/m);
+  assert.ok(!/ponytail:ponytail/.test(t.split("\n---\n")[0]));
+  assert.match(t, /Extra rule of the project\.\n$/);
+  assert.match(cli(r, ["install", "--yes"]).stdout, /^nothing to do$/m);
+  assert.equal(readFileSync(f, "utf8"), t);
+  const rec = readJson(r, ".xworkflows/installed.json");
+  assert.equal(rec.files[".claude/agents/implement.md"].sha256, sha(t));
+  assert.equal(cli(r, ["uninstall"]).status, 0);
+  assert.ok(!existsSync(f));
+});
+test("agents.<id>: a hand edit outside the config is kept, and a changed config rewrites an unedited file", () => {
+  const r = repo();
+  withKeys(r, { agents: { implement: { effort: "low" } } });
+  cli(r, ["install", "--yes"]);
+  withKeys(r, { agents: { implement: { effort: "high" } } });
+  cli(r, ["install", "--yes"]);
+  const f = join(r, ".claude/agents/implement.md");
+  assert.match(readFileSync(f, "utf8"), /^effort: high$/m);
+  writeFileSync(f, readFileSync(f, "utf8") + "mine\n");
+  withKeys(r, { agents: { implement: { effort: "medium" } } });
+  assert.match(cli(r, ["install", "--yes"]).stdout, /kept \(changed locally\): \.claude\/agents\/implement\.md/);
+  assert.match(readFileSync(f, "utf8"), /^effort: high$/m);
+});
+test("agents.<id>: broken values are ignored and the package's agent is written", () => {
+  const r = repo();
+  withKeys(r, { agents: { implement: { effort: 3, skills: "tdd", append: [] }, review: "x" } });
+  assert.equal(cli(r, ["install", "--yes"]).status, 0);
+  assert.match(readFileSync(join(r, ".claude/agents/implement.md"), "utf8"), /^effort: medium$/m);
+});
+test("paths.riskLite empty: no lite reviewer file; not empty: a copy of the risk reviewer named for the lite role, on the top model, taken out by uninstall", () => {
+  const r = repo({ ".claude/agents/risk-review.md": RISK });
+  withKeys(r, { paths: { ...ALL_KEYS.paths, risk: ["db/"], riskLite: [] } });
+  cli(r, ["install", "--yes"]);
+  assert.ok(!existsSync(join(r, ".claude/agents/risk-review-lite.md")));
+  withKeys(r, { paths: { ...ALL_KEYS.paths, risk: ["db/", "ui/"], riskLite: ["ui/"] } });
+  assert.equal(cli(r, ["install", "--yes"]).status, 0);
+  const lite = readFileSync(join(r, ".claude/agents/risk-review-lite.md"), "utf8");
+  assert.equal(lite, RISK.replace("name: risk-review", "name: risk-review-lite").replace("model: fable", "model: opus"));
+  assert.match(cli(r, ["install", "--yes"]).stdout, /^nothing to do$/m);
+  assert.equal(readFileSync(join(r, ".claude/agents/risk-review.md"), "utf8"), RISK);
+  cli(r, ["uninstall"]);
+  assert.ok(!existsSync(join(r, ".claude/agents/risk-review-lite.md")));
+  assert.equal(readFileSync(join(r, ".claude/agents/risk-review.md"), "utf8"), RISK);
+});
+test("the lite reviewer follows roles.riskReviewerLite and waits for a risk reviewer file", () => {
+  const r = repo();
+  withKeys(r, { paths: { ...ALL_KEYS.paths, riskLite: ["ui/"] }, roles: { riskReviewerLite: "cheap-risk" } });
+  assert.equal(cli(r, ["install", "--yes"]).status, 0);
+  assert.ok(!existsSync(join(r, ".claude/agents/cheap-risk.md")));
+  writeFileSync(join(r, ".claude/agents/risk-review.md"), RISK);
+  cli(r, ["install", "--yes"]);
+  assert.match(readFileSync(join(r, ".claude/agents/cheap-risk.md"), "utf8"), /^name: cheap-risk$/m);
 });
