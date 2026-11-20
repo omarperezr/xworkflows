@@ -20,6 +20,7 @@ export function run(range, ctx) {
   const line = (c) => ctx.git("log", "-1", "--format=%h %s", c);
   const unsealed = [];
   let risk = false;
+  const riskFiles = [];
   for (const c of range.commits) {
     const files = ctx.git("diff-tree", "--cc", "--root", "--no-commit-id", "--name-only", "-r", "-z", c).split("\0").filter(Boolean);
     const isCode = files.some((f) => !inPaths(f, paths.nonCode) || inPaths(f, paths.codeAnyway));
@@ -29,11 +30,15 @@ export function run(range, ctx) {
     if (escaped && !touchesRisk) continue;
     if (commentOnly(ctx, c)) continue;
     risk ||= touchesRisk;
+    riskFiles.push(...files.filter((f) => inPaths(f, paths.risk) && !f.endsWith(".md")));
     unsealed.push(c);
   }
   if (!unsealed.length) return { ok: true, lines: [] };
 
-  const re = sealRe(roles, "gm");
+  // the lite reviewer's seal is a risk seal only when every risk path of the range is one it may review
+  const liteOk = paths.riskLite.length > 0 && riskFiles.every((f) => inPaths(f, paths.riskLite));
+  // sealCore knows three roles: the lite one joins its first group
+  const re = new RegExp(sealRe(roles).source.replace("`?(", `\`?(${roles.riskReviewerLite.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}|`), "gm");
   const docs = ctx.git("ls-tree", "-r", "--name-only", "-z", range.head).split("\0")
     .filter((f) => inPaths(f, [paths.plans, paths.specs]));
   const ancestor = (a, b) => ctx.tryGit("merge-base", "--is-ancestor", a, b).code === 0;
@@ -42,11 +47,12 @@ export function run(range, ctx) {
     for (const [, who, sha] of unfenced(ctx.show(range.head, f) ?? "").matchAll(re)) {
       const full = ctx.tryGit("rev-parse", "-q", "--verify", `${sha}^{commit}`);
       if (full.code !== 0) continue;
-      const isRisk = who === roles.riskReviewer;
+      const isLite = who === roles.riskReviewerLite;
+      const isRisk = who === roles.riskReviewer || (isLite && liteOk);
       // on a risk batch the reviewer's seal counts only after a risk seal of an ancestor sha, and that one names a commit of the pushed range
       if (isRisk) { if (range.commits.includes(full.out)) riskShas.push(full.out); }
       // the small reviewer's seal never counts on a risk batch
-      else if (risk && (who === roles.smallReviewer || !riskShas.some((r) => ancestor(r, full.out)))) continue;
+      else if (risk && (isLite || who === roles.smallReviewer || !riskShas.some((r) => ancestor(r, full.out)))) continue;
       if (unsealed.every((c) => ancestor(c, full.out))) return { ok: true, lines: [] };
     }
   }

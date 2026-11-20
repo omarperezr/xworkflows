@@ -2,6 +2,30 @@ import { inPaths, sealCore } from "../hooks/core/config.mjs";
 
 export const mainOnly = true;
 
+// a patch that only adds seal lines (the lite reviewer's too)
+function sealOnly(roles, patch) {
+  const lite = roles.riskReviewerLite.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const seal = new RegExp(`^\\+(${sealCore(roles)}|${lite} ok at [0-9a-f]{7,40})\\s*$`);
+  let hunk = false, added = 0;
+  for (const l of patch.split("\n")) {
+    if (l.startsWith("diff --git")) hunk = false;
+    else if (l.startsWith("@@")) hunk = true;
+    else if (hunk && l[0] === "-") return false;
+    else if (hunk && l.trim() === "+") continue; // the blank line the template leaves under "Seals"
+    else if (hunk && l[0] === "+") { if (!seal.test(l)) return false; added++; }
+  }
+  return added > 0;
+}
+
+// rule 3 on the staged tree, for the pre-commit line: a staged plan needs the list staged with it
+export function preCommit(ctx) {
+  const { paths, roles } = ctx.config;
+  const files = ctx.git("diff", "--cached", "--name-only", "-z", "--no-renames").split("\0").filter(Boolean);
+  const plans = files.filter((f) => inPaths(f, [paths.plans]));
+  if (!plans.length || files.includes(paths.pending) || sealOnly(roles, ctx.git("diff", "--cached", "-p", "-U0", "--no-renames", "--", ...plans))) return { ok: true, lines: [] };
+  return { ok: false, lines: [`a staged plan changes without ${paths.pending}:`, ...plans, `fix: stage ${paths.pending} with it`] };
+}
+
 export function run(range, ctx) {
   const { git, tryGit } = ctx;
   const { mainBranch: main, paths, roles } = ctx.config;
@@ -41,25 +65,13 @@ export function run(range, ctx) {
   }
 
   // rule 3: a commit that changes a plan also changes the list, or its merge or a later pending-for commit does
-  const seal = new RegExp(`^\\+${sealCore(roles)}\\s*$`);
-  const sealOnly = (patch) => {
-    let hunk = false, added = 0;
-    for (const l of patch.split("\n")) {
-      if (l.startsWith("diff --git")) hunk = false;
-      else if (l.startsWith("@@")) hunk = true;
-      else if (hunk && l[0] === "-") return false;
-      else if (hunk && l.trim() === "+") continue; // the blank line the template leaves under "Seals"
-      else if (hunk && l[0] === "+") { if (!seal.test(l)) return false; added++; }
-    }
-    return added > 0;
-  };
   const bad = [];
   for (const c of range.commits) {
     if (git("rev-list", "--parents", "-n1", c).split(" ").length > 2) continue;
     const files = git("diff-tree", "--root", "--no-commit-id", "--name-only", "-z", "-r", c).split("\0");
     const plans = files.filter((f) => inPaths(f, [paths.plans]));
     if (!plans.length || files.includes(paths.pending)) continue;
-    if (sealOnly(git("diff-tree", "--root", "-p", "-U0", "--no-renames", "--no-commit-id", "-r", c, "--", ...plans))) continue;
+    if (sealOnly(roles, git("diff-tree", "--root", "-p", "-U0", "--no-renames", "--no-commit-id", "-r", c, "--", ...plans))) continue;
     // a merge counts only if its first parent lacked c, so it is the one that brought c in
     // (--first-parent with --ancestry-path lists nothing here, so every merge on the path is tried)
     const brought = git("rev-list", "--merges", "--ancestry-path", `${c}..${range.head}`).split("\n").filter(Boolean).some((m) =>

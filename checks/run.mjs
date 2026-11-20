@@ -77,13 +77,14 @@ export async function main(argv, io = {}) {
     }
     return 0;
   }
-  let ctx, only = null, ranges = [];
+  let ctx, only = null, ranges = [], preCommit = false;
   try {
     let remote = null;
     const pos = [];
     for (let i = 0; i < argv.length; i++) {
       const a = argv[i];
       if (a === "--pre-push") remote = argv[++i] || (() => { throw new Error("--pre-push needs a remote"); })();
+      else if (a === "--pre-commit") preCommit = true;
       else if (a === "--only") only = (argv[++i] ?? "").split(",");
       else if (a.startsWith("-")) throw new Error(`unknown flag ${a}`);
       else pos.push(a);
@@ -126,6 +127,15 @@ export async function main(argv, io = {}) {
     return 2;
   }
 
+  if (preCommit) {
+    try {
+      // a merge in progress, or a branch that is not main, is not asked
+      if (ctx.tryGit("rev-parse", "-q", "--verify", "MERGE_HEAD").code === 0 || ctx.tryGit("symbolic-ref", "--short", "-q", "HEAD").out !== ctx.config.mainBranch) return 0;
+      const r = (await load("pending")).preCommit(ctx);
+      if (!r.ok) for (const [i, l] of r.lines.entries()) print(i ? `  ${l}` : `pending: ${l}`);
+      return r.ok ? 0 : 1;
+    } catch (e) { print(`xworkflows check: ${e.message}`); return 2; }
+  }
   let due = 0, failed = 0, cannot = false;
   const show = (name, first, lines) => {
     print(`${name}: ${first}`);

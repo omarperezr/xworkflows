@@ -445,3 +445,11 @@ test("shell: a continued line that ends in CR LF is joined, a redirect `>&` is n
   assert.ok(denied(at("cat C:\\Work\\proj\\src\\x")));
   assert.ok(allowed(at("cat C:\\Work\\other\\src\\x")));
 });
+
+test("the lite risk reviewer is a risk reviewer: it needs a plan, and a second run on the same commit is denied", () => {
+  const e = agent("risk-review-lite", { prompt: "docs/superpowers/specs/x.md" });
+  assert.ok(denied(decide(agent("risk-review-lite", { prompt: "review" }), mk()), /plan or spec/));
+  const c = mk();
+  assert.ok(allowed(decide(e, c)));
+  assert.ok(denied(decide(e, c), /already reviewed/));
+});
