@@ -1127,7 +1127,9 @@ async function doctor() {
     }
     // the lite reviewer is a copy of the project's risk reviewer: it follows its source only when install runs again
     const lw = conf.paths.riskLite?.length && pkgWrites(readManifest(), ROOT).find((w) => w.src === `.claude/agents/${conf.roles.riskReviewer}.md`);
-    if (lw && read(ROOT, lw.path) !== lw.text) say("warn", `${lw.path} is not the render of ${lw.src}: ${INSTALL}`);
+    // a recorded file that is missing or changed is said by the files loop: one step for the file
+    const recLite = rec.files[lw?.path], curLite = lw && read(ROOT, lw.path);
+    if (lw && curLite !== lw.text && (!recLite || (curLite !== null && hash(curLite) === recLite.sha256))) say("warn", `${lw.path} is not the render of ${lw.src}: ${INSTALL}`);
     let st = {}, local = {};
     try { st = JSON.parse(readFileSync(join(ROOT, ".claude/settings.json"), "utf8")); } catch {}
     try { local = JSON.parse(readFileSync(join(ROOT, ".claude/settings.local.json"), "utf8")); } catch {}

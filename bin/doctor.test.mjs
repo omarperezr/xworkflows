@@ -476,6 +476,13 @@ test("doctor warns to install again when the lite reviewer file is not the rende
   assert.match(doctor(r).stdout, /^warn \.claude\/agents\/risk-review-lite\.md is not the render of \.claude\/agents\/risk-review\.md: run xworkflows install$/m);
   cli(r, ["install", "--yes"]);
   assert.doesNotMatch(doctor(r).stdout, /is not the render/);
+  // one step for the file: a lite file that is missing or changed against the record is said by the files loop, not twice
+  writeFileSync(lite, readFileSync(lite, "utf8") + "mine\n");
+  const edited = doctor(r).stdout;
+  assert.match(edited, /^warn changed locally: \.claude\/agents\/risk-review-lite\.md/m);
+  assert.doesNotMatch(edited, /is not the render/);
   rmSync(lite);
-  assert.match(doctor(r).stdout, /^warn \.claude\/agents\/risk-review-lite\.md is not the render/m);
+  const gone = doctor(r).stdout;
+  assert.match(gone, /^fail missing or unreadable: \.claude\/agents\/risk-review-lite\.md/m);
+  assert.doesNotMatch(gone, /is not the render/);
 });
