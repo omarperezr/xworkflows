@@ -201,10 +201,12 @@ function settingsWants(manifest) {
   return want;
 }
 
+// the hook id a recorded entry runs: orphan lookup, apply and doctor read it the same way
+const hookId = (e) => e?.hooks?.[0]?.command?.match(/\/\.xworkflows\/hooks\/run\.mjs" claude (\S+)/)?.[1];
 // hook ids the record has an entry for and the manifest no longer has: a hook renamed or dropped by a newer version
 const orphanIds = (manifest, record) => {
   const ids = new Set(settingsWants(manifest).map((w) => w.id));
-  return new Set(record.merged.map((m) => m.entry?.hooks?.[0]?.command?.match(/\/\.xworkflows\/hooks\/run\.mjs" claude (\S+)$/)?.[1]).filter((id) => id && !ids.has(id)));
+  return new Set(record.merged.map((m) => hookId(m.entry)).filter((id) => id && !ids.has(id)));
 };
 
 function mergeSettings(root, manifest, record) {
@@ -223,7 +225,7 @@ function mergeSettings(root, manifest, record) {
     }) : arr;
     if (isDeepStrictEqual(left, arr)) continue;
     changed = true;
-    const was = record.merged.find((m) => m.key[1] === event && isOurs(m.entry, id));
+    const was = record.merged.find((m) => m.key[1] === event && hookId(m.entry) === id);
     if (left.length || !was.createdKey) s.hooks[event] = left; else delete s.hooks[event];
     if (!Object.keys(s.hooks).length && (was.levels ?? 2) > 1) delete s.hooks;
   }
@@ -716,7 +718,8 @@ export function apply(pl, root, manifest, record) {
     put(root, w.path, w.text, w.mode, hook);
     out.push(w.path);
   }
-  const next = { ...record, xworkflows: manifest.version, tools: ["claude"], pieces: {}, files: {}, merged: record.merged.filter((m) => !pl.orphans.has(m.entry?.hooks?.[0]?.command?.match(/ claude (\S+)$/)?.[1])), dirs: [...new Set([...(record.dirs ?? []), ...made])], kept: [...new Set([...record.kept, ...pl.kept])], renamed: { ...record.renamed, ...pl.renamed } };
+  const orphaned = record.merged.filter((m) => pl.orphans.has(hookId(m.entry)));
+  const next = { ...record, xworkflows: manifest.version, tools: ["claude"], pieces: {}, files: {}, merged: record.merged.filter((m) => !orphaned.includes(m)), dirs: [...new Set([...(record.dirs ?? []), ...made])], kept: [...new Set([...record.kept, ...pl.kept])], renamed: { ...record.renamed, ...pl.renamed } };
   const moved = [];
   for (const m of pl.merges) {
     let rec = m.rec;
@@ -743,6 +746,8 @@ export function apply(pl, root, manifest, record) {
       for (const x of list) if (!next[k].some((y) => (k === "merged" ? x.file === y.file && isDeepStrictEqual(x.key, y.key) && isDeepStrictEqual(x.entry, y.entry) : (k === "blocks" || k === "imports" ? x.file === y.file && x.line === y.line : isDeepStrictEqual(x, y))))) next[k].push(x);
     }
   }
+  // a dropped line's key stays with a remaining line of the same key, as for a replaced entry: uninstall then takes the container out
+  for (const g of orphaned) if (g.createdKey) { const to = next.merged.find((y) => y.file === g.file && isDeepStrictEqual(y.key, g.key)); if (to && !to.createdKey) { to.createdKey = true; to.levels = g.levels; } }
   // a hook migrated from the old way is chained no more
   next.chained = next.chained.filter((c) => !moved.includes(c.file));
   // a unit whose folder or agent file is gone leaves its line of .graphifyignore, and the record its entry
@@ -885,7 +890,7 @@ async function doctor() {
   const wants = settingsWants(readManifest()).filter((w) => w.id);
   for (const m of rec.merged) {
     const arr = readArr(m.file, m.key);
-    const id = m.entry?.hooks?.[0]?.command?.match(/run\.mjs" claude (\S+)/)?.[1];
+    const id = hookId(m.entry);
     const lbl = `${m.file} ${m.key.join(".")}`;
     const w = id && wants.find((x) => x.id === id && isDeepStrictEqual(x.key, m.key));
     if (w && differs(w, arr, lbl)) continue;
