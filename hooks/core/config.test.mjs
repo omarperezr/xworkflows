@@ -196,3 +196,17 @@ test("the reviewer roles and the seal pattern come from the roles of the config,
   assert.ok(new RegExp(`^${sealCore(odd)}$`).test("s|m ok at abc1234"));
   assert.ok(!new RegExp(`^${sealCore(odd)}$`).test("reaview ok at abc1234"));
 });
+
+test("the config-b keys: defaults, and a project value read through load", () => {
+  assert.deepEqual(DEFAULTS.agents, {});
+  assert.equal(DEFAULTS.paths.business, "docs/BUSINESS.md");
+  assert.deepEqual(DEFAULTS.paths.riskLite, []);
+  assert.equal(DEFAULTS.roles.riskReviewerLite, "risk-review-lite");
+  const out = load("/r", () => JSON.stringify({ agents: { review: { effort: "low" } }, paths: { business: "docs/B.md", riskLite: ["hooks/"] }, roles: { riskReviewerLite: "rr-lite" } }));
+  assert.deepEqual(out.agents, { review: { effort: "low" } });
+  assert.equal(out.paths.business, "docs/B.md");
+  assert.deepEqual(out.paths.riskLite, ["hooks/"]);
+  assert.equal(out.roles.riskReviewerLite, "rr-lite");
+  assert.equal(out.roles.riskReviewer, "risk-review");
+  assert.throws(() => load("/r", () => '{"agents":[]}'), /agents must be an object/);
+});

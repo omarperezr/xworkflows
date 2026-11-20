@@ -5,17 +5,21 @@ import { outsideLine } from "./ctx.mjs";
 export const DEFAULTS = {
   owner: "the owner",
   mainBranch: "main",
+  agents: {},
   paths: {
     specs: "docs/superpowers/specs",
     plans: "docs/superpowers/plans",
     reviews: "docs/superpowers/reviews",
     pending: "docs/PENDING.md",
+    business: "docs/BUSINESS.md",
+    riskLite: [],
     nonCode: ["docs/", ".claude/", ".xworkflows/", "**/*.md", ".gitignore"],
     curated: ["AGENTS.md", "CLAUDE.md", ".claude/rules/", "docs/BUSINESS.md"],
   },
   roles: {
     reviewer: "review",
     riskReviewer: "risk-review",
+    riskReviewerLite: "risk-review-lite",
     smallReviewer: "review-small",
     implementers: ["implement", "implement-sql", "implement-front", "mechanical"],
     lookup: "explore",
