@@ -46,13 +46,36 @@ function pack(check) {
     q.sha256 = digest(q.files);
     return Object.fromEntries(KEYS.filter((k) => q[k] !== undefined).map((k) => [k, q[k]]));
   });
-  const tracked = execFileSync("git", ["ls-files", "skills", "agents", "hooks", "checks"], { cwd: PKG, encoding: "utf8" }).split("\n").filter(Boolean);
+  const tracked = gitList(["ls-files", "skills", "agents", "hooks", "checks"], PKG).split("\n").filter(Boolean);
   for (const f of tracked) {
     if (f.endsWith(".test.mjs") || f.startsWith("hooks/fixtures/") || listed.has(f)) continue;
     errs.push(`${f} belongs to no piece`);
   }
+  // a hook id of the manifest at the merge-base with the main branch that this one drops must be listed as retired: a stale copy never unwires a hook it did not retire
+  // (HEAD already holds the change once it is committed on the branch)
+  const hooks = (x) => x.pieces.filter((p) => p.claude?.length).map((p) => p.id);
+  const git = (...a) => spawnSync("git", a, { cwd: PKG, encoding: "utf8" });
+  const warn = (t) => console.error(`warn: ${t}`);
+  let main = DEFAULTS.mainBranch;
+  try { main = loadConfig(PKG).mainBranch; } catch {} // a config that does not parse is said by the other readers
+  if (git("rev-parse", "-q", "--verify", "HEAD").status === 0) { // no commit: nothing to compare
+    const mb = git("merge-base", "HEAD", main);
+    if (mb.status === 1) {} // no common commit: nothing to compare
+    else if (mb.status !== 0) warn(`git merge-base HEAD ${main} failed: retired hooks are not checked`);
+    else {
+      const at = `${mb.stdout.trim()}:manifest.json`;
+      const ls = git("ls-tree", "--name-only", mb.stdout.trim(), "--", "manifest.json");
+      if (ls.status !== 0) warn("git ls-tree failed: retired hooks are not checked");
+      else if (ls.stdout.trim()) { // no manifest there: nothing to compare
+        try {
+          const old = JSON.parse(git("show", at).stdout);
+          for (const id of hooks(old)) if (!hooks(m).includes(id) && !(m.retiredHooks ?? []).includes(id)) errs.push(`hook ${id} is in the manifest at the merge-base with ${main} and not in this one: list it in retiredHooks`);
+        } catch { warn(`${at} does not read: retired hooks are not checked`); }
+      }
+    }
+  }
   if (errs.length) die(1, errs.join("\n"));
-  const out = JSON.stringify({ name: m.name, version: pkgVersion, marketplaces: m.marketplaces, plugins: m.plugins, pieces }, null, 2) + "\n";
+  const out = JSON.stringify({ name: m.name, version: pkgVersion, marketplaces: m.marketplaces, plugins: m.plugins, retiredHooks: m.retiredHooks, pieces }, null, 2) + "\n";
   const cur = readFileSync(join(PKG, "manifest.json"), "utf8");
   if (out === cur) return;
   if (check) die(1, "manifest.json is stale: run xworkflows pack");
@@ -115,6 +138,8 @@ function target(f) {
   return ".xworkflows/" + f;
 }
 
+// a list that grows with the repository (files, logs) is read through this: the default buffer of 1 MiB fails on a big one
+const gitList = (args, cwd) => execFileSync("git", args, { cwd, encoding: "utf8", maxBuffer: 1 << 28 });
 const read = (root, p) => (existsSync(join(root, p)) ? readFileSync(join(root, p), "utf8") : null);
 const hookCmd = (id) => `node "$(git rev-parse --show-toplevel)/.xworkflows/hooks/run.mjs" claude ${id}`;
 const isOurs = (e, id) => e?.hooks?.some((h) => `${h.command} `.includes(`/.xworkflows/hooks/run.mjs" claude ${id} `));
@@ -170,9 +195,10 @@ const ATTRIBUTION = { commit: "", pr: "" };
 // The marketplaces and plugins the manifest declares that this project uses: a plugin with whenTracked only when git tracks a file of that extension.
 const PLUGIN_MAPS = ["extraKnownMarketplaces", "enabledPlugins"];
 // all: every plugin the manifest declares, what uninstall may take out
-function pluginWants(manifest, root, all = false) {
+// warn: how a failed file-list read is said; doctor counts it
+function pluginWants(manifest, root, all = false, warn = (t) => console.error(`warn: ${t}`)) {
   let tracked = [];
-  try { tracked = execFileSync("git", ["ls-files", "-z"], { cwd: root, encoding: "utf8" }).split("\0"); } catch {}
+  try { tracked = gitList(["ls-files", "-z"], root).split("\0"); } catch (e) { warn(`git ls-files failed (${e.code ?? e.message}): plugins that depend on tracked files are not decided`); }
   let code = [];
   try { code = loadConfig(root).paths.code; } catch {} // a config that does not parse is said by the other readers
   // SQL and screen files count only under paths.code
@@ -199,12 +225,34 @@ function settingsWants(manifest) {
   return want;
 }
 
+// the hook id a recorded entry runs: orphan lookup, apply and doctor read it the same way
+const hookId = (e) => e?.hooks?.[0]?.command?.match(/\/\.xworkflows\/hooks\/run\.mjs" claude (\S+)/)?.[1];
+// the hook ids the manifest lists as retired (renamed or dropped by this version); a copy that merely lacks a hook retires nothing
+const orphanIds = (manifest) => {
+  const ids = new Set(settingsWants(manifest).map((w) => w.id));
+  return new Set((manifest.retiredHooks ?? []).filter((id) => !ids.has(id)));
+};
+
 function mergeSettings(root, manifest, record) {
   const path = ".claude/settings.json";
   const { old, s } = readObject(root, path);
   const want = settingsWants(manifest);
   const merged = [], notes = [];
   let changed = false;
+  // our entries of a hook id the manifest no longer has; a container install made goes with its last entry
+  for (const id of orphanIds(manifest)) for (const [event, arr] of isObj(s.hooks) ? Object.entries(s.hooks) : []) {
+    // only our command leaves an entry; the entry goes when no command is left
+    const left = Array.isArray(arr) ? arr.flatMap((e) => {
+      if (!Array.isArray(e?.hooks) || !isOurs(e, id)) return [e];
+      const rest = e.hooks.filter((h) => !isOurs({ hooks: [h] }, id));
+      return rest.length ? [{ ...e, hooks: rest }] : [];
+    }) : arr;
+    if (isDeepStrictEqual(left, arr)) continue;
+    changed = true;
+    const was = record.merged.find((m) => m.key[1] === event && hookId(m.entry) === id);
+    if (left.length || !was?.createdKey) s.hooks[event] = left; else delete s.hooks[event];
+    if (!Object.keys(s.hooks).length && (was?.levels ?? 2) > 1) delete s.hooks;
+  }
   for (const { key, entry, ours, id, earlier } of want) {
     let o = s, made = 0;
     for (const k of key.slice(0, -1)) {
@@ -630,6 +678,17 @@ export function plan(manifest, root, record, ans = {}) {
     if (published(p, read(root, p), tiers).some((t) => hashes.includes(hash(t)))) retired.push(p);
     else notes.push(`kept (no longer shipped, changed locally): ${p}`);
   }
+  // the module of a hook id the manifest no longer has: removed when it is the text install wrote, else kept and said
+  const settingsOn = !off(SETTINGS);
+  const orphans = orphanIds(manifest);
+  for (const id of orphans) {
+    const p = `.xworkflows/hooks/core/${id}.mjs`, f = record.files[p];
+    if (!f || shipped.has(p) || !plain(p) || !clean(root, p) || !lstatSync(join(root, p), { throwIfNoEntry: false })?.isFile()) continue;
+    // the settings merge drops the entries: skipped, the module and its record line stay for a later install
+    if (!settingsOn) dropped.push({ path: p });
+    else if (hash(read(root, p)) === f.sha256) retired.push(p);
+    else notes.push(`kept (no longer shipped, changed locally): ${p}`);
+  }
   const merges = [];
   let config;
   try { config = loadConfig(root); } catch (e) { die(1, e.message); }
@@ -643,7 +702,7 @@ export function plan(manifest, root, record, ans = {}) {
     // the marker passes the yml's test and is never written over something that is there
     if (qmd && !off(QMARK) && !lstatSync(join(root, QMARK), { throwIfNoEntry: false })) merges.push({ path: QMARK, text: MARK_TEXT, verb: "write", rec: {} });
   }
-  if (!off(SETTINGS)) { const ms = mergeSettings(root, manifest, record); notes.push(...ms.notes); merges.push(ms); }
+  if (settingsOn) { const ms = mergeSettings(root, manifest, record); notes.push(...ms.notes); merges.push(ms); }
   if (!off(LOCAL)) { const local = mergeLocal(root); if (local.note) notes.push(local.note); merges.push(local); }
   if (!off(".gitignore")) merges.push(mergeIgnore(root, qmd));
   if (!off(GI)) merges.push(mergeGraphifyIgnore(root, writes));
@@ -658,7 +717,7 @@ export function plan(manifest, root, record, ans = {}) {
       merges.push({ path: "CLAUDE.md", text: claude + (claude.endsWith("\n") ? "" : "\n") + "@AGENTS.md\n", rec: { imports: [claude.endsWith("\n") ? { file: "CLAUDE.md", line: "@AGENTS.md" } : { file: "CLAUDE.md", line: "@AGENTS.md", addedNewline: true }] } });
     } else merges.push({ path: "CLAUDE.md", text: null, rec: { declined: [{ file: "CLAUDE.md", what: "import" }] } });
   }
-  return { writes, dropped, merges, questions, kept, renamed, notes, retired };
+  return { writes, dropped, merges, questions, kept, renamed, notes, retired, orphans: settingsOn ? orphans : new Set() };
 }
 
 const differs = (root, w) => !existsSync(join(root, w.path)) || readFileSync(join(root, w.path), "utf8") !== w.text;
@@ -686,7 +745,8 @@ export function apply(pl, root, manifest, record) {
     put(root, w.path, w.text, w.mode, hook);
     out.push(w.path);
   }
-  const next = { ...record, xworkflows: manifest.version, tools: ["claude"], pieces: {}, files: {}, dirs: [...new Set([...(record.dirs ?? []), ...made])], kept: [...new Set([...record.kept, ...pl.kept])], renamed: { ...record.renamed, ...pl.renamed } };
+  const orphaned = record.merged.filter((m) => pl.orphans.has(hookId(m.entry)));
+  const next = { ...record, xworkflows: manifest.version, tools: ["claude"], pieces: {}, files: {}, merged: record.merged.filter((m) => !orphaned.includes(m)), dirs: [...new Set([...(record.dirs ?? []), ...made])], kept: [...new Set([...record.kept, ...pl.kept])], renamed: { ...record.renamed, ...pl.renamed } };
   const moved = [];
   for (const m of pl.merges) {
     let rec = m.rec;
@@ -713,6 +773,8 @@ export function apply(pl, root, manifest, record) {
       for (const x of list) if (!next[k].some((y) => (k === "merged" ? x.file === y.file && isDeepStrictEqual(x.key, y.key) && isDeepStrictEqual(x.entry, y.entry) : (k === "blocks" || k === "imports" ? x.file === y.file && x.line === y.line : isDeepStrictEqual(x, y))))) next[k].push(x);
     }
   }
+  // a dropped line's key stays with a remaining line of the same key, as for a replaced entry: uninstall then takes the container out
+  for (const g of orphaned) if (g.createdKey) { const to = next.merged.find((y) => y.file === g.file && isDeepStrictEqual(y.key, g.key)); if (to && !to.createdKey) { to.createdKey = true; to.levels = g.levels; } }
   // a hook migrated from the old way is chained no more
   next.chained = next.chained.filter((c) => !moved.includes(c.file));
   // a unit whose folder or agent file is gone leaves its line of .graphifyignore, and the record its entry
@@ -855,7 +917,7 @@ async function doctor() {
   const wants = settingsWants(readManifest()).filter((w) => w.id);
   for (const m of rec.merged) {
     const arr = readArr(m.file, m.key);
-    const id = m.entry?.hooks?.[0]?.command?.match(/run\.mjs" claude (\S+)/)?.[1];
+    const id = hookId(m.entry);
     const lbl = `${m.file} ${m.key.join(".")}`;
     const w = id && wants.find((x) => x.id === id && isDeepStrictEqual(x.key, m.key));
     if (w && differs(w, arr, lbl)) continue;
@@ -864,7 +926,7 @@ async function doctor() {
   }
   for (const w of wants) if (!rec.merged.some((m) => isDeepStrictEqual(m.key, w.key) && w.ours(m.entry))) differs(w, readArr(".claude/settings.json", w.key), `.claude/settings.json ${w.key.join(".")}`);
   const inSettings = (key) => { try { return key.reduce((o, k) => o?.[k], JSON.parse(readFileSync(join(ROOT, ".claude/settings.json"), "utf8"))); } catch { return undefined; } };
-  for (const { key } of pluginWants(readManifest(), ROOT)) {
+  for (const { key } of pluginWants(readManifest(), ROOT, false, (t) => say("warn", t))) {
     const lbl = `.claude/settings.json ${key.join(".")}`;
     if (inSettings(key) !== undefined) say("ok", `merged: ${lbl}`);
     else say("fail", `merged entry missing: ${lbl}: ${INSTALL}`);
@@ -1093,6 +1155,8 @@ function uninstall() {
     if (u) { const x = renameWrite(w, u); wanted.set(x.path, x.text); }
   }
   const wants = settingsWants(manifest);
+  // a recorded entry belongs to a want by its key and its hook id, not by the event alone
+  const theirs = (w, m) => isDeepStrictEqual(w.key, m.key) && (w.id ? w.ours(m.entry) : isDeepStrictEqual(w.entry, m.entry));
   // a plugin sub-key goes only when the manifest declares it: the record never names one on its own
   const declared = pluginWants(manifest, ROOT, true);
   const planted = (x) => x.file === SETTINGS && declared.find((w) => isDeepStrictEqual(w.key, x.key));
@@ -1109,7 +1173,7 @@ function uninstall() {
 
   const named = {
     files: (_, p) => wanted.has(p) || hookSet.has(p),
-    merged: (m) => m.file === SETTINGS && wants.some((w) => isDeepStrictEqual(w.key, m.key)),
+    merged: (m) => m.file === SETTINGS && wants.some((w) => theirs(w, m)),
     scalars: (x) => (x.file === SETTINGS && (isDeepStrictEqual(x.key, ["attribution"]) || planted(x))) || (x.file === LOCAL && isDeepStrictEqual(x.key, [LOCAL_KEY])),
     blocks: (b) => b.file === "AGENTS.md",
     imports: (i) => !!LINES.get(i.file)?.includes(i.line) || (i.file === GI && giLines.has(i.line)) || i.line === hookLine(basename(i.file)),
@@ -1156,7 +1220,7 @@ function uninstall() {
     try { s = JSON.parse(text); } catch { out.push(`kept (does not parse): ${SETTINGS}`); }
     if (s && typeof s === "object") {
       let changed = false;
-      const recorded = ({ key }) => merged.some((m) => isDeepStrictEqual(m.key, key));
+      const recorded = (w) => merged.some((m) => theirs(w, m));
       for (const w of wants.filter(recorded)) {
         const arr = w.key.reduce((o, k) => o?.[k], s);
         if (!Array.isArray(arr)) continue;

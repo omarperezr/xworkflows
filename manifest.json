@@ -42,6 +42,9 @@
       ]
     }
   ],
+  "retiredHooks": [
+    "handoff"
+  ],
   "pieces": [
     {
       "id": "hook-runtime",
@@ -66,9 +69,9 @@
         "hooks/adapters/gemini.mjs": "eff8f29bce46d7c4a7c62845f3762a16c6fd38e831e6c4a5d6b54361ec599175",
         "hooks/core/config.mjs": "a9b254039ac008ca03eff2b79373261cbb14d8d632e70da5a3970949168ec801",
         "hooks/core/ctx.mjs": "c467ec88a800a1b3df3193922b7bd1377e12d610b6c75e2a7becc81cdd848138",
-        "hooks/core/shell-words.mjs": "74891037cdeb47d425624a7b2161c683108d6bf90131453634a1f6d090f348d2"
+        "hooks/core/shell-words.mjs": "d2b55f18ca767512692d8a4aed20eaa6e91dd9e3144e180f9ea051a3861679f1"
       },
-      "sha256": "4736662c32780b1b7714ef6b8a7866007bf3740b8a24982fbf9d306220ec86b4"
+      "sha256": "14cbb80d2d46365e1704256ec7a3e05b0d27fcc5006332a14876de06e39b3c75"
     },
     {
       "id": "design-first",
@@ -135,9 +138,9 @@
         }
       ],
       "files": {
-        "hooks/core/safe-db.mjs": "d8f51035ebb08f90821f8940ca1f7e8024d041f376fc95d9a6f0c2da75d4f30f"
+        "hooks/core/safe-db.mjs": "3be94051c5de9bcb3f75959d8d6797f558dd1f87fcb565b567eb464d34d42d27"
       },
-      "sha256": "6925f54600263db1a53578f580be6ddf18db88b4a6a949cfbe8909784e8ed132"
+      "sha256": "d0b9de84c85719061f9eeaa1760df5ba3de1bddf41291f65979f3696a87aba82"
     },
     {
       "id": "adapt-gates",

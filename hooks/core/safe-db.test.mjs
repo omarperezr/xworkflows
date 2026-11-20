@@ -323,3 +323,114 @@ test("a text filter as the command word is never a database client", () => {
   assert.ok(asks("cat bad.sql | psql"));
   assert.ok(asks("cat bad.sql | grep x | psql"));
 });
+
+test("P-211 gaps: an include inside a file that is read asks, to depth 5, and a loop or a missing include never traps", () => {
+  writeFileSync(join(root, "bad.sql"), "DROP TABLE users");
+  writeFileSync(join(root, "main.sql"), "SELECT 1;\n\\i bad.sql\n");
+  assert.ok(asks("psql -f main.sql"));
+  assert.ok(asks("psql < main.sql"));
+  writeFileSync(join(root, "l1.sql"), "\\ir l2.sql");
+  writeFileSync(join(root, "l2.sql"), "\\ir l3.sql");
+  writeFileSync(join(root, "l3.sql"), "\\ir l4.sql");
+  writeFileSync(join(root, "l4.sql"), "\\ir bad.sql");
+  assert.ok(asks("psql -f l1.sql"));
+  writeFileSync(join(root, "loop1.sql"), "\\i loop2.sql");
+  writeFileSync(join(root, "loop2.sql"), "SELECT 1;\n\\i loop1.sql");
+  assert.ok(allowed("psql -f loop1.sql"));
+  writeFileSync(join(root, "gone.sql"), "\\i nowhere.sql");
+  assert.ok(allowed("psql -f gone.sql"));
+  writeFileSync(join(root, "deep.sql"), "\\i d1.sql");
+  for (let i = 1; i < 7; i++) writeFileSync(join(root, `d${i}.sql`), i < 6 ? `\\i d${i + 1}.sql` : "DROP TABLE users");
+  assert.ok(allowed("psql -f deep.sql"));
+});
+
+test("P-211 gaps: sqlite3 .read, a redirect before the tool", () => {
+  writeFileSync(join(root, "bad.sql"), "DROP TABLE users");
+  assert.ok(asks('sqlite3 app.db ".read bad.sql"'));
+  assert.ok(asks("<bad.sql psql"));
+  assert.ok(asks("< bad.sql psql"));
+});
+
+test("P-211 gaps: xargs rm and find -exec unlink on database files", () => {
+  assert.ok(asks("find . -name '*.db' -print0 | xargs -0 rm"));
+  assert.ok(asks("find . -name '*.sqlite' | xargs rm -f"));
+  assert.ok(asks("find . -name '*.db' -exec unlink {} \;"));
+  assert.ok(allowed("find . -name '*.log' -print0 | xargs -0 rm"));
+  assert.ok(allowed("find . -name '*.db' -print"));
+});
+
+test("P-211 gaps: a write or delete onto a database file asks (cp, mv, unlink, >|, psql -o)", () => {
+  for (const c of ["cp /dev/null app.db", "mv new.db app.sqlite3", "unlink app.db", "echo x >| app.db", "psql -o app.db -c 'SELECT 1'", "psql --output=app.db -c 'SELECT 1'", "psql --output app.sqlite -c 'SELECT 1'"])
+    assert.ok(asks(c), c);
+  for (const c of ["cp a.txt b.txt", "cp app.db app.db.bak", "cp app.db backup/", "> out.log", "echo x >| out.log", "psql -c 'SELECT 1'", "psql -o out.txt -c 'SELECT 1'", "echo a | cat"])
+    assert.ok(allowed(c), c);
+});
+
+test("P-211 gaps: mongosh --file and --eval with updateMany({}), docker prune and compose rm with volumes", () => {
+  writeFileSync(join(root, "wipe.js"), "db.users.deleteMany({})");
+  writeFileSync(join(root, "ok.js"), "db.users.find({})");
+  assert.ok(asks("mongosh --file wipe.js"));
+  assert.ok(allowed("mongosh --file ok.js"));
+  assert.ok(asks(`mongosh --eval "db.users.updateMany({}, {\\$set: {a: 1}})"`));
+  assert.ok(allowed(`mongosh --eval "db.users.updateMany({a: 1}, {\\$set: {a: 2}})"`));
+  assert.ok(asks("docker system prune --volumes"));
+  assert.ok(asks("docker compose rm -v"));
+  assert.ok(asks("docker compose rm -fsv"));
+  assert.ok(asks("docker-compose rm -v"));
+  assert.ok(allowed("docker system prune"));
+  assert.ok(allowed("docker compose rm"));
+  assert.ok(allowed("docker compose rm -f"));
+});
+
+test("P-211 gaps: CREATE OR REPLACE TABLE asks, a view or function does not", () => {
+  assert.ok(asks(`psql -c "CREATE OR REPLACE TABLE t (a int)"`));
+  assert.ok(allowed(`psql -c "CREATE OR REPLACE VIEW v AS SELECT 1"`));
+  assert.ok(allowed(`psql -c "CREATE TABLE t (a int)"`));
+});
+
+test("mongosh reads a .js word of the client like --file", () => {
+  writeFileSync(join(root, "wipe.js"), "db.users.deleteMany({})");
+  writeFileSync(join(root, "ok.js"), "db.users.find({})");
+  assert.ok(asks("mongosh wipe.js"));
+  assert.ok(asks("mongosh mongodb://localhost/app wipe.js"));
+  assert.ok(allowed("mongosh ok.js"));
+  assert.ok(allowed("node wipe.js"));
+});
+
+test("xargs rm tests the names the pipe carries with the find pattern; a database only read earlier does not count", () => {
+  assert.ok(asks("find . -name '*.db*' | xargs rm"));
+  assert.ok(asks("find . -name '*.sqlite' | xargs rm -f"));
+  assert.ok(asks("echo app.db | xargs rm"));
+  assert.ok(allowed("find . -name '*.dbx' | xargs rm"));
+  assert.ok(allowed("sqlite3 app.db .tables | xargs rm"));
+  assert.ok(allowed("cat app.db | xargs rm tmp.txt"));
+  assert.ok(allowed("cat app.db | rm tmp.txt"));
+});
+
+test("cp -t names a directory: the last word is a source, not a write target", () => {
+  for (const c of ["cp -t backup app.db", "cp --target-directory=backup app.db", "cp -rt backup app.db", "mv -t backup app.sqlite3"]) assert.ok(allowed(c), c);
+  for (const c of ["cp /dev/null app.db", "cp -r a b.db", "cp -T a b.db"]) assert.ok(asks(c), c);
+});
+
+test("docker compose down matches only as a whole word: a service named like it is not the command", () => {
+  assert.ok(allowed("docker compose logs my-down -v"));
+  assert.ok(allowed("docker compose exec app-down --volumes"));
+  assert.ok(asks("docker compose down -v"));
+  assert.ok(asks("docker compose -f x.yml down --volumes"));
+});
+
+test("stdin given as 0< reads the file like <", () => {
+  writeFileSync(join(root, "fd0.sql"), "TRUNCATE users;");
+  for (const c of ["psql 0< fd0.sql", "psql 0<fd0.sql", "psql mydb 0< fd0.sql"]) assert.ok(asks(c), c);
+  assert.ok(allowed("psql 0< missing.sql"));
+});
+
+test("cat of a file stays allowed into xargs rm; only its literals feed", () => {
+  assert.ok(allowed("cat app.db | xargs rm tmp.txt"));
+  assert.ok(asks("cat <<<app.db | xargs rm"));
+});
+
+test("one feed rule: any stage before xargs rm feeds its words and heredoc text; the xargs heredoc feeds too", () => {
+  for (const c of ["sort <<'EOF' | xargs rm\napp.db\nEOF", "tac <<EOF | xargs rm\napp.db\nEOF", "xargs rm <<'EOF'\napp.db\nEOF", "cat 0<<<app.db | xargs rm", "cat 0<<< app.db | xargs rm"]) assert.ok(asks(c), c);
+  for (const c of ["cat app.db | xargs rm tmp.txt", "sort <<'EOF' | xargs rm\ntmp.txt\nEOF", "xargs rm <<'EOF'\ntmp.txt\nEOF"]) assert.ok(allowed(c), c);
+});
