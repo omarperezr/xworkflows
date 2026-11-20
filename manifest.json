@@ -138,9 +138,9 @@
         }
       ],
       "files": {
-        "hooks/core/safe-db.mjs": "e7d4f0c180db4f2780c8013c07abc17c6564d274b196f147880213dfe0149968"
+        "hooks/core/safe-db.mjs": "16d84e18f43d71a9effd32818bef79ebcf88f553430bd7827724b977d255fa52"
       },
-      "sha256": "922770d5a9c8abdcfb3d55dbfe68cf79f6a4694511c2db6713994290757272a1"
+      "sha256": "723d88861173285b6a65f1161c5542faf9c5a872ddeae17ea25aa7e74561d6a4"
     },
     {
       "id": "adapt-gates",
