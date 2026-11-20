@@ -373,7 +373,8 @@ const hookKey = (root, name) => {
 const CHECK = 'node "$(git rev-parse --show-toplevel)/.xworkflows/checks/run.mjs" --pre-push "$1"';
 // the line an earlier version gave for the hook of a folder outside the repository: doctor still knows it, since it hands the rest of
 // that hook no pushed refs
-const PRE_COMMIT = 'node "$(git rev-parse --show-toplevel)/.xworkflows/checks/run.mjs" --pre-commit';
+// .git/hooks is shared by every branch: a run.mjs of a branch made before this mode is never called with it
+const PRE_COMMIT = 'f="$(git rev-parse --show-toplevel)/.xworkflows/checks/run.mjs"; if grep -q -- --pre-commit "$f" 2>/dev/null; then node "$f" --pre-commit || exit $?; fi';
 const GUARDED = 'f="$(git rev-parse --show-toplevel)/.xworkflows/checks/run.mjs"; if [ -f "$f" ]; then node "$f" --pre-push "$1" || exit $?; fi';
 // a value of .xworkflows/config.json read at hook time, `d` when the file or the key is not there
 const CFG = (expr, d) => `node -e 'try{process.stdout.write(${expr}||"${d}")}catch{process.stdout.write("${d}")}'`;
@@ -389,14 +390,14 @@ const earlierHook = (manifest, name, cur) => (manifest.pieces.find((p) => p.id =
 // nothing after the line needs no saved file; the file is made in the environment's temp folder and goes when a signal cuts the check.
 function gitText(name) {
   if (name === "pre-push") return `if awk 'f{r=1} / # xworkflows/{f=1} END{exit !(f && !r)}' 2>/dev/null < "$0"; then\n${CHECK} || exit $?\nelse\nxwf_in=$(mktemp "\${TMPDIR:-/tmp}/xworkflows.XXXXXX") || exit 1\ntrap 'rm -f "$xwf_in"; exit 1' HUP INT TERM\ncat > "$xwf_in"\n${CHECK} < "$xwf_in" || { xwf_c=$?; rm -f "$xwf_in"; exit $xwf_c; }\nexec < "$xwf_in"\nrm -f "$xwf_in"\ntrap - HUP INT TERM\nunset xwf_in xwf_c\nfi\n`;
-  if (name === "pre-commit") return `${PRE_COMMIT} || exit $?\n`;
+  if (name === "pre-commit") return `${PRE_COMMIT}\n`;
   return `#!/bin/sh\nc=0\ncd "$(git rev-parse --show-toplevel)" || exit $c\nmain=$(${MAIN}) || main=main\n[ "$(git symbolic-ref --short -q HEAD)" = "$main" ] || exit $c\ntool=$(${TOOL}) || tool=graphify\nfolder=$(${FOLDER}) || folder=graphify-out\ncommand -v "$tool" >/dev/null 2>&1 || exit $c\nmkdir -p "$folder"\n{ "$tool" update . && touch -c -h -- "$folder/graph.json"; } > "$folder/.update.log" 2>&1 < /dev/null &\nexit $c\n`;
 }
 // The one line install puts in a hook: the two post hooks run its file as a child that never fails them. It is silent only where the
 // method is not installed; where the checks are and its file is not, pre-push refuses the push and a post hook says so on stderr.
 const hookLine = (name) => {
   const x = `"$(git rev-parse --show-toplevel)/.xworkflows`, f = `${x}/git/${name}"`;
-  const gone = `echo "xworkflows: .xworkflows/git/${name} is missing: run xworkflows install" >&2${STOPS(name) ? "; exit 1" : " || :"}`;
+  const gone = `echo "xworkflows: .xworkflows/git/${name} is missing: run xworkflows install" >&2${name === "pre-push" ? "; exit 1" : " || :"}`;
   return `if [ -f ${f} ]; then ${STOPS(name) ? `. ${f}` : `sh ${f} "$@" || :`}; elif [ -f ${x}/checks/run.mjs" ]; then ${gone}; fi # xworkflows`;
 };
 // a hook manager is known by its hook's text: husky's shim reads the file h beside it; lefthook's and pre-commit's hooks name their tool

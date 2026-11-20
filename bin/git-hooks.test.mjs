@@ -803,7 +803,7 @@ test("pre-commit: install writes the hook and its file, the check runs with --pr
   assert.equal(marked(readFileSync(hook, "utf8")).length, 1);
   assert.ok(statSync(hook).mode & 0o100);
   assert.ok(existsSync(join(r, ".xworkflows/git/pre-commit")));
-  writeFileSync(join(r, ".xworkflows/checks/run.mjs"), `import { writeFileSync, existsSync } from "node:fs";\nwriteFileSync(".git/check-args", process.argv.slice(2).join(" "));\nprocess.exit(existsSync(".git/fail") ? 1 : 0);\n`);
+  writeFileSync(join(r, ".xworkflows/checks/run.mjs"), `// knows --pre-commit\nimport { writeFileSync, existsSync } from "node:fs";\nwriteFileSync(".git/check-args", process.argv.slice(2).join(" "));\nprocess.exit(existsSync(".git/fail") ? 1 : 0);\n`);
   writeFileSync(join(r, "a.txt"), "a\n");
   git(r, "add a.txt");
   assert.equal(spawnSync("git", ["commit", "-q", "-m", "a"], { cwd: r, env: isoEnv() }).status, 0);
@@ -834,4 +834,31 @@ test("pre-commit: a hook that is not a shell script is chained, runs first, and 
   cli(r, ["uninstall"]);
   assert.equal(readFileSync(join(r, ".git/hooks/pre-commit"), "utf8"), NODE_HOOK);
   assert.ok(!existsSync(join(r, ".git/hooks/pre-commit.before-xworkflows")));
+});
+// .git/hooks is shared by every branch: a branch made before the upgrade has a run.mjs that does not know --pre-commit
+const OLD_RUN = `if (process.argv.slice(2).some((a) => a.startsWith("-") && a !== "--pre-push")) { console.error("unknown flag"); process.exit(2); }\n`;
+test("pre-commit: a chained hook does not call a run.mjs that lacks --pre-commit, and still runs the first one that has it", () => {
+  const r = repo({ ".git/hooks/pre-commit": NODE_HOOK });
+  chmodSync(join(r, ".git/hooks/pre-commit"), 0o755);
+  cli(r, ["install", "--yes"]);
+  assert.ok(existsSync(join(r, ".git/hooks/pre-commit.before-xworkflows")));
+  const run = join(r, ".xworkflows/checks/run.mjs");
+  writeFileSync(run, OLD_RUN);
+  writeFileSync(join(r, "a.txt"), "a\n");
+  git(r, "add a.txt");
+  const c = spawnSync("git", ["commit", "-q", "-m", "a"], { cwd: r, encoding: "utf8", env: isoEnv() });
+  assert.equal(c.status, 0, c.stderr);
+  writeFileSync(run, `// --pre-commit\nprocess.exit(1);\n`);
+  writeFileSync(join(r, "b.txt"), "b\n");
+  git(r, "add b.txt");
+  assert.notEqual(spawnSync("git", ["commit", "-q", "-m", "b"], { cwd: r, env: isoEnv() }).status, 0);
+});
+test("pre-commit: install's own hook does not call a run.mjs that lacks --pre-commit", () => {
+  const r = repo();
+  cli(r, ["install", "--yes"]);
+  writeFileSync(join(r, ".xworkflows/checks/run.mjs"), OLD_RUN);
+  writeFileSync(join(r, "a.txt"), "a\n");
+  git(r, "add a.txt");
+  const c = spawnSync("git", ["commit", "-q", "-m", "a"], { cwd: r, encoding: "utf8", env: isoEnv() });
+  assert.equal(c.status, 0, c.stderr);
 });
