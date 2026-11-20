@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync as makeTmp, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync as makeTmp, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "../test-tmp.mjs";
 import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -532,3 +532,16 @@ test("--pre-commit: a plan staged without the list is refused on main, passed of
 test("--pre-commit: nothing staged passes", withRepo({}, async (repo) => {
   assert.equal((await preCommit(repo)).code, 0);
 }));
+
+test("--pre-commit: the first commit of a repo with no commit passes, and a first commit holding a plan alone is refused", async () => {
+  const root = realpathSync(mkdtempSync(join(tmpdir(), "xwf-first-")));
+  const git = (...a) => spawnSync("git", ["-c", "init.defaultBranch=main", ...a], { cwd: root, encoding: "utf8", env: { ...process.env, GIT_CONFIG_GLOBAL: "/dev/null" } });
+  git("init", "-q");
+  const run = () => main(["--pre-commit"], { cwd: root, stdin: "", print: () => {}, load: loader({ pending: realPending }) });
+  assert.equal(await run(), 0);
+  writeFileSync(join(root, "a.txt"), "x\n"); git("add", "a.txt");
+  assert.equal(await run(), 0);
+  mkdirSync(join(root, "docs/superpowers/plans"), { recursive: true });
+  writeFileSync(join(root, "docs/superpowers/plans/a.md"), "plan\n"); git("add", "-A");
+  assert.equal(await run(), 1);
+});

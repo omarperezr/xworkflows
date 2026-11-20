@@ -102,7 +102,7 @@ export async function main(argv, io = {}) {
     };
     const mergeBase = (head, other) => { const x = ctx.tryGit("merge-base", head, other); return x.code === 0 ? x.out : null; };
     const main = ctx.config.mainBranch;
-    if (remote === null) {
+    if (preCommit) { /* the staged tree is judged: no HEAD, no range */ } else if (remote === null) {
       const head = rev(pos[1] ?? "HEAD");
       ranges = [afterReview(ctx, rangeFor(ctx, { head, base: pos[0] ? rev(pos[0]) : mergeBase(head, main) }), print)];
     } else {
