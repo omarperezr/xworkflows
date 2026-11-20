@@ -19,7 +19,8 @@ const real = (cmd, args, o) => {
 // shortcut: a pid the system gave to another process after the job died looks alive, and its lock stays until that process ends; upgrade if a lock is ever seen stuck.
 const alive = (pid) => { if (!Number.isInteger(pid) || pid < 1) return false; try { process.kill(pid, 0); return true; } catch (e) { return e.code === "EPERM"; } };
 
-const modelsIn = (dir) => { try { return readdirSync(dir).some((f) => /embed.*\.gguf$/i.test(f)); } catch { return false; } };
+// shortcut: the embed model is any file named embed*.gguf in qmd's models folder, so a renamed model is missed; upgrade if qmd names models otherwise. Doctor uses this same test.
+export const modelsIn = (dir) => { try { return readdirSync(dir).some((f) => /embed.*\.gguf$/i.test(f)); } catch { return false; } };
 
 export function runJob({ root, config, stateDir, modelsDir, run = real, beforeMs = STEP_MS }) {
   const before = config.memory?.before;
@@ -40,7 +41,9 @@ export function runJob({ root, config, stateDir, modelsDir, run = real, beforeMs
       const r = run(cmd, args, { cwd: root, ...o });
       log(name, r.timedOut ? `timed out after ${o?.timeout} ms` : `exit ${r.code}`);
     };
-    if (Array.isArray(before) && before.length && before.every((a) => typeof a === "string" && a)) step("before", before[0], before.slice(1), { timeout: beforeMs });
+    const listed = Array.isArray(before) && before.every((a) => typeof a === "string" && a);
+    if (listed && before.length) step("before", before[0], before.slice(1), { timeout: beforeMs });
+    else if (!listed && before !== undefined) log("before", "skipped: memory.before must be a list of texts");
     const qmd = (name) => step(name, "qmd", [...(index ? ["--index", index] : []), name]);
     qmd("update");
     if (own) { // embed and cleanup change the whole index: only the project's own

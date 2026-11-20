@@ -5,7 +5,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, utimesSync } from 
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "../../test-tmp.mjs";
 import { join } from "node:path";
-import { runJob } from "./memory-job.mjs";
+import { runJob, modelsIn } from "./memory-job.mjs";
 
 const dirs = () => {
   const state = mkdtempSync(join(tmpdir(), "xwf-job-"));
@@ -106,13 +106,29 @@ test("a hung memory.before step is killed at its limit and logged; the qmd steps
   assert.match(log, /cleanup exit/);
 });
 
-test("memory.before that is not a list of texts is ignored", () => {
-  const { state, models, root } = dirs();
+test("memory.before that is not a list of texts is skipped and logged; the qmd steps still run", () => {
   for (const before of ["node x", [1], [""], {}]) {
-    const { calls, run } = recorder();
+    const { state, models, root } = dirs(); const { calls, run } = recorder();
     runJob({ root, config: cfg({ before }), stateDir: state, modelsDir: models, run });
     assert.equal(calls.length, 3, JSON.stringify(before));
+    assert.match(logOf(state), /before skipped: memory\.before must be a list of texts/, JSON.stringify(before));
   }
+});
+
+test("an empty or absent memory.before is the default: nothing logged", () => {
+  for (const before of [[], undefined]) {
+    const { state, models, root } = dirs();
+    runJob({ root, config: cfg({ before }), stateDir: state, modelsDir: models, run: recorder().run });
+    assert.doesNotMatch(logOf(state), /before/);
+  }
+});
+
+test("modelsIn tells the embed model from the others, and a missing folder from a full one", () => {
+  const { state, models } = dirs();
+  assert.equal(modelsIn(models), true);
+  assert.equal(modelsIn(join(state, "nowhere")), false);
+  const other = join(state, "other"); mkdirSync(other); writeFileSync(join(other, "hf_x_reranker-Q8_0.gguf"), "");
+  assert.equal(modelsIn(other), false);
 });
 
 test("run as a script with a project root it does the steps and exits 0 even without qmd", () => {
