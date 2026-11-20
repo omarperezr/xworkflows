@@ -1315,7 +1315,7 @@ function uninstall() {
     if (empty && !rec.kept.includes(p)) { rm(p); out.push(`deleted ${p}`); }
   }
   if (marked) {
-    for (const f of [YML, ".qmd/index.sqlite", ".qmd/index.sqlite-wal", ".qmd/index.sqlite-shm", QMARK]) if (lstatSync(join(ROOT, f), { throwIfNoEntry: false })?.isFile()) rm(f);
+    for (const f of [YML, ".qmd/index.sqlite", ".qmd/index.sqlite-wal", ".qmd/index.sqlite-shm", QMARK, ".qmd/.qmd-embed.lock"]) if (lstatSync(join(ROOT, f), { throwIfNoEntry: false })?.isFile()) rm(f);
   }
   const hand = ".xworkflows/handoff.md"; // only the skill handoff writes it; nothing of the user's
   if (clean(ROOT, hand) && lstatSync(join(ROOT, hand), { throwIfNoEntry: false })?.isFile()) { rm(hand); out.push(`deleted ${hand}`); }
