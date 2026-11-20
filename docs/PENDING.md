@@ -9,14 +9,13 @@ One living list. The `pending` brake checks these rules:
 
 ## Proof harness (development only)
 
-- **P-201** — `proof/measure.mjs:170` (worseThanBaseline) and `:166` (metrics): when no baseline row has a cost, or a measured row has none, the tool prints nothing, which reads as "nothing is worse". The remedy the review names: exit 2 with one line when no baseline row is usable, and one "not compared" line per measured row with no cost, plan docs/superpowers/plans/2026-11-20-minor-d.md. Origin: docs/superpowers/plans/2026-11-18-measure.md, the confirmation of 9b2aed8. Status: in progress on minor-d-1.
 
 ## Installer and docs
 
 
 ## Workflow upgrade
 
-- **P-207** — `checks/skills-travel.mjs:31`: any skill name with `:` passes with no look at the plugin declaration, so an agent naming `foo:bar` passes while no such plugin is enabled. The remedy the review names: accept `<plugin>:<skill>` only when the settings at the pushed commit enable `<plugin>@...`, and no name holds a space, plan docs/superpowers/plans/2026-11-20-minor-d.md. Origin: docs/superpowers/plans/2026-11-18-workflow-upgrade.md, the risk review of e59867d. Status: in progress on minor-d-1.
+- **P-207** — `checks/skills-travel.mjs:31`: any skill name with `:` passes with no look at the plugin declaration, so an agent naming `foo:bar` passes while no such plugin is enabled. The remedy the review names: accept `<plugin>:<skill>` only when the settings at the pushed commit enable `<plugin>@...`, and no name holds a space, plan docs/superpowers/plans/2026-11-20-config-b.md. Origin: docs/superpowers/plans/2026-11-18-workflow-upgrade.md, the risk review of e59867d. Status: scheduled.
 - **P-208** — `skills/orchestrate/SKILL.md:62` says "Dispatch the batch's tasks together", while `skills/plan/SKILL.md:19` now puts a dependent task in the same batch after the task it needs; also `skills/plan/SKILL.md:16,18`, `skills/tdd/SKILL.md:55` against `:97` (hard-coding), and README counts and settings text at `README.md:149,170,223`. The remedy the review names: an `After: T<n>` line in the plan template, and orchestrate dispatches such a task after that task's commit, plan docs/superpowers/plans/2026-11-20-config-b.md. Origin: docs/superpowers/plans/2026-11-18-workflow-upgrade.md, the risk review of e59867d. Status: scheduled.
 
 ## Memory and agents
