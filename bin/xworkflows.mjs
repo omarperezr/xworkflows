@@ -215,8 +215,13 @@ function mergeSettings(root, manifest, record) {
   let changed = false;
   // our entries of a hook id the manifest no longer has; a container install made goes with its last entry
   for (const id of orphanIds(manifest, record)) for (const [event, arr] of isObj(s.hooks) ? Object.entries(s.hooks) : []) {
-    const left = Array.isArray(arr) ? arr.filter((e) => !isOurs(e, id)) : arr;
-    if (left === arr || left.length === arr.length) continue;
+    // only our command leaves an entry; the entry goes when no command is left
+    const left = Array.isArray(arr) ? arr.flatMap((e) => {
+      if (!Array.isArray(e?.hooks) || !isOurs(e, id)) return [e];
+      const rest = e.hooks.filter((h) => !isOurs({ hooks: [h] }, id));
+      return rest.length ? [{ ...e, hooks: rest }] : [];
+    }) : arr;
+    if (isDeepStrictEqual(left, arr)) continue;
     changed = true;
     const was = record.merged.find((m) => m.key[1] === event && isOurs(m.entry, id));
     if (left.length || !was.createdKey) s.hooks[event] = left; else delete s.hooks[event];
