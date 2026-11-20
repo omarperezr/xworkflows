@@ -178,9 +178,10 @@ const ATTRIBUTION = { commit: "", pr: "" };
 // The marketplaces and plugins the manifest declares that this project uses: a plugin with whenTracked only when git tracks a file of that extension.
 const PLUGIN_MAPS = ["extraKnownMarketplaces", "enabledPlugins"];
 // all: every plugin the manifest declares, what uninstall may take out
-function pluginWants(manifest, root, all = false) {
+// warn: how a failed file-list read is said; doctor counts it
+function pluginWants(manifest, root, all = false, warn = (t) => console.error(`warn: ${t}`)) {
   let tracked = [];
-  try { tracked = gitList(["ls-files", "-z"], root).split("\0"); } catch (e) { console.error(`warn: git ls-files failed (${e.code ?? e.message}): plugins that depend on tracked files are not decided`); }
+  try { tracked = gitList(["ls-files", "-z"], root).split("\0"); } catch (e) { warn(`git ls-files failed (${e.code ?? e.message}): plugins that depend on tracked files are not decided`); }
   let code = [];
   try { code = loadConfig(root).paths.code; } catch {} // a config that does not parse is said by the other readers
   // SQL and screen files count only under paths.code
@@ -908,7 +909,7 @@ async function doctor() {
   }
   for (const w of wants) if (!rec.merged.some((m) => isDeepStrictEqual(m.key, w.key) && w.ours(m.entry))) differs(w, readArr(".claude/settings.json", w.key), `.claude/settings.json ${w.key.join(".")}`);
   const inSettings = (key) => { try { return key.reduce((o, k) => o?.[k], JSON.parse(readFileSync(join(ROOT, ".claude/settings.json"), "utf8"))); } catch { return undefined; } };
-  for (const { key } of pluginWants(readManifest(), ROOT)) {
+  for (const { key } of pluginWants(readManifest(), ROOT, false, (t) => say("warn", t))) {
     const lbl = `.claude/settings.json ${key.join(".")}`;
     if (inSettings(key) !== undefined) say("ok", `merged: ${lbl}`);
     else say("fail", `merged entry missing: ${lbl}: ${INSTALL}`);

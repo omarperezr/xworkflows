@@ -5,7 +5,7 @@ import { appendFileSync, chmodSync, existsSync, mkdirSync, readdirSync, readFile
 import { tmpdir } from "../test-tmp.mjs";
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
-import { mkdtempSync, ISO, isoEnv, repo, git, cli, readJson, writeJson, PKG_ROOT, WIRED, PRE, packageCopy, SHARED, BIN, cliAt, packedCopy, theirs, OLD_MATCHER, CURRENT, installedOld, KEPT_EDIT, config, BAD, commit, marked, OLD, chained, tmp, doctor, outside, hasHook, OLD_TEXT, oldInstall, withRecord, files, at } from "./shared.test.mjs";
+import { mkdtempSync, GOOD, ISO, isoEnv, repo, git, cli, readJson, writeJson, PKG_ROOT, WIRED, PRE, packageCopy, SHARED, BIN, cliAt, packedCopy, theirs, OLD_MATCHER, CURRENT, installedOld, KEPT_EDIT, config, BAD, commit, marked, OLD, chained, tmp, doctor, outside, hasHook, OLD_TEXT, oldInstall, withRecord, files, at } from "./shared.test.mjs";
 // the answers are typed at a terminal: a pty from python3, each line sent once the previous question is out; EOF sends end of input,
 // INT sends Ctrl-C. It exits with the code of the command, 255 when a signal ended it
 const PTY = `import os, pty, sys, time
@@ -814,4 +814,14 @@ test("plugins: a file list git cannot give is said, and the install goes on", ()
   assert.equal(out.status, 0, out.stderr);
   assert.match(out.stderr, /^warn: git ls-files /m);
   assert.deepEqual(plug(r).p, ["ponytail@ponytail"]);
+});
+test("plugins: doctor counts a file list git cannot give as a warn", () => {
+  const r = repo(); codeIn(r, "db/");
+  cli(r, ["install"]);
+  const warns = (o) => Number(o.stdout.match(/^doctor: \d+ fail, (\d+) warn$/m)[1]);
+  const base = doctor(r);
+  const out = doctor(r, { PATH: `${fakeGit("exit 1").split(":")[0]}:${GOOD}` });
+  assert.match(out.stdout, /^warn git ls-files /m);
+  assert.equal(warns(out), warns(base) + 1);
+  assert.doesNotMatch(out.stderr, /^warn: /m);
 });
