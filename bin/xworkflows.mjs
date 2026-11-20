@@ -1215,10 +1215,8 @@ function uninstall() {
     const u = w.path.match(UNIT)?.[0];
     if (u) { const x = renameWrite(w, u); wanted.set(x.path, x.text); }
   }
-  // the lite reviewer file stays named when paths.riskLite was emptied since install: the record says whether install wrote it
-  let lite = DEFAULTS.roles.riskReviewerLite;
-  try { lite = loadConfig(ROOT).roles.riskReviewerLite; } catch {}
-  if (typeof lite === "string" && NAME.test(lite) && !wanted.has(`.claude/agents/${lite}.md`)) wanted.set(`.claude/agents/${lite}.md`, "");
+  // the lite reviewer file is named by the record (install's own agent file), never by today's config
+  for (const [p, f] of Object.entries(rec.files)) if (f?.piece === "installer" && LITE_FILE.test(p) && !wanted.has(p)) wanted.set(p, "");
   const wants = settingsWants(manifest);
   // a recorded entry belongs to a want by its key and its hook id, not by the event alone
   const theirs = (w, m) => isDeepStrictEqual(w.key, m.key) && (w.id ? w.ours(m.entry) : isDeepStrictEqual(w.entry, m.entry));

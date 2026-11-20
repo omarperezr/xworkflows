@@ -945,3 +945,12 @@ test("uninstall takes the lite file install wrote even when paths.riskLite was e
   assert.ok(!existsSync(join(r, ".claude/agents/risk-review-lite.md")));
   assert.ok(!existsSync(join(r, ".graphifyignore")) || !/risk-review-lite/.test(readFileSync(join(r, ".graphifyignore"), "utf8")));
 });
+test("uninstall takes the lite file the record names even when roles.riskReviewerLite was renamed since install", () => {
+  const r = repo({ ".claude/agents/risk-review.md": RISK });
+  withKeys(r, { paths: { ...ALL_KEYS.paths, risk: ["ui/"], riskLite: ["ui/"] } });
+  cli(r, ["install", "--yes"]);
+  assert.ok(existsSync(join(r, ".claude/agents/risk-review-lite.md")));
+  withKeys(r, { roles: { ...ALL_KEYS.roles, riskReviewerLite: "other-lite" }, paths: { ...ALL_KEYS.paths, risk: ["ui/"], riskLite: [] } });
+  cli(r, ["uninstall"]);
+  assert.ok(!existsSync(join(r, ".claude/agents/risk-review-lite.md")));
+});
