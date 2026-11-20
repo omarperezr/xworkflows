@@ -396,3 +396,13 @@ test("mongosh reads a .js word of the client like --file", () => {
   assert.ok(allowed("mongosh ok.js"));
   assert.ok(allowed("node wipe.js"));
 });
+
+test("xargs rm tests the names the pipe carries with the find pattern; a database only read earlier does not count", () => {
+  assert.ok(asks("find . -name '*.db*' | xargs rm"));
+  assert.ok(asks("find . -name '*.sqlite' | xargs rm -f"));
+  assert.ok(asks("echo app.db | xargs rm"));
+  assert.ok(allowed("find . -name '*.dbx' | xargs rm"));
+  assert.ok(allowed("sqlite3 app.db .tables | xargs rm"));
+  assert.ok(allowed("cat app.db | xargs rm tmp.txt"));
+  assert.ok(allowed("cat app.db | rm tmp.txt"));
+});

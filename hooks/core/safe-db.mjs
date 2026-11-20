@@ -5,6 +5,8 @@ import { isRm } from "./safe-rm.mjs";
 const CLIENT = /^(?:psql|mysql|mariadb|sqlite3?|sqlcmd|duckdb|usql|clickhouse-client|supabase)$/;
 const TEXT_FILTER = /^(?:grep|rg|awk|sed|head|tail|wc)$/;
 const SCRIPT = /^(?:rake|rails|bundle|sequelize|sequelize-cli|npm|yarn|pnpm|bunx?|npx|node|deno|tsx)$/;
+// a database name or glob as find or a name list gives it: .db, .sqlite*, optionally *-ended
+const FIND_DB = /\.(?:db|sqlite3?)\*?(?![\w.])/;
 // [a tool word, the words from it on]: a CLI form counts when an unquoted word is that tool, whatever runs it
 const CLI = [
   [/^supabase$/, /\bdb\s+reset\b/],
@@ -17,7 +19,7 @@ const CLI = [
   [/^mysqladmin$/, /\bdrop\b/],
   [/^docker$/, /\bcompose\s.*\bdown\b.*(?:^|\s)(?:-v|--volumes)(?=\s|$)|\bvolume\s+(?:rm|remove|prune)\b|\bsystem\s+prune\b.*--volumes\b|\bcompose(?=\s).*(?:^|\s)rm(?=\s).*(?:^|\s)(?:-[a-zA-Z]*v[a-zA-Z]*|--volumes)(?=\s|$)/],
   [/^docker-compose$/, /(?:^|\s)(?:down|rm)(?=\s).*(?:^|\s)(?:-[a-zA-Z]*v[a-zA-Z]*|--volumes)(?=\s|$)/],
-  [/^find$/, /\.(?:db|sqlite3?)\*?(?![\w.]).*\s(?:-delete\b|-exec(?:dir)?\s+(?:\S*\/)?(?:rm|unlink)\b)/],
+  [/^find$/, new RegExp(String.raw`${FIND_DB.source}.*\s(?:-delete\b|-exec(?:dir)?\s+(?:\S*\/)?(?:rm|unlink)\b)`)],
   [/^truncate$/, /\.(?:db|sqlite3?)(?:\s|$)/],
 ];
 // a file named .db or .sqlite goes when a word rm names it (not `git rm --cached dev.db`)
@@ -102,12 +104,13 @@ export function decide(ev, ctx) {
     const feeds = fedWords;
     const own = `${sqlText(seg.words)};\n${seg.doc}`, input = fed, inFiles = fedFiles;
     fed = seg.pipe ? `${fed};\n${own}` : "";
-    fedWords = seg.pipe ? `${fedWords} ${seg.words.join(" ")}` : "";
+    // only a command that lists names feeds names: a database a client or cat merely reads is not one
+    fedWords = seg.pipe ? `${fedWords} ${/^(?:find|ls|echo|printf)$/.test(cmd?.word) ? seg.words.join(" ") : ""}` : "";
     fedFiles = seg.pipe ? [...fedFiles, ...names] : [];
     // the command word only reads: a text filter, or which, type and command -v looking a command up; no word in its arguments is a tool or a client
     const reads = TEXT_FILTER.test(cmd?.word) || /^(?:which|type)$/.test(cmd?.word) || (/^-[vV]$/.test(seg.words[cmd?.at - 1]) && base(seg.words[cmd.at - 2] ?? "") === "command");
     // `find -name '*.db' | xargs rm`: the rm takes the names the pipe carries
-    if (seg.words.some((_, i) => writesDb(seg.words, i, cmd, false)) || seg.words.some((_, i) => isRm(seg.words, i) && RM_DB.test(`${feeds} ${seg.words.slice(i).join(" ")}`))) form = "a database reset or delete command";
+    if (seg.words.some((_, i) => writesDb(seg.words, i, cmd, false)) || seg.words.some((_, i) => isRm(seg.words, i) && (RM_DB.test(seg.words.slice(i).join(" ")) || (seg.words.slice(0, i).some((w) => base(w) === "xargs") && FIND_DB.test(feeds))))) form = "a database reset or delete command";
     for (let i = 0; i < seg.words.length && !form && !reads; i++) {
       const tool = base(seg.words[i]), args = seg.words.slice(i + 1), line = seg.words.slice(i).join(" ");
       if (CLI.some(([word, re]) => word.test(tool) && (re.test(line) || (/^mongo/.test(tool) && sqlFiles(tool, seg.words, i).some((f) => re.test(read(f) ?? ""))))) || (tool === "dropdb" && (args.length || cmd?.at === i))) form = "a database reset or delete command";
