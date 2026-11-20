@@ -424,3 +424,8 @@ test("stdin given as 0< reads the file like <", () => {
   for (const c of ["psql 0< fd0.sql", "psql 0<fd0.sql", "psql mydb 0< fd0.sql"]) assert.ok(asks(c), c);
   assert.ok(allowed("psql 0< missing.sql"));
 });
+
+test("cat of a file stays allowed into xargs rm; only its literals feed", () => {
+  assert.ok(allowed("cat app.db | xargs rm tmp.txt"));
+  assert.ok(asks("cat <<<app.db | xargs rm"));
+});

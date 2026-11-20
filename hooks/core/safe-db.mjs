@@ -106,8 +106,10 @@ export function decide(ev, ctx) {
     const feeds = fedWords;
     const own = `${sqlText(seg.words)};\n${seg.doc}`, input = fed, inFiles = fedFiles;
     fed = seg.pipe ? `${fed};\n${own}` : "";
-    // a stage that reads content (a client, cat) does not feed names; any other stage might, so its words count
-    fedWords = seg.pipe ? `${fedWords} ${CLIENT.test(cmd?.word) || cmd?.word === "cat" ? "" : seg.words.join(" ")}` : "";
+    // a client reads content and does not feed names; any other stage might, so its words count
+    // cat prints its <<< words and heredoc text as they are, so they feed; the files it reads are unknown
+    const lits = cmd?.word === "cat" ? [...seg.words.flatMap((w, i) => w === "<<<" ? [seg.words[i + 1] ?? ""] : w.startsWith("<<<") ? [w.slice(3)] : []), seg.doc].join(" ") : "";
+    fedWords = seg.pipe ? `${fedWords} ${CLIENT.test(cmd?.word) ? "" : cmd?.word === "cat" ? lits : seg.words.join(" ")}` : "";
     fedFiles = seg.pipe ? [...fedFiles, ...names] : [];
     // the command word only reads: a text filter, or which, type and command -v looking a command up; no word in its arguments is a tool or a client
     const reads = TEXT_FILTER.test(cmd?.word) || /^(?:which|type)$/.test(cmd?.word) || (/^-[vV]$/.test(seg.words[cmd?.at - 1]) && base(seg.words[cmd.at - 2] ?? "") === "command");
