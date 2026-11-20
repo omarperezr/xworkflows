@@ -416,9 +416,9 @@
         }
       ],
       "files": {
-        "hooks/core/orchestrator.mjs": "92a593038e04b70a7e23ace0206d098f06b925a28c954b0abdfd5e61e69d6b4d"
+        "hooks/core/orchestrator.mjs": "f2110b5d226c7f0ecadf4c15ca970ad3e623105969493ddf17c7ce76bba5dca0"
       },
-      "sha256": "13a5b2d692cbdef1941a5c699b1fe86b21a1c11a6644f6ee842ca927ab1070af"
+      "sha256": "8977b13ce372a2051707263c84aa3a17047d9e8b554a5604373fa57e083dee80"
     },
     {
       "id": "handback",
@@ -817,12 +817,12 @@
         ]
       },
       "files": {
-        "checks/run.mjs": "4ad2bb45ecf5bbdf0e1f007ff6b656ff16994bce07e2212fd4ecc22acadacb4c",
+        "checks/run.mjs": "fdc19082f935b0ef85b224b00d883932b46f71214c40035f25e28d010fee6d05",
         "checks/comment-lines.mjs": "7cc1262dc37358f5c2436e47f3808baa4af7c39d5579d5c428996c90c446dcf7",
         "checks/signature.mjs": "369f1c717d975692f082dc71d05540a2279408807969254f987ae01a0ef5d28f",
         "checks/review-seal.mjs": "017e45de3cc3c59cd8942faad87005b7b42863ae8f01b5d65e72dfba3ea40cea",
         "checks/goal-cited.mjs": "567faa04ca55aa4b2fa2882e424febc9280f01b3c71f427fd6f07f2a52b38c06",
-        "checks/pending.mjs": "c46bfb701ab1561d06f9f55b8fe1cf8ef535948e1971d7f9f15af6f164ef6a35",
+        "checks/pending.mjs": "d6e0c2581d34c157a73fdd0302eaa96944b70c7367a43528638f7ad5b6410c5f",
         "checks/fix-has-test.mjs": "63ba9b3dbbf9251be58632b667ed69f611aa0c6a7fb6c893a114c1a2610defc4",
         "checks/change-size.mjs": "be1366d8e2f5fa80b0616cf4a22c660526316b988df38d28643c31c46ac8b855",
         "checks/comment-ratio.mjs": "20112da90275485c4cfa149cb2164517aa308873b49a97d1f5d8c98f9a621310",
@@ -834,7 +834,7 @@
         "checks/index-current.mjs": "e76348a0862428fa5ee2754746a77a5bddb0a734a9ac037668cb5837977a10be",
         "checks/project.mjs": "3756970ca6af156dc599cdae8afcb7f2adc0982d5be72cb0c79b04d2777ce901"
       },
-      "sha256": "13996a5565d7b709c27fc007c90fc588d8f4e19439596c318e1be9caaf75c36d"
+      "sha256": "3ae877dad4e1bf250b74ac9e6142d548b7acc511763ff10b8a1a5e5bb043d2b1"
     },
     {
       "id": "lint",
