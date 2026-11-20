@@ -76,3 +76,28 @@ test("pack: a manifest that does not parse at the merge-base is a warning, not a
   assert.equal(r.status, 0);
   assert.match(r.stderr, /^warn: .*manifest/m);
 });
+
+const quiet = (r) => { assert.equal(r.status, 0); assert.doesNotMatch(r.stderr, /^warn:/m); };
+
+test("pack: a repository with no commit passes without a warning", () => {
+  const copy = packedCopy();
+  quiet(spawnSync("node", [join(copy, "bin/xworkflows.mjs"), "pack"], { cwd: copy, env: isoEnv(), input: "", encoding: "utf8" }));
+});
+
+test("pack: an orphan branch with no merge-base passes without a warning", () => {
+  const { g, run } = branchCopy();
+  g("checkout", "-q", "--orphan", "orph");
+  g("commit", "-qam", "root");
+  quiet(run());
+});
+
+test("pack: no manifest at the merge-base passes without a warning", () => {
+  const { g, run, write, m } = branchCopy();
+  g("checkout", "-q", "main");
+  g("rm", "-q", "manifest.json");
+  g("commit", "-qm", "no manifest");
+  g("checkout", "-q", "work");
+  g("reset", "-q", "--hard", "main");
+  write(m);
+  quiet(run());
+});
