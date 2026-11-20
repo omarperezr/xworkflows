@@ -51,12 +51,29 @@ function pack(check) {
     if (f.endsWith(".test.mjs") || f.startsWith("hooks/fixtures/") || listed.has(f)) continue;
     errs.push(`${f} belongs to no piece`);
   }
-  // a hook id of the manifest at HEAD that this one drops must be listed as retired: a stale copy never unwires a hook it did not retire
+  // a hook id of the manifest at the merge-base with the main branch that this one drops must be listed as retired: a stale copy never unwires a hook it did not retire
+  // (HEAD already holds the change once it is committed on the branch)
   const hooks = (x) => x.pieces.filter((p) => p.claude?.length).map((p) => p.id);
-  try {
-    const head = JSON.parse(execFileSync("git", ["show", "HEAD:manifest.json"], { cwd: PKG, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }));
-    for (const id of hooks(head)) if (!hooks(m).includes(id) && !(m.retiredHooks ?? []).includes(id)) errs.push(`hook ${id} is in the manifest at HEAD and not in this one: list it in retiredHooks`);
-  } catch {} // no commit or no manifest there: nothing to compare
+  const git = (...a) => spawnSync("git", a, { cwd: PKG, encoding: "utf8" });
+  const warn = (t) => console.error(`warn: ${t}`);
+  let main = DEFAULTS.mainBranch;
+  try { main = loadConfig(PKG).mainBranch; } catch {} // a config that does not parse is said by the other readers
+  if (git("rev-parse", "-q", "--verify", "HEAD").status === 0) { // no commit: nothing to compare
+    const mb = git("merge-base", "HEAD", main);
+    if (mb.status === 1) {} // no common commit: nothing to compare
+    else if (mb.status !== 0) warn(`git merge-base HEAD ${main} failed: retired hooks are not checked`);
+    else {
+      const at = `${mb.stdout.trim()}:manifest.json`;
+      const ls = git("ls-tree", "--name-only", mb.stdout.trim(), "--", "manifest.json");
+      if (ls.status !== 0) warn("git ls-tree failed: retired hooks are not checked");
+      else if (ls.stdout.trim()) { // no manifest there: nothing to compare
+        try {
+          const old = JSON.parse(git("show", at).stdout);
+          for (const id of hooks(old)) if (!hooks(m).includes(id) && !(m.retiredHooks ?? []).includes(id)) errs.push(`hook ${id} is in the manifest at the merge-base with ${main} and not in this one: list it in retiredHooks`);
+        } catch { warn(`${at} does not read: retired hooks are not checked`); }
+      }
+    }
+  }
   if (errs.length) die(1, errs.join("\n"));
   const out = JSON.stringify({ name: m.name, version: pkgVersion, marketplaces: m.marketplaces, plugins: m.plugins, retiredHooks: m.retiredHooks, pieces }, null, 2) + "\n";
   const cur = readFileSync(join(PKG, "manifest.json"), "utf8");
