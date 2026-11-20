@@ -147,7 +147,7 @@ flowchart LR
 | | Count | Where |
 |---|---|---|
 | Skills | 14 | `.claude/skills/` |
-| Agents | 9 | `.claude/agents/` |
+| Agents | 12 | `.claude/agents/` |
 | Hooks | 7 | `.xworkflows/hooks/`, registered in `.claude/settings.json` |
 | Push checks | 14, plus 3 optional tool packs | `.xworkflows/checks/`, run by `.git/hooks/pre-push` |
 
@@ -167,7 +167,7 @@ Between sessions, `/dream` improves the agent's notes from past sessions, on a b
 | `fix-has-test` | a `fix` commit has no test, or its test also passes without the fix |
 | `change-size` | a branch changes more than 800 code lines (it warns at 400) |
 | `comment-ratio` | more than 20 % of the new code lines are comments |
-| `skills-travel` | an agent names a skill that is not committed in the repository |
+| `skills-travel` | an agent names a skill that is not committed in the repository, or a `plugin:skill` whose plugin is not in `enabledPlugins` as `<plugin>@<marketplace>` in the committed `.claude/settings.json` |
 | `patterns` | a new line matches a pattern your project forbids |
 | `ratchet` | a debt your project counts went up |
 | `graph-current` | the code graph is older than the pushed commit |

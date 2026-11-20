@@ -742,7 +742,7 @@ The same script in all four tools, run by git `pre-push`. It fails the push on:
 | `signature` | A commit in the range carries an AI author or co-author line |
 | `fix-has-test` | A `fix` commit that touches code carries no test in the same commit, **or its tests also pass on the parent commit** (they are run there, in a throwaway worktree, and must fail). Escape: a `no-test: <reason>` line in the commit body |
 | `comment-ratio` | More than 20 % of the new code lines in the push are comments; `shortcut:` comments do not count |
-| `skills-travel` | An agent definition names a skill that is not in git, so it would start without it on another machine |
+| `skills-travel` | An agent definition names a skill that is not in git, or a `plugin:skill` whose plugin is not in `enabledPlugins` (key `<plugin>@<marketplace>`) of the `.claude/settings.json` of the pushed commit, so it would start without it on another machine; settings that cannot be read exit 2 |
 | `patterns` | A new line in the range matches a pattern the project forbids (list in `config.json`); replaces tests that match source text |
 | `ratchet` | A counted debt the project declares (list in `config.json`) went up; it may only go down |
 | `stale-memory` | A memory file names a path that no longer exists in the repository |
