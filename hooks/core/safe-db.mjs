@@ -105,8 +105,8 @@ export function decide(ev, ctx) {
     const feeds = fedWords;
     const own = `${sqlText(seg.words)};\n${seg.doc}`, input = fed, inFiles = fedFiles;
     fed = seg.pipe ? `${fed};\n${own}` : "";
-    // only a command that lists names feeds names: a database a client or cat merely reads is not one
-    fedWords = seg.pipe ? `${fedWords} ${/^(?:find|ls|echo|printf)$/.test(cmd?.word) ? seg.words.join(" ") : ""}` : "";
+    // a stage that reads content (a client, cat) does not feed names; any other stage might, so its words count
+    fedWords = seg.pipe ? `${fedWords} ${CLIENT.test(cmd?.word) || cmd?.word === "cat" ? "" : seg.words.join(" ")}` : "";
     fedFiles = seg.pipe ? [...fedFiles, ...names] : [];
     // the command word only reads: a text filter, or which, type and command -v looking a command up; no word in its arguments is a tool or a client
     const reads = TEXT_FILTER.test(cmd?.word) || /^(?:which|type)$/.test(cmd?.word) || (/^-[vV]$/.test(seg.words[cmd?.at - 1]) && base(seg.words[cmd.at - 2] ?? "") === "command");
