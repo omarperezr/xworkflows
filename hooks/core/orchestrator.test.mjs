@@ -91,6 +91,13 @@ test("shell: cat of heavyRead denies, git/wc/grep -c pass", () => {
   assert.ok(allowed(decide(sh("wc -l src/a.ts; grep -c x src/a.ts"), mk())));
 });
 
+test("a subagent write to a moved paths.business is denied, whatever curated lists", () => {
+  const moved = { ...cfg, paths: { ...cfg.paths, business: "docs/B.md", curated: ["AGENTS.md"] } };
+  const w = (path) => ev("write", { isSubagent: true, writes: [{ path, content: "x" }] });
+  assert.ok(denied(decide(w("/r/docs/B.md"), mk({ config: moved })), /curated/));
+  assert.ok(allowed(decide(w("/r/docs/OTHER.md"), mk({ config: moved }))));
+});
+
 test("subagent passes everything except a write under curated", () => {
   const sub = (kind, x = {}) => ev(kind, { isSubagent: true, ...x });
   for (const e of [sub("web"), sub("agent", { agent: "explore" }), sub("read", { path: "src/a.ts" })]) assert.ok(allowed(decide(e, mk({ marks: [], files: {} }))));

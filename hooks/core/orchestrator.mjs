@@ -38,7 +38,7 @@ export function decide(ev, ctx) {
       });
       if (away) return deny(`${away.path} is outside the memory folder of the run's branch: ${ev.agent} writes only under ${mems.join(" or ")}.`);
     }
-    const bad = (ev.writes ?? []).find((w) => under(w.path, config.paths.curated));
+    const bad = (ev.writes ?? []).find((w) => under(w.path, [...config.paths.curated, config.paths.business]));
     return bad ? deny(`${bad.path} is curated by ${config.owner}: report the change you wanted instead.`) : allow;
   }
   if (ev.event === "prompt") {
