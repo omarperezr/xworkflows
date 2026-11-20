@@ -429,3 +429,8 @@ test("cat of a file stays allowed into xargs rm; only its literals feed", () => 
   assert.ok(allowed("cat app.db | xargs rm tmp.txt"));
   assert.ok(asks("cat <<<app.db | xargs rm"));
 });
+
+test("one feed rule: any stage before xargs rm feeds its words and heredoc text; the xargs heredoc feeds too", () => {
+  for (const c of ["sort <<'EOF' | xargs rm\napp.db\nEOF", "tac <<EOF | xargs rm\napp.db\nEOF", "xargs rm <<'EOF'\napp.db\nEOF", "cat 0<<<app.db | xargs rm", "cat 0<<< app.db | xargs rm"]) assert.ok(asks(c), c);
+  for (const c of ["cat app.db | xargs rm tmp.txt", "sort <<'EOF' | xargs rm\ntmp.txt\nEOF", "xargs rm <<'EOF'\ntmp.txt\nEOF"]) assert.ok(allowed(c), c);
+});
