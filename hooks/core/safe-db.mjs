@@ -54,15 +54,16 @@ function sqlForm(text) {
 // the SQL files a statement reads, as [name, relative]: psql \i x, \include x, \ir x, \include_relative x (relative: from the including file's folder), mysql source x, \. x; quotes around the name go
 const includes = (text) => text.split(/[;\n]/).flatMap((st) => { const m = /^\s*(?:\\(i|ir|include|include_relative|\.)|(\.read|source))\s+(\S+)\s*$/i.exec(st); return m ? [[m[3].replace(/^(["'])(.*)\1$/, "$2"), /^(?:ir|include_relative)$/i.test(m[1] ?? "")]] : []; });
 
-// the files a client's words name as SQL input: -f x, -fx, --file=x, --file x and sqlcmd -i x,y after the client at `at`, and < x, <x anywhere
+// the files a client's words name as SQL input, as [name, stdin]: -f x, -fx, --file=x, --file x and sqlcmd -i x,y after the client at `at`, and < x, <x anywhere (stdin: psql resolves \ir from the working folder, not the file's)
 function sqlFiles(tool, words, at) {
   const out = [];
   words.forEach((w, i) => {
-    const after = i > at, m = (after && /^(?:-f|--file=)(.+)$/.exec(w)) || /^<([^<].*)$/.exec(w);
-    if (m) out.push(m[1]);
-    else if (after && /^mongo/.test(tool) && /\.js$/.test(w)) out.push(w);
-    else if ((after && (w === "-f" || w === "--file")) || w === "<") { if (words[i + 1]) out.push(words[i + 1]); }
-    else if (after && tool === "sqlcmd" && w === "-i" && words[i + 1]) out.push(...words[i + 1].split(","));
+    const after = i > at, f = after && /^(?:-f|--file=)(.+)$/.exec(w), r = /^<([^<].*)$/.exec(w);
+    if (f) out.push([f[1], false]);
+    else if (r) out.push([r[1], true]);
+    else if (after && /^mongo/.test(tool) && /\.js$/.test(w)) out.push([w, false]);
+    else if (w === "<" || (after && (w === "-f" || w === "--file"))) { if (words[i + 1]) out.push([words[i + 1], w === "<"]); }
+    else if (after && tool === "sqlcmd" && w === "-i" && words[i + 1]) out.push(...words[i + 1].split(",").map((n) => [n, false]));
   });
   return out;
 }
@@ -114,13 +115,13 @@ export function decide(ev, ctx) {
     if (seg.words.some((_, i) => writesDb(seg.words, i, cmd, false)) || seg.words.some((_, i) => isRm(seg.words, i) && (RM_DB.test(seg.words.slice(i).join(" ")) || (seg.words.slice(0, i).some((w) => base(w) === "xargs") && FIND_DB.test(feeds))))) form = "a database reset or delete command";
     for (let i = 0; i < seg.words.length && !form && !reads; i++) {
       const tool = base(seg.words[i]), args = seg.words.slice(i + 1), line = seg.words.slice(i).join(" ");
-      if (CLI.some(([word, re]) => word.test(tool) && (re.test(line) || (/^mongo/.test(tool) && sqlFiles(tool, seg.words, i).some((f) => re.test(read(f) ?? ""))))) || (tool === "dropdb" && (args.length || cmd?.at === i))) form = "a database reset or delete command";
+      if (CLI.some(([word, re]) => word.test(tool) && (re.test(line) || (/^mongo/.test(tool) && sqlFiles(tool, seg.words, i).some(([f]) => re.test(read(f) ?? ""))))) || (tool === "dropdb" && (args.length || cmd?.at === i))) form = "a database reset or delete command";
       else if ((CLIENT.test(tool) || (tool === "prisma" && /\bdb\s+execute\b/.test(line)))) {
         const text = `${sqlText(args)};\n${seg.doc};\n${input};\n${inFiles.map(read).filter((t) => typeof t === "string").join(";\n")}`;
         const seen = new Set();
         form = scan(text, 0, seen);
         // the whole segment, not the words after the tool: `<bad.sql psql` redirects before it
-        if (!form) for (const f of sqlFiles(tool, seg.words, i)) { const code = read(f); if (typeof code === "string" && (form = scan(code, 1, seen, dirname(resolve(dir, f))))) { form = `${form} in ${f}`; break; } }
+        if (!form) for (const [f, stdin] of sqlFiles(tool, seg.words, i)) { const code = read(f); if (typeof code === "string" && (form = scan(code, 1, seen, stdin ? dir : dirname(resolve(dir, f))))) { form = `${form} in ${f}`; break; } }
         if (!form && seg.words.some((_, j) => writesDb(seg.words, j, cmd, true))) form = "a database reset or delete command";
       }
     }
