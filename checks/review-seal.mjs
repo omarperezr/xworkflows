@@ -20,7 +20,7 @@ export function run(range, ctx) {
   const riskFile = (f) => inPaths(f, paths.risk) && !f.endsWith(".md") && !inPaths(f, tests.files);
   const line = (c) => ctx.git("log", "-1", "--format=%h %s", c);
   const unsealed = [];
-  let risk = false;
+  let risk = false, underRisk = false;
   const riskFiles = [];
   for (const c of range.commits) {
     const files = ctx.git("diff-tree", "--cc", "--root", "--no-commit-id", "--name-only", "-r", "-z", c).split("\0").filter(Boolean);
@@ -28,9 +28,11 @@ export function run(range, ctx) {
     if (!isCode) continue;
     const touchesRisk = files.some(riskFile);
     const escaped = ctx.git("log", "-1", "--format=%b", c).split("\n").some((l) => /^no-review: \S/.test(l));
-    if (escaped && !touchesRisk) continue;
+    const inRisk = files.some((f) => inPaths(f, paths.risk) && !f.endsWith(".md"));
+    if (escaped && !inRisk) continue;
     if (commentOnly(ctx, c)) continue;
     risk ||= touchesRisk;
+    underRisk ||= inRisk;
     riskFiles.push(...files.filter(riskFile));
     unsealed.push(c);
   }
@@ -63,7 +65,7 @@ export function run(range, ctx) {
       "code without a final review seal:",
       ...unsealed.map((c) => `  ${line(c)}`),
       `add the line "${risk ? roles.riskReviewer : roles.reviewer} ok at <sha>" to a file under ${paths.plans} or ${paths.specs}, with <sha> equal to or after every commit above (role: ${who})${risk ? `; a "${roles.reviewer} ok at <sha>" line counts only after a "${roles.riskReviewer} ok at <sha>" line of the same file` : ""}`,
-      risk ? "a commit touching the risk paths takes no no-review: escape" : "or put a body line \"no-review: <reason>\" in a commit",
+      underRisk ? "a commit under the risk paths takes no no-review: escape" : "or put a body line \"no-review: <reason>\" in a commit",
     ],
   };
 }

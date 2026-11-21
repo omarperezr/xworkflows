@@ -276,3 +276,23 @@ test("a risk code file with its test still needs the risk reviewer", () => withR
   seal(repo, `risk-review ok at ${c}`, "docs/superpowers/plans/q.md");
   assert.equal((await repo.run(mod)).ok, true);
 }));
+
+test("a test-only commit under paths.risk takes no no-review: escape, and any reviewer's seal counts", () => withRepo(async (repo) => {
+  const c = repo.commit("test: m", { files: { "db/m.test.sql": "select 1;\n" }, body: "no-review: trivial" });
+  const r = await repo.run(mod);
+  assert.equal(r.ok, false);
+  assert.ok(r.lines.some((l) => l.includes("test: m")));
+  assert.ok(r.lines.some((l) => l.includes("takes no no-review: escape")));
+  seal(repo, `review-small ok at ${c}`);
+  assert.deepEqual(await repo.run(mod), { ok: true, lines: [] });
+}));
+
+test("a test file outside paths.riskLite does not stop a lite seal for the risk code of the range", async () => {
+  const cfg = { ...LITE, tests: { files: ["db/*.test.sql", "auth/*.test.sql"] } };
+  const repo = makeRepo({ config: cfg, files });
+  try {
+    const c = repo.commit("db: m", { files: { "db/m.sql": "select 2;\n", "auth/x.test.sql": "select 1;\n" } });
+    seal(repo, `risk-review-lite ok at ${c}`);
+    assert.deepEqual(await repo.run(mod), { ok: true, lines: [] });
+  } finally { repo.cleanup(); }
+});
