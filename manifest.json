@@ -677,9 +677,9 @@
         "claude"
       ],
       "files": {
-        "skills/orchestrate/SKILL.md": "2d482535ebcda09277532f7ddc7dac27252b105054e878cdb9b9193c484aca71"
+        "skills/orchestrate/SKILL.md": "445c3df158e257925b02da9f29e79379ee48c8c5eee9a3e2bbf5f49437ea6c9e"
       },
-      "sha256": "c50adc415a96915ebd9fc50182da4de75caca537c8b0061979cd049f6333aa99"
+      "sha256": "18312b0db67d9dadf9a145e4c024c0507f4f7536c15b1adc3e38cc54fd72bef8"
     },
     {
       "id": "handoff",
@@ -820,7 +820,7 @@
         "checks/run.mjs": "fdc19082f935b0ef85b224b00d883932b46f71214c40035f25e28d010fee6d05",
         "checks/comment-lines.mjs": "7cc1262dc37358f5c2436e47f3808baa4af7c39d5579d5c428996c90c446dcf7",
         "checks/signature.mjs": "369f1c717d975692f082dc71d05540a2279408807969254f987ae01a0ef5d28f",
-        "checks/review-seal.mjs": "017e45de3cc3c59cd8942faad87005b7b42863ae8f01b5d65e72dfba3ea40cea",
+        "checks/review-seal.mjs": "2b9a28e27bdd1c7e28e2bef43551130aef10688ecb82118a349458b0fb06e33e",
         "checks/goal-cited.mjs": "567faa04ca55aa4b2fa2882e424febc9280f01b3c71f427fd6f07f2a52b38c06",
         "checks/pending.mjs": "d6e0c2581d34c157a73fdd0302eaa96944b70c7367a43528638f7ad5b6410c5f",
         "checks/fix-has-test.mjs": "63ba9b3dbbf9251be58632b667ed69f611aa0c6a7fb6c893a114c1a2610defc4",
@@ -834,7 +834,7 @@
         "checks/index-current.mjs": "e76348a0862428fa5ee2754746a77a5bddb0a734a9ac037668cb5837977a10be",
         "checks/project.mjs": "3756970ca6af156dc599cdae8afcb7f2adc0982d5be72cb0c79b04d2777ce901"
       },
-      "sha256": "1a50bb48dd92a47a860a8f4503b2e6582e298516d623ec0c59797789fb985575"
+      "sha256": "ea3238720d99e1c4eb868d544925f2263657db4dd5d3f0a87304634198ed2fb2"
     },
     {
       "id": "lint",
