@@ -76,13 +76,13 @@ Change the plan only on the batch branch: the merge then carries the pending lis
 
 ## Risk reviewer by path
 
-When `paths.riskLite` is not empty, review step 1 sends a batch that touches `paths.risk` to `roles.riskReviewerLite` instead of `roles.riskReviewer` only when every risk path it touches is in `paths.riskLite`; a batch that touches one risk path outside that list gets the full one. Everything else about the risk reviewer holds for the lite one.
+When `paths.riskLite` is not empty, review step 1 sends a batch that touches a risk file (a `paths.risk` file that `tests.files` does not match, as in step 1) to `roles.riskReviewerLite` instead of `roles.riskReviewer` only when every risk path it touches is in `paths.riskLite`; a batch that touches one risk path outside that list gets the full one. Everything else about the risk reviewer holds for the lite one.
 
 ## Review
 
 One review per batch, before the batch merges.
 
-1. Pick the reviewer: `roles.riskReviewer` when the batch touches `paths.risk`; `roles.smallReviewer` when the batch changes under 50 code lines (the `paths.nonCode` count rule of `plan`) and touches no `paths.risk`; otherwise `roles.reviewer`; none when the batch is docs only (every changed path under `paths.nonCode`, none under `paths.codeAnyway`).
+1. Pick the reviewer: `roles.riskReviewer` when the batch touches a `paths.risk` file that `tests.files` does not match (a test file never counts as a risk path); `roles.smallReviewer` when the batch changes under 50 code lines (the `paths.nonCode` count rule of `plan`) and touches no such `paths.risk` file; otherwise `roles.reviewer`; none when the batch is docs only (every changed path under `paths.nonCode`, none under `paths.codeAnyway`).
 2. Commit every task, note `<reviewed sha>` (the `HEAD` of the batch branch) and dispatch; the risk reviewer's first review of a batch runs at effort `xhigh`. The prompt names the plan or spec file, the range `<mainBranch>...<reviewed sha>` and the commit id to review. The hook denies the risk reviewer when its prompt names no `.md` file under `paths.plans` or `paths.specs`, and when it already ran on the same named commit at the same root `HEAD`: it never runs twice on one commit.
 3. Sort the findings. Only an error of the app, money, permissions or data blocks; the rest become cards.
    - `blocking`: dispatch `roles.verifier` with the finding and a short id of letters, digits and `-`. The finding enters the plan, as a fix task, only after the answer `red: <test path> <command>`; that test is on branch `verify/<id>`. On any `discarded:`, the finding does not enter the plan: write a card with the verifier's reason, and on `cannot run here` also tell the owner in one line.
@@ -108,4 +108,4 @@ An ok is a review or a confirmation that leaves no `blocking` finding open. Afte
 
 `<role>` is the value of `roles.riskReviewer`, `roles.riskReviewerLite`, `roles.reviewer` or `roles.smallReviewer`, whichever gave the ok. A risk batch has two lines in this order: `risk-review ok at <first sha>` (the risk reviewer's value of `<role>`, the `HEAD` it read), then `review ok at <fix sha>` after the fresh `roles.reviewer` confirms the fixes. With no blocking finding the risk line alone stands. `<sha>` is the `HEAD` it read, 7 to 40 hex digits. Commit that line and nothing else.
 
-The `review-seal` brake refuses a push to `mainBranch` unless every code commit is that sha or an ancestor of it, and, when a commit touches `paths.risk`, takes a `roles.reviewer` seal only after a `roles.riskReviewer` seal (a `roles.riskReviewerLite` seal counts only when every risk path of the range is in `paths.riskLite`) of the same batch's range, and never a `roles.smallReviewer` seal. A code commit after `<sha>` needs its own confirmation and a new seal line.
+The `review-seal` brake refuses a push to `mainBranch` unless every code commit is that sha or an ancestor of it, and, when a commit touches a risk file (a `paths.risk` file that `tests.files` does not match, as in step 1), takes a `roles.reviewer` seal only after a `roles.riskReviewer` seal (a `roles.riskReviewerLite` seal counts only when every risk path of the range is in `paths.riskLite`) of the same batch's range, and never a `roles.smallReviewer` seal. A code commit after `<sha>` needs its own confirmation and a new seal line.

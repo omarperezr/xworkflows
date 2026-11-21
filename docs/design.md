@@ -415,7 +415,7 @@ a valid answer. The reference column is not the default (owner, 2026-11-11).
 | `paths.pending` | The living list | another name; default `docs/PENDING.md` |
 | `paths.code` | Folders where a fix needs a test | its five code folders |
 | `paths.nonCode`, `paths.codeAnyway` | What needs no review, and its exceptions | docs, markdown and `.gitignore`; hooks and settings |
-| `paths.risk` | A change here accepts only the risk reviewer and no escape | the database folder, its tests and the migration script |
+| `paths.risk` | A change here accepts only the risk reviewer and no escape. A file `tests.files` matches never counts as risk: it accepts any reviewer's seal, still with no escape | the database folder and the migration script |
 | `paths.heavyRead` | Folders the main session may not read at length | its two largest code folders |
 | `paths.curated` | Files only the main session may change | new: instructions, rules, the business file |
 | `roles.reviewer`, `roles.riskReviewer`, `roles.implementers`, `roles.lookup` | Agent names per role | a reviewer, a risk reviewer, two implementers, the tool's read-only agent |

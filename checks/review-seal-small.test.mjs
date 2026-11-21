@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import * as mod from "./review-seal.mjs";
 import { makeRepo } from "../test/helpers/repo.mjs";
 
-const config = { paths: { code: ["src"], risk: ["db/"], codeAnyway: [".claude/hooks/"] } };
+const config = { paths: { code: ["src"], risk: ["db/"], codeAnyway: [".claude/hooks/"] }, tests: { files: [] } };
 const PLAN = "docs/superpowers/plans/p.md";
 
 test("review-small ok seals a non-risk commit and not a risk commit", async () => {
