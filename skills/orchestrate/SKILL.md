@@ -76,7 +76,7 @@ Change the plan only on the batch branch: the merge then carries the pending lis
 
 ## Risk reviewer by path
 
-When `paths.riskLite` is not empty, review step 1 sends a batch that touches `paths.risk` (test files left out, as in step 1) to `roles.riskReviewerLite` instead of `roles.riskReviewer` only when every risk path it touches is in `paths.riskLite`; a batch that touches one risk path outside that list gets the full one. Everything else about the risk reviewer holds for the lite one.
+When `paths.riskLite` is not empty, review step 1 sends a batch that touches a risk file (a `paths.risk` file that `tests.files` does not match, as in step 1) to `roles.riskReviewerLite` instead of `roles.riskReviewer` only when every risk path it touches is in `paths.riskLite`; a batch that touches one risk path outside that list gets the full one. Everything else about the risk reviewer holds for the lite one.
 
 ## Review
 
@@ -108,4 +108,4 @@ An ok is a review or a confirmation that leaves no `blocking` finding open. Afte
 
 `<role>` is the value of `roles.riskReviewer`, `roles.riskReviewerLite`, `roles.reviewer` or `roles.smallReviewer`, whichever gave the ok. A risk batch has two lines in this order: `risk-review ok at <first sha>` (the risk reviewer's value of `<role>`, the `HEAD` it read), then `review ok at <fix sha>` after the fresh `roles.reviewer` confirms the fixes. With no blocking finding the risk line alone stands. `<sha>` is the `HEAD` it read, 7 to 40 hex digits. Commit that line and nothing else.
 
-The `review-seal` brake refuses a push to `mainBranch` unless every code commit is that sha or an ancestor of it, and, when a commit touches `paths.risk` (test files left out, as in step 1), takes a `roles.reviewer` seal only after a `roles.riskReviewer` seal (a `roles.riskReviewerLite` seal counts only when every risk path of the range is in `paths.riskLite`) of the same batch's range, and never a `roles.smallReviewer` seal. A code commit after `<sha>` needs its own confirmation and a new seal line.
+The `review-seal` brake refuses a push to `mainBranch` unless every code commit is that sha or an ancestor of it, and, when a commit touches a risk file (a `paths.risk` file that `tests.files` does not match, as in step 1), takes a `roles.reviewer` seal only after a `roles.riskReviewer` seal (a `roles.riskReviewerLite` seal counts only when every risk path of the range is in `paths.riskLite`) of the same batch's range, and never a `roles.smallReviewer` seal. A code commit after `<sha>` needs its own confirmation and a new seal line.
