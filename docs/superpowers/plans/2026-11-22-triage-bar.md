@@ -39,6 +39,7 @@ Spec: none; card P-239 of docs/PENDING.md and the owner's answers below are the 
 - The agent gets only the bar of `skills/pending/SKILL.md` and, without being told which is which, the 43 dropped cards (36 of 3f9026c, 7 of 5bf3bfb) and the 43 newest cards closed as fixed, minus any card T1 used as an example (replaced by the next one). It returns one row per card.
 - No thresholds. Each card on the opposite side (fixed and set `drop`, dropped and set `blocking` or `pending`) goes to the owner in plain words: what the card said, which row it got, why. The owner says for each whether it was right or not. Only the ones the owner calls wrong change the examples of T1, and only those are run again.
 - Done: the owner has judged every opposite card, and the examples hold each answer.
+- Owner, 2026-11-22: "las 30 a 36 no cuentan" — P-198, P-204, P-217, P-220, P-222, P-224, P-227 were work the owner ordered, not review findings; the bar never judges them. They are out of the proof, and no example of the bar comes from them. A rerun of the proof samples only cards that came from a review.
 
 After T1 to T3 the main session refreshes this repo's own copy of the method (as 7394a87 did), runs `node bin/xworkflows.mjs pack` and commits the manifest; `node bin/xworkflows.mjs pack --check` prints nothing and the tests pass.
 
