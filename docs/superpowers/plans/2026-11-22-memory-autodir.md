@@ -8,6 +8,7 @@ Spec: none; card P-237 of docs/PENDING.md and the owner's answer below are the w
 
 - "memory.autoDirectory: false" (the owner, 2026-11-22): a new config key `memory.autoDirectory`, default `true`. When it is `false`, `install` writes no `autoMemoryDirectory` into `.claude/settings.local.json` and `doctor` does not ask for it. Every other memory behaviour stays as it is.
 - The memory job starts whenever `memory.before` or `memory.index` is set, even when the notes folder does not exist.
+- Owner, 2026-11-22, after the risk review of 8c2b079: finding 1 "Dejarlo y anotarlo"; findings 2 and 3 "Prueba y ajuste"; finding 4 "Dejarlo".
 
 ## Tasks
 
@@ -32,12 +33,26 @@ Spec: none; card P-237 of docs/PENDING.md and the owner's answer below are the w
 
 After T1 to T3 the main session runs `node bin/xworkflows.mjs pack` and commits the manifest; `node bin/xworkflows.mjs pack --check` prints nothing and `node --test` passes.
 
+**T4: the job starts only on a `memory.before` it can run** (risk review of 8c2b079, findings 2 and 3)
+- Files: `hooks/core/memory.mjs`, `hooks/core/memory.test.mjs`
+- Role: implement
+- `rebuild` counts `memory.before` as set only when it is a non-empty list, as `hooks/core/memory-job.mjs:44-45` runs it; drop the `?? {}` that never fires (line 16). The test "a missing memory folder: nothing to do" runs with `memory: DEFAULTS.memory`.
+- Done: `node --test hooks/core/memory.test.mjs` passes, with a case where `memory.before` is a text, there is no notes folder, and nothing starts.
+
+**T5: the design row says what an earlier install leaves** (finding 1)
+- Files: `docs/design.md`
+- Role: main session
+- Done: the `memory.autoDirectory` row says that an `autoMemoryDirectory` an earlier install wrote stays when the key turns `false`, and the owner deletes it.
+
 ## Review Focus
 
 - A project with the key absent must behave exactly as today: same `settings.local.json`, same doctor lines, same uninstall.
 - The memory job now starts in a project without a notes folder: it must not create the folder or write an index inside the repository there.
 
 ## Declined findings
+
+- Finding 1 of the risk review of 8c2b079 (`bin/xworkflows.mjs:314`, a key turned `false` after an earlier install keeps that install's `autoMemoryDirectory`): the owner, "Dejarlo y anotarlo"; T5 writes it in the design row.
+- Finding 4 of the same review (only the literal `false` turns the key off): the owner, "Dejarlo", as the other yes/no keys are read.
 
 ## Seals
 
