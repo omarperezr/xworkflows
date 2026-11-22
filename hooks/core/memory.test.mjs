@@ -527,3 +527,17 @@ test("dream suggestion: a session path that is not text gives no line, throws no
     assert.match(l, /^Goals written .*\/adapt to refresh them\.$/, JSON.stringify(transcript));
   }
 });
+
+test("preCompact: with no notes folder and memory.before set, the job starts and nothing is written", () => {
+  const { ctx, calls } = fake({ config: { ...base, memory: { dir: "docs/memory", before: ["node", "x.mjs"] } } });
+  decide(ev("preCompact"), ctx);
+  assert.deepEqual(calls.bg, [[process.execPath, [job, "/r"]]]);
+  assert.deepEqual(calls.written, {});
+});
+
+test("preCompact: with no notes folder and memory.index set, the job starts and nothing is written", () => {
+  const { ctx, calls } = fake({ config: { ...base, memory: { dir: "docs/memory", index: "x" } } });
+  decide(ev("preCompact"), ctx);
+  assert.equal(calls.bg.length, 1);
+  assert.deepEqual(calls.written, {});
+});

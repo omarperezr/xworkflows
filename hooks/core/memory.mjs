@@ -13,7 +13,8 @@ function rebuild(ev, ctx) {
   const { dir } = memoryFolder(ctx.config, ev.root, ctx.outsideLine);
   if (!dir) return;
   const names = ctx.listDir(dir).filter((f) => f.endsWith(".md") && f !== "MEMORY.md");
-  if (!names.length && !ctx.exists(dir)) return;
+  const { before, index: qIndex } = ctx.config.memory ?? {};
+  if (!names.length && !ctx.exists(dir) && !(Array.isArray(before) ? before.length : before) && !qIndex) return; // a job with something to run starts even with no folder; the index below is written only when there are notes
   const files = names.flatMap((file) => { const text = read(path.join(dir, file)); return text === null ? [] : [{ file, text }]; });
   const index = path.join(dir, "MEMORY.md");
   const text = buildIndex(files);
