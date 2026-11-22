@@ -1,6 +1,7 @@
 import path from "node:path";
 import { DEFAULTS, memoryFolder } from "./config.mjs";
 import { buildIndex, header } from "./memory-index.mjs";
+import { runnable } from "./memory-job.mjs";
 
 const OWNER_ONLY = new Set(["user", "feedback"]);
 export const NOISE = /<(system-reminder|local-command-[\w-]+|command-[\w-]+|bash-stdout|bash-stderr)>[\s\S]*?<\/\1>/g;
@@ -13,12 +14,13 @@ function rebuild(ev, ctx) {
   const { dir } = memoryFolder(ctx.config, ev.root, ctx.outsideLine);
   if (!dir) return;
   const names = ctx.listDir(dir).filter((f) => f.endsWith(".md") && f !== "MEMORY.md");
-  if (!names.length && !ctx.exists(dir)) return;
+  const { before, index: qIndex } = ctx.config.memory;
+  if (!names.length && !ctx.exists(dir) && !runnable(before) && !qIndex) return; // a job with something to run starts even with no folder; the index below is written only when there are notes
   const files = names.flatMap((file) => { const text = read(path.join(dir, file)); return text === null ? [] : [{ file, text }]; });
   const index = path.join(dir, "MEMORY.md");
   const text = buildIndex(files);
   if (read(index) !== text && (text || ctx.exists(index))) ctx.writeFile(index, text);
-  ctx.background("qmd", qmd(ctx, "update"));
+  ctx.background(process.execPath, [path.join(import.meta.dirname, "memory-job.mjs"), ev.root]); // the runner does the steps; the hook returns at once
 }
 
 function typed(transcript) {

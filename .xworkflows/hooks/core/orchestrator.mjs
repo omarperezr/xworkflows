@@ -38,7 +38,7 @@ export function decide(ev, ctx) {
       });
       if (away) return deny(`${away.path} is outside the memory folder of the run's branch: ${ev.agent} writes only under ${mems.join(" or ")}.`);
     }
-    const bad = (ev.writes ?? []).find((w) => under(w.path, config.paths.curated));
+    const bad = (ev.writes ?? []).find((w) => under(w.path, [...config.paths.curated, config.paths.business]));
     return bad ? deny(`${bad.path} is curated by ${config.owner}: report the change you wanted instead.`) : allow;
   }
   if (ev.event === "prompt") {
@@ -114,7 +114,7 @@ export function decide(ev, ctx) {
       if (ctx.now() - (Number(ctx.state("index")) || 0) > minutes * 60000)
         return deny(`Ask the index first: run \`${command} "<topic>"\`; launch ${type} only if it does not answer.`);
     }
-    if (is(roles.riskReviewer)) {
+    if (is(roles.riskReviewer) || is(roles.riskReviewerLite)) {
       const dirs = [paths.plans, paths.specs].map((p) => esc(p.replace(/\/$/, ""))).join("|");
       if (!new RegExp(`(${dirs})/\\S+\\.md`).test(String(ev.prompt ?? "").replaceAll("\\", "/")))
         return deny(`${type} reviews against a plan or spec: name its .md path under ${paths.plans} or ${paths.specs}.`);

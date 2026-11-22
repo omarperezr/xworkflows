@@ -103,7 +103,7 @@ The zones question, in plain words:
 
 ### Playback
 
-1. Write the whole summary: the eight headings as `## <n>. <heading>`, plain words, one line per item, as short as it can be without dropping a detail. No line cap. Heading 5 lists every rule, one per line, grouped under the risk it prevents, so the owner can confirm or correct each. Each line ends `(code)`, `(git)` or `(you)`. Heading 6 says, for each zone, why it is or is not a risk path: the `H6-r<n>` answer (`Money`, `Data`, `Access` or `No risk`). Heading 6 also names, in one line, the model the risk reviewer runs on: the one `node <base>/research.mjs model` prints; a correction of it at `P-H6` goes through `node <base>/research.mjs model "<the owner's words for the model>"`. When that command exits 1, stop and tell the owner what it printed, as step 2 does for `render`. After heading 8, a `## Config` block lists each required key and its value. If `docs/BUSINESS.md`, a `.claude/rules/<key>.md` or a `## Project rules` section already exists, then add `## Changes to existing files`: per file, the lines step 4 adds or changes.
+1. Write the whole summary: the eight headings as `## <n>. <heading>`, plain words, one line per item, as short as it can be without dropping a detail. No line cap. Heading 5 lists every rule, one per line, grouped under the risk it prevents, so the owner can confirm or correct each. Each line ends `(code)`, `(git)` or `(you)`. Heading 6 says, for each zone, why it is or is not a risk path: the `H6-r<n>` answer (`Money`, `Data`, `Access` or `No risk`). Heading 6 also names, in one line, the model the risk reviewer runs on: the one `node <base>/research.mjs model` prints; a correction of it at `P-H6` goes through `node <base>/research.mjs model "<the owner's words for the model>"`. When that command exits 1, stop and tell the owner what it printed, as step 2 does for `render`. After heading 8, a `## Config` block lists each required key and its value. If the `paths.business` file, a `.claude/rules/<key>.md` or a `## Project rules` section already exists, then add `## Changes to existing files`: per file, the lines step 4 adds or changes.
 2. Save it to `.xworkflows/summary.md` with front matter `status: draft` and `commit: <sha research read>`. The saved draft leaves heading 8 empty; on resume, ask heading 8 again. A denied write names what is missing: fix that and save again.
 3. Show the owner the summary with a `Hotspots` list first: open doubts, research's `## Dropped` lines, the questions of screen 2 left out, the `contradicted` lines of `## Written rules and their verdicts` in `details.md`, and research's `## Not checked` (the first lines).
 4. Ask `P-H1` to `P-H7`, one per heading 1 to 7, 4 per call: header = the id, question `<heading>: right, wrong, or missing something?`, options `Right`, `Wrong`, `Missing something`, none recommended. The playback asks each heading in the owner's language; the canonical English heading stays in `summary.md`. No other options, and no `Type something` note. `P-H6` also covers the zones, the risk paths and the `## Config` block.
@@ -112,19 +112,19 @@ The zones question, in plain words:
 
 ## Step 4: Write
 
-Only after `P-H1` to `P-H7` are all `Right`. Before that, write nothing but `.graphifyignore`, `graphify-out/`, the `.xworkflows/` files of steps 2 and 3 and the draft. An existing `docs/BUSINESS.md`, `.claude/rules/<key>.md` or `## Project rules` section is merged, never overwritten: keep its lines, add or change only what the playback showed. The main session writes all of these in one step, `.xworkflows/summary.md` first (a denied write names what to ask; ask it, then write again), then the others:
+Only after `P-H1` to `P-H7` are all `Right`. Before that, write nothing but `.graphifyignore`, `graphify-out/`, the `.xworkflows/` files of steps 2 and 3 and the draft. An existing `paths.business` file, `.claude/rules/<key>.md` or `## Project rules` section is merged, never overwritten: keep its lines, add or change only what the playback showed. The main session writes all of these in one step, `.xworkflows/summary.md` first (a denied write names what to ask; ask it, then write again), then the others:
 
 | File | Content |
 |---|---|
 | `.xworkflows/summary.md` | Headings 1 to 7 as approved. Front matter `status: approved`, `date: YYYY-MM-DD`, `commit: <sha research read>`. |
-| `docs/BUSINESS.md` | Headings 1 to 3, then `## Goals` (below). |
+| `paths.business` (default `docs/BUSINESS.md`) | Headings 1 to 3, then `## Goals` (below). |
 | `AGENTS.md` | Headings 4 and 5 as unbreakable rules, one line each, under `## Project rules`, in heading 5's order: each risk, then the rules that prevent it, worded as how the code must do something, then the rules tied to no risk. An owner-added rule with no path goes to `AGENTS.md` `## Project rules` only, in no rule file. Put it after the `<!-- xworkflows:end -->` line, outside the `<!-- xworkflows:start -->` block. Never edit inside the block; the installer owns it. If `## Project rules` exists, merge into only that section. |
 | `.claude/rules/<zone key>.md` | One file per zone that has a rule. Front matter `paths:` lists the zone's paths as globs: a folder `src` or `src/` becomes `src/**`; `dir/*` and `*` stay as written. Then the rules, one line each, one per rule the owner confirmed (a sentence answered `Right`, or a screen 2 rule kept: `Keep it, because ...`, `The written rule`, `The code`, `Mistake: fix it`, `Exception: keep it`), each with its path as in `What each answer writes`, when that path is in the zone's paths, and every owner rule that names a path in them. |
 | `.claude/agents/risk-review.md` | The risk reviewer (below). |
 | `.xworkflows/config.json` | Merged key by key (below). |
 | `~/.xworkflows/owner.md` | Heading 8 only. User scope, outside every repository. Create `~/.xworkflows/` if missing. Keep what is already there; update only what the owner changed. |
 
-Goals in `docs/BUSINESS.md`, one line per aspiration, no dates. G1 is the 3-month one, then 12, then 36; the `G<n>` id stays so a plan can name the goal it serves:
+Goals in the file `paths.business` names (default `docs/BUSINESS.md`), one line per aspiration, no dates. G1 is the 3-month one, then 12, then 36; the `G<n>` id stays so a plan can name the goal it serves:
 
 ```
 ## Goals
@@ -138,6 +138,10 @@ Goals in `docs/BUSINESS.md`, one line per aspiration, no dates. G1 is the 3-mont
 - A checklist: one line per check, each one a reviewer can check against a diff, with one line per rule the owner confirmed, each with its path as in `What each answer writes` (for example: `a fee is charged only after the due date has passed`).
 - The paths it covers: `paths.risk`.
 - Name the function or section each finding is in, right after its `path:line`.
+- A failed checklist line is a finding whose row is set by the bar:
+  - `blocking`: a real error on a path that really happens, that breaks the app or touches money, permissions or data.
+  - `pending`: a real error on a reachable path, worth fixing but not in this batch; it becomes a card.
+  - `drop`: impossible, practically impossible, or inconsequential (a very unlikely scenario whose consequence is minimal, seen at once, or easily avoided); it is not written, it stays only in the report.
 - Read-only: Bash only for `git log`, `diff`, `show`, `ls-files`, `blame`, `status`, `grep`, `wc`, `graphify query`. No redirects. Never writes or edits.
 - Report keys: `reviewed:` (what it checked) and `not checked:` (what it could not). When every check passes, the last line is `risk-review ok at <sha>`, with the reviewed `HEAD`.
 

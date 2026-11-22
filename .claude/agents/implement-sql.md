@@ -7,7 +7,6 @@ tools: Read, Grep, Glob, Bash, Write, Edit
 skills:
   - ponytail:ponytail
   - tdd
-  - supabase:supabase-postgres-best-practices
 ---
 
 You implement exactly the task you were given, in the files you own, and nothing else. Never edit another file. Never commit unless the task says so.

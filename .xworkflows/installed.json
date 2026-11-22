@@ -6,7 +6,7 @@
   "pieces": {
     "hook-runtime": {
       "version": "0.1.0",
-      "sha256": "4736662c32780b1b7714ef6b8a7866007bf3740b8a24982fbf9d306220ec86b4"
+      "sha256": "cad3da0bac1c549104dc18531cbf2f8aab4741dc2511d6de5ac9a8c24ddf7be2"
     },
     "design-first": {
       "version": "0.1.0",
@@ -18,7 +18,7 @@
     },
     "safe-db": {
       "version": "0.1.0",
-      "sha256": "6925f54600263db1a53578f580be6ddf18db88b4a6a949cfbe8909784e8ed132"
+      "sha256": "d0b9de84c85719061f9eeaa1760df5ba3de1bddf41291f65979f3696a87aba82"
     },
     "adapt-gates": {
       "version": "0.1.0",
@@ -50,7 +50,7 @@
     },
     "zone-review": {
       "version": "0.1.0",
-      "sha256": "432fdabc2b140d0277a4bfd7bf71c9db7de58495bbb6dbd31626ddf56ce1b675"
+      "sha256": "a20ba232fed9b499acef951fadf6156a658dd2890005898c1f9ed374c9c619a3"
     },
     "verify-finding": {
       "version": "0.1.0",
@@ -58,19 +58,19 @@
     },
     "adapt": {
       "version": "0.1.0",
-      "sha256": "d3e6b27d37645c4c28c414f91b524e6dc38e0de8dcd103a5b8fb1d1722490c0a"
+      "sha256": "d5336e7e89c37b453e16d665a5a878f089f2f79492307533a7c062f620230a82"
     },
     "full-review": {
       "version": "0.1.0",
-      "sha256": "9b703828a0cbcbfbe36bd66b3a331ad94bd71fd4007dc2dc785aa6ddfc89f458"
+      "sha256": "021a772857a56a8d6dbf71197328003e4497db422c0a628dd23360a06ed9b8c7"
     },
     "next-step": {
       "version": "0.1.0",
-      "sha256": "c3af9a4ebcf284f4180bac71e42424e517c203e7805852f06ec1996381950f1e"
+      "sha256": "e0538cca93f7893528b9051a3a19de2c93c30bae1efa4c2b445345df4c6fc99c"
     },
     "orchestrator": {
       "version": "0.1.0",
-      "sha256": "9c844cb5680364de00a3319ff68de602bc429100e94b6fbdb4a81e9aefd3ac35"
+      "sha256": "8977b13ce372a2051707263c84aa3a17047d9e8b554a5604373fa57e083dee80"
     },
     "handback": {
       "version": "0.1.0",
@@ -78,7 +78,7 @@
     },
     "memory": {
       "version": "0.1.0",
-      "sha256": "eef62d686784b1858e5708d99e71c67301f5ac5efdf854572f37d6e7e8a63588"
+      "sha256": "c9d1bce2b820cf2f311af1e1cf4e7c87896935b661ad4023ea8a5bc78796a790"
     },
     "modes": {
       "version": "0.1.0",
@@ -94,7 +94,7 @@
     },
     "review-small": {
       "version": "0.1.0",
-      "sha256": "6fc062dac3d17b29ff570f545534b64e96f87edcf6cfb0a0107184a16fe424ad"
+      "sha256": "30a903b5d97e5940dfb8b9f144aab53468ea0052acb83652453b6c73f420bae8"
     },
     "implement-sql": {
       "version": "0.1.0",
@@ -110,7 +110,7 @@
     },
     "review": {
       "version": "0.1.0",
-      "sha256": "933a195bfeeab52caf2b9e74436108db339e1ad627ed01cb929c2553851a8af3"
+      "sha256": "d8a717743bfd5da7d567cf49d041f90d4f12d392d61dbb50af9097f6bbe452fc"
     },
     "dream-analyzer": {
       "version": "0.1.0",
@@ -126,11 +126,11 @@
     },
     "plan": {
       "version": "0.1.0",
-      "sha256": "5ab691ae5f81c1bcff7aa2f9fb8ebe68e2d904e0708833cc01fb09a795b836c6"
+      "sha256": "c4f09e68d9c88f259929bb8313b5b531046f9ce74abaf5a3526a2766bb3db420"
     },
     "orchestrate": {
       "version": "0.1.0",
-      "sha256": "201cc4c6119c7007764117e624121bf5a540641bd8db96ada34117ca6f0da6ef"
+      "sha256": "7e7e96263a9c51050a1af1156a48a5de3a0517c48a502af64e7a2a755802266c"
     },
     "handoff": {
       "version": "0.1.0",
@@ -138,11 +138,11 @@
     },
     "pending": {
       "version": "0.1.0",
-      "sha256": "b2265bae9b950268b6ec4ad43c1eae4b58374f1091c292dd640f58695c20c429"
+      "sha256": "bfebf3d009b43fc653d787c9723976f74fbc874f424078ea8d2170f155f93ab1"
     },
     "tdd": {
       "version": "bb92a77741419a4ab5f06e711a283343f1ada0c3",
-      "sha256": "6ea222ca3e3080b84b7cf0a56ff473ef5fb6874d6b6273cabf48e39e2f0262fa"
+      "sha256": "3aaf2f93c959b3fa744fbbfb95ae16614137f46f5cf1e3059d3e4e5182f4327e"
     },
     "ponytail-review": {
       "version": "09c434ab73ca43761c5d8b0c5d341926c2fba710",
@@ -154,7 +154,7 @@
     },
     "checks": {
       "version": "0.1.0",
-      "sha256": "90800d61ee6e79ba945f8e34f59983e595bdb08ad08d2d493ee9e77887a5c5be"
+      "sha256": "322d9d532da4bd762a9e6917d1d1424ce7ab39547231093b70195aa9617f1211"
     },
     "lint": {
       "version": "0.1.0",
@@ -192,7 +192,7 @@
     },
     ".xworkflows/hooks/core/config.mjs": {
       "piece": "hook-runtime",
-      "sha256": "a9b254039ac008ca03eff2b79373261cbb14d8d632e70da5a3970949168ec801"
+      "sha256": "99238359744a0c9f34a678ef16d50d4726cc13d9eeeb761f9eec966858604ea8"
     },
     ".xworkflows/hooks/core/ctx.mjs": {
       "piece": "hook-runtime",
@@ -200,7 +200,7 @@
     },
     ".xworkflows/hooks/core/shell-words.mjs": {
       "piece": "hook-runtime",
-      "sha256": "74891037cdeb47d425624a7b2161c683108d6bf90131453634a1f6d090f348d2"
+      "sha256": "d2b55f18ca767512692d8a4aed20eaa6e91dd9e3144e180f9ea051a3861679f1"
     },
     ".xworkflows/hooks/core/design-first.mjs": {
       "piece": "design-first",
@@ -212,7 +212,7 @@
     },
     ".xworkflows/hooks/core/safe-db.mjs": {
       "piece": "safe-db",
-      "sha256": "d8f51035ebb08f90821f8940ca1f7e8024d041f376fc95d9a6f0c2da75d4f30f"
+      "sha256": "3be94051c5de9bcb3f75959d8d6797f558dd1f87fcb565b567eb464d34d42d27"
     },
     ".xworkflows/hooks/core/adapt-gates.mjs": {
       "piece": "adapt-gates",
@@ -224,7 +224,7 @@
     },
     ".xworkflows/hooks/core/orchestrator.mjs": {
       "piece": "orchestrator",
-      "sha256": "337c7c71db7ccb7e56a87440c5c89cf5ffd3d7ea355f7b9a31208eeee3bb2004"
+      "sha256": "f2110b5d226c7f0ecadf4c15ca970ad3e623105969493ddf17c7ce76bba5dca0"
     },
     ".xworkflows/hooks/core/handback.mjs": {
       "piece": "handback",
@@ -232,11 +232,15 @@
     },
     ".xworkflows/hooks/core/memory.mjs": {
       "piece": "memory",
-      "sha256": "bd4cf723bd7eecb1587415e1586541dce896f7dbd652d4da9034baf72289c72d"
+      "sha256": "eab306514fa0824761c706f4337b18590bd566f50b540cbabb27c9b6673fa69e"
     },
     ".xworkflows/hooks/core/memory-index.mjs": {
       "piece": "memory",
       "sha256": "ed9d990262ae86bfb68b63b7c34e6594e3239460136907fbb376011990898006"
+    },
+    ".xworkflows/hooks/core/memory-job.mjs": {
+      "piece": "memory",
+      "sha256": "119f88b3e2c613620ac8dd96002ea3b2eaf603382712726261d822d91f727956"
     },
     ".xworkflows/hooks/core/modes.mjs": {
       "piece": "modes",
@@ -252,7 +256,7 @@
     },
     ".xworkflows/checks/run.mjs": {
       "piece": "checks",
-      "sha256": "a9e8ea271375853592858420ae6386cf383bf22827f52be2cf977f9a8b5c18d0"
+      "sha256": "fdc19082f935b0ef85b224b00d883932b46f71214c40035f25e28d010fee6d05"
     },
     ".xworkflows/checks/comment-lines.mjs": {
       "piece": "checks",
@@ -264,15 +268,15 @@
     },
     ".xworkflows/checks/review-seal.mjs": {
       "piece": "checks",
-      "sha256": "87f06b66af14316852ac009a110515fcf7e4441114e1f807053cf66370297b59"
+      "sha256": "01224070f9a14d1ab6be898b97ceea203d8301928977daf0691e10e36a95cc83"
     },
     ".xworkflows/checks/goal-cited.mjs": {
       "piece": "checks",
-      "sha256": "ece9e129e2bdb39a619bf8680195101364e67d2d6ab318eef00cf4cb11c9eb8d"
+      "sha256": "567faa04ca55aa4b2fa2882e424febc9280f01b3c71f427fd6f07f2a52b38c06"
     },
     ".xworkflows/checks/pending.mjs": {
       "piece": "checks",
-      "sha256": "dbb043a46aa19d3c3466d1a6d54bd2de718989410134b09a05068324c7bcee5e"
+      "sha256": "d6e0c2581d34c157a73fdd0302eaa96944b70c7367a43528638f7ad5b6410c5f"
     },
     ".xworkflows/checks/fix-has-test.mjs": {
       "piece": "checks",
@@ -288,7 +292,7 @@
     },
     ".xworkflows/checks/skills-travel.mjs": {
       "piece": "checks",
-      "sha256": "8d07b0a7a7ff0bddd5e8896957adee0a687d10b8f34a1bb97ddd3bae49204ddd"
+      "sha256": "678c45e0c26acc5c56e5bb7bce927cedf907cfabefe7bf84d023e5544e49c7fa"
     },
     ".xworkflows/checks/patterns.mjs": {
       "piece": "checks",
@@ -372,7 +376,7 @@
     },
     ".claude/agents/zone-review.md": {
       "piece": "zone-review",
-      "sha256": "defb8cdcbb68f20d8ae019646c4b09b8557b4bade7f5fc1186fc875f0580b985"
+      "sha256": "d87419831009ee74e29d9d03d9e72ca00b6308989b2d1cdc23a3462983423784"
     },
     ".claude/agents/verify-finding.md": {
       "piece": "verify-finding",
@@ -380,7 +384,7 @@
     },
     ".claude/skills/adapt/SKILL.md": {
       "piece": "adapt",
-      "sha256": "20bcb381ae0cdb811aa3e78852252198f6aba2a834c47817c1845f54d3b4fbb1"
+      "sha256": "efc0a0cc628c36afce55da334a49af22e8d5659fd0ce091452b17b7286ec8a78"
     },
     ".claude/skills/adapt/scan.mjs": {
       "piece": "adapt",
@@ -404,11 +408,11 @@
     },
     ".claude/skills/full-review/SKILL.md": {
       "piece": "full-review",
-      "sha256": "9b4ed0fb17e686a3fc76f482e8bebbbec34191e526460727639eaadc6a224c70"
+      "sha256": "d14bab9cb14aed685541c2e38f79d342702fa0f7007c7b84550edbe9541b7f19"
     },
     ".claude/skills/next-step/SKILL.md": {
       "piece": "next-step",
-      "sha256": "85170317b38f279a2a3ee48e0c4d06a5f4ee655799faac639e6255b36064d536"
+      "sha256": "54c08c9c200f0eb600903b99f159d2160b1175830058be5f566ae34f61e9263c"
     },
     ".claude/agents/implement.md": {
       "piece": "implement",
@@ -416,15 +420,15 @@
     },
     ".claude/agents/review-small.md": {
       "piece": "review-small",
-      "sha256": "aece824b958ccf6388db8c1e9a77d625243a1c7878df395394d0d4ae27eb4197"
+      "sha256": "d6f41b37629ffae7923ffe25fa02c6f1eabf7e7a5467388ac1d2d41db8d71a6d"
     },
     ".claude/agents/implement-sql.md": {
       "piece": "implement-sql",
-      "sha256": "6b168996458c2eacf972375703a9d3bd41d43120b737ad04e017bebd2a36b931"
+      "sha256": "4b747e8ee82d5daa69f1d9d73ab1991d31b46aed5539a6f7526f532225ace10a"
     },
     ".claude/agents/implement-front.md": {
       "piece": "implement-front",
-      "sha256": "862499d6c481c3aea2b21be77fb741bd105e341abe90a8692a89500220c9b73f"
+      "sha256": "d69ef85e73e968c31bddeee8f45476d8c51e644d7d0d8048c918735cbea6841a"
     },
     ".claude/agents/mechanical.md": {
       "piece": "mechanical",
@@ -432,7 +436,7 @@
     },
     ".claude/agents/review.md": {
       "piece": "review",
-      "sha256": "868d2574acc27bca927e61b69350d8671b997be71417b5dd17c008eda23fe415"
+      "sha256": "be0c0eeb353ee631297a5db9871298c59d243986c9d045e18e81ec01e88925af"
     },
     ".claude/agents/dream-analyzer.md": {
       "piece": "dream-analyzer",
@@ -448,11 +452,11 @@
     },
     ".claude/skills/plan/SKILL.md": {
       "piece": "plan",
-      "sha256": "0dfd9ca912a88806a3e3ad4311faaa8fc205f4dd05fe729a1da577ec8b0f622b"
+      "sha256": "0685602aaf43fc28c3ab8c94d2a210501ce2c7fe206b8a9aff7dff47e0907677"
     },
     ".claude/skills/orchestrate/SKILL.md": {
       "piece": "orchestrate",
-      "sha256": "4642cc6e64d130be960562c1b54a545ec59694ec9f3f587e1f85479fc0ce5e36"
+      "sha256": "ae41ac457227d5a4b0ee41083b56fc3710dbc177febb3ca790f108a61f3d1ce2"
     },
     ".claude/skills/handoff/SKILL.md": {
       "piece": "handoff",
@@ -460,11 +464,11 @@
     },
     ".claude/skills/pending/SKILL.md": {
       "piece": "pending",
-      "sha256": "db3f46432734f0cdc6ec008db5385fba2f43f9517019ef89f43d92a5b49eb0b8"
+      "sha256": "f17d72ab861316c59adc115f936dd9809c5d3ff6847abcb065417cd74a9d186d"
     },
     ".claude/skills/tdd/SKILL.md": {
       "piece": "tdd",
-      "sha256": "e91fbab7dd4837770da8667929a467ebe2c3fc4c3280954a3f20881d11c12362"
+      "sha256": "ac05d3320e3a90238fdbcc2694a60ce34af707dcc1dd5fe314637f8241b28c3e"
     },
     ".claude/skills/tdd/writing-good-tests.md": {
       "piece": "tdd",
@@ -514,6 +518,10 @@
       "piece": "checks",
       "sha256": "096d349400afc039392699cdfa8ebc6fb507531d3d051e08bd36a47110adbaa3"
     },
+    ".xworkflows/git/pre-commit": {
+      "piece": "checks",
+      "sha256": "058fbd65becf0741d737b73c5178c782326c767969e5032541ca590e96f48781"
+    },
     ".xworkflows/git/post-merge": {
       "piece": "checks",
       "sha256": "c5bd136544e108c68d14f5498ca7c269439d404eb4e8a4f2bab0e74c2e2530a1"
@@ -525,6 +533,10 @@
     ".git/hooks/pre-push": {
       "piece": "checks",
       "sha256": "df9169167f7b11029bcff4e440005a9f112904093187e2646359b2ce78696902"
+    },
+    ".git/hooks/pre-commit": {
+      "piece": "checks",
+      "sha256": "8944e9f0d46e592d10d19e4b1b79f6119baa5e2c084db93217429d0216f381c9"
     },
     ".git/hooks/post-merge": {
       "piece": "checks",

@@ -7,7 +7,7 @@ Before anything else, run `node .xworkflows/mark.mjs orchestrate` in the shell.
 
 You are the main session: you decide, dispatch and judge. Agents read, write and test. What you read stays in context for the rest of the session; what an agent reads is gone when it reports.
 
-Read `.xworkflows/config.json`: the names below are its keys. A key it lacks takes its default: `mainBranch` `main`; `paths.plans` `docs/superpowers/plans`; `paths.specs` `docs/superpowers/specs`; `paths.pending` `docs/PENDING.md`; `paths.nonCode` `docs/`, `.claude/`, `.xworkflows/`, `**/*.md`, `.gitignore`; `paths.curated` `AGENTS.md`, `CLAUDE.md`, `.claude/rules/`, `docs/BUSINESS.md`; `roles.implementers` `implement`, `implement-sql`, `implement-front`, `mechanical`; `roles.lookup` `explore`; `roles.verifier` `verify-finding`; `roles.reviewer` `review`; `roles.riskReviewer` `risk-review`; `roles.smallReviewer` `review-small`; `limits.inlineReadLines` 40; `limits.agentsBeforeWorkflow` 2; `lookup.index.command` `graphify query`; `lookup.index.minutes` 30. `paths.risk`, `paths.heavyRead` and `paths.codeAnyway` have none.
+Read `.xworkflows/config.json`: the names below are its keys. A key it lacks takes its default: `mainBranch` `main`; `paths.plans` `docs/superpowers/plans`; `paths.specs` `docs/superpowers/specs`; `paths.pending` `docs/PENDING.md`; `paths.nonCode` `docs/`, `.claude/`, `.xworkflows/`, `**/*.md`, `.gitignore`; `paths.business` `docs/BUSINESS.md`; `paths.riskLite` none; `paths.curated` `AGENTS.md`, `CLAUDE.md`, `.claude/rules/`, `docs/BUSINESS.md`; `roles.implementers` `implement`, `implement-sql`, `implement-front`, `mechanical`; `roles.lookup` `explore`; `roles.verifier` `verify-finding`; `roles.reviewer` `review`; `roles.riskReviewer` `risk-review`; `roles.riskReviewerLite` `risk-review-lite`; `roles.smallReviewer` `review-small`; `limits.inlineReadLines` 40; `limits.agentsBeforeWorkflow` 2; `lookup.index.command` `graphify query`; `lookup.index.minutes` 30. `paths.risk`, `paths.riskLite`, `paths.heavyRead` and `paths.codeAnyway` have none.
 
 ## The main session
 
@@ -46,7 +46,7 @@ The `handback` hook denies a report that lacks a key of its role. A key counts a
 | Agent | Keys |
 |---|---|
 | `roles.implementers` | `red:`, `green:`, `skipped:`, `sha:`. A change with no logic gives `no-test:` in place of `red:` and `green:` |
-| `roles.reviewer`, `roles.riskReviewer`, `roles.smallReviewer` | `reviewed:`, `not checked:` |
+| `roles.reviewer`, `roles.riskReviewer`, `roles.riskReviewerLite`, `roles.smallReviewer` | `reviewed:`, `not checked:` |
 | `roles.verifier` | `red:` or `discarded:` |
 | An agent that cannot do its task | `blocked:`; an implementer also `needs judgment:` or `cannot test:` |
 
@@ -59,7 +59,7 @@ The `handback` hook denies a report that lacks a key of its role. A key counts a
 Batches run in the plan's order, one at a time.
 
 1. Create the batch branch the plan names, from `mainBranch`. Set the batch's card to `in progress on <branch>` with the `pending` skill.
-2. Dispatch the batch's tasks together. Agents commit only when the prompt says so; by default you commit each finished task, from the files its report lists.
+2. Dispatch together the tasks with no `After: T<n>` line; dispatch each task that has one once the task it names has committed. Agents commit only when the prompt says so; by default you commit each finished task, from the files its report lists.
 3. Review and seal, as below.
 4. With the `pending` skill, on the batch branch: close the batch's card, or set it back to `scheduled` when a later batch shares it.
 5. Merge the batch branch into `mainBranch` with `--no-ff`, then delete the `verify/<id>` branches its tasks name. Ask the owner whether to push; do not hold a merged batch for an unrelated one.
@@ -74,15 +74,23 @@ Batches run in the plan's order, one at a time.
 
 Change the plan only on the batch branch: the merge then carries the pending list change that the `pending` brake asks of every plan change.
 
+## Risk reviewer by path
+
+When `paths.riskLite` is not empty, review step 1 sends a batch that touches a risk file (a `paths.risk` file that `tests.files` does not match, as in step 1) to `roles.riskReviewerLite` instead of `roles.riskReviewer` only when every risk path it touches is in `paths.riskLite`; a batch that touches one risk path outside that list gets the full one. Everything else about the risk reviewer holds for the lite one.
+
 ## Review
 
 One review per batch, before the batch merges.
 
-1. Pick the reviewer: `roles.riskReviewer` when the batch touches `paths.risk`; `roles.smallReviewer` when the batch changes under 50 code lines (the `paths.nonCode` count rule of `plan`) and touches no `paths.risk`; otherwise `roles.reviewer`; none when the batch is docs only (every changed path under `paths.nonCode`, none under `paths.codeAnyway`).
+1. Pick the reviewer: `roles.riskReviewer` when the batch touches a `paths.risk` file that `tests.files` does not match (a test file never counts as a risk path); `roles.smallReviewer` when the batch changes under 50 code lines (the `paths.nonCode` count rule of `plan`) and touches no such `paths.risk` file; otherwise `roles.reviewer`; none when the batch is docs only (every changed path under `paths.nonCode`, none under `paths.codeAnyway`).
 2. Commit every task, note `<reviewed sha>` (the `HEAD` of the batch branch) and dispatch; the risk reviewer's first review of a batch runs at effort `xhigh`. The prompt names the plan or spec file, the range `<mainBranch>...<reviewed sha>` and the commit id to review. The hook denies the risk reviewer when its prompt names no `.md` file under `paths.plans` or `paths.specs`, and when it already ran on the same named commit at the same root `HEAD`: it never runs twice on one commit.
-3. Sort the findings. Only an error of the app, money, permissions or data blocks; the rest become cards.
+3. Sort the findings by the bar; the reviewer sets the row of each:
+   - `blocking`: a real error on a path that really happens, that breaks the app or touches money, permissions or data.
+   - `pending`: a real error on a reachable path, worth fixing but not in this batch; it becomes a card.
+   - `drop`: impossible, practically impossible, or inconsequential (a very unlikely scenario whose consequence is minimal, seen at once, or easily avoided); it is not written, it stays only in the report.
+   - From the second round of a batch, only an error in lines the branch added or changed blocks; an older error found on the way is `pending` or `drop`, and when it is about money or data the owner hears at once. Round 1 is unchanged.
    - `blocking`: dispatch `roles.verifier` with the finding and a short id of letters, digits and `-`. The finding enters the plan, as a fix task, only after the answer `red: <test path> <command>`; that test is on branch `verify/<id>`. On any `discarded:`, the finding does not enter the plan: write a card with the verifier's reason, and on `cannot run here` also tell the owner in one line.
-   - `pending`: one card each, written with the `pending` skill. A card opens no round.
+   - `pending` and `drop`: no card yet and no round. At the end of the batch ask the owner ONE question in the question dialog (`AskUserQuestion`) listing every `pending` and `drop` finding with its row preset; the owner answers as set or moves any. Then write one card each, with the `pending` skill, for the `pending` ones; a `drop` one is not written. No such finding, no question.
    - `ask-owner:`: put its options to the owner in the question dialog (`AskUserQuestion`), and write the answer in the plan.
    - The place of a finding is its file and the function or section it names; its file alone when it names none. A finding is a repeat when an earlier round of this batch, the last confirmation included, had a finding, blocking or pending, in the same place. Two findings of one round are not a repeat.
    - When step 3 finds a repeat, write in the plan, in the section of that batch, alone on its line: `Possible design error in <place>`. Under it write the root cause and the alternative design, or the reason none exists. A repeat holds nothing back by itself.
@@ -102,6 +110,6 @@ An ok is a review or a confirmation that leaves no `blocking` finding open. Afte
 <role> ok at <sha>
 ```
 
-`<role>` is the value of `roles.riskReviewer`, `roles.reviewer` or `roles.smallReviewer`, whichever gave the ok. A risk batch has two lines in this order: `risk-review ok at <first sha>` (the risk reviewer's value of `<role>`, the `HEAD` it read), then `review ok at <fix sha>` after the fresh `roles.reviewer` confirms the fixes. With no blocking finding the risk line alone stands. `<sha>` is the `HEAD` it read, 7 to 40 hex digits. Commit that line and nothing else.
+`<role>` is the value of `roles.riskReviewer`, `roles.riskReviewerLite`, `roles.reviewer` or `roles.smallReviewer`, whichever gave the ok. A risk batch has two lines in this order: `risk-review ok at <first sha>` (the risk reviewer's value of `<role>`, the `HEAD` it read), then `review ok at <fix sha>` after the fresh `roles.reviewer` confirms the fixes. With no blocking finding the risk line alone stands. `<sha>` is the `HEAD` it read, 7 to 40 hex digits. Commit that line and nothing else.
 
-The `review-seal` brake refuses a push to `mainBranch` unless every code commit is that sha or an ancestor of it, and, when a commit touches `paths.risk`, takes a `roles.reviewer` seal only after a `roles.riskReviewer` seal of the same batch's range, and never a `roles.smallReviewer` seal. A code commit after `<sha>` needs its own confirmation and a new seal line.
+The `review-seal` brake refuses a push to `mainBranch` unless every code commit is that sha or an ancestor of it, and, when a commit touches a risk file (a `paths.risk` file that `tests.files` does not match, as in step 1), takes a `roles.reviewer` seal only after a `roles.riskReviewer` seal (a `roles.riskReviewerLite` seal counts only when every risk path of the range is in `paths.riskLite`) of the same batch's range, and never a `roles.smallReviewer` seal. A code commit after `<sha>` needs its own confirmation and a new seal line.
