@@ -40,6 +40,8 @@ Spec: none; card P-239 of docs/PENDING.md and the owner's answers below are the 
 - No thresholds. Each card on the opposite side (fixed and set `drop`, dropped and set `blocking` or `pending`) goes to the owner in plain words: what the card said, which row it got, why. The owner says for each whether it was right or not. Only the ones the owner calls wrong change the examples of T1, and only those are run again.
 - Done: the owner has judged every opposite card, and the examples hold each answer.
 - Owner, 2026-11-22: "las 30 a 36 no cuentan" — P-198, P-204, P-217, P-220, P-222, P-224, P-227 were work the owner ordered, not review findings; the bar never judges them. They are out of the proof, and no example of the bar comes from them. A rerun of the proof samples only cards that came from a review.
+- Owner, 2026-11-22, on the 37 other opposite cards (proof run: 40 dropped and 36 fixed review cards, haiku): "todo bien". No example of the bar changes. The six dropped cards the bar set `blocking` (P-137, P-138, P-209, P-214, P-215, P-230): "No, siguen tiradas".
+- Owner, 2026-11-22: the own copy of the method in this repository is refreshed whole (22 files, 15 of them from earlier batches never copied), "si".
 
 After T1 to T3 the main session refreshes this repo's own copy of the method (as 7394a87 did), runs `node bin/xworkflows.mjs pack` and commits the manifest; `node bin/xworkflows.mjs pack --check` prints nothing and the tests pass.
 
