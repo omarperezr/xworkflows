@@ -14,6 +14,7 @@ One living list. The `pending` brake checks these rules:
 
 
 ## Workflow upgrade
+- **P-239** — Triage at birth: one written bar sorts every review finding as blocking, card or not written (a non-written finding stays only in the reviewer's report), with real examples of this repository per row, in `skills/review`, `skills/orchestrate` and `skills/pending`; from the second review round of a batch only an error the batch introduced blocks, an older one found on the way becomes a card and the owner hears at once when it is about money or data. Proof before use: the bar applied to the closed and dropped cards of the git history keeps what was fixed and drops what the owner's triages dropped (3f9026c, 5bf3bfb). Origin: the owner, 2026-11-22, "si a las dos" (and "Solo en el informe" for the non-written row), on the deepened request of 2026-11-20. Status: scheduled.
 
 
 ## Memory and agents
