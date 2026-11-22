@@ -486,3 +486,9 @@ test("doctor warns to install again when the lite reviewer file is not the rende
   assert.match(gone, /^fail missing or unreadable: \.claude\/agents\/risk-review-lite\.md/m);
   assert.doesNotMatch(gone, /is not the render/);
 });
+test("doctor: with memory.autoDirectory false, no autoMemoryDirectory line, set or not", () => {
+  const r = repo({ ".xworkflows/config.json": JSON.stringify({ memory: { autoDirectory: false } }) }); cli(r, ["install"]);
+  assert.doesNotMatch(doctor(r).stdout, /autoMemoryDirectory/);
+  writeJson(r, ".claude/settings.local.json", { autoMemoryDirectory: "/elsewhere/memory" });
+  assert.doesNotMatch(doctor(r).stdout, /autoMemoryDirectory/);
+});
