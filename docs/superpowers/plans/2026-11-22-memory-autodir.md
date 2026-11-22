@@ -44,6 +44,10 @@ After T1 to T3 the main session runs `node bin/xworkflows.mjs pack` and commits 
 - Role: main session
 - Done: the `memory.autoDirectory` row says that an `autoMemoryDirectory` an earlier install wrote stays when the key turns `false`, and the owner deletes it.
 
+Possible design error in hooks/core/memory.mjs rebuild
+- Root cause: "a `memory.before` the job can run" is written twice, at `hooks/core/memory.mjs:17` and at `hooks/core/memory-job.mjs:44`, and the two copies disagree: a list with a bad item (`[""]`, `[1]`) still starts the job (confirmation of 06f3c2e).
+- Alternative design: `memory-job.mjs` exports one predicate, `runnable(before)` (a list, not empty, every item a non-empty text), and both places call it; about 2 lines, a test and a repack.
+
 ## Review Focus
 
 - A project with the key absent must behave exactly as today: same `settings.local.json`, same doctor lines, same uninstall.
@@ -57,3 +61,4 @@ After T1 to T3 the main session runs `node bin/xworkflows.mjs pack` and commits 
 ## Seals
 
 risk-review ok at 8c2b079
+review ok at 06f3c2e
