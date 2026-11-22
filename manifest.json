@@ -67,11 +67,11 @@
         "hooks/adapters/codex.mjs": "0589bf97b5cec7e06fee8a70bd92d8a0f51e8bb082cc241f743a80308e44d059",
         "hooks/adapters/cursor.mjs": "394c1a81f4040089b67f0fbf1131012bbb5883bdf705ce3af12dff66d9b3cbd5",
         "hooks/adapters/gemini.mjs": "eff8f29bce46d7c4a7c62845f3762a16c6fd38e831e6c4a5d6b54361ec599175",
-        "hooks/core/config.mjs": "ff82b1d24ab8efd3fab84522fbd42e40ebea9775ac80c6613560a0a7bf3b4899",
+        "hooks/core/config.mjs": "99238359744a0c9f34a678ef16d50d4726cc13d9eeeb761f9eec966858604ea8",
         "hooks/core/ctx.mjs": "c467ec88a800a1b3df3193922b7bd1377e12d610b6c75e2a7becc81cdd848138",
         "hooks/core/shell-words.mjs": "d2b55f18ca767512692d8a4aed20eaa6e91dd9e3144e180f9ea051a3861679f1"
       },
-      "sha256": "82575e80da5b1f2690e0d53d7142346a7b948ccccd0c50d5c8640b5a58ede80d"
+      "sha256": "cad3da0bac1c549104dc18531cbf2f8aab4741dc2511d6de5ac9a8c24ddf7be2"
     },
     {
       "id": "design-first",
@@ -467,11 +467,11 @@
         }
       ],
       "files": {
-        "hooks/core/memory.mjs": "ba670b791ff3e37e75cac882a5b910b0893801d20502bd7e6eb762dc8cc7f63b",
+        "hooks/core/memory.mjs": "eab306514fa0824761c706f4337b18590bd566f50b540cbabb27c9b6673fa69e",
         "hooks/core/memory-index.mjs": "ed9d990262ae86bfb68b63b7c34e6594e3239460136907fbb376011990898006",
-        "hooks/core/memory-job.mjs": "a11e7876042d3e28f5e867d99cf0cfe235d1ba4fe25c62c999f3cbf2aeddbc2f"
+        "hooks/core/memory-job.mjs": "119f88b3e2c613620ac8dd96002ea3b2eaf603382712726261d822d91f727956"
       },
-      "sha256": "718e1dc82221ea626c6e16c796efe981d26b50a1805ce2f8a7f27c7649977866"
+      "sha256": "c9d1bce2b820cf2f311af1e1cf4e7c87896935b661ad4023ea8a5bc78796a790"
     },
     {
       "id": "modes",

@@ -22,6 +22,9 @@ const alive = (pid) => { if (!Number.isInteger(pid) || pid < 1) return false; tr
 // shortcut: the embed model is any file named embed*.gguf in qmd's models folder, so a renamed model is missed; upgrade if qmd names models otherwise. Doctor uses this same test.
 export const modelsIn = (dir) => { try { return readdirSync(dir).some((f) => /embed.*\.gguf$/i.test(f)); } catch { return false; } };
 
+// the one rule for a memory.before the job can run: a list with items, each a non-empty text; the hook uses it too
+export const runnable = (before) => Array.isArray(before) && before.length > 0 && before.every((a) => typeof a === "string" && a);
+
 export function runJob({ root, config, stateDir, modelsDir, run = real, beforeMs = STEP_MS }) {
   const before = config.memory?.before;
   const index = config.memory?.index;
@@ -41,9 +44,8 @@ export function runJob({ root, config, stateDir, modelsDir, run = real, beforeMs
       const r = run(cmd, args, { cwd: root, ...o });
       log(name, r.timedOut ? `timed out after ${o?.timeout} ms` : `exit ${r.code}`);
     };
-    const listed = Array.isArray(before) && before.every((a) => typeof a === "string" && a);
-    if (listed && before.length) step("before", before[0], before.slice(1), { timeout: beforeMs });
-    else if (!listed && before !== undefined) log("before", "skipped: memory.before must be a list of texts");
+    if (runnable(before)) step("before", before[0], before.slice(1), { timeout: beforeMs });
+    else if (before !== undefined && !(Array.isArray(before) && !before.length)) log("before", "skipped: memory.before must be a list of texts");
     const qmd = (name) => step(name, "qmd", [...(index ? ["--index", index] : []), name]);
     qmd("update");
     if (own) { // embed and cleanup change the whole index: only the project's own

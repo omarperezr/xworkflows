@@ -311,7 +311,7 @@ function mergeLocal(root) {
   const dir = config.memory.dir, none = { path, text: null, rec: { scalars: [], created: [] } };
   // a refused memory folder gets no key, as it gets no folder: plan() says why
   const md = memoryFolder(config, root).dir;
-  if (!md || key in s) return none;
+  if (!md || key in s || config.memory?.autoDirectory === false) return none;
   if (spawnSync("git", ["ls-files", "--error-unmatch", path], { cwd: root, stdio: "ignore" }).status === 0) return { ...none, note: `${path} is tracked: ${key} not written, set it yourself` };
   const value = JSON.stringify(resolve(root, md));
   if (old === null) return { path, text: json({ [key]: resolve(root, md) }), rec: { scalars: [{ file: path, key: [key], dir }], created: [path] } };
@@ -1159,7 +1159,8 @@ async function doctor() {
         const where = real(abs), base = real(ROOT);
         if (where !== base && !where.startsWith(base + sep)) say("warn", 'the memory folder is outside the repository: qmd indexes it only after "qmd trust" is run here');
       } catch {}
-      if (amd === undefined) say("warn", `autoMemoryDirectory is not set in .claude/settings.local.json: add "autoMemoryDirectory": "${abs}" to it`);
+      if (conf.memory?.autoDirectory === false) {} // the owner turned the key off
+      else if (amd === undefined) say("warn", `autoMemoryDirectory is not set in .claude/settings.local.json: add "autoMemoryDirectory": "${abs}" to it`);
       else if (typeof amd !== "string" || !(resolve(ROOT, amd) + sep).startsWith(abs + sep)) say("warn", `autoMemoryDirectory is not the memory folder ${mem}: set it to "${abs}" in .claude/settings.local.json`);
     }
     for (const n of Object.keys(conf.packs).filter((n) => run.PACKS.includes(n))) {

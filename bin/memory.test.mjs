@@ -353,3 +353,21 @@ test("doctor: with memory.index set, every qmd line names that index", () => {
   const dead = doctor(r, { PATH: tools({ qmd: `case "$*" in *--version*) echo '${QMD_V}';; *) exec sleep 30;; esac` }), XWORKFLOWS_PROBE_TIMEOUT_MS: "400" }).stdout.split("\n");
   assert.ok(dead.includes("warn qmd did not answer: collections of docs/memory not checked: run qmd --index mine collection list to see why"), dead.join("\n"));
 });
+test("install: with memory.autoDirectory false, autoMemoryDirectory is neither written nor recorded, and a value set by hand stays", () => {
+  const r = repo({ ".xworkflows/config.json": JSON.stringify({ memory: { autoDirectory: false } }) });
+  assert.equal(inst(r).status, 0);
+  assert.ok(statSync(join(r, "docs/memory")).isDirectory());
+  assert.ok(!existsSync(join(r, ".claude/settings.local.json")));
+  assert.deepEqual(readJson(r, ".xworkflows/installed.json").scalars.filter((x) => x.key.includes("autoMemoryDirectory")), []);
+  const q = repo({ ".xworkflows/config.json": JSON.stringify({ memory: { autoDirectory: false } }), ".claude/settings.local.json": JSON.stringify({ autoMemoryDirectory: "/mine" }) });
+  assert.equal(inst(q).status, 0);
+  assert.deepEqual(readJson(q, ".claude/settings.local.json"), { autoMemoryDirectory: "/mine" });
+  const u = cli(q, ["uninstall"]);
+  assert.equal(u.status, 0, u.stderr);
+  assert.deepEqual(readJson(q, ".claude/settings.local.json"), { autoMemoryDirectory: "/mine" });
+});
+test("install: with memory.autoDirectory true, autoMemoryDirectory is written as with the key absent", () => {
+  const r = repo({ ".xworkflows/config.json": JSON.stringify({ memory: { autoDirectory: true } }) });
+  assert.equal(inst(r).status, 0);
+  assert.equal(readJson(r, ".claude/settings.local.json").autoMemoryDirectory, join(top(r), "docs/memory"));
+});

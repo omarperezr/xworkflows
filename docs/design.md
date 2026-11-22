@@ -442,6 +442,7 @@ a valid answer. The reference column is not the default (owner, 2026-11-11).
 | `memory.before` | Optional: an argument list the memory job runs first, in the same job, so what it writes is indexed in the same run; limit 30 minutes, and a hung step is killed and logged | not set: `[]`, no step |
 | `tokens.alwaysLoadedBytes` | The budget of section 13 | 24000 |
 | `memory.dir` | The one memory folder | `docs/memory` |
+| `memory.autoDirectory` | Whether `install` points the tool's own memory (`autoMemoryDirectory` in `.claude/settings.local.json`) at `memory.dir` and `doctor` asks for it. `false` for a project that keeps its memory notes elsewhere: install writes nothing there and doctor says nothing. An `autoMemoryDirectory` an earlier install wrote stays when the key turns `false`: the owner deletes it | `true` |
 | `dream.maxExtractBytes` | Most session text one `dream` run may read | proposal: 4000000 |
 | `dream.suggest` | Whether the method suggests a `dream` run | true |
 | `dream.suggestAfterDays` | Days since the last adopted run after which a run is suggested | 7 |

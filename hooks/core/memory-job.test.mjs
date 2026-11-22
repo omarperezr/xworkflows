@@ -5,7 +5,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, utimesSync } from 
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "../../test-tmp.mjs";
 import { join } from "node:path";
-import { runJob, modelsIn } from "./memory-job.mjs";
+import { runJob, modelsIn, runnable } from "./memory-job.mjs";
 
 const dirs = () => {
   const state = mkdtempSync(join(tmpdir(), "xwf-job-"));
@@ -140,4 +140,9 @@ test("run as a script with a project root it does the steps and exits 0 even wit
   assert.equal(r.status, 0, String(r.stderr));
   assert.equal(readFileSync(join(root, "ran"), "utf8"), "1");
   assert.match(logOf(state), /update exit/);
+});
+
+test("runnable: only a non-empty list of non-empty texts", () => {
+  for (const ok of [["node"], ["node", "x.mjs"]]) assert.equal(runnable(ok), true, JSON.stringify(ok));
+  for (const bad of [undefined, null, "node x.mjs", [], [""], [1], ["node", 3], ["node", ""], {}]) assert.equal(runnable(bad), false, JSON.stringify(bad));
 });
