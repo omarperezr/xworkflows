@@ -48,6 +48,11 @@ Possible design error in hooks/core/memory.mjs rebuild
 - Root cause: "a `memory.before` the job can run" is written twice, at `hooks/core/memory.mjs:17` and at `hooks/core/memory-job.mjs:44`, and the two copies disagree: a list with a bad item (`[""]`, `[1]`) still starts the job (confirmation of 06f3c2e).
 - Alternative design: `memory-job.mjs` exports one predicate, `runnable(before)` (a list, not empty, every item a non-empty text), and both places call it; about 2 lines, a test and a repack.
 
+**T6: one rule for a runnable `memory.before`** (confirmation of 06f3c2e; the owner, 2026-11-22: "Arreglar la raíz ya")
+- Files: `hooks/core/memory-job.mjs`, `hooks/core/memory.mjs`, `hooks/core/memory.test.mjs`, `hooks/core/memory-job.test.mjs`
+- Role: implement
+- Done: `node --test hooks/core/memory.test.mjs hooks/core/memory-job.test.mjs` passes, with a case where `memory.before` is `[""]`, there is no notes folder, and nothing starts.
+
 ## Review Focus
 
 - A project with the key absent must behave exactly as today: same `settings.local.json`, same doctor lines, same uninstall.
