@@ -547,3 +547,11 @@ test("preCompact: with no notes folder and memory.before a text, nothing starts:
   decide(ev("preCompact"), ctx);
   assert.deepEqual(calls, { bg: [], exec: [], written: {} });
 });
+
+test("preCompact: with no notes folder and a memory.before with an empty or non-text item, nothing starts: the job would only skip it", () => {
+  for (const before of [[""], [1], ["node", 3]]) {
+    const { ctx, calls } = fake({ config: { ...base, memory: { dir: "docs/memory", before } } });
+    decide(ev("preCompact"), ctx);
+    assert.deepEqual(calls, { bg: [], exec: [], written: {} }, JSON.stringify(before));
+  }
+});
