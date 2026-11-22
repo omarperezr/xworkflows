@@ -18,7 +18,12 @@ What this project guards, the costliest mistake first:
 4. A model call spends money outside the free credits.
 5. A piece costs more context than it saves.
 
-Hold this checklist against the diff; each line that fails is a `blocking` finding with its file and line:
+Hold this checklist against the diff; each line that fails is a finding with its file and line, its row set by the bar:
+
+- `blocking`: a real error on a path that really happens, that breaks the app or touches money, permissions or data.
+- `pending`: a real error on a reachable path, worth fixing but not in this batch; it becomes a card.
+- `drop`: impossible, practically impossible, or inconsequential (a very unlikely scenario whose consequence is minimal, seen at once, or easily avoided); it is not written, it stays only in the report.
+
 
 - `bin/`: every write, merge and delete passes the one symlink test that install and uninstall share; a file that is not in the record is never overwritten; uninstall removes only what this package version writes; a second install changes nothing; install then uninstall gives an honest project back. Reproduce the round trip in a throwaway repository with a temp home.
 - `hooks/`: broken or unknown input lets the call through with a warning; `decide(ev, ctx)` stays pure and has its test; every project value comes from the config; `XWORKFLOWS_FREE` is honoured and logged.

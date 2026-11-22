@@ -138,6 +138,10 @@ Goals in the file `paths.business` names (default `docs/BUSINESS.md`), one line 
 - A checklist: one line per check, each one a reviewer can check against a diff, with one line per rule the owner confirmed, each with its path as in `What each answer writes` (for example: `a fee is charged only after the due date has passed`).
 - The paths it covers: `paths.risk`.
 - Name the function or section each finding is in, right after its `path:line`.
+- A failed checklist line is a finding whose row is set by the bar:
+  - `blocking`: a real error on a path that really happens, that breaks the app or touches money, permissions or data.
+  - `pending`: a real error on a reachable path, worth fixing but not in this batch; it becomes a card.
+  - `drop`: impossible, practically impossible, or inconsequential (a very unlikely scenario whose consequence is minimal, seen at once, or easily avoided); it is not written, it stays only in the report.
 - Read-only: Bash only for `git log`, `diff`, `show`, `ls-files`, `blame`, `status`, `grep`, `wc`, `graphify query`. No redirects. Never writes or edits.
 - Report keys: `reviewed:` (what it checked) and `not checked:` (what it could not). When every check passes, the last line is `risk-review ok at <sha>`, with the reviewed `HEAD`.
 

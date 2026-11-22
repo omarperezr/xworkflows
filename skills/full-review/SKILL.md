@@ -40,12 +40,13 @@ const schema = {
         properties: {
           severity: { enum: ["high", "medium", "low"] },
           kind: { enum: ["error", "restructure"] },
+          row: { enum: ["blocking", "pending", "drop"] },
           file: { type: "string" },
           line: { type: "number" },
           title: { type: "string" },
           case: { type: "string" },
         },
-        required: ["severity", "kind", "file", "line", "title", "case"],
+        required: ["severity", "kind", "row", "file", "line", "title", "case"],
       },
     },
   },
@@ -94,7 +95,7 @@ return {
 Read `paths.reviews` from `.xworkflows/config.json` (default `docs/superpowers/reviews`). Write `<paths.reviews>/YYYY-MM-DD-full-review.md` with today's date; if it exists, use `-2`, `-3` for later runs that day. Contents:
 
 - A header with a line that is exactly `Reviewed commit: <sha>` (`<sha>` is the output of `git rev-parse --short HEAD`, run before the agents start; the push check reads it). The line is written only when every agent the skill launched returned, that is when `missing` in the script's result is empty; when it is not, write the review file without that line and tell the owner which zones were not read, the `{ review, zone }` pairs of `missing`; the sha is the head the agents were given, noted before they start, not the head when the file is written. The header also holds the zones, the two reviews, what `both` means (both reviews named the same `file:line`), and the counts.
-- `## Errors`: numbered, each `**[<severity>, both] <title>** (<path>:<line>)` (leave `both` out when not both), then the case. Merge duplicates (same `file:line`, same point) into one item.
+- `## Errors`: numbered, each `**[<severity>, <row>, both] <title>** (<path>:<line>)` (leave `both` out when not both), then the case. Merge duplicates (same `file:line`, same point) into one item.
 - `## Restructurings`: the same form.
 - `## Owner's decisions (YYYY-MM-DD)`: empty for now.
 
@@ -106,7 +107,12 @@ Ask one question per restructuring, up to 4 per call, each decided on its own: `
 
 ## Step 6: The pending list
 
-Until the `pending` skill exists, write the cards yourself. One card per unverified error and one per restructuring answered `Pending list`, appended to `paths.pending` (default `docs/PENDING.md`):
+Until the `pending` skill exists, write the cards yourself. Each error carries its row, set by the bar:
+- `blocking`: a real error on a path that really happens, that breaks the app or touches money, permissions or data.
+- `pending`: a real error on a reachable path, worth fixing but not in this batch; it becomes a card.
+- `drop`: impossible, practically impossible, or inconsequential (a very unlikely scenario whose consequence is minimal, seen at once, or easily avoided); it is not written, it stays only in the report.
+
+One card per error not set `drop` and one per restructuring answered `Pending list`, appended to `paths.pending` (default `docs/PENDING.md`):
 
 `- **P-<n>** — <text>. Origin: <review file>. Status: unscheduled.`
 

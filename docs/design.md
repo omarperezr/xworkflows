@@ -81,8 +81,8 @@ reviewer 230, risk reviewer 108. Ask, plan, implement with agents, review by
 risk is what is really used. Tokens per stage are in section 13.
 
 Inside stage 5: a blocking finding enters the plan only after `verify-finding`
-reproduces it with a failing test. Every other finding becomes a card of the
-pending list, or a question to the owner when its remedy is the owner's call
+reproduces it with a failing test. A `pending` finding becomes a card of the
+pending list, a `drop` one is not written, or a question to the owner when its remedy is the owner's call
 (owner, 2026-11-12). There is one review per batch, before the
 batch merges. A fix is confirmed by a fresh reviewer of the same role, never
 the one that asked for it; it reads only the diff of the fix (owner,
@@ -489,8 +489,8 @@ testing and capturing screens is part of the flow, not a habit outside it.
   `handback` hook asks the agent for its `red:` and `green:` lines, and the
   `fix-has-test` brake reruns the test on the parent commit.
 - A blocking review finding enters a plan only after the `verify-finding`
-  agent reproduces it with a failing test. Every other finding becomes a card or a
-  question to the owner.
+  agent reproduces it with a failing test. A `pending` finding becomes a card or a
+  question to the owner; a `drop` one is not written.
 - Tests exercise behavior through real inputs and outputs. A test that
   matches source text is replaced by a `patterns` brake.
 - A reviewer does not rerun tests the author reported green; the push runs
