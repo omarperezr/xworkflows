@@ -64,7 +64,7 @@ test("the index is written only when its text changes; MEMORY.md is not indexed"
 });
 
 test("a missing memory folder: nothing to do", () => {
-  const { ctx, calls } = fake();
+  const { ctx, calls } = fake({ config: { ...base, memory: DEFAULTS.memory } });
   assert.deepEqual(decide(ev("preCompact"), ctx), { decision: "allow" });
   assert.deepEqual(calls, { bg: [], exec: [], written: {} });
 });
@@ -540,4 +540,10 @@ test("preCompact: with no notes folder and memory.index set, the job starts and 
   decide(ev("preCompact"), ctx);
   assert.equal(calls.bg.length, 1);
   assert.deepEqual(calls.written, {});
+});
+
+test("preCompact: with no notes folder and memory.before a text, nothing starts: the job would only skip it", () => {
+  const { ctx, calls } = fake({ config: { ...base, memory: { dir: "docs/memory", before: "node x.mjs" } } });
+  decide(ev("preCompact"), ctx);
+  assert.deepEqual(calls, { bg: [], exec: [], written: {} });
 });
