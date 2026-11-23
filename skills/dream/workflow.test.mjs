@@ -65,7 +65,7 @@ test("an analyzer that returns nothing is named in missing and the organizer sti
 
 test("the result has the four keys", async () => {
   const { result } = await run();
-  assert.deepEqual(Object.keys(result), ["merged", "conflicts", "proposals", "missing"]);
+  assert.deepEqual(Object.keys(result), ["merged", "conflicts", "proposals", "missing", "remove", "fates", "owner"]);
   assert.equal(result.merged, 3);
   assert.equal(result.conflicts, 1);
   assert.deepEqual(result.proposals, [1, 2, 3].map((i) => ({ rule: "Never skip tests", session: `analyze ${i}` })));
@@ -80,6 +80,42 @@ test("a rule an analyzer proposed is returned and never enters the organizer's p
   assert.equal(result.proposals.length, 3);
   assert.equal(result.proposals[0].rule, marker);
 });
+
+const REMOVE = { note: "old.md", reason: "folded into a.md" };
+const FATE = { note: "old.md", fate: "merged", into: "a.md", reason: "same fact" };
+const OWNER = { text: "Answer in Spanish", note: "pref.md" };
+
+test("brought notes are named in every prompt; none, no brought line", async () => {
+  const { calls } = await run({ ...ARGS, brought: ["old.md", "pref.md"] });
+  for (const c of calls) assert.ok(c.prompt.includes("old.md") && c.prompt.includes("pref.md"));
+  const none = await run();
+  assert.ok(none.calls.every((c) => !/brought/i.test(c.prompt)));
+});
+
+test("removals, fates and owner text from both agents are returned merged", async () => {
+  const { result } = await run(ARGS, {
+    "xwf-dream-analyzer": () => ({ proposals: [], remove: [REMOVE], fates: [FATE], owner: [OWNER] }),
+    "xwf-dream-organizer": () => ({ merged: 1, conflicts: 0, remove: [{ note: "dup.md", reason: "moved into a.md" }], fates: [], owner: [] }),
+  });
+  assert.deepEqual(result.remove, [REMOVE, REMOVE, REMOVE, { note: "dup.md", reason: "moved into a.md" }]);
+  assert.equal(result.fates.length, 3);
+  assert.deepEqual(result.owner, [OWNER, OWNER, OWNER]);
+});
+
+test("both schemas ask for remove, fates and owner", async () => {
+  const { calls } = await run();
+  for (const c of calls) for (const k of ["remove", "fates", "owner"]) assert.ok(c.opts.schema.properties[k], k);
+});
+
+for (const n of ["dream-analyzer", "dream-organizer"]) {
+  test(`${n}: a brought note is verified, then folded, updated or listed in remove; never removed by the agent`, () => {
+    const t = read(`../../agents/${n}.md`);
+    assert.match(t, /brought note/i);
+    assert.match(t, /`remove`/);
+    assert.match(t, /never remove a file/i);
+    assert.match(t, /`owner`/);
+  });
+}
 
 for (const n of ["dream-analyzer", "dream-organizer"]) {
   test(`${n}: cheap tier, file tools only`, () => {
