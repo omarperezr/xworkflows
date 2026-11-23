@@ -78,6 +78,19 @@ Spec: docs/superpowers/specs/2026-11-23-dream-memory.md
 - Role: main session
 - Done: `node bin/xworkflows.mjs pack --check` prints nothing.
 
+Possible design error in skills/dream/branch.mjs originals()
+Root cause: a copy in main is guessed from file names (the original name, or it with -old stripped), so a different note of the same name counts as the copy and forget deletes the only one. Design: a copy counts only when the sha256 of a file in main whose name strips to the original's name equals the sha256 recorded in dream.json; otherwise noCopy. The owner, 2026-11-23: "1 a, 2 todos".
+
+**T12: fix, a copy counts only when its content matches; and the four smaller findings of the confirmation** (confirmation of round 1)
+- Files: `skills/dream/branch.mjs`, `skills/dream/shared.mjs`, `skills/dream/extract.mjs`, `skills/dream/SKILL.md`, `skills/dream/dream.workflow.js`, `skills/dream/nocopy-collide.test.mjs` (on `verify/nocopy-collide`), `skills/dream/branch.test.mjs`, `skills/dream/extract.test.mjs`, `skills/dream/workflow.test.mjs`, `skills/dream/remove-bare-name.test.mjs`
+- Role: implement
+- Done: `node --test skills/dream/` passes; originals() marks noCopy unless a file in main has the recorded sha256; `forget --keep` exits 2 and deletes nothing on an entry that is not a listed number; outsideFolders takes `memory.autoDirectory` from the loaded config its callers pass; the workflow no longer strips the memory prefix (close does); the remove-bare-name test asserts `skipped` is empty and the note is gone from the branch.
+
+**T13: manifest hashes and the own copy, again**
+- After: T12
+- Role: main session
+- Done: `node bin/xworkflows.mjs pack --check` prints nothing.
+
 ## Review Focus
 
 - `forget` deletes files outside the repository: only the literal paths `unseen` listed, only in the default or the recorded earlier folder, only with a matching sha256, never a folder.
