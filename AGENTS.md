@@ -18,3 +18,4 @@ This project uses xworkflows (https://github.com/omarperezr/xworkflows).
 - No name, path or business term of the author's own projects in a tracked file: say "the reference project" and "exam project A / B". Before every commit the two privacy commands of the `privacy` project check print nothing.
 - Git: one branch per batch, merged with `--no-ff`; push and merge only on the owner's word; files added by explicit path; no AI authorship line.
 - A model call that costs money runs only through the proof harness, with `--api-credits` and its spend ledger.
+- Name clashes: install tells the user when one of our tool names is already taken; no tool carries a workaround for a kept or renamed piece.
