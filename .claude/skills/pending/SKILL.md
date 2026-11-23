@@ -1,6 +1,6 @@
 ---
 name: pending
-description: Add, change or close a card on the pending list, the one living list of work left to do. Use when a finding or a piece of work must be written down, when a plan or a batch branch changes what is left, and when work that has a card is done.
+description: Add, change or close a card on the pending list, the one living list of work left to do. Use when a finding or a piece of work must be written down, when a plan or a batch branch changes what is left, and when work that has a card is done. /pending triage judges the unscheduled cards against the bar.
 ---
 
 Before anything else, run `node .xworkflows/mark.mjs pending` in the shell.
@@ -97,3 +97,15 @@ A plan change that changes no card (wording, a ticked box) goes in a commit that
 A list change that belongs to another commit (a plan, a close) goes in that commit. Cards alone: `git add <paths.pending>`, then `git commit -m "docs: pending, <what changed>" -- <paths.pending>`. No AI author or co-author line. No push.
 
 When another skill sent you here with findings (the full review does), write one card per finding, commit, and return to that skill.
+
+## Triage
+
+On `/pending triage`, Claude Code only. Talk to the owner in the owner's language. `<base>` is this skill's base directory, shown when the skill loads; run its scripts with `node` from the repository root. The agent is `pending-triage`, `xwf-pending-triage` when `renamed` in `.xworkflows/installed.json` holds it. `model` is `cheap` in `.xworkflows/tiers.json`.
+
+1. Run `node <base>/triage.mjs list`; it prints `{ cards, skipped, malformed }`. A failure: show its text and stop. With `cards` empty, say there is nothing to judge, name the cards in `skipped` and in `malformed`, and stop.
+2. Ask once with `AskUserQuestion`: `Judge N cards?`, options `Yes` and `No`. Name in the description the number of cards, the agents (one per 20 cards) and the model, and the cards in `skipped` (scheduled or in progress, not judged) and in `malformed` (not read). On no, stop.
+3. Call the `Workflow` tool with `scriptPath: "<base>/triage.workflow.js"` and `args: { cards, agent, model }`, never an inline script. When it fails or is stopped, say so and stop. It prints `{ judged, ordered, notJudged }`.
+4. Show the result in plain numbered text in chat, never a dialog, in pages of at most 12. Each line: the card, its row (`blocking`, `pending`, `drop`, in English) and the reason. List `ordered` cards (work that is ordered, not judged) and `notJudged` cards apart, each with its reason or the fact that no agent returned it.
+5. After each page the owner answers `así` to accept it, or moves cards by number to another row. Then show the next page. At the end, or when the owner stops, only the rows he confirmed count.
+6. Run `node <base>/triage.mjs drop --cards P-<a>,P-<b>` with the `drop` cards he confirmed. When it refuses, show its text and stop. Commit as `## Commit` says, message `docs: pending, closes P-<n>, ...` naming those cards, with each card's reason in the body, one line per card as `## Close` asks. With no `drop` card confirmed, run and commit nothing.
+7. Name the `blocking` cards to the owner as the next work. `pending` cards do not change.

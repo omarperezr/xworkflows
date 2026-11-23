@@ -10,6 +10,7 @@ Spec: docs/superpowers/specs/2026-11-23-pending-triage.md
 - Only `Status: unscheduled` cards are judged; ordered work is never judged (spec 2, items 3 and 4).
 - The three row lines of `## The bar` in `skills/pending/SKILL.md` stay byte-identical: `skills/triage-bar.test.mjs` checks them.
 - Node standard library only; every installed file is a manifest piece with its hash.
+- Name clashes (owner, 2026-11-23): "asume que la gente sabe lo que hace ... lo maximo que podemos hacer es hacerles saber al instalar que nuestras herramientas tienen los nombres que tienen si hay algun choque con otro nombre se hace saber y que no va a funcionar bien a menos que se especifique bien cuando usar que herramienta, no hagamos demasiados arreglos alrededor de esos casos". So review findings 1 and 2 of round 1 (a kept or renamed `dream` or `pending` skill) are `drop`.
 
 ## Tasks
 
@@ -37,6 +38,16 @@ Spec: docs/superpowers/specs/2026-11-23-pending-triage.md
 - Role: implement
 - Done: `node bin/xworkflows.mjs pack --check` prints nothing, `node bin/xworkflows.mjs doctor` exits 0, and the full `node --test` passes.
 
+**T5: fixes from review round 1, moved into this batch by the owner** (spec 2, items 2, 4, 6)
+- Files: `skills/pending/triage.mjs`, `skills/pending/triage.test.mjs`, `skills/pending/triage.workflow.js`, `skills/pending/triage-workflow.test.mjs`, `skills/pending/SKILL.md`, `manifest.json`, the installed copy under `.claude/` and `.xworkflows/`
+- After: T4
+- Role: implement
+- (3a) Remove the chunk retry and `modelUp`: a failed chunk's cards go to `notJudged` only. Owner: "a".
+- (4) Triage step 6: the closes commit carries each dropped card's reason in its body, as `## Close` asks.
+- (5) Triage step 1: with `cards` empty, still name the `skipped` and `malformed` cards before stopping.
+- (6) Remove the unused `line` field from `list`.
+- Done: `node --test skills/pending/` passes, `node bin/xworkflows.mjs pack --check` prints nothing, the full `node --test` passes.
+
 ## Review Focus
 
 - `drop` rewrites the pending list: a parse slip deletes a card the owner kept, or the wrong one. Only the named numbers may go.
@@ -45,3 +56,5 @@ Spec: docs/superpowers/specs/2026-11-23-pending-triage.md
 ## Declined findings
 
 ## Seals
+review ok at 54cb519
+review ok at ae60aa6

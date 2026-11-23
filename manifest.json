@@ -622,6 +622,21 @@
       "sha256": "e48ecf7c6c09494708f342bb43521631668beebae12bc8a0ddac8a77828d2b03"
     },
     {
+      "id": "pending-triage",
+      "kind": "agent",
+      "origin": "own",
+      "version": "0.1.0",
+      "license": "MIT",
+      "scope": "project",
+      "tools": [
+        "claude"
+      ],
+      "files": {
+        "agents/pending-triage.md": "3403ff68a4f5c3210cefc45d2507be1cc67f14f053f5e547f77224aefe814840"
+      },
+      "sha256": "ffca70930214e8d757b5ca7e4266fe4bce4baf0f5e914666b1b7712bc4922280"
+    },
+    {
       "id": "dream-organizer",
       "kind": "agent",
       "origin": "own",
@@ -710,10 +725,12 @@
         "claude"
       ],
       "files": {
-        "skills/pending/SKILL.md": "f17d72ab861316c59adc115f936dd9809c5d3ff6847abcb065417cd74a9d186d",
-        "templates/PENDING.md": "024be763b231bbc39ea583635fe25413985745180345c5e731119a5f4259551f"
+        "skills/pending/SKILL.md": "48b015bce75259bfa78cd081dba32816ca2dcc67afd2855549b0607d8f73c59d",
+        "templates/PENDING.md": "024be763b231bbc39ea583635fe25413985745180345c5e731119a5f4259551f",
+        "skills/pending/triage.mjs": "e1fa871419ef8e36d025a9ca3ed2a146b9e5feb8f916e79431ccaf8fb5d0ddb4",
+        "skills/pending/triage.workflow.js": "efc9ff0b88380989ce2a0db3aa5ce21584f7b0068e5e189c41682c8b0767a23d"
       },
-      "sha256": "bfebf3d009b43fc653d787c9723976f74fbc874f424078ea8d2170f155f93ab1"
+      "sha256": "ffa9341ed855fe663dccc3a311bc9209018928edc87294a52762c2dd8811c377"
     },
     {
       "id": "tdd",

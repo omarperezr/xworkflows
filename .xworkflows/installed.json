@@ -116,6 +116,10 @@
       "version": "0.1.0",
       "sha256": "e48ecf7c6c09494708f342bb43521631668beebae12bc8a0ddac8a77828d2b03"
     },
+    "pending-triage": {
+      "version": "0.1.0",
+      "sha256": "ffca70930214e8d757b5ca7e4266fe4bce4baf0f5e914666b1b7712bc4922280"
+    },
     "dream-organizer": {
       "version": "0.1.0",
       "sha256": "ac7b8c46b1d0dea6001436a1afbb86c1ce92e8a7c3fc1ac6f5c656a0ec3243d6"
@@ -138,7 +142,7 @@
     },
     "pending": {
       "version": "0.1.0",
-      "sha256": "bfebf3d009b43fc653d787c9723976f74fbc874f424078ea8d2170f155f93ab1"
+      "sha256": "ffa9341ed855fe663dccc3a311bc9209018928edc87294a52762c2dd8811c377"
     },
     "tdd": {
       "version": "bb92a77741419a4ab5f06e711a283343f1ada0c3",
@@ -442,6 +446,10 @@
       "piece": "dream-analyzer",
       "sha256": "99360fb74a2feff1564f3a58649928f68317e89227883d1c29e957984de67e07"
     },
+    ".claude/agents/pending-triage.md": {
+      "piece": "pending-triage",
+      "sha256": "87c9390aeedf5725d26ca41a3e3fc13fc444a0c09240610edffa1592b77cded2"
+    },
     ".claude/agents/dream-organizer.md": {
       "piece": "dream-organizer",
       "sha256": "e4a2f612721ce7fa63dce41832524ea5b0b112c0820bea7e446c4c8252f0cadd"
@@ -464,7 +472,15 @@
     },
     ".claude/skills/pending/SKILL.md": {
       "piece": "pending",
-      "sha256": "f17d72ab861316c59adc115f936dd9809c5d3ff6847abcb065417cd74a9d186d"
+      "sha256": "48b015bce75259bfa78cd081dba32816ca2dcc67afd2855549b0607d8f73c59d"
+    },
+    ".claude/skills/pending/triage.mjs": {
+      "piece": "pending",
+      "sha256": "e1fa871419ef8e36d025a9ca3ed2a146b9e5feb8f916e79431ccaf8fb5d0ddb4"
+    },
+    ".claude/skills/pending/triage.workflow.js": {
+      "piece": "pending",
+      "sha256": "efc9ff0b88380989ce2a0db3aa5ce21584f7b0068e5e189c41682c8b0767a23d"
     },
     ".claude/skills/tdd/SKILL.md": {
       "piece": "tdd",
@@ -943,6 +959,10 @@
     {
       "file": ".gitignore",
       "line": ".xworkflows/local.json"
+    },
+    {
+      "file": ".graphifyignore",
+      "line": ".claude/agents/pending-triage.md"
     }
   ],
   "created": [
