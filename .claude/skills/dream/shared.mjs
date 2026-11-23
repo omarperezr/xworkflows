@@ -14,8 +14,14 @@ export async function shared(rel) {
 
 // the folders outside the repository that hold memory notes: the default one of the session logs and the earlier one install recorded
 export function outsideFolders(mem, root, home = homedir()) {
-  const found = [["default", join(home, ".claude", "projects", root.replace(/[^a-zA-Z0-9]/g, "-"), "memory")]];
-  try { found.push(["earlier", JSON.parse(readFileSync(join(root, ".xworkflows/local.json"), "utf8")).memory.earlierAutoDirectory]); } catch {}
+  const found = [];
+  let off = false; // autoDirectory false: the default folder is the live memory, not an old one
+  try { off = JSON.parse(readFileSync(join(root, ".xworkflows/config.json"), "utf8")).memory?.autoDirectory === false; } catch {}
+  if (!off) found.push(["default", join(home, ".claude", "projects", root.replace(/[^a-zA-Z0-9]/g, "-"), "memory")]);
+  try {
+    const e = JSON.parse(readFileSync(join(root, ".xworkflows/local.json"), "utf8")).memory.earlierAutoDirectory;
+    found.push(["earlier", typeof e === "string" && e.startsWith("~/") ? join(home, e.slice(2)) : e]);
+  } catch {}
   const seen = new Set([resolve(mem)]), out = [];
   for (const [kind, folder] of found) {
     if (typeof folder !== "string" || seen.has(resolve(folder))) continue;
