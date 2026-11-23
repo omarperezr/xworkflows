@@ -26,8 +26,9 @@ function world(config) {
   if (config) { mkdirSync(join(root, ".xworkflows")); writeFileSync(join(root, ".xworkflows/config.json"), JSON.stringify(config)); }
   git(root, "add", "-A");
   git(root, "commit", "-q", "-m", "init");
+  const home = tmp("dream-f-h-");
   const script = (name, ...args) => {
-    const r = spawnSync(process.execPath, [join(here, name), ...args], { cwd: root, encoding: "utf8" });
+    const r = spawnSync(process.execPath, [join(here, name), ...args], { cwd: root, encoding: "utf8", env: { ...process.env, HOME: home, USERPROFILE: home } });
     assert.equal(r.status, 0, `${name} ${args[0]}: ${r.stdout}${r.stderr}`);
     return JSON.parse(r.stdout);
   };
@@ -41,7 +42,7 @@ function world(config) {
   const state = () => JSON.parse(git(root, "show", "main:docs/memory/dream.json")).sessions;
   const read = (x) => x.sessions.map((s) => [s.name, s.lines, readFileSync(s.file, "utf8")]);
   put("running", user("the session that runs the dream", 9));
-  return { root, extract, open, close, drop, round, merge, put, state, read };
+  return { root, home, script, extract, open, close, drop, round, merge, put, state, read };
 }
 
 test("two whole runs: each session is read once, and on from where the last merged run stopped", () => {
@@ -138,4 +139,32 @@ test("a session named in --not-read, whose analyzer returned nothing, is read ag
   w.merge(w.close(w.open(), x, "--not-read", "s2"));
   assert.deepEqual(w.state(), { s1: 1 });
   assert.deepEqual(w.read(w.extract()), [["s2", 1, "user: two"]]);
+});
+
+test("an outside note is brought, a named note removed, and the next unseen lists the original that forget deletes", () => {
+  const w = world();
+  const folder = join(w.home, ".claude", "projects", w.root.replace(/[^a-zA-Z0-9]/g, "-"), "memory");
+  mkdirSync(folder, { recursive: true });
+  writeFileSync(join(folder, "o.md"), note("o", "outside"));
+  w.put("s1", user("one", 1));
+  const x = w.extract();
+  assert.deepEqual(x.outside.map((f) => [f.kind, f.files]), [["default", ["o.md"]]]);
+  const o = w.script("branch.mjs", "open", "--out", x.out);
+  made.push(o.worktree);
+  assert.deepEqual(o.brought, ["o.md"]);
+  const c = w.close(o, x, "--remove", "a.md");
+  assert.equal(c.removed, 1);
+  w.merge(c);
+  const u = w.script("branch.mjs", "unseen");
+  assert.deepEqual(u.originals, [{ n: 1, kind: "default", name: "o.md" }]);
+  assert.deepEqual(w.script("branch.mjs", "forget", "--keep", "1"), { deleted: [], changed: [] });
+  assert.deepEqual(w.script("branch.mjs", "forget"), { deleted: ["o.md"], changed: [] });
+  assert.equal(existsSync(join(folder, "o.md")), false);
+});
+
+test("SKILL.md passes the outside data: forget before open, open --out, brought, --remove, the fates and the owner text", () => {
+  const t = readFileSync(join(here, "SKILL.md"), "utf8");
+  for (const s of ["outside", "originals", "branch.mjs forget", "--keep", "open --out", "brought", "--remove", "fates", "owner", "owner.md", "Run the dream?", "Yes, run it", "No, not now"])
+    assert.ok(t.includes(s), s);
+  assert.ok(t.indexOf("branch.mjs forget") < t.indexOf("branch.mjs open"));
 });
