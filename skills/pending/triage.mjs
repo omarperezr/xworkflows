@@ -15,7 +15,7 @@ const cards = parsed.filter((l) => l.m && l.m[4] === "unscheduled");
 
 if (process.argv[2] === "list") {
   console.log(JSON.stringify({
-    cards: cards.map(({ m, line }) => ({ n: `P-${m[1]}`, text: m[2], origin: m[3], line })),
+    cards: cards.map(({ m }) => ({ n: `P-${m[1]}`, text: m[2], origin: m[3] })),
     skipped: parsed.filter((l) => l.m && l.m[4] !== "unscheduled").map(({ m }) => ({ n: `P-${m[1]}`, status: m[4] })),
     malformed: parsed.filter((l) => !l.m).map(({ line, text }) => ({ line, text })),
   }));

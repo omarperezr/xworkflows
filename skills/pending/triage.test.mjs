@@ -32,8 +32,8 @@ test("list names the unscheduled cards, the skipped ones and the malformed one",
   assert.equal(r.status, 0, r.stderr);
   const out = JSON.parse(r.stdout);
   assert.deepEqual(out.cards, [
-    { n: "P-1", text: "text 1", origin: "somewhere", line: 4 },
-    { n: "P-5", text: "text with Origin: inside", origin: "somewhere", line: 10 },
+    { n: "P-1", text: "text 1", origin: "somewhere" },
+    { n: "P-5", text: "text with Origin: inside", origin: "somewhere" },
   ]);
   assert.deepEqual(out.skipped, [{ n: "P-2", status: "scheduled" }, { n: "P-3", status: "in progress on b-1" }]);
   assert.deepEqual(out.malformed, [{ line: 7, text: "- **P-4** — no origin or status here" }]);
