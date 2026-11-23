@@ -1,0 +1,59 @@
+{
+  "brought": [
+    {
+      "kind": "default",
+      "name": "merge-sealed-batches-without-asking.md",
+      "sha256": "2b3c4202b10d3b97ab677984e6508116af2a96e8065d50eccb4c20e93fd8aa6b"
+    },
+    {
+      "kind": "default",
+      "name": "no-api-spend.md",
+      "sha256": "79e4c3c568a8a524a8487226fe7e29a38ae897b8894612b4fc8f076258280bd9"
+    },
+    {
+      "kind": "default",
+      "name": "owner-judges-short-plain-lists.md",
+      "sha256": "2144ad11d17b6acca4379225bf2226acd2e6c68cc0bc134f99f148e5eea08fb6"
+    },
+    {
+      "kind": "default",
+      "name": "phase-1-progress.md",
+      "sha256": "b68935177e5a6bc0759b1edcf7128df8915e058e7a8a43a832f043812023a20b"
+    },
+    {
+      "kind": "default",
+      "name": "system-map-artifact.md",
+      "sha256": "a06681d3f519fa410f55be77d4ca3e03226bb5d9d8463c133eb414db64e9a08c"
+    }
+  ],
+  "sessions": {
+    "aa2efc01-b9d7-4fe4-be14-668d8375c06e": 8522,
+    "d86649ed-72f7-4483-b071-92227fe2cef4": 6856,
+    "ae390796-e18d-4363-a406-510d18d6a48a": 16721,
+    "23dddb7c-28ab-424d-b4e1-75de075f3140": 262,
+    "7d8ed281-0aa0-42f8-a16d-db817fa9c911": 3773,
+    "055e2e1a-f475-4fbe-982a-91a9beff9993": 49,
+    "8846ce53-0520-4b25-8f82-4dbaf420f262": 57,
+    "d5e63888-c9cb-4669-9d1c-a34de31e3a2f": 45,
+    "5889e6d0-ed47-4d23-b794-33f1f16b6357": 54,
+    "9e0293be-05d9-4d23-a8e6-736818133161": 55,
+    "e667a296-f724-4182-b1ba-c07b0a746250": 686,
+    "601347ed-69a4-4971-b26b-edb001fa7a68": 54,
+    "62e2799d-de68-4f2a-91af-071e07c81be2": 54,
+    "ce18faa6-fbfe-4224-aa64-8e5721e1dea3": 52,
+    "68fb0226-0712-43cc-9e4f-decdbaa8c960": 47,
+    "05d4fa67-4334-461c-8fd9-051077fbf1b7": 44,
+    "f6ef71dd-683a-42bd-97ff-62f1ac15694b": 62,
+    "ed1ddc4a-d468-4593-be24-d33e44b38c4f": 58,
+    "7bee4bcf-712b-4f57-a698-34756a676d20": 62,
+    "d01a24f7-394d-4f5d-9be8-61a3d4bc5fe9": 58,
+    "c0b43ad2-1ef4-4be2-acbc-a5b7f1a239e4": 564,
+    "6c0db597-361b-4d5c-b60b-338bb201c865": 6758,
+    "2f9368e9-0b02-41af-b968-49b14383520d": 1047,
+    "1bb2da73-44a0-4531-9eff-0f7792244a19": 1935,
+    "8a05ac38-0f3f-455c-83db-dfb8fdceed00": 19,
+    "85dee04a-237f-4eab-ab9f-91d6ff840860": 25,
+    "fedcb8f2-b736-4527-b0cd-65b5b6d32e0c": 18
+  },
+  "ran": "2026-11-23T14:31:44.219Z"
+}

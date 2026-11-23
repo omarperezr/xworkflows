@@ -1,0 +1,14 @@
+- [adapt-proof-runs](adapt-proof-runs.md) — How /adapt is measured on the reference project, what the runs showed, and the process lessons; read before measuring /adapt again
+- [dream-memory](dream-memory.md) — /dream in xworkflows as of 2026-11-23: one memory folder docs/memory, works from zero notes, brings and forgets old-folder notes, what the first runs taught, and what is open
+- [measure-tool](measure-tool.md) — proof/measure.mjs in xworkflows: what it counts per batch, its known bugs, and where its numbers live
+- [memory-hook](memory-hook.md) — The xworkflows memory job (hooks/core/memory.mjs): what runs at compaction and session end, its lock and time-out rules, the qmd model check in doctor, and memory.autoDirectory
+- [model-and-effort-policy](model-and-effort-policy.md) — Which model and effort each xworkflows role runs on, the owner's decisions about them (risk reviewer Fable, confirmations by Opus), and what drives the cost
+- [phase-1-progress](phase-1-progress.md) — Where phase 1 of xworkflows stands on 2026-11-23: what is merged, the one piece left (the pilot), and what the owner still owes
+- [qmd-local-index](qmd-local-index.md) — How xworkflows memory search uses qmd: the per-checkout local index that install writes, what qmd does with it, and what was tested with qmd 2.8.3
+- [risk-reviewer-model-test](risk-reviewer-model-test.md) — Card P-222 (closed 2026-11-23): Fable xhigh against Opus xhigh as the xworkflows risk reviewer; result and why Fable was kept
+- [safe-db-hook](safe-db-hook.md) — The xworkflows safe-db hook (hooks/core/safe-db.mjs): what passes, what asks the owner, and the holes the owner discarded on 2026-11-23
+- [system-map-artifact](system-map-artifact.md) — URL of the published diagram page of the whole xworkflows system; update it in place instead of publishing a new one
+- [test-isolation-and-cleanup](test-isolation-and-cleanup.md) — Rules for tests and agents that touch the owner's machine (qmd, shared temp folder, deletions, orphan processes, paid calls) and how the slow pre-push was fixed
+- [triage-bar](triage-bar.md) — The xworkflows triage bar (card P-239, merged 2026-11-23): the rows blocking, pending and drop that every review finding gets, the owner's test, and the open gaps
+- [workflow-upgrade-2026-11](workflow-upgrade-2026-11.md) — The xworkflows workflow upgrade (owner's design of 2026-11-18, merged 2026-11-19): optional deepen, one review per plan, reviewers by size and risk, three implementers, rm-seguro and database hooks, and the lessons it left
+- [xworkflows-handoff](xworkflows-handoff.md) — The xworkflows hand-off (skill handoff, hook handoff-load): when it loads, the main-sha and HEAD checks, the line the owner sees, and the lessons from building it (2026-11-23)
