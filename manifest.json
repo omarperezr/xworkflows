@@ -725,12 +725,12 @@
         "claude"
       ],
       "files": {
-        "skills/pending/SKILL.md": "09529d3d2c44f26debce913cfb931aa830aa7c5d28e425ce793d76071e38aef0",
+        "skills/pending/SKILL.md": "48b015bce75259bfa78cd081dba32816ca2dcc67afd2855549b0607d8f73c59d",
         "templates/PENDING.md": "024be763b231bbc39ea583635fe25413985745180345c5e731119a5f4259551f",
-        "skills/pending/triage.mjs": "30f8ccf18edeb11d345bf8d2f806722806134b6cebb5083cb7b33b4d662509fe",
-        "skills/pending/triage.workflow.js": "53800a60424ff705e1cbe339939154e5ebdac84287779ff5b470e5e9d6fff8eb"
+        "skills/pending/triage.mjs": "e1fa871419ef8e36d025a9ca3ed2a146b9e5feb8f916e79431ccaf8fb5d0ddb4",
+        "skills/pending/triage.workflow.js": "efc9ff0b88380989ce2a0db3aa5ce21584f7b0068e5e189c41682c8b0767a23d"
       },
-      "sha256": "c03d87eec14e2d015156b3df3b4a564cba31488f2483662bd3f6d156d85b5337"
+      "sha256": "ffa9341ed855fe663dccc3a311bc9209018928edc87294a52762c2dd8811c377"
     },
     {
       "id": "tdd",

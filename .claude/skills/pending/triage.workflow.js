@@ -1,11 +1,11 @@
 export const meta = {
   name: "pending-triage",
-  description: "Judges the unscheduled pending cards, 20 per agent in parallel; a chunk that fails is retried once with the stronger model.",
+  description: "Judges the unscheduled pending cards, 20 per agent in parallel; a chunk that fails leaves its cards not judged.",
   phases: [{ title: "Judge" }],
 };
 
-// args: cards [{ n, text, origin }], agent, model (the cheap tier's), modelUp (the retry's).
-const { cards, agent: agentType, model, modelUp } = args;
+// args: cards [{ n, text, origin }], agent, model (the cheap tier's).
+const { cards, agent: agentType, model } = args;
 const str = { type: "string" };
 const JUDGED = {
   type: "object",
@@ -25,11 +25,11 @@ const JUDGED = {
 phase("Judge");
 const chunks = [];
 for (let i = 0; i < cards.length; i += 20) chunks.push(cards.slice(i, i + 20));
-const ask = (chunk, m, i) => agent(
+const ask = (chunk, i) => agent(
   `Judge these cards:\n${JSON.stringify(chunk)}`,
-  { agentType, model: m, schema: JUDGED, label: `judge ${i + 1}`, phase: "Judge" },
+  { agentType, model, schema: JUDGED, label: `judge ${i + 1}`, phase: "Judge" },
 );
-const got = await parallel(chunks.map((chunk, i) => async () => (await ask(chunk, model, i)) ?? (await ask(chunk, modelUp, i))));
+const got = await parallel(chunks.map((chunk, i) => () => ask(chunk, i)));
 
 // a result counts only for a card of its own chunk; a finding needs a row, an ordered card never has one
 const judged = [], ordered = [], seen = new Set();
