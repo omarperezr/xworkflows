@@ -1,15 +1,14 @@
-- [adapt-proof-runs](adapt-proof-runs.md) — How /adapt is measured on the reference project (R = found by research alone, I = kept after the interview), the result of each run, what the runs cost, and the process mistakes that burned turns; read before measuring /adapt again
-- [dream-memory](dream-memory.md) — /dream in xworkflows as of 2026-11-23: one memory folder docs/memory, /dream works from zero notes, the first run that failed at close after about 927,000 tokens, the dream-memory-1 batch fixes (earlier folder, forget, copy check by content), and what is still open
-- [handoff-batch-1](handoff-batch-1.md) — State of batch handoff-1 in xworkflows (task T1: the handoff hook loads a hand-off at session start and prints it on PreCompact); what is untested, what pack must fix, and test-run lessons
-- [measure-tool](measure-tool.md) — proof/measure.mjs in xworkflows: what it counts per batch, its known bugs, the accuracy check that still fails, and where its numbers live (git-ignored)
-- [memory-hook](memory-hook.md) — The xworkflows memory job (hooks/core/memory.mjs): what runs at compaction and session end, in what order, its lock and time-out rules, the qmd model check in doctor, and memory.autoDirectory
-- [model-and-effort-policy](model-and-effort-policy.md) — Which model and effort each xworkflows role runs on (tiers.json, agent files, main session), the spend by role measured on 2026-11-15, and the owner's decisions about them
-- [phase-1-progress](phase-1-progress.md) — Where phase 1 of xworkflows stands (sub-projects 1.1, 1.2, 1.2b, 1.3, 1.4), what to fix before the pilot, and what the owner still owes
-- [qmd-local-index](qmd-local-index.md) — How xworkflows memory search uses qmd: the per-checkout .qmd/index.yml that install writes, what qmd does with it, and what was tested with qmd 2.8.3
-- [risk-reviewer-model-test](risk-reviewer-model-test.md) — Card P-222 (closed 2026-11-23): Fable xhigh against Opus xhigh as the xworkflows risk reviewer. Result, cost, limits, and why Fable was kept
-- [safe-db-hook](safe-db-hook.md) — The xworkflows safe-db hook (hooks/core/safe-db.mjs): what it asks about for database clients, the zero and signed-number cases, and the command-word reads rule added in T18 of workflow-upgrade-1
-- [system-map-artifact](system-map-artifact.md) — URL of the published diagram page of the whole xworkflows system (install, adapt, seven stages, agents, hooks, brakes, memory); update it in place instead of publishing a new one
-- [test-isolation-and-cleanup](test-isolation-and-cleanup.md) — Rules for tests and agents that touch the owner's machine (qmd home, shared temp folder, paid calls, deletions), the incidents of 2026-11-15 that set them, and how the pre-push timing was fixed
-- [triage-bar](triage-bar.md) — The xworkflows triage bar (card P-239, batch triage-bar-1, 2026-11-23): the rows blocking, pending and drop that every review finding gets, the owner's test against old cards, and the open gaps (P-240 to P-244)
-- [workflow-upgrade-2026-11](workflow-upgrade-2026-11.md) — xworkflows workflow upgrade of 2026-11-18/19: optional deepen, one review per plan, small-change reviewer, three implementers, rm-seguro and database hooks; what was merged, what is still open
-- [xworkflows-handoff](xworkflows-handoff.md) — The xworkflows hand-off (.xworkflows/handoff.md, skill handoff, hook handoff-load): how it loads on /compact, /clear and startup, the HEAD and main sha checks, the owner-visible notice (batch handoff-notice), and what burned turns when batch handoff-1 built it (2026-11-23)
+- [phase-1-progress](phase-1-progress.md) — Where phase 1 stands: what is merged, the pilot left, what the owner owes
+- [workflow-upgrade-2026-11](workflow-upgrade-2026-11.md) — The 2026-11-18 workflow design (deepen, reviews, implementers, hooks) and its lessons
+- [triage-bar](triage-bar.md) — Rows blocking / pending / drop for every review finding, the owner's test, open gaps
+- [dream-memory](dream-memory.md) — How /dream and the one memory folder work, and the lessons of its first runs
+- [xworkflows-handoff](xworkflows-handoff.md) — The hand-off between sessions: when it loads, what the owner sees, lessons
+- [memory-hook](memory-hook.md) — The memory job at compaction and session end: steps, locks, time limits, qmd models
+- [qmd-local-index](qmd-local-index.md) — How install sets up qmd's local index for the memory folder
+- [safe-db-hook](safe-db-hook.md) — What the database hook lets through and what asks the owner
+- [system-map-artifact](system-map-artifact.md) — URL of the system diagram page; update it in place
+- [model-and-effort-policy](model-and-effort-policy.md) — Model and effort per role, the owner's decisions, what drives the cost
+- [risk-reviewer-model-test](risk-reviewer-model-test.md) — Fable against Opus as risk reviewer: Fable kept, it misses fewer faults
+- [measure-tool](measure-tool.md) — What proof/measure.mjs counts per batch and its known bugs
+- [adapt-proof-runs](adapt-proof-runs.md) — How /adapt is measured and the lessons; read before measuring it again
+- [test-isolation-and-cleanup](test-isolation-and-cleanup.md) — Rules for tests and agents on the owner's machine; the slow pre-push fix
