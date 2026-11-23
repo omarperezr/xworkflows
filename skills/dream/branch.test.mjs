@@ -655,6 +655,17 @@ test("forget --keep deletes each other original whose sha256 matches, names a ch
   assert.deepEqual(readdirSync(w.old), []);
 });
 
+test("forget --keep with an entry that is not a listed number exits 2 and deletes nothing", () => {
+  const root = bare();
+  const w = outsideWorld(root, { "d.md": note("d"), "x.md": note("x") });
+  merged(root, w); // numbered d 1, x 2
+  for (const keep of ["3", "1,9", "1,a", "1,", "0", "01", "1.0", "-1"]) {
+    const r = run(["forget", "--keep", keep], root, w.home);
+    assert.equal(r.code, 2, keep);
+    assert.deepEqual(readdirSync(w.dflt).sort(), ["d.md", "x.md"], keep);
+  }
+});
+
 test("forget without --keep deletes every unchanged original, never through a link or a name that is a path", () => {
   const root = bare();
   const w = outsideWorld(root, { "d.md": note("d") });

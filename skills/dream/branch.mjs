@@ -105,9 +105,11 @@ export function run(argv, root, home = homedir()) {
         originals: originals().map(({ p, ...o }) => o) });
     }
     if (argv[0] === "forget") { // each original of unseen but those kept by number: unlink of one literal file, only when it is still the one copied
-      const keep = new Set((arg(argv, "--keep") ?? "").split(",").map(Number)), deleted = [], changed = [];
-      for (const o of originals()) {
-        if (keep.has(o.n)) continue;
+      const list = originals(), raw = arg(argv, "--keep"), keep = new Set(raw ? raw.split(",") : []), deleted = [], changed = [];
+      const bad = [...keep].filter((k) => !list.some((o) => String(o.n) === k)); // a typo must not delete what the owner meant to keep
+      if (bad.length) return { code: 2, stdout: `--keep takes the numbers of the listed originals (1 to ${list.length}), not: ${bad.join(",")}\n` };
+      for (const o of list) {
+        if (keep.has(String(o.n))) continue;
         if (o.changed) changed.push(o.name); else { unlinkSync(o.p); deleted.push(o.name); }
       }
       return out({ deleted, changed });
