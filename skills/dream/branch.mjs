@@ -75,18 +75,19 @@ export function run(argv, root, home = homedir()) {
   };
   const linkedLine = { code: 2, stdout: `the memory folder ${dir} is a link: /dream cannot run here, its writes could leave the branch\n` };
   const folderOf = (kind) => outsideFolders(join(root, dir), root, home).find((f) => f.kind === kind)?.folder;
-  // the originals main's dream.json records that still stand in their folder, numbered; changed when the file is no longer the one copied, noCopy when main's tree has no file of its name
+  // the originals main's dream.json records that still stand in their folder, numbered; changed when the file is no longer the one copied, noCopy when no file of main's tree named like it (or with -old) holds the recorded sha256
   const originals = () => {
     let brought = [];
     try { brought = JSON.parse(git(root, "show", `${main}:${dir}/dream.json`)).brought ?? []; } catch { /* no record */ }
     // a brought note that close left out (user, feedback) or removed never entered main: marked noCopy, still deletable after the owner is asked
     const tree = new Set(git(root, "ls-tree", "--name-only", "-z", main, "--", `${dir}/`).split("\0").map((f) => f.slice(dir.length + 1)));
+    const blob = (f) => spawnSync("git", ["show", `${main}:${dir}/${f}`], { cwd: root, env, maxBuffer: 1 << 28 }).stdout ?? Buffer.alloc(0); // raw bytes: git() trims and decodes
     const list = [];
     for (const b of Array.isArray(brought) ? brought : []) {
       const folder = folderOf(b?.kind), p = folder && note(b.name) ? join(folder, b.name) : null;
       if (!p || !lstatSync(p, { throwIfNoEntry: false })?.isFile()) continue;
       list.push({ n: list.length + 1, kind: b.kind, name: b.name, p, ...(sha256(readFileSync(p)) !== b.sha256 && { changed: true }),
-        ...(![...tree].some((f) => f.replace(/(-old)+\.md$/, ".md") === b.name) && { noCopy: true }) });
+        ...(![...tree].some((f) => f.replace(/(-old)+\.md$/, ".md") === b.name && sha256(blob(f)) === b.sha256) && { noCopy: true }) });
     }
     return list;
   };
