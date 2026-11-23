@@ -10,6 +10,7 @@ Spec: docs/superpowers/specs/2026-11-23-dream-memory.md
 - "asegurate de siempre avisarle al owner que carpetas/archivos se borrarian/modificarian/actualizarian"
 - "obviamente siempre deberian borrarse a menos que owner diga lo contrario (por eso siempre se le pregunta)"
 - "no uses fable para estas tareas, no tenemos cupo usa opus en xhigh, igual no creo que sea super necesario usar fable para esto tan relativamente simple": the risk review of this batch runs on Opus at xhigh.
+- The earlier memory folder is an absolute path, so it is kept in the git-ignored `.xworkflows/local.json`, never in the tracked `installed.json`.
 - No absolute path and no name of the owner's projects enters a tracked file: a brought note is recorded in `dream.json` by its folder kind (`default` or `earlier`), its file name and its sha256, never by its full path.
 
 ## Tasks
@@ -19,21 +20,22 @@ Spec: docs/superpowers/specs/2026-11-23-dream-memory.md
 **T1: install creates `docs/memory/MEMORY.md` when missing and records the earlier `autoMemoryDirectory`** (spec section 2, items 1 and 3)
 - Files: `bin/xworkflows.mjs`, `bin/install-memory.test.mjs`
 - Role: implement
-- Done: `node --test bin/install-memory.test.mjs` passes; the earlier value is stored as `memory.earlierAutoDirectory` in `.xworkflows/installed.json` only when it existed and differed; uninstall leaves `MEMORY.md` alone.
+- Done: `node --test bin/install-memory.test.mjs` passes; the earlier value is stored as `memory.earlierAutoDirectory` in `.xworkflows/local.json` only when it existed and differed, and a later install keeps a value already stored; install adds `.xworkflows/local.json` to `.gitignore` and uninstall removes the file and the line; `MEMORY.md` is created only when `memory.autoDirectory` is not false; uninstall leaves `MEMORY.md` alone.
 
 **T2: extract runs from zero notes and lists the outside folders and their notes** (spec section 2, items 2, 3 and 7)
 - Files: `skills/dream/extract.mjs`, `skills/dream/extract.test.mjs`, `skills/dream/shared.mjs`
 - Role: implement
-- Done: `node --test skills/dream/extract.test.mjs` passes; zero notes no longer gives `no memory notes`; the result has `outside: [{ kind, folder, files }]` for the default folder (`~/.claude/projects/` + the repository path with every character outside `[a-zA-Z0-9]` turned into `-`, then `memory/`) and for `memory.earlierAutoDirectory`; the folder helper lives in `shared.mjs`.
+- Done: `node --test skills/dream/extract.test.mjs` passes; zero notes no longer gives `no memory notes`; the result has `outside: [{ kind, folder, files }]` for the default folder (`~/.claude/projects/` + the repository path with every character outside `[a-zA-Z0-9]` turned into `-`, then `memory/`) and for `memory.earlierAutoDirectory` of `.xworkflows/local.json`; a folder that is missing or is the repository memory folder itself is left out; `MEMORY.md` of an old folder is not a note; the folder helper lives in `shared.mjs`.
 
 **T3: branch brings, removes and forgets** (spec section 2, items 1, 3, 4 and 6)
 - Files: `skills/dream/branch.mjs`, `skills/dream/branch.test.mjs`
 - After: T2
 - Role: implement
-- Done: `node --test skills/dream/branch.test.mjs` passes, with tests for: `open` creates the memory folder when main has none and copies the outside notes in; `close` commits nothing and fails nothing when the folder is missing or empty; `close --remove <name,name>` runs `git rm` only inside the branch's memory folder and refuses and names any other path; `dream.json` records each brought note as kind, name and sha256; `unseen` lists the originals whose copy is in main; `forget --keep <n,n>` deletes each other original by literal path only when its sha256 still matches, and names a changed one.
+- Done: `node --test skills/dream/branch.test.mjs` passes, with tests for: `open --out <out>` creates the memory folder when main has none, copies in the notes of `outside` in `<out>/extract.json` (a name already taken by a different note gets the suffix `-old`) and prints them as `brought`; `close` commits nothing and fails nothing when the folder is missing or empty; `close --remove <name,name>` runs `git rm` only inside the branch's memory folder and refuses and names any other path; `dream.json` records each brought note as kind, name and sha256; `unseen` lists, numbered, the originals whose record is in main's `dream.json`, each marked `changed` when its sha256 differs; `forget --keep <n,n>` deletes each other original by literal path only when its sha256 still matches, and names a changed one.
 
 **T4: the workflow and its agents return removals, fates and owner text** (spec section 2, items 4, 5 and 7)
-- Files: `skills/dream/dream.workflow.js`, `skills/dream/workflow.test.mjs`, `agents/dream-analyzer.md`, `agents/dream-organizer.md`
+- Files: `skills/dream/dream.workflow.js`
+- The workflow takes `brought` (the note names `open` printed) in `args` and names them in each prompt., `skills/dream/workflow.test.mjs`, `agents/dream-analyzer.md`, `agents/dream-organizer.md`
 - Role: implement
 - Done: `node --test skills/dream/workflow.test.mjs` passes; each agent's schema adds `remove: [{ note, reason }]`, `fates: [{ note, fate, into, reason }]` and `owner: [{ text, note }]`; the workflow returns them merged; the agents still never write a `user` or `feedback` note and never remove a file.
 
