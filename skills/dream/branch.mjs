@@ -162,10 +162,10 @@ export function run(argv, root, home = homedir()) {
       if (no) return no;
       const memory = join(real, dir), state = join(memory, "dream.json");
       mkdirSync(memory, { recursive: true });
-      // a removal is a note's file name, directly in the memory folder and no link: any other is refused before anything changes
-      const refused0 = remove.filter((n) => !note(n) || !mine(real, join(memory, n)));
-      if (refused0.length) return { code: 2, stdout: `--remove takes only notes of the memory folder ${dir}, not: ${refused0.join(", ")}\n` };
-      for (const n of remove) {
+      // a removal is a note directly in the memory folder, by its bare name or by a path that resolves to it, and no link: any other entry is skipped, never removed, and named in skipped
+      const take = remove.map((n) => [n, basename(resolve(memory, n)), dirname(resolve(memory, n)) === memory]).map(([n, b, inside]) => ({ n, b, ok: inside && note(b) && mine(real, join(memory, b)) }));
+      const gone = take.filter((t) => t.ok).map((t) => t.b), skipped = take.filter((t) => !t.ok).map((t) => t.n);
+      for (const n of gone) {
         const p = join(memory, n);
         if (lstatSync(p, { throwIfNoEntry: false }) && tryGit(real, "rm", "-q", "-f", "--", `${dir}/${n}`).code !== 0) unlinkSync(p); // untracked: not in git's index
       }
@@ -209,7 +209,7 @@ export function run(argv, root, home = homedir()) {
       }
       // what the commit leaves out: a change not staged or a file not tracked; after a refused commit, the staged notes are not in it
       const outside = git(real, "status", "--porcelain", "-z", "--untracked-files=all", "--no-renames").split("\0").filter((l) => l && l[1] !== " ").map((l) => l.slice(3));
-      if (refused !== null) return { code: 1, stdout: JSON.stringify({ refused, worktree: real, masked, look, outside,
+      if (refused !== null) return { code: 1, stdout: JSON.stringify({ refused, worktree: real, masked, look, outside, skipped,
         finish: `the commit was refused; the notes stay staged in ${real}: commit there, then run git worktree remove --force ${real}, which removes the files of outside with it; the extract's folder ${dirOut} stays: drop --out removes it` }) + "\n" };
 
       const st = git(root, "diff", "--no-renames", "--name-status", "-z", `${main}...${branch}`, "--", dir).split("\0").filter(Boolean); // -z: a name outside ASCII comes unquoted
@@ -225,7 +225,7 @@ export function run(argv, root, home = homedir()) {
 
       const left = dropOut(dirOut, [realpathSync(root), real]);
       git(root, "worktree", "remove", "--force", real); // the changes outside the memory folder are named above and go with it
-      return out({ branch, added: count("A"), changed: count("M"), removed: count("D"), masked, look, stale: lines, outside, left,
+      return out({ branch, added: count("A"), changed: count("M"), removed: count("D"), skipped, masked, look, stale: lines, outside, left,
         see: `git diff ${main}...${branch} -- ${dir}`, adopt: `git merge --no-ff ${branch}`, discard: `git branch -D ${branch}` });
     }
     if (argv[0] === "drop") { // every path that stops: the extract's folder by close's rule, and a worktree open made, with its branch when that holds no commit
