@@ -1259,7 +1259,7 @@ function uninstall() {
     blocks: (b) => b.file === "AGENTS.md",
     imports: (i) => !!LINES.get(i.file)?.includes(i.line) || (i.file === GI && giLines.has(i.line)) || i.line === hookLine(basename(i.file)),
     // a hook file install made for husky: the record holds the line it put there
-    created: (p) => FIVE.includes(p) || p === md || p === join(md, "MEMORY.md") || (p === YML && marked) || rec.imports.some((i) => i.file === p && i.line === hookLine(basename(p))),
+    created: (p) => FIVE.includes(p) || (md !== undefined && (p === md || p === join(md, "MEMORY.md"))) || (p === YML && marked) || rec.imports.some((i) => i.file === p && i.line === hookLine(basename(p))),
     chained: (c) => hookSet.has(c.file) && c.to === c.file + ".before-xworkflows",
   };
   const said = new Set();
