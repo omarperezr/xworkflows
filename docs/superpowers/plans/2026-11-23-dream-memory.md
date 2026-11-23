@@ -10,6 +10,7 @@ Spec: docs/superpowers/specs/2026-11-23-dream-memory.md
 - "asegurate de siempre avisarle al owner que carpetas/archivos se borrarian/modificarian/actualizarian"
 - "obviamente siempre deberian borrarse a menos que owner diga lo contrario (por eso siempre se le pregunta)"
 - "no uses fable para estas tareas, no tenemos cupo usa opus en xhigh, igual no creo que sea super necesario usar fable para esto tan relativamente simple": the risk review of this batch runs on Opus at xhigh.
+- Risk review of batch 1, the owner: "A a, B a": the default folder is not read when `memory.autoDirectory` is false (it is the live memory then), and only the organizer sees the brought notes and decides their fate, removal and owner text once.
 - The earlier memory folder is an absolute path, so it is kept in the git-ignored `.xworkflows/local.json`, never in the tracked `installed.json`.
 - No absolute path and no name of the owner's projects enters a tracked file: a brought note is recorded in `dream.json` by its folder kind (`default` or `earlier`), its file name and its sha256, never by its full path.
 
@@ -50,6 +51,32 @@ Spec: docs/superpowers/specs/2026-11-23-dream-memory.md
 - After: T1, T3, T4, T5
 - Role: mechanical
 - Done: `node bin/xworkflows.mjs pack --check` prints nothing; `diff -r skills/dream .claude/skills/dream` and `diff agents/dream-analyzer.md .claude/agents/dream-analyzer.md` print nothing.
+
+**T7: fix, uninstall with a refused `memory.dir`** (risk review, finding 1)
+- Files: `bin/xworkflows.mjs`, `bin/uninstall-memory-dir.test.mjs` (test on `verify/uninstall-md-undefined`)
+- Role: implement
+- Done: `node --test bin/uninstall-memory-dir.test.mjs` passes; `node --test bin/` passes.
+
+**T8: fix, originals with no copy in main, and a remove entry that is not a bare name** (risk review, findings 2 and 3)
+- Files: `skills/dream/branch.mjs`, `skills/dream/SKILL.md`, `skills/dream/flow.test.mjs`, `skills/dream/forget-no-copy.test.mjs` (on `verify/forget-no-copy`), `skills/dream/remove-bare-name.test.mjs` (on `verify/remove-bare-name`)
+- Role: implement
+- Done: both tests pass; `unseen` marks an original main holds no copy of, and the opening question names it so; `close --remove` takes a path inside the branch's memory folder as its bare name, and skips and names any other entry instead of failing the run.
+
+**T9: only the organizer handles the brought notes** (owner's answer B a; finding 3, the agents' side)
+- Files: `skills/dream/dream.workflow.js`, `skills/dream/workflow.test.mjs`, `agents/dream-analyzer.md`, `agents/dream-organizer.md`
+- Role: implement
+- Done: `node --test skills/dream/workflow.test.mjs` passes; the brought names reach only the organizer's prompt; `remove`, `fates` and `owner` come only from the organizer; both agents are told a note is its bare file name, like `a.md`.
+
+**T10: the default folder is skipped when `memory.autoDirectory` is false** (owner's answer A a)
+- Files: `skills/dream/shared.mjs`, `skills/dream/extract.test.mjs`
+- Role: implement
+- Done: `node --test skills/dream/extract.test.mjs` passes, with a test for it.
+
+**T11: manifest hashes and the own copy, again**
+- Files: `manifest.json`, `.xworkflows/installed.json`, `.claude/skills/dream/`, `.claude/agents/dream-analyzer.md`, `.claude/agents/dream-organizer.md`
+- After: T7, T8, T9, T10
+- Role: main session
+- Done: `node bin/xworkflows.mjs pack --check` prints nothing.
 
 ## Review Focus
 
