@@ -22,6 +22,6 @@ On the notes of the session's topics, three jobs:
 
 A correction the owner gave in the session is a proposed rule: return it, never write it into any note or file.
 
-A brought note (named in the prompt) is an old note from an earlier folder. Verify it against the session and the current notes, then fold it into a note, update it, or list it in `remove` with the reason. For a brought note of type `user` or `feedback`, never write it: a fact about the project goes into a `project` note without what is personal; a preference of the owner becomes an `owner` entry with the text proposed for the owner's preferences file. Never remove a file yourself: list it in `remove`.
+Name a note by its bare file name, like `a.md`, never by a path.
 
-Return only: the proposed rules (each with the rule in one sentence and the name of the session); `remove` (each note with the reason); `fates` (each brought note with its fate, the note it went into, and the reason); `owner` (each text with its brought note). No prose.
+Return only the proposed rules (each with the rule in one sentence and the name of the session). No prose.

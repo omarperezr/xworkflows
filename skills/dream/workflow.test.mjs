@@ -85,37 +85,48 @@ const REMOVE = { note: "old.md", reason: "folded into a.md" };
 const FATE = { note: "old.md", fate: "merged", into: "a.md", reason: "same fact" };
 const OWNER = { text: "Answer in Spanish", note: "pref.md" };
 
-test("brought notes are named in every prompt; none, no brought line", async () => {
+test("brought notes are named only in the organizer's prompt; none, no brought line", async () => {
   const { calls } = await run({ ...ARGS, brought: ["old.md", "pref.md"] });
-  for (const c of calls) assert.ok(c.prompt.includes("old.md") && c.prompt.includes("pref.md"));
+  for (const c of calls.slice(0, 3)) assert.ok(!/old\.md|pref\.md|brought/i.test(c.prompt));
+  assert.ok(calls[3].prompt.includes("old.md") && calls[3].prompt.includes("pref.md"));
   const none = await run();
   assert.ok(none.calls.every((c) => !/brought/i.test(c.prompt)));
 });
 
-test("removals, fates and owner text from both agents are returned merged", async () => {
+test("removals, fates and owner text come only from the organizer, the analyzers' are ignored", async () => {
   const { result } = await run(ARGS, {
     "xwf-dream-analyzer": () => ({ proposals: [], remove: [REMOVE], fates: [FATE], owner: [OWNER] }),
-    "xwf-dream-organizer": () => ({ merged: 1, conflicts: 0, remove: [{ note: "dup.md", reason: "moved into a.md" }], fates: [], owner: [] }),
+    "xwf-dream-organizer": () => ({ merged: 1, conflicts: 0, remove: [{ note: "dup.md", reason: "moved into a.md" }], fates: [FATE], owner: [OWNER] }),
   });
-  assert.deepEqual(result.remove, [REMOVE, REMOVE, REMOVE, { note: "dup.md", reason: "moved into a.md" }]);
-  assert.equal(result.fates.length, 3);
-  assert.deepEqual(result.owner, [OWNER, OWNER, OWNER]);
+  assert.deepEqual(result.remove, [{ note: "dup.md", reason: "moved into a.md" }]);
+  assert.deepEqual(result.fates, [FATE]);
+  assert.deepEqual(result.owner, [OWNER]);
 });
 
-test("both schemas ask for remove, fates and owner", async () => {
+test("a remove note given as <memory>/name is returned as the bare name", async () => {
+  const { result } = await run(ARGS, {
+    "xwf-dream-organizer": () => ({ merged: 0, conflicts: 0, remove: [{ note: `${MEMORY}/old.md`, reason: "r" }, { note: "b.md", reason: "r" }] }),
+  });
+  assert.deepEqual(result.remove.map((r) => r.note), ["old.md", "b.md"]);
+});
+
+test("only the organizer's schema asks for remove, fates and owner", async () => {
   const { calls } = await run();
-  for (const c of calls) for (const k of ["remove", "fates", "owner"]) assert.ok(c.opts.schema.properties[k], k);
+  for (const k of ["remove", "fates", "owner"]) {
+    assert.ok(calls[3].opts.schema.properties[k], k);
+    for (const c of calls.slice(0, 3)) assert.ok(!c.opts.schema.properties[k], k);
+  }
 });
 
-for (const n of ["dream-analyzer", "dream-organizer"]) {
-  test(`${n}: a brought note is verified, then folded, updated or listed in remove; never removed by the agent`, () => {
-    const t = read(`../../agents/${n}.md`);
-    assert.match(t, /brought note/i);
-    assert.match(t, /`remove`/);
-    assert.match(t, /never remove a file/i);
-    assert.match(t, /`owner`/);
-  });
-}
+test("the analyzer does not handle brought notes; the organizer does; both say a note is its bare file name", () => {
+  const an = read("../../agents/dream-analyzer.md");
+  const org = read("../../agents/dream-organizer.md");
+  assert.doesNotMatch(an, /brought note|`remove`|`fates`|`owner`/i);
+  assert.match(org, /brought note/i);
+  for (const k of ["`remove`", "`fates`", "`owner`"]) assert.ok(org.includes(k), k);
+  assert.match(org, /never remove a file/i);
+  for (const t of [an, org]) assert.match(t, /bare file name, like `a\.md`/);
+});
 
 for (const n of ["dream-analyzer", "dream-organizer"]) {
   test(`${n}: cheap tier, file tools only`, () => {
