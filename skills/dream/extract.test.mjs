@@ -505,6 +505,31 @@ test("outside leaves out a missing folder and the repository memory folder itsel
   assert.deepEqual(parse(run(["--sessions", w.sessions, "--current", "none"], {}, w.root, home)).json.outside, []);
 });
 
+test("outside skips the default folder when memory.autoDirectory is false, and keeps the earlier one", () => {
+  const w = world({ notes: false });
+  w.put("s", user("t", day(1)));
+  const home = tmp(), earlier = tmp();
+  const def = join(home, ".claude", "projects", w.root.replace(/[^a-zA-Z0-9]/g, "-"), "memory");
+  mkdirSync(def, { recursive: true });
+  writeFileSync(join(def, "a.md"), "n");
+  writeFileSync(join(earlier, "e.md"), "n");
+  mkdirSync(join(w.root, ".xworkflows"), { recursive: true });
+  writeFileSync(join(w.root, ".xworkflows/config.json"), JSON.stringify({ memory: { autoDirectory: false } }));
+  writeFileSync(join(w.root, ".xworkflows/local.json"), JSON.stringify({ memory: { earlierAutoDirectory: earlier } }));
+  assert.deepEqual(parse(run(["--sessions", w.sessions, "--current", "none"], {}, w.root, home)).json.outside, [{ kind: "earlier", folder: earlier, files: ["e.md"] }]);
+});
+
+test("outside expands a leading ~/ of the earlier folder to the home folder", () => {
+  const w = world({ notes: false });
+  w.put("s", user("t", day(1)));
+  const home = tmp();
+  mkdirSync(join(home, "old"), { recursive: true });
+  writeFileSync(join(home, "old", "e.md"), "n");
+  mkdirSync(join(w.root, ".xworkflows"), { recursive: true });
+  writeFileSync(join(w.root, ".xworkflows/local.json"), JSON.stringify({ memory: { earlierAutoDirectory: "~/old" } }));
+  assert.deepEqual(parse(run(["--sessions", w.sessions, "--current", "none"], {}, w.root, home)).json.outside, [{ kind: "earlier", folder: join(home, "old"), files: ["e.md"] }]);
+});
+
 test("no new session: an empty list with its reason, exit 0", () => {
   const w = world();
   w.state({ sessions: { s1: 1 } });
