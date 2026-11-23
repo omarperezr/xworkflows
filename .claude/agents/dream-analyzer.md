@@ -22,4 +22,6 @@ On the notes of the session's topics, three jobs:
 
 A correction the owner gave in the session is a proposed rule: return it, never write it into any note or file.
 
-Return only the list of proposed rules, each with the rule in one sentence and the name of the session. No prose.
+Name a note by its bare file name, like `a.md`, never by a path.
+
+Return only the proposed rules (each with the rule in one sentence and the name of the session). No prose.

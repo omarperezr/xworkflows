@@ -4,6 +4,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync, exist
 import { tmpdir } from "../../test-tmp.mjs";
 import { join, relative, isAbsolute, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { createHash } from "node:crypto";
 import { execFileSync, spawnSync } from "node:child_process";
 import { run } from "./branch.mjs";
 import { shared } from "./shared.mjs";
@@ -508,4 +509,176 @@ test("an open that fails leaves no folder behind", () => {
   const [r, folders] = ownTmp(() => run(["open"], root));
   assert.equal(r.code, 1, r.stdout);
   assert.deepEqual(folders, []);
+});
+
+// ---- brings, removes and forgets ----
+const sha = (t) => createHash("sha256").update(t).digest("hex");
+const note = (n, body = "body") => `---\nname: ${n}\ndescription: ${n}\n---\n${body}\n`;
+// a home with the default memory folder of root and an earlier one, each holding notes; the extract that lists them
+function outsideWorld(root, def = {}, earlier = {}) {
+  const home = realpathSync(mkdtempSync(join(tmpdir(), "dream-b-home-"))), old = realpathSync(mkdtempSync(join(tmpdir(), "dream-b-old-")));
+  made.push(home, old);
+  const dflt = join(home, ".claude", "projects", root.replace(/[^a-zA-Z0-9]/g, "-"), "memory");
+  mkdirSync(dflt, { recursive: true });
+  for (const [f, t] of Object.entries(def)) writeFileSync(join(dflt, f), t);
+  for (const [f, t] of Object.entries(earlier)) writeFileSync(join(old, f), t);
+  mkdirSync(join(root, ".xworkflows"), { recursive: true });
+  writeFileSync(join(root, ".xworkflows/local.json"), JSON.stringify({ memory: { earlierAutoDirectory: old } }));
+  const out = realpathSync(mkdtempSync(join(tmpdir(), "dream-b-out-")));
+  made.push(out);
+  const outside = [{ kind: "default", folder: dflt, files: Object.keys(def) }, { kind: "earlier", folder: old, files: Object.keys(earlier) }];
+  writeFileSync(join(out, "extract.json"), JSON.stringify({ out, sessions: [], outside }));
+  return { home, dflt, old, out };
+}
+const bare = () => { const root = repo(); git(root, "rm", "-rq", "docs"); git(root, "commit", "-q", "-m", "no memory"); return root; };
+
+test("open --out creates the memory folder when main has none, brings the outside notes, and records each as kind, name and sha256", () => {
+  const root = bare();
+  const w = outsideWorld(root, { "d.md": note("d") }, { "e.md": note("e") });
+  const r = run(["open", "--out", w.out], root, w.home);
+  assert.equal(r.code, 0, r.stdout);
+  const o = json(r); made.push(o.worktree);
+  assert.deepEqual(o.brought.sort(), ["d.md", "e.md"]);
+  assert.equal(readFileSync(join(o.memory, "d.md"), "utf8"), note("d"));
+  assert.deepEqual(JSON.parse(readFileSync(join(o.memory, "dream.json"), "utf8")).brought,
+    [{ kind: "default", name: "d.md", sha256: sha(note("d")) }, { kind: "earlier", name: "e.md", sha256: sha(note("e")) }]);
+});
+
+test("open --out gives a note whose name main holds with another text the suffix -old, and skips one that is the same", () => {
+  const root = repo();
+  const w = outsideWorld(root, { "a.md": note("a", "other"), "b.md": readFileSync(join(root, "docs/memory/b.md"), "utf8") });
+  const o = json(run(["open", "--out", w.out], root, w.home)); made.push(o.worktree);
+  assert.deepEqual(o.brought, ["a-old.md"]);
+  assert.equal(readFileSync(join(o.memory, "a.md"), "utf8"), "---\nname: a\ndescription: first\n---\nbody a\n");
+  assert.equal(readFileSync(join(o.memory, "a-old.md"), "utf8"), note("a", "other"));
+  assert.equal(JSON.parse(readFileSync(join(o.memory, "dream.json"), "utf8")).brought.length, 2); // the same one is recorded too
+});
+
+test("open without --out brings nothing", () => {
+  const root = repo();
+  const o = opened(root);
+  assert.equal(o.brought, undefined);
+  assert.ok(!existsSync(join(o.memory, "dream.json")));
+});
+
+test("close with the memory folder missing or empty fails nothing and takes no note", () => {
+  const root = bare();
+  const o = opened(root);
+  const c = run(["close", "--worktree", o.worktree, "--out", extracted()], root);
+  assert.equal(c.code, 0, c.stdout);
+  assert.deepEqual([json(c).added, json(c).changed, json(c).removed], [0, 0, 0]);
+  assert.equal(git(root, "diff", "--name-only", `main...${o.branch}`), "docs/memory/dream.json");
+  const o2 = opened(root);
+  rmSync(o2.memory, { recursive: true, force: true }); // missing folder
+  const c2 = run(["close", "--worktree", o2.worktree, "--out", extracted()], root);
+  assert.equal(c2.code, 0, c2.stdout);
+  assert.equal(json(c2).added, 0);
+});
+
+test("close keeps the brought records of dream.json", () => {
+  const root = bare();
+  const w = outsideWorld(root, { "d.md": note("d") });
+  const o = json(run(["open", "--out", w.out], root, w.home)); made.push(o.worktree);
+  const c = run(["close", "--worktree", o.worktree, "--out", extracted()], root, w.home);
+  assert.equal(c.code, 0, c.stdout);
+  assert.deepEqual(JSON.parse(git(root, "show", `${o.branch}:docs/memory/dream.json`)).brought, [{ kind: "default", name: "d.md", sha256: sha(note("d")) }]);
+});
+
+test("close --remove removes the named notes with git rm and shows them as removed", () => {
+  const root = repo();
+  const o = opened(root);
+  writeFileSync(join(o.memory, "c.md"), note("c"));
+  const c = run(["close", "--worktree", o.worktree, "--out", extracted(), "--remove", "a.md,c.md"], root);
+  assert.equal(c.code, 0, c.stdout);
+  assert.equal(json(c).removed, 1);
+  assert.deepEqual(git(root, "ls-tree", "--name-only", o.branch, "docs/memory/").split("\n").sort(), ["docs/memory/MEMORY.md", "docs/memory/b.md", "docs/memory/dream.json"]);
+});
+
+test("close --remove skips every path outside the branch's memory folder, names it, and removes nothing there", () => {
+  for (const name of ["../../other.txt", "away", "sub/x.md", "MEMORY.md", "dream.json", "nope.txt"]) {
+    const root = repo();
+    const o = opened(root);
+    const away = join(o.worktree, "other.txt");
+    writeFileSync(away, "keep");
+    const b = name === "away" ? away : name;
+    const c = run(["close", "--worktree", o.worktree, "--out", extracted(), "--remove", `a.md,${b}`], root);
+    assert.equal(c.code, 0, `${b}: ${c.stdout}`);
+    assert.ok(JSON.parse(c.stdout).skipped.includes(b), c.stdout);
+    if (existsSync(away)) assert.equal(readFileSync(away, "utf8"), "keep", b);
+  }
+});
+
+test("close --remove skips a note that is a link and leaves its target", () => {
+  const root = repo();
+  const o = opened(root);
+  const away = realpathSync(mkdtempSync(join(tmpdir(), "dream-b-away-"))); made.push(away);
+  writeFileSync(join(away, "t.md"), "t");
+  symlinkSync(join(away, "t.md"), join(o.memory, "l.md"));
+  const c = run(["close", "--worktree", o.worktree, "--out", extracted(), "--remove", "l.md"], root);
+  assert.equal(c.code, 0, c.stdout);
+  assert.ok(JSON.parse(c.stdout).skipped.includes("l.md"), c.stdout);
+  assert.equal(readFileSync(join(away, "t.md"), "utf8"), "t");
+});
+
+// main holds the brought copies and the records, as after a merge
+function merged(root, w) {
+  const o = json(run(["open", "--out", w.out], root, w.home)); made.push(o.worktree);
+  git(o.worktree, "add", "-A"); git(o.worktree, "commit", "-q", "-m", "brought");
+  git(root, "merge", "-q", "--no-ff", "-m", "m", o.branch);
+  return o;
+}
+
+test("unseen lists, numbered, the originals recorded in main, and marks a changed one", () => {
+  const root = bare();
+  const w = outsideWorld(root, { "d.md": note("d"), "x.md": note("x") }, { "e.md": note("e") });
+  merged(root, w);
+  assert.deepEqual(json(run(["unseen"], root, w.home)).originals, [
+    { n: 1, kind: "default", name: "d.md" }, { n: 2, kind: "default", name: "x.md" }, { n: 3, kind: "earlier", name: "e.md" }]);
+  writeFileSync(join(w.dflt, "x.md"), note("x", "edited"));
+  rmSync(join(w.old, "e.md")); // gone: not listed
+  assert.deepEqual(json(run(["unseen"], root, w.home)).originals, [
+    { n: 1, kind: "default", name: "d.md" }, { n: 2, kind: "default", name: "x.md", changed: true }]);
+});
+
+test("forget --keep deletes each other original whose sha256 matches, names a changed one, and touches nothing else", () => {
+  const root = bare();
+  const w = outsideWorld(root, { "d.md": note("d"), "x.md": note("x"), "k.md": note("k") }, { "e.md": note("e") });
+  merged(root, w); // numbered d 1, x 2, k 3, e 4
+  writeFileSync(join(w.dflt, "x.md"), note("x", "edited"));
+  writeFileSync(join(w.dflt, "other.md"), "not brought"); // listed in no record
+  const r = run(["forget", "--keep", "3"], root, w.home);
+  assert.equal(r.code, 0, r.stdout);
+  const j = json(r);
+  assert.deepEqual(j.deleted.sort(), ["d.md", "e.md"]);
+  assert.deepEqual(j.changed, ["x.md"]);
+  assert.deepEqual(readdirSync(w.dflt).sort(), ["k.md", "other.md", "x.md"]);
+  assert.deepEqual(readdirSync(w.old), []);
+});
+
+test("forget --keep with an entry that is not a listed number exits 2 and deletes nothing", () => {
+  const root = bare();
+  const w = outsideWorld(root, { "d.md": note("d"), "x.md": note("x") });
+  merged(root, w); // numbered d 1, x 2
+  for (const keep of ["3", "1,9", "1,a", "1,", "0", "01", "1.0", "-1"]) {
+    const r = run(["forget", "--keep", keep], root, w.home);
+    assert.equal(r.code, 2, keep);
+    assert.deepEqual(readdirSync(w.dflt).sort(), ["d.md", "x.md"], keep);
+  }
+});
+
+test("forget without --keep deletes every unchanged original, never through a link or a name that is a path", () => {
+  const root = bare();
+  const w = outsideWorld(root, { "d.md": note("d") });
+  merged(root, w);
+  const away = realpathSync(mkdtempSync(join(tmpdir(), "dream-b-away-"))); made.push(away);
+  writeFileSync(join(away, "t.md"), note("t"));
+  const state = join(root, "docs/memory/dream.json"), s = JSON.parse(readFileSync(state, "utf8"));
+  s.brought.push({ kind: "default", name: "../../../x.md", sha256: "0" }, { kind: "default", name: "l.md", sha256: sha(note("t")) });
+  writeFileSync(state, JSON.stringify(s));
+  symlinkSync(join(away, "t.md"), join(w.dflt, "l.md"));
+  git(root, "add", "-A"); git(root, "commit", "-q", "-m", "tamper");
+  const r = run(["forget"], root, w.home);
+  assert.equal(r.code, 0, r.stdout);
+  assert.deepEqual(json(r).deleted, ["d.md"]);
+  assert.ok(existsSync(join(away, "t.md")) && existsSync(join(w.dflt, "l.md")));
 });

@@ -1,13 +1,14 @@
 // Opens the branch of a dream run in a worktree, and closes the run. No model.
-// Usage: node branch.mjs unseen | open
-//        node branch.mjs close --worktree <folder> --out <the extract's folder> [--not-read <name,name>]
+// Usage: node branch.mjs unseen | forget [--keep <n,n>] | open [--out <the extract's folder>]
+//        node branch.mjs close --worktree <folder> --out <the extract's folder> [--not-read <name,name>] [--remove <name,name>]
 //        node branch.mjs drop [--worktree <folder>] [--out <the extract's folder>]
-import { readFileSync, readdirSync, writeFileSync, mkdtempSync, existsSync, realpathSync, rmdirSync, unlinkSync, lstatSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync, readdirSync, writeFileSync, mkdtempSync, existsSync, realpathSync, rmdirSync, unlinkSync, lstatSync, mkdirSync } from "node:fs";
+import { tmpdir, homedir } from "node:os";
+import { createHash } from "node:crypto";
 import { join, dirname, basename, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
-import { shared } from "./shared.mjs";
+import { shared, outsideFolders } from "./shared.mjs";
 import { shapes, suspect } from "./extract.mjs";
 
 const { load, memoryDir, DEFAULTS } = await shared("hooks/core/config.mjs");
@@ -37,7 +38,10 @@ function dropOut(folder, bases) {
   return [folder];
 }
 
-export function run(argv, root) {
+const sha256 = (buf) => createHash("sha256").update(buf).digest("hex");
+const note = (n) => typeof n === "string" && /^[^/\\]+\.md$/.test(n) && n !== "MEMORY.md"; // a note's file name, never a path
+
+export function run(argv, root, home = homedir()) {
   const env = { ...process.env };
   for (const k of ["GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE"]) delete env[k];
   const tryGit = (cwd, ...args) => {
@@ -64,7 +68,29 @@ export function run(argv, root) {
     return runs().find((w) => w.path === real) ?? null;
   };
   // a memory folder that is a link, or lies under one, could lead a run's writes outside its branch: refused before anything is written
-  const linked = (base) => (mine(base, join(base, dir)) ? null : { code: 2, stdout: `the memory folder ${dir} is a link: /dream cannot run here, its writes could leave the branch\n` });
+  const linked = (base) => {
+    let p = join(base, dir);
+    while (p !== base && !lstatSync(p, { throwIfNoEntry: false })) p = dirname(p); // the deepest folder that exists: a missing one is no link
+    return p === base || mine(base, p) ? null : linkedLine;
+  };
+  const linkedLine = { code: 2, stdout: `the memory folder ${dir} is a link: /dream cannot run here, its writes could leave the branch\n` };
+  const folderOf = (kind) => outsideFolders(join(root, dir), root, home, config.memory.autoDirectory).find((f) => f.kind === kind)?.folder;
+  // the originals main's dream.json records that still stand in their folder, numbered; changed when the file is no longer the one copied, noCopy when no file of main's tree named like it (or with -old) holds the recorded sha256
+  const originals = () => {
+    let brought = [];
+    try { brought = JSON.parse(git(root, "show", `${main}:${dir}/dream.json`)).brought ?? []; } catch { /* no record */ }
+    // a brought note that close left out (user, feedback) or removed never entered main: marked noCopy, still deletable after the owner is asked
+    const tree = new Set(git(root, "ls-tree", "--name-only", "-z", main, "--", `${dir}/`).split("\0").map((f) => f.slice(dir.length + 1)));
+    const blob = (f) => spawnSync("git", ["show", `${main}:${dir}/${f}`], { cwd: root, env, maxBuffer: 1 << 28 }).stdout ?? Buffer.alloc(0); // raw bytes: git() trims and decodes
+    const list = [];
+    for (const b of Array.isArray(brought) ? brought : []) {
+      const folder = folderOf(b?.kind), p = folder && note(b.name) ? join(folder, b.name) : null;
+      if (!p || !lstatSync(p, { throwIfNoEntry: false })?.isFile()) continue;
+      list.push({ n: list.length + 1, kind: b.kind, name: b.name, p, ...(sha256(readFileSync(p)) !== b.sha256 && { changed: true }),
+        ...(![...tree].some((f) => f.replace(/(-old)+\.md$/, ".md") === b.name && sha256(blob(f)) === b.sha256) && { noCopy: true }) });
+    }
+    return list;
+  };
 
   try {
     if (argv[0] === "unseen") { // the notes main lacks, which the run will not see (the worktree starts from main), and the runs close did not finish
@@ -75,7 +101,18 @@ export function run(argv, root) {
       // differs from main, and changed on this side since it left main (committed or not): a note main holds newer is not one main lacks
       const ours = new Set(diff("--merge-base", main));
       return out({ notes: [...diff(main).filter((f) => ours.has(f)), ...list("ls-files", "--others", "--exclude-standard")],
-        unfinished: runs().map((w) => ({ branch: w.branch, worktree: w.path })) });
+        unfinished: runs().map((w) => ({ branch: w.branch, worktree: w.path })),
+        originals: originals().map(({ p, ...o }) => o) });
+    }
+    if (argv[0] === "forget") { // each original of unseen but those kept by number: unlink of one literal file, only when it is still the one copied
+      const list = originals(), raw = arg(argv, "--keep"), keep = new Set(raw ? raw.split(",") : []), deleted = [], changed = [];
+      const bad = [...keep].filter((k) => !list.some((o) => String(o.n) === k)); // a typo must not delete what the owner meant to keep
+      if (bad.length) return { code: 2, stdout: `--keep takes the numbers of the listed originals (1 to ${list.length}), not: ${bad.join(",")}\n` };
+      for (const o of list) {
+        if (keep.has(String(o.n))) continue;
+        if (o.changed) changed.push(o.name); else { unlinkSync(o.p); deleted.push(o.name); }
+      }
+      return out({ deleted, changed });
     }
     if (argv[0] === "open") {
       const d = new Date(), p = (n) => String(n).padStart(2, "0");
@@ -87,10 +124,34 @@ export function run(argv, root) {
       const worktree = realpathSync(mkdtempSync(join(tmpdir(), "dream-")));
       try { git(root, "worktree", "add", "-b", branch, worktree, main); } catch (e) { rmdirSync(worktree); throw e; } // only the empty folder it made
       writeFileSync(join(git(worktree, "rev-parse", "--absolute-git-dir"), MARK), `${branch}\n`);
-      return out({ branch, worktree, memory: join(worktree, dir), main });
+      const bad = linked(worktree); // main's own tree could hold a link
+      if (bad) { git(root, "worktree", "remove", "--force", worktree); git(root, "branch", "-q", "-D", branch); return bad; }
+      const memory = join(worktree, dir), state = join(memory, "dream.json"), dirOut = arg(argv, "--out"), names = [], recs = [];
+      mkdirSync(memory, { recursive: true });
+      let extract = null;
+      try { extract = JSON.parse(readFileSync(join(dirOut, "extract.json"), "utf8")); } catch { /* no extract: nothing to bring */ }
+      for (const { kind, files } of Array.isArray(extract?.outside) ? extract.outside : []) {
+        const folder = folderOf(kind); // the folder is never the extract's word: only its names
+        for (const f of folder && Array.isArray(files) ? files : []) {
+          if (!note(f) || !lstatSync(join(folder, f), { throwIfNoEntry: false })?.isFile()) continue;
+          const buf = readFileSync(join(folder, f)), sum = sha256(buf);
+          let name = f; // a name taken by another text gets -old; the same text is already there
+          for (let at = lstatSync(join(memory, name), { throwIfNoEntry: false }); at; at = lstatSync(join(memory, name), { throwIfNoEntry: false })) {
+            if (at.isFile() && sha256(readFileSync(join(memory, name))) === sum) break;
+            name = name.replace(/\.md$/, "-old.md");
+          }
+          if (!lstatSync(join(memory, name), { throwIfNoEntry: false })) { writeFileSync(join(memory, name), buf); names.push(name); }
+          recs.push({ kind, name: f, sha256: sum });
+        }
+      }
+      if (recs.length && mine(worktree, state)) {
+        const prev = existsSync(state) ? JSON.parse(readFileSync(state, "utf8")) : {};
+        writeFileSync(state, JSON.stringify({ ...prev, brought: [...(prev.brought ?? []).filter((b) => !recs.some((r) => r.kind === b.kind && r.name === b.name)), ...recs] }, null, 2) + "\n");
+      }
+      return out({ branch, worktree, memory, main, ...(dirOut && { brought: names }) });
     }
     if (argv[0] === "close") {
-      const given = arg(argv, "--worktree"), dirOut = arg(argv, "--out"), notRead = (arg(argv, "--not-read") ?? "").split(",");
+      const given = arg(argv, "--worktree"), dirOut = arg(argv, "--out"), notRead = (arg(argv, "--not-read") ?? "").split(","), remove = (arg(argv, "--remove") ?? "").split(",").filter(Boolean);
       if (!given || !dirOut) return { code: 2, stdout: "close needs --worktree and --out\n" };
       let extract = null;
       try { extract = JSON.parse(readFileSync(join(dirOut, "extract.json"), "utf8")); } catch { /* refused below */ }
@@ -103,9 +164,17 @@ export function run(argv, root) {
       const { branch, path: real } = entry, no = linked(real);
       if (no) return no;
       const memory = join(real, dir), state = join(memory, "dream.json");
-      const { sessions = {} } = existsSync(state) && mine(real, state) ? JSON.parse(readFileSync(state, "utf8")) : {};
+      mkdirSync(memory, { recursive: true });
+      // a removal is a note directly in the memory folder, by its bare name or by a path that resolves to it, and no link: any other entry is skipped, never removed, and named in skipped
+      const take = remove.map((n) => [n, basename(resolve(memory, n)), dirname(resolve(memory, n)) === memory]).map(([n, b, inside]) => ({ n, b, ok: inside && note(b) && mine(real, join(memory, b)) }));
+      const gone = take.filter((t) => t.ok).map((t) => t.b), skipped = take.filter((t) => !t.ok).map((t) => t.n);
+      for (const n of gone) {
+        const p = join(memory, n);
+        if (lstatSync(p, { throwIfNoEntry: false }) && tryGit(real, "rm", "-q", "-f", "--", `${dir}/${n}`).code !== 0) unlinkSync(p); // untracked: not in git's index
+      }
+      const prev = existsSync(state) && mine(real, state) ? JSON.parse(readFileSync(state, "utf8")) : {}, { sessions = {} } = prev;
 
-      if (mine(real, state)) writeFileSync(state, JSON.stringify({ sessions: { ...sessions, ...Object.fromEntries(read.filter((s) => !notRead.includes(s.name)).map((s) => [s.name, s.lines])) }, ran: new Date().toISOString() }, null, 2) + "\n");
+      if (mine(real, state)) writeFileSync(state, JSON.stringify({ ...prev, sessions: { ...sessions, ...Object.fromEntries(read.filter((s) => !notRead.includes(s.name)).map((s) => [s.name, s.lines])) }, ran: new Date().toISOString() }, null, 2) + "\n");
 
       const date = /^dream\/(\d{4}-\d\d-\d\d)/.exec(branch)?.[1] ?? branch;
       git(real, "reset", "-q"); // the index holds only what this close stages
@@ -143,7 +212,7 @@ export function run(argv, root) {
       }
       // what the commit leaves out: a change not staged or a file not tracked; after a refused commit, the staged notes are not in it
       const outside = git(real, "status", "--porcelain", "-z", "--untracked-files=all", "--no-renames").split("\0").filter((l) => l && l[1] !== " ").map((l) => l.slice(3));
-      if (refused !== null) return { code: 1, stdout: JSON.stringify({ refused, worktree: real, masked, look, outside,
+      if (refused !== null) return { code: 1, stdout: JSON.stringify({ refused, worktree: real, masked, look, outside, skipped,
         finish: `the commit was refused; the notes stay staged in ${real}: commit there, then run git worktree remove --force ${real}, which removes the files of outside with it; the extract's folder ${dirOut} stays: drop --out removes it` }) + "\n" };
 
       const st = git(root, "diff", "--no-renames", "--name-status", "-z", `${main}...${branch}`, "--", dir).split("\0").filter(Boolean); // -z: a name outside ASCII comes unquoted
@@ -159,7 +228,7 @@ export function run(argv, root) {
 
       const left = dropOut(dirOut, [realpathSync(root), real]);
       git(root, "worktree", "remove", "--force", real); // the changes outside the memory folder are named above and go with it
-      return out({ branch, added: count("A"), changed: count("M"), removed: count("D"), masked, look, stale: lines, outside, left,
+      return out({ branch, added: count("A"), changed: count("M"), removed: count("D"), skipped, masked, look, stale: lines, outside, left,
         see: `git diff ${main}...${branch} -- ${dir}`, adopt: `git merge --no-ff ${branch}`, discard: `git branch -D ${branch}` });
     }
     if (argv[0] === "drop") { // every path that stops: the extract's folder by close's rule, and a worktree open made, with its branch when that holds no commit
@@ -175,7 +244,7 @@ export function run(argv, root) {
         return out({ left, deleted });
       }
     }
-    return { code: 2, stdout: "usage: branch.mjs unseen | open | close --worktree <folder> --out <folder> [--not-read <name,name>] | drop [--worktree <folder>] [--out <folder>]\n" };
+    return { code: 2, stdout: "usage: branch.mjs unseen | forget [--keep <n,n>] | open [--out <folder>] | close --worktree <folder> --out <folder> [--not-read <name,name>] [--remove <name,name>] | drop [--worktree <folder>] [--out <folder>]\n" };
   } catch (e) {
     return { code: 1, stdout: `${e.message}\n` };
   }

@@ -65,7 +65,7 @@ test("an analyzer that returns nothing is named in missing and the organizer sti
 
 test("the result has the four keys", async () => {
   const { result } = await run();
-  assert.deepEqual(Object.keys(result), ["merged", "conflicts", "proposals", "missing"]);
+  assert.deepEqual(Object.keys(result), ["merged", "conflicts", "proposals", "missing", "remove", "fates", "owner"]);
   assert.equal(result.merged, 3);
   assert.equal(result.conflicts, 1);
   assert.deepEqual(result.proposals, [1, 2, 3].map((i) => ({ rule: "Never skip tests", session: `analyze ${i}` })));
@@ -79,6 +79,46 @@ test("a rule an analyzer proposed is returned and never enters the organizer's p
   assert.ok(JSON.stringify(calls[3].opts.schema).indexOf("proposals") === -1);
   assert.equal(result.proposals.length, 3);
   assert.equal(result.proposals[0].rule, marker);
+});
+
+const REMOVE = { note: "old.md", reason: "folded into a.md" };
+const FATE = { note: "old.md", fate: "merged", into: "a.md", reason: "same fact" };
+const OWNER = { text: "Answer in Spanish", note: "pref.md" };
+
+test("brought notes are named only in the organizer's prompt; none, no brought line", async () => {
+  const { calls } = await run({ ...ARGS, brought: ["old.md", "pref.md"] });
+  for (const c of calls.slice(0, 3)) assert.ok(!/old\.md|pref\.md|brought/i.test(c.prompt));
+  assert.ok(calls[3].prompt.includes("old.md") && calls[3].prompt.includes("pref.md"));
+  const none = await run();
+  assert.ok(none.calls.every((c) => !/brought/i.test(c.prompt)));
+});
+
+test("removals, fates and owner text come only from the organizer, the analyzers' are ignored", async () => {
+  const { result } = await run(ARGS, {
+    "xwf-dream-analyzer": () => ({ proposals: [], remove: [REMOVE], fates: [FATE], owner: [OWNER] }),
+    "xwf-dream-organizer": () => ({ merged: 1, conflicts: 0, remove: [{ note: "dup.md", reason: "moved into a.md" }], fates: [FATE], owner: [OWNER] }),
+  });
+  assert.deepEqual(result.remove, [{ note: "dup.md", reason: "moved into a.md" }]);
+  assert.deepEqual(result.fates, [FATE]);
+  assert.deepEqual(result.owner, [OWNER]);
+});
+
+test("only the organizer's schema asks for remove, fates and owner", async () => {
+  const { calls } = await run();
+  for (const k of ["remove", "fates", "owner"]) {
+    assert.ok(calls[3].opts.schema.properties[k], k);
+    for (const c of calls.slice(0, 3)) assert.ok(!c.opts.schema.properties[k], k);
+  }
+});
+
+test("the analyzer does not handle brought notes; the organizer does; both say a note is its bare file name", () => {
+  const an = read("../../agents/dream-analyzer.md");
+  const org = read("../../agents/dream-organizer.md");
+  assert.doesNotMatch(an, /brought note|`remove`|`fates`|`owner`/i);
+  assert.match(org, /brought note/i);
+  for (const k of ["`remove`", "`fates`", "`owner`"]) assert.ok(org.includes(k), k);
+  assert.match(org, /never remove a file/i);
+  for (const t of [an, org]) assert.match(t, /bare file name, like `a\.md`/);
 });
 
 for (const n of ["dream-analyzer", "dream-organizer"]) {
