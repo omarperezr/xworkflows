@@ -74,19 +74,20 @@ export function run(argv, root, home = homedir()) {
     return p === base || mine(base, p) ? null : linkedLine;
   };
   const linkedLine = { code: 2, stdout: `the memory folder ${dir} is a link: /dream cannot run here, its writes could leave the branch\n` };
-  const folderOf = (kind) => outsideFolders(join(root, dir), root, home).find((f) => f.kind === kind)?.folder;
-  // the originals main's dream.json records that still stand in their folder, numbered; changed when the file is no longer the one copied, noCopy when main's tree has no file of its name
+  const folderOf = (kind) => outsideFolders(join(root, dir), root, home, config.memory.autoDirectory).find((f) => f.kind === kind)?.folder;
+  // the originals main's dream.json records that still stand in their folder, numbered; changed when the file is no longer the one copied, noCopy when no file of main's tree named like it (or with -old) holds the recorded sha256
   const originals = () => {
     let brought = [];
     try { brought = JSON.parse(git(root, "show", `${main}:${dir}/dream.json`)).brought ?? []; } catch { /* no record */ }
     // a brought note that close left out (user, feedback) or removed never entered main: marked noCopy, still deletable after the owner is asked
     const tree = new Set(git(root, "ls-tree", "--name-only", "-z", main, "--", `${dir}/`).split("\0").map((f) => f.slice(dir.length + 1)));
+    const blob = (f) => spawnSync("git", ["show", `${main}:${dir}/${f}`], { cwd: root, env, maxBuffer: 1 << 28 }).stdout ?? Buffer.alloc(0); // raw bytes: git() trims and decodes
     const list = [];
     for (const b of Array.isArray(brought) ? brought : []) {
       const folder = folderOf(b?.kind), p = folder && note(b.name) ? join(folder, b.name) : null;
       if (!p || !lstatSync(p, { throwIfNoEntry: false })?.isFile()) continue;
       list.push({ n: list.length + 1, kind: b.kind, name: b.name, p, ...(sha256(readFileSync(p)) !== b.sha256 && { changed: true }),
-        ...(![...tree].some((f) => f.replace(/(-old)+\.md$/, ".md") === b.name) && { noCopy: true }) });
+        ...(![...tree].some((f) => f.replace(/(-old)+\.md$/, ".md") === b.name && sha256(blob(f)) === b.sha256) && { noCopy: true }) });
     }
     return list;
   };
@@ -104,9 +105,11 @@ export function run(argv, root, home = homedir()) {
         originals: originals().map(({ p, ...o }) => o) });
     }
     if (argv[0] === "forget") { // each original of unseen but those kept by number: unlink of one literal file, only when it is still the one copied
-      const keep = new Set((arg(argv, "--keep") ?? "").split(",").map(Number)), deleted = [], changed = [];
-      for (const o of originals()) {
-        if (keep.has(o.n)) continue;
+      const list = originals(), raw = arg(argv, "--keep"), keep = new Set(raw ? raw.split(",") : []), deleted = [], changed = [];
+      const bad = [...keep].filter((k) => !list.some((o) => String(o.n) === k)); // a typo must not delete what the owner meant to keep
+      if (bad.length) return { code: 2, stdout: `--keep takes the numbers of the listed originals (1 to ${list.length}), not: ${bad.join(",")}\n` };
+      for (const o of list) {
+        if (keep.has(String(o.n))) continue;
         if (o.changed) changed.push(o.name); else { unlinkSync(o.p); deleted.push(o.name); }
       }
       return out({ deleted, changed });

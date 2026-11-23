@@ -776,13 +776,13 @@
         "claude"
       ],
       "files": {
-        "skills/dream/SKILL.md": "5c0f3d9da0890507c092cfb0878954a2512a32185181b34a2e2a47dcc1e3bb90",
-        "skills/dream/extract.mjs": "df55fbc237633664505a75a0e8d4d8745a4ef353c4065ed526ec924a1c86c9d2",
-        "skills/dream/branch.mjs": "14cc9ac385c0a51b7ca99028177688414e13101ca728af8c02bf5fdaa81a058d",
-        "skills/dream/shared.mjs": "686a61c24badfc7fbb3af944a6ecfeef98d3b7f3cd4a2a733ead193c77462325",
-        "skills/dream/dream.workflow.js": "e8f166314bf2cc23c7823eef9a5125bc592bbfbaa46f532e5561d418b59382fa"
+        "skills/dream/SKILL.md": "166c2384fcbc1b6da2668ff132efa75fe2f2ae8623bc03e476046244f3ac6657",
+        "skills/dream/extract.mjs": "998d6fc48d5485b85111dd8bd4dc0bbf29ff1cd3405d2336604ead321a026584",
+        "skills/dream/branch.mjs": "42bb22e738b4df71daa6adee2e458760f3ffcb9b773134eae1cc38e78a823f91",
+        "skills/dream/shared.mjs": "bf95131c640e732cc08fdf7c44b21bbef9f35b65966a1815e638b58e8d79434a",
+        "skills/dream/dream.workflow.js": "4e3f459464a46b23a59b4e0d96be6e65e3fa8ffdee231f3bb5bae9ef1fbf6232"
       },
-      "sha256": "2f0cbe6b874e0ac4d4708a2c5f2dabb7a514ebe360c92864278ce0f7138abaed"
+      "sha256": "0446a47a06d2d26f9ae2fcb66ed1f6643e00fb9a807f36c497036ba640661357"
     },
     {
       "id": "checks",

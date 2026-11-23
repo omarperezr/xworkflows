@@ -45,7 +45,7 @@ return {
   proposals: ok.flatMap((r) => r.proposals),
   missing: sessions.filter((_, i) => !found[i]).map((f) => f.split(/[\\/]/).pop().replace(/\.txt$/, "")), // the session names close takes in --not-read
   // the organizer alone decides the fate of the brought notes; a note is its bare file name
-  remove: (merged?.remove ?? []).map((r) => ({ ...r, note: r.note.startsWith(`${memory}/`) ? r.note.slice(memory.length + 1) : r.note })),
+  remove: merged?.remove ?? [], // close takes a path inside the memory folder as its bare name
   fates: merged?.fates ?? [],
   owner: merged?.owner ?? [],
 };
