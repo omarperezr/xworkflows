@@ -6,7 +6,7 @@
   "pieces": {
     "hook-runtime": {
       "version": "0.1.0",
-      "sha256": "cad3da0bac1c549104dc18531cbf2f8aab4741dc2511d6de5ac9a8c24ddf7be2"
+      "sha256": "b68b88c0fc9f40cd812c715a9f295b37640e0a0d04698133f03485e45f4da02e"
     },
     "design-first": {
       "version": "0.1.0",
@@ -196,7 +196,7 @@
     },
     ".xworkflows/hooks/core/config.mjs": {
       "piece": "hook-runtime",
-      "sha256": "99238359744a0c9f34a678ef16d50d4726cc13d9eeeb761f9eec966858604ea8"
+      "sha256": "347973c9885907da756b23509b3644114d715b2d35548c4141c1f6dc4dbb84d0"
     },
     ".xworkflows/hooks/core/ctx.mjs": {
       "piece": "hook-runtime",

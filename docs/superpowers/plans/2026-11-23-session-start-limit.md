@@ -25,3 +25,4 @@ Spec: docs/PENDING.md (card P-252)
 ## Declined findings
 
 ## Seals
+risk-review ok at 563f825

@@ -36,7 +36,7 @@ export const DEFAULTS = {
     ],
   },
   brakes: { changeSize: { warn: 400, max: 800 }, fixHasTest: { seconds: 120 } },
-  tokens: { sessionStartBytes: 2000, handoffBytes: 1500,alwaysLoadedBytes: 24000 },
+  tokens: { sessionStartBytes: 3333, handoffBytes: 1500,alwaysLoadedBytes: 24000 },
   limits: { inlineReadLines: 40, agentsBeforeWorkflow: 2, commentRatio: 0.2, commentMinLines: 30 },
   lookup: { index: { command: "graphify query", folder: "graphify-out", minutes: 30 } },
   checks: { timeoutMinutes: 10 },
