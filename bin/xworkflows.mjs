@@ -322,12 +322,23 @@ function mergeLocal(root) {
   return { path, text: old.slice(0, at) + insert + value + old.slice(at), rec: { scalars: [{ file: path, key: [key], dir, insert }], created: [] } };
 }
 
+// the value that was there and differs from the memory folder: /dream reads that folder. A path of this machine, so the ignored file, never installed.json.
+const EARLIER = ".xworkflows/local.json";
+function mergeEarlier(root, md) {
+  const { s } = readObject(root, ".claude/settings.local.json");
+  const was = s.autoMemoryDirectory, { old, s: mine } = readObject(root, EARLIER);
+  if (typeof was !== "string" || resolve(root, was) === resolve(root, md) || mine.memory?.earlierAutoDirectory !== undefined) return { path: EARLIER, text: null, rec: {} };
+  if (mine.memory !== undefined && !isObj(mine.memory)) die(1, `${EARLIER}: memory is not an object`);
+  (mine.memory ??= {}).earlierAutoDirectory = was;
+  return { path: EARLIER, text: json(mine, old), rec: {} };
+}
+
 const YML = ".qmd/index.yml";
 const QMARK = ".qmd/xworkflows";
 const MARK_TEXT = "written by xworkflows install: uninstall removes index.yml and its database here only while this file exists\n";
 // qmd reads index.yaml before index.yml: either one is a local config
 const localYml = (root) => [".qmd/index.yaml", YML].find((f) => existsSync(join(root, f)));
-const IGNORE = [["graphify-out/", "graphify-out/x"], [".claude/settings.local.json", ".claude/settings.local.json"], [".qmd/", ".qmd/x"], [".xworkflows/handoff.md", ".xworkflows/handoff.md"]];
+const IGNORE = [["graphify-out/", "graphify-out/x"], [".claude/settings.local.json", ".claude/settings.local.json"], [".qmd/", ".qmd/x"], [".xworkflows/handoff.md", ".xworkflows/handoff.md"], [EARLIER, EARLIER]];
 // `.qmd/` is added only in a run that writes the yml
 function mergeIgnore(root, qmd) {
   const path = ".gitignore";
@@ -752,6 +763,9 @@ export function plan(manifest, root, record, ans = {}) {
   if (!md) notes.push(`not written: ${refused}`);
   else {
     if (!existsSync(join(root, md)) && !off(md)) merges.push({ path: md, text: null, dir: true, verb: "create", rec: { created: [md] } });
+    const keep = join(md, "MEMORY.md");
+    if (mem.autoDirectory !== false && !existsSync(join(root, keep)) && !off(keep)) merges.push({ path: keep, text: "", verb: "create", rec: { created: [keep] } });
+    if (mem.autoDirectory !== false && !off(EARLIER)) merges.push(mergeEarlier(root, md));
     qmd = !mem.index && !localYml(root) && !off(YML);
     if (qmd) merges.push({ path: YML, text: `collections:\n  memory:\n    path: ${JSON.stringify(resolve(root, md))}\n    pattern: "**/*.md"\n`, verb: "write", rec: {} });
     // the marker passes the yml's test and is never written over something that is there
@@ -1245,7 +1259,7 @@ function uninstall() {
     blocks: (b) => b.file === "AGENTS.md",
     imports: (i) => !!LINES.get(i.file)?.includes(i.line) || (i.file === GI && giLines.has(i.line)) || i.line === hookLine(basename(i.file)),
     // a hook file install made for husky: the record holds the line it put there
-    created: (p) => FIVE.includes(p) || p === md || (p === YML && marked) || rec.imports.some((i) => i.file === p && i.line === hookLine(basename(p))),
+    created: (p) => FIVE.includes(p) || p === md || p === join(md, "MEMORY.md") || (p === YML && marked) || rec.imports.some((i) => i.file === p && i.line === hookLine(basename(p))),
     chained: (c) => hookSet.has(c.file) && c.to === c.file + ".before-xworkflows",
   };
   const said = new Set();
@@ -1382,6 +1396,7 @@ function uninstall() {
   }
   const hand = ".xworkflows/handoff.md"; // only the skill handoff writes it; nothing of the user's
   if (clean(ROOT, hand) && lstatSync(join(ROOT, hand), { throwIfNoEntry: false })?.isFile()) { rm(hand); out.push(`deleted ${hand}`); }
+  if (clean(ROOT, EARLIER) && lstatSync(join(ROOT, EARLIER), { throwIfNoEntry: false })?.isFile()) { rm(EARLIER); out.push(`deleted ${EARLIER}`); }
   const ir = ".xworkflows/installed.json";
   if (clean(ROOT, ir)) rm(ir); else out.push(`kept (not ours): ${ir}`);
   for (const p of gone) {
