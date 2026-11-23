@@ -52,7 +52,7 @@ Test passes at once? It tests behavior that already exists. Fix the test. A test
 ### GREEN: the quickest code that passes
 
 - Write the simplest code that passes. Do no design between red and green.
-- Hard-coding the answer is fine for the first test. A second scenario forces the general code.
+- A second scenario forces the general code; never hard-code the expected output in the production code.
 - No extra features, no options, no refactoring of other code.
 
 ### Verify GREEN: mandatory

@@ -27,6 +27,24 @@ Write `P-<n>`, `Origin:`, `Status:` and the status words exactly as shown, in En
 - `Origin:` the file that holds the finding (a review file, a plan, a spec), by path. With no such file: who found it and when, for example `review of <branch>, 2026-01-31`.
 - `Status:` `unscheduled` at first; `scheduled` once the owner picks the work or a plan covers it; `in progress on <branch>` while a batch branch does it.
 
+## The bar
+
+Every finding is set to one row:
+
+- `blocking`: a real error on a path that really happens, that breaks the app or touches money, permissions or data.
+- `pending`: a real error on a reachable path, worth fixing but not in this batch; it becomes a card.
+- `drop`: impossible, practically impossible, or inconsequential (a very unlikely scenario whose consequence is minimal, seen at once, or easily avoided); it is not written, it stays only in the report.
+
+Examples from this repository's own cards:
+
+- `blocking`, P-218: after an upgrade a renamed hook ran twice, because install left the old entry in the settings. It happens on every such upgrade and changes what the app does.
+- `blocking`, P-134: a memory folder refused only by the link rule turned off the rule that keeps facts about the owner out of the notes. A real path, and it touches the owner's data.
+- `pending`, P-206: in a repository of about 18,000 tracked files install turns on only one plugin and doctor says ok. Real, but only in huge repositories, so it waits for its batch.
+- `pending`, P-151: doctor can say ok while a session start is over its byte budget, and a line that does not fit is left out. Real, nothing is lost, not urgent.
+- `drop`, P-176: a tier renamed between two versions is not known as the earlier text. No tier has been renamed, so it cannot happen today.
+- `drop`, P-157: after uninstall, a hand-edited shared hook can refuse a push. It is visible at once and a reinstall fixes it.
+- `drop`, P-234: a branch that no caller reaches, because the config always gives the value. It is a dead line, not an error.
+
 ## Add
 
 `<n>` is one above the highest number these two commands print, or 1 when they print nothing:
@@ -39,6 +57,8 @@ git log --all -i --grep='closes P-' --format=%B | grep -owiE 'P-[0-9]+' | cut -d
 The log counts because a closed card is gone from the file while its number stays taken: the brake fails a card whose number a commit closed. Several new cards take numbers in a row.
 
 Put the card under the `##` heading that fits it, else at the end.
+
+A finding set `drop` gets no card.
 
 The brake fails two cards with one number. It happens when two branches each added cards and then merged: renumber the newer card.
 

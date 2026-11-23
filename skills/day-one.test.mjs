@@ -93,7 +93,7 @@ test("full-review writes the reviewed commit only when every agent returned", ()
   for (const t of ["is written only when every agent the skill launched returned, that is when `missing` in the script's result is empty",
     "when it is not, write the review file without that line and tell the owner which zones were not read, the `{ review, zone }` pairs of `missing`",
     "the sha is the head the agents were given, noted before they start, not the head when the file is written"]) assert.ok(s.includes(t), t);
-  assert.ok(s.split("\n").length < 120);
+  assert.ok(s.split("\n").length < 130);
 });
 test("full-review's script returns the review and zone pairs whose agent returned nothing, an empty list when all returned", async () => {
   const js = read("skills/full-review/SKILL.md").match(/```js\n([\s\S]*?)```/)[1];

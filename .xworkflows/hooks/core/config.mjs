@@ -5,17 +5,21 @@ import { outsideLine } from "./ctx.mjs";
 export const DEFAULTS = {
   owner: "the owner",
   mainBranch: "main",
+  agents: {},
   paths: {
     specs: "docs/superpowers/specs",
     plans: "docs/superpowers/plans",
     reviews: "docs/superpowers/reviews",
     pending: "docs/PENDING.md",
+    business: "docs/BUSINESS.md",
+    riskLite: [],
     nonCode: ["docs/", ".claude/", ".xworkflows/", "**/*.md", ".gitignore"],
-    curated: ["AGENTS.md", "CLAUDE.md", ".claude/rules/", "docs/BUSINESS.md"],
+    curated: ["AGENTS.md", "CLAUDE.md", ".claude/rules/"],
   },
   roles: {
     reviewer: "review",
     riskReviewer: "risk-review",
+    riskReviewerLite: "risk-review-lite",
     smallReviewer: "review-small",
     implementers: ["implement", "implement-sql", "implement-front", "mechanical"],
     lookup: "explore",
@@ -40,13 +44,13 @@ export const DEFAULTS = {
   comments: {
     marks: { ts: ["//"], tsx: ["//"], js: ["//"], jsx: ["//"], mjs: ["//"], cjs: ["//"], sql: ["--"], sh: ["#"], py: ["#"] },
   },
-  memory: { dir: "docs/memory", outside: [] },
+  memory: { dir: "docs/memory", outside: [], before: [], autoDirectory: true },
   dream: { maxExtractBytes: 4000000, suggest: true, suggestAfterDays: 7, suggestAfterSessions: 10 },
   packs: {},
 };
 
 // the reviewer roles of a config, and the seal `<role> ok at <sha>` built from them (groups: role, sha); every reader of a seal uses these
-export const reviewerRoles = (roles) => [roles.reviewer, roles.riskReviewer, roles.smallReviewer];
+export const reviewerRoles = (roles) => [roles.reviewer, roles.riskReviewer, roles.smallReviewer, roles.riskReviewerLite];
 export const sealCore = (roles) => `(${reviewerRoles(roles).map((r) => r.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")}) ok at ([0-9a-f]{7,40})`;
 // a seal alone on a line, as written in a plan: bullet, quote or backticks and a final dot allowed
 export const sealRe = (roles, flags) => new RegExp(`^\\s*(?:[-*>]\\s*)?\`?${sealCore(roles)}\`?\\.?\\s*$`, flags);
@@ -119,6 +123,9 @@ export function loadLenient(root, read = readOrNull) {
   for (const k of replaced) delete user[k];
   return { config: merge(DEFAULTS, user), replaced };
 }
+
+// the one rule for a plugin being on: its key is <plugin>@<marketplace> and its value is true; a bare name counts nothing
+export const pluginOn = (key, value) => value === true && /^[^@]+@[^@]+$/.test(key);
 
 export const get = (config, key) => key.split(".").reduce((o, k) => (isObj(o) ? o[k] : undefined), config);
 

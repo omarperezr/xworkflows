@@ -9,14 +9,14 @@ A plan holds only settled decisions: if one is still open, stop and go back to `
 
 Talk to the owner in the owner's language. The plan is in English, except the owner's words, which are quoted as said.
 
-Read `.xworkflows/config.json`: `paths.plans` (default `docs/superpowers/plans`), `paths.pending` (default `docs/PENDING.md`), `paths.curated` (default `AGENTS.md`, `CLAUDE.md`, `.claude/rules/`, `docs/BUSINESS.md`), `roles.implementers` (default `implement`, `implement-sql`, `implement-front`, `mechanical`), `roles.lookup` (default `explore`), `brakes.changeSize.warn` and `.max` (default 400 and 800), `lookup.index.command` (default `graphify query`), `tests.files`, `tests.run`.
+Read `.xworkflows/config.json`: `paths.plans` (default `docs/superpowers/plans`), `paths.pending` (default `docs/PENDING.md`), `paths.business` (default `docs/BUSINESS.md`), `paths.curated` (default `AGENTS.md`, `CLAUDE.md`, `.claude/rules/`, `docs/BUSINESS.md`), `roles.implementers` (default `implement`, `implement-sql`, `implement-front`, `mechanical`), `roles.lookup` (default `explore`), `brakes.changeSize.warn` and `.max` (default 400 and 800), `lookup.index.command` (default `graphify query`), `tests.files`, `tests.run`.
 
 ## Step 1: Cut the work
 
-A task is the work of one agent. A batch is the tasks on one branch: they run at the same time, get one review and merge together.
+A task is the work of one agent. A batch is the tasks on one branch: the tasks with no `After:` line run at the same time, get one review and merge together.
 
 - Files: a task owns every file it creates or changes, its test file included (a path `tests.files` matches). No file is in two tasks of one batch, so two agents never write the same file. Two changes to one file are one task, or go in two batches.
-- Order: a task that needs another task's result goes on the same branch, after it, in the same batch. Each batch leaves the project working when it merges.
+- Order: a task that needs another task's result goes on the same branch, after it, in the same batch, with a line `After: T<n>` naming the task it needs; `orchestrate` dispatches it once that task has committed. Each batch leaves the project working when it merges.
 - Size: estimate the code lines each batch changes, added plus removed. Tests, docs, fixtures, JSON, lockfiles and generated files do not count. Cut the plan into more batches only above `brakes.changeSize.max`: each batch pays one review, so keep one batch for the whole plan; at `brakes.changeSize.max` the brake `change-size` refuses the push. A batch that cannot be cut smaller (for example one rename across many files) says so in the plan: a commit on its branch needs a line `size-ok: <reason>`.
 - Role: a name from `roles.implementers`, chosen by the task's files: `implement-sql` for SQL and migrations, `implement-front` for screens, `implement` otherwise, `mechanical` for a change with no logic. No agent may write a file under `paths.curated` (the hook `orchestrator` denies it): that task has `Role: main session`.
 - Branch: `<slug>-<n>` for batch `<n>`. A branch name has only letters, digits, `/`, `_` and `-`: the brake `pending` reads no other character.
@@ -46,6 +46,7 @@ Spec: <path of the spec>
 
 **T1: <what changes, in one line>** (spec section <n>)
 - Files: `<path>`, `<test path>`
+- After: T<n> (only a task that needs another task's result; leave the line out otherwise)
 - Role: <agent name>
 - Done: `<command>` <the result it must give>
 
@@ -58,7 +59,7 @@ Spec: <path of the spec>
 ## Seals
 ```
 
-- `Goal: G<n>` names the goal line of `docs/BUSINESS.md` this work serves; the spec has it when `next-step` handed it over. The line starts in the first column and holds nothing else: no bold, no list mark, no goal text. The brake `goal-cited` reads exactly that. If no goal fits, ask the owner which goal the work serves; never pick the nearest.
+- `Goal: G<n>` names the goal line of `paths.business` (default `docs/BUSINESS.md`) this work serves; the spec has it when `next-step` handed it over. The line starts in the first column and holds nothing else: no bold, no list mark, no goal text. The brake `goal-cited` reads exactly that. If no goal fits, ask the owner which goal the work serves; never pick the nearest.
 - Global Constraints: only what binds every task. Quote the owner; do not summarize. When the owner decides something later, add it here in the commit that applies the decision.
 - Tasks: under a task's title, add only what its agent needs and the spec does not say. No code, no restated design.
 - Every implementer reads Global Constraints and Review Focus whole: keep both to a few lines.

@@ -1,0 +1,1 @@
+f="$(git rev-parse --show-toplevel)/.xworkflows/checks/run.mjs"; if grep -q -- --pre-commit "$f" 2>/dev/null; then node "$f" --pre-commit || exit $?; fi
