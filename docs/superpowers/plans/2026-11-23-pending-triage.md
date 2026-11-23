@@ -45,3 +45,4 @@ Spec: docs/superpowers/specs/2026-11-23-pending-triage.md
 ## Declined findings
 
 ## Seals
+review ok at 54cb519
