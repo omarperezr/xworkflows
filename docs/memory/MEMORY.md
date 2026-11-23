@@ -1,0 +1,2 @@
+- [reference-memory-unify](reference-memory-unify.md) — The owner approved moving the reference project's memory notes into its repository after P-237
+- [reference-project-paused](reference-project-paused.md) — The reference project's own work is stopped until xworkflows is fully integrated there
