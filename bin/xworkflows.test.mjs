@@ -215,7 +215,7 @@ test("rerun: nothing to do, files byte-equal, record entries once", () => {
   assert.equal(rec.merged[0].createdKey, true);
   assert.deepEqual(rec.blocks, [{ file: "AGENTS.md" }]);
   assert.deepEqual(rec.imports.filter((i) => i.file === "CLAUDE.md"), [{ file: "CLAUDE.md", line: "@AGENTS.md" }]);
-  assert.deepEqual(rec.created.sort(), [".claude/settings.json", ".claude/settings.local.json", ".gitignore", ".graphifyignore", "AGENTS.md", "CLAUDE.md", "docs/memory"]);
+  assert.deepEqual(rec.created.sort(), [".claude/settings.json", ".claude/settings.local.json", ".gitignore", ".graphifyignore", "AGENTS.md", "CLAUDE.md", "docs/memory", "docs/memory/MEMORY.md"]);
 });
 test("AGENTS.md: a changed block is replaced in place, text outside kept; existing CLAUDE.md untouched", () => {
   const r = repo({ "AGENTS.md": "top\n<!-- xworkflows:start -->\nold\n<!-- xworkflows:end -->\nbottom\n", "CLAUDE.md": "mine\n" });
@@ -224,7 +224,7 @@ test("AGENTS.md: a changed block is replaced in place, text outside kept; existi
   assert.ok(t.startsWith("top\n<!-- xworkflows:start -->\n## xworkflows"));
   assert.ok(t.endsWith("<!-- xworkflows:end -->\nbottom\n"));
   assert.equal(readFileSync(join(r, "CLAUDE.md"), "utf8"), "mine\n");
-  assert.deepEqual(readJson(r, ".xworkflows/installed.json").created.sort(), [".claude/settings.json", ".claude/settings.local.json", ".gitignore", ".graphifyignore", "docs/memory"]);
+  assert.deepEqual(readJson(r, ".xworkflows/installed.json").created.sort(), [".claude/settings.json", ".claude/settings.local.json", ".gitignore", ".graphifyignore", "docs/memory", "docs/memory/MEMORY.md"]);
 });
 test("dry-run lists merges and writes nothing", () => {
   const r = repo();
@@ -393,7 +393,7 @@ test("gitignore lines and scalar settings: written once, left alone, removed by 
   const r = repo({ ".gitignore": "node_modules" });
   cli(r, ["install"]);
   const gi = readFileSync(join(r, ".gitignore"), "utf8");
-  assert.equal(gi, "node_modules\ngraphify-out/\n.claude/settings.local.json\n.qmd/\n.xworkflows/handoff.md\n");
+  assert.equal(gi, "node_modules\ngraphify-out/\n.claude/settings.local.json\n.qmd/\n.xworkflows/handoff.md\n.xworkflows/local.json\n");
   assert.deepEqual(readJson(r, ".claude/settings.json").attribution, { commit: "", pr: "" });
   assert.deepEqual(readJson(r, ".claude/settings.local.json"), { autoMemoryDirectory: join(realpathSync(r), "docs/memory") });
   assert.equal(git(r, "check-ignore .claude/settings.local.json"), ".claude/settings.local.json");
@@ -407,7 +407,7 @@ test("gitignore and settings already there are left alone; memory.dir is honored
   const mine = { attribution: { commit: "x" }, theme: "dark" };
   const r = repo({ ".gitignore": "graphify-out\n.claude/*.local.json\n", ".claude/settings.json": JSON.stringify(mine), ".claude/settings.local.json": JSON.stringify({ autoMemoryDirectory: "/mine" }) });
   cli(r, ["install"]);
-  assert.equal(readFileSync(join(r, ".gitignore"), "utf8"), "graphify-out\n.claude/*.local.json\n.qmd/\n.xworkflows/handoff.md\n");
+  assert.equal(readFileSync(join(r, ".gitignore"), "utf8"), "graphify-out\n.claude/*.local.json\n.qmd/\n.xworkflows/handoff.md\n.xworkflows/local.json\n");
   assert.deepEqual(readJson(r, ".claude/settings.json").attribution, { commit: "x" });
   assert.deepEqual(readJson(r, ".claude/settings.local.json"), { autoMemoryDirectory: "/mine" });
   cli(r, ["uninstall"]);

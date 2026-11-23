@@ -178,9 +178,9 @@ test("uninstall: a memory folder that existed before the install is neither remo
   inst(r);
   const out = cli(r, ["uninstall"]);
   assert.ok(existsSync(join(r, "docs/memory/.keep")));
-  assert.doesNotMatch(out.stdout, /docs\/memory/);
+  assert.doesNotMatch(out.stdout, /docs\/memory(?!\/MEMORY\.md)/); // only the MEMORY.md the install made is named
   const q = repo(); mkdirSync(join(q, "docs/memory"), { recursive: true }); inst(q);
-  assert.doesNotMatch(cli(q, ["uninstall"]).stdout, /docs\/memory/);
+  assert.doesNotMatch(cli(q, ["uninstall"]).stdout, /docs\/memory(?!\/MEMORY\.md)/);
   assert.ok(statSync(join(q, "docs/memory")).isDirectory());
 });
 for (const dir of ["./docs/memory", "docs/memory/"]) {
