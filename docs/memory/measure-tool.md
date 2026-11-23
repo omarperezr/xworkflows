@@ -14,7 +14,7 @@ Built 2026-11-18.
 - Reads the session files of the project; each message counted once, by message id. The batch comes from the git branch recorded on each message, not from the session.
 - Groups spend by role from each subagent's `agentType` and `model`. Cost per message uses the official price table, with the table date stored on the row.
 - Quality per batch: fix rounds that repair an earlier fix, failures found after the seal (counted against the batch even months later), false blocks from brakes. The bar is "do not get worse than the median of earlier batches".
-- Output goes only to a git-ignored folder under `docs/measure/`, numbers only, no session text.
+- Output goes only to a git-ignored measure folder, numbers only, no session text.
 
 ## Known bugs and limits
 
