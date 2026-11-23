@@ -74,7 +74,7 @@ export function run(argv, root, home = homedir()) {
     return p === base || mine(base, p) ? null : linkedLine;
   };
   const linkedLine = { code: 2, stdout: `the memory folder ${dir} is a link: /dream cannot run here, its writes could leave the branch\n` };
-  const folderOf = (kind) => outsideFolders(join(root, dir), root, home).find((f) => f.kind === kind)?.folder;
+  const folderOf = (kind) => outsideFolders(join(root, dir), root, home, config.memory.autoDirectory).find((f) => f.kind === kind)?.folder;
   // the originals main's dream.json records that still stand in their folder, numbered; changed when the file is no longer the one copied, noCopy when no file of main's tree named like it (or with -old) holds the recorded sha256
   const originals = () => {
     let brought = [];

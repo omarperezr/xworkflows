@@ -1,6 +1,5 @@
 // The method's shared code, found from this file: the package root two folders up, or .xworkflows/ three up in a project.
 import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -12,12 +11,10 @@ export async function shared(rel) {
   return import(pathToFileURL(hit).href);
 }
 
-// the folders outside the repository that hold memory notes: the default one of the session logs and the earlier one install recorded
-export function outsideFolders(mem, root, home = homedir()) {
+// the folders outside the repository that hold memory notes: the default one of the session logs and the earlier one install recorded; autoDirectory is the loaded config's memory.autoDirectory: false makes the default folder the live memory, not an old one
+export function outsideFolders(mem, root, home, autoDirectory) {
   const found = [];
-  let off = false; // autoDirectory false: the default folder is the live memory, not an old one
-  try { off = JSON.parse(readFileSync(join(root, ".xworkflows/config.json"), "utf8")).memory?.autoDirectory === false; } catch {}
-  if (!off) found.push(["default", join(home, ".claude", "projects", root.replace(/[^a-zA-Z0-9]/g, "-"), "memory")]);
+  if (autoDirectory !== false) found.push(["default", join(home, ".claude", "projects", root.replace(/[^a-zA-Z0-9]/g, "-"), "memory")]);
   try {
     const e = JSON.parse(readFileSync(join(root, ".xworkflows/local.json"), "utf8")).memory.earlierAutoDirectory;
     found.push(["earlier", typeof e === "string" && e.startsWith("~/") ? join(home, e.slice(2)) : e]);

@@ -126,7 +126,7 @@ export function run(argv, env, root, home) {
   const dir = memoryDir(config.memory.dir) ?? DEFAULTS.memory.dir, memory = join(root, dir);
   const notes = existsSync(memory) ? readdirSync(memory).filter((f) => f.endsWith(".md") && f !== "MEMORY.md").length : 0;
   const folder = arg(argv, "--sessions") ?? join(home, ".claude", "projects", root.replace(/[^A-Za-z0-9]/g, "-"));
-  const outside = outsideFolders(memory, root, home);
+  const outside = outsideFolders(memory, root, home, config.memory.autoDirectory);
 
   // the state of the adopted runs is on the main branch, the commit `branch.mjs open` starts from; the working folder is not read
   const genv = { ...process.env };
