@@ -38,6 +38,16 @@ Spec: docs/superpowers/specs/2026-11-23-pending-triage.md
 - Role: implement
 - Done: `node bin/xworkflows.mjs pack --check` prints nothing, `node bin/xworkflows.mjs doctor` exits 0, and the full `node --test` passes.
 
+**T5: fixes from review round 1, moved into this batch by the owner** (spec 2, items 2, 4, 6)
+- Files: `skills/pending/triage.mjs`, `skills/pending/triage.test.mjs`, `skills/pending/triage.workflow.js`, `skills/pending/triage-workflow.test.mjs`, `skills/pending/SKILL.md`, `manifest.json`, the installed copy under `.claude/` and `.xworkflows/`
+- After: T4
+- Role: implement
+- (3a) Remove the chunk retry and `modelUp`: a failed chunk's cards go to `notJudged` only. Owner: "a".
+- (4) Triage step 6: the closes commit carries each dropped card's reason in its body, as `## Close` asks.
+- (5) Triage step 1: with `cards` empty, still name the `skipped` and `malformed` cards before stopping.
+- (6) Remove the unused `line` field from `list`.
+- Done: `node --test skills/pending/` passes, `node bin/xworkflows.mjs pack --check` prints nothing, the full `node --test` passes.
+
 ## Review Focus
 
 - `drop` rewrites the pending list: a parse slip deletes a card the owner kept, or the wrong one. Only the named numbers may go.
