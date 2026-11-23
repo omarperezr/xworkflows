@@ -5,7 +5,7 @@ import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
-import { shared } from "./shared.mjs";
+import { shared, outsideFolders } from "./shared.mjs";
 
 const { DEFAULTS, load, memoryDir } = await shared("hooks/core/config.mjs");
 const { NOISE, REPORT } = await shared("hooks/core/memory.mjs");
@@ -126,6 +126,7 @@ export function run(argv, env, root, home) {
   const dir = memoryDir(config.memory.dir) ?? DEFAULTS.memory.dir, memory = join(root, dir);
   const notes = existsSync(memory) ? readdirSync(memory).filter((f) => f.endsWith(".md") && f !== "MEMORY.md").length : 0;
   const folder = arg(argv, "--sessions") ?? join(home, ".claude", "projects", root.replace(/[^A-Za-z0-9]/g, "-"));
+  const outside = outsideFolders(memory, root, home);
 
   // the state of the adopted runs is on the main branch, the commit `branch.mjs open` starts from; the working folder is not read
   const genv = { ...process.env };
@@ -142,13 +143,12 @@ export function run(argv, env, root, home) {
   }
   const waiting = git("for-each-ref", "--format=%(refname:short)", `--no-merged=${main}`, "refs/heads/dream/").stdout.split("\n").filter(Boolean);
 
-  const result = { out: null, sessions: [], bytes: 0, tokens: 0, left: 0, cut: false, notes, skipped: 0, waiting, empty: [] };
+  const result = { out: null, sessions: [], bytes: 0, tokens: 0, left: 0, cut: false, notes, outside, skipped: 0, waiting, empty: [] };
   const done = (reason) => {
     const text = JSON.stringify(reason ? { ...result, reason } : result);
     if (result.out) writeFileSync(join(result.out, "extract.json"), text + "\n");
     return { code: 0, stdout: text + "\n", stderr: "" };
   };
-  if (!notes) return done("no memory notes");
 
   const found = [];
   for (const e of existsSync(folder) ? readdirSync(folder, { withFileTypes: true }) : []) {

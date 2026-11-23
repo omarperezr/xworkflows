@@ -114,11 +114,11 @@
     },
     "dream-analyzer": {
       "version": "0.1.0",
-      "sha256": "235093ff36aaf5059e98e0e6d7b5047ae5200db5a82301cda8b3642330e06cc2"
+      "sha256": "465337fb4b99bdc4d42a55e3756b04d850fe3d708eca43dc79230b7c9929da3b"
     },
     "dream-organizer": {
       "version": "0.1.0",
-      "sha256": "b9de240aa1d139323c356d5410a5a52841a9d235f1402ab77df24b1a2688cf02"
+      "sha256": "f677cbc596335949f7c5acc4f0856dbd2793b1896a111d5fc07b13c237c91771"
     },
     "deepen": {
       "version": "0.1.0",
@@ -150,7 +150,7 @@
     },
     "dream": {
       "version": "0.1.0",
-      "sha256": "696931a88420fcb8e7642ea584a9cb9755365dea5e9d849305a08abb4386a896"
+      "sha256": "c2c3ce2858c3ae93028cdb33601794033aa2b7f69f16eab769dd592162d714fe"
     },
     "checks": {
       "version": "0.1.0",
@@ -440,11 +440,11 @@
     },
     ".claude/agents/dream-analyzer.md": {
       "piece": "dream-analyzer",
-      "sha256": "295cb92a9ee9c9fd98221635838f406cdf03d51452b7d86ef225def11dd74a10"
+      "sha256": "459636ea8b89bebd81fddb297650e31651c3a6ee7b2b249233f44d37c7848821"
     },
     ".claude/agents/dream-organizer.md": {
       "piece": "dream-organizer",
-      "sha256": "87e6dfd6e35ddeb34abc54513713a54b23a8f908b0d7be618175925563a0cfb8"
+      "sha256": "a62e06ca5c70fdc19c91cfea4eb1dcefb8f596e3c40e0b227355ff6f31582953"
     },
     ".claude/skills/deepen/SKILL.md": {
       "piece": "deepen",
@@ -496,23 +496,23 @@
     },
     ".claude/skills/dream/SKILL.md": {
       "piece": "dream",
-      "sha256": "0e83ef12796737a1c263aac292eaf66202adb1730434dc2ed59555b5b68da8a8"
+      "sha256": "4204201fa1ba82fe4a85bf88a2311b98eb95e5ed14d8bc67733fdbf8bf679f24"
     },
     ".claude/skills/dream/extract.mjs": {
       "piece": "dream",
-      "sha256": "59b65be4f9bf85f1d92aa9bade0458d40aecaa398c532746e4920c099c0d32cc"
+      "sha256": "df55fbc237633664505a75a0e8d4d8745a4ef353c4065ed526ec924a1c86c9d2"
     },
     ".claude/skills/dream/branch.mjs": {
       "piece": "dream",
-      "sha256": "b9f88a1e86a936cf88105956557bed345fdf2d62398f6fcff9e16b642e985373"
+      "sha256": "010428bf1f5c13562247e1f82362b7dbcc01cca5250c97d8b3038f54e6b1d4dd"
     },
     ".claude/skills/dream/shared.mjs": {
       "piece": "dream",
-      "sha256": "6055f40386bf830bb0453b36e10dc55b87930825053ce3df4906aa99e356d02d"
+      "sha256": "3b191387ee608b7be1af5005702dc11ada1e78b7709eea9c15911fcec8491fd1"
     },
     ".claude/skills/dream/dream.workflow.js": {
       "piece": "dream",
-      "sha256": "1e54b3ce3104638a2ecd3a231560cfb17b4832659057a053c69757c4ce34e5ea"
+      "sha256": "00dba7d61b05d2b262cf2262597f9528d23dec85b0854a88af731d1f1ae4f737"
     },
     ".xworkflows/git/pre-push": {
       "piece": "checks",
@@ -939,6 +939,10 @@
     {
       "file": ".graphifyignore",
       "line": ".claude/skills/handoff/"
+    },
+    {
+      "file": ".gitignore",
+      "line": ".xworkflows/local.json"
     }
   ],
   "created": [

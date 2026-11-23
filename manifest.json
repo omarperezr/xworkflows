@@ -617,9 +617,9 @@
         "claude"
       ],
       "files": {
-        "agents/dream-analyzer.md": "8f4a483f5c3ea32f254fd794b32b0c7f10b77132e6a671803b31a5350de2125e"
+        "agents/dream-analyzer.md": "09255f2a870b2dc8900aa92baae90d92a3b21783f88a5f2054ce28dc1a84e33b"
       },
-      "sha256": "235093ff36aaf5059e98e0e6d7b5047ae5200db5a82301cda8b3642330e06cc2"
+      "sha256": "465337fb4b99bdc4d42a55e3756b04d850fe3d708eca43dc79230b7c9929da3b"
     },
     {
       "id": "dream-organizer",
@@ -632,9 +632,9 @@
         "claude"
       ],
       "files": {
-        "agents/dream-organizer.md": "a7f279636b45d25e07b06f83d0986e4070fb9447826e47b951ef321b2ca9d7a4"
+        "agents/dream-organizer.md": "b649ba011ad57910cbc5a58dac93a0df2a525365a52f07b9178357bb20b5d1e3"
       },
-      "sha256": "b9de240aa1d139323c356d5410a5a52841a9d235f1402ab77df24b1a2688cf02"
+      "sha256": "f677cbc596335949f7c5acc4f0856dbd2793b1896a111d5fc07b13c237c91771"
     },
     {
       "id": "deepen",
@@ -776,13 +776,13 @@
         "claude"
       ],
       "files": {
-        "skills/dream/SKILL.md": "0e83ef12796737a1c263aac292eaf66202adb1730434dc2ed59555b5b68da8a8",
-        "skills/dream/extract.mjs": "59b65be4f9bf85f1d92aa9bade0458d40aecaa398c532746e4920c099c0d32cc",
-        "skills/dream/branch.mjs": "b9f88a1e86a936cf88105956557bed345fdf2d62398f6fcff9e16b642e985373",
-        "skills/dream/shared.mjs": "6055f40386bf830bb0453b36e10dc55b87930825053ce3df4906aa99e356d02d",
-        "skills/dream/dream.workflow.js": "1e54b3ce3104638a2ecd3a231560cfb17b4832659057a053c69757c4ce34e5ea"
+        "skills/dream/SKILL.md": "4204201fa1ba82fe4a85bf88a2311b98eb95e5ed14d8bc67733fdbf8bf679f24",
+        "skills/dream/extract.mjs": "df55fbc237633664505a75a0e8d4d8745a4ef353c4065ed526ec924a1c86c9d2",
+        "skills/dream/branch.mjs": "010428bf1f5c13562247e1f82362b7dbcc01cca5250c97d8b3038f54e6b1d4dd",
+        "skills/dream/shared.mjs": "3b191387ee608b7be1af5005702dc11ada1e78b7709eea9c15911fcec8491fd1",
+        "skills/dream/dream.workflow.js": "00dba7d61b05d2b262cf2262597f9528d23dec85b0854a88af731d1f1ae4f737"
       },
-      "sha256": "696931a88420fcb8e7642ea584a9cb9755365dea5e9d849305a08abb4386a896"
+      "sha256": "c2c3ce2858c3ae93028cdb33601794033aa2b7f69f16eab769dd592162d714fe"
     },
     {
       "id": "checks",
