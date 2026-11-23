@@ -10,6 +10,7 @@ Spec: docs/superpowers/specs/2026-11-23-pending-triage.md
 - Only `Status: unscheduled` cards are judged; ordered work is never judged (spec 2, items 3 and 4).
 - The three row lines of `## The bar` in `skills/pending/SKILL.md` stay byte-identical: `skills/triage-bar.test.mjs` checks them.
 - Node standard library only; every installed file is a manifest piece with its hash.
+- Name clashes (owner, 2026-11-23): "asume que la gente sabe lo que hace ... lo maximo que podemos hacer es hacerles saber al instalar que nuestras herramientas tienen los nombres que tienen si hay algun choque con otro nombre se hace saber y que no va a funcionar bien a menos que se especifique bien cuando usar que herramienta, no hagamos demasiados arreglos alrededor de esos casos". So review findings 1 and 2 of round 1 (a kept or renamed `dream` or `pending` skill) are `drop`.
 
 ## Tasks
 
