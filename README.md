@@ -35,7 +35,10 @@ xworkflows installs into your repository and turns good habits into rules that a
 | The main session reads whole files and burns tokens | Cheap helper agents do the reading; a hook denies long reads in the main session |
 | A fix lands with no test | `git push` is refused unless the fix has a test that failed before it |
 | A change reaches `main` with no review | `git push` to `main` is refused until a reviewer has signed the plan |
-| Nobody knows what is left to do | One pending list, checked on every push |
+| Reviews fill the backlog with impossible edge cases | Every finding gets one row: `blocking`, `pending` or `drop`. Only real, reachable errors stop a batch |
+| An agent runs `rm -rf "$DIR"` or a `DELETE` with no `WHERE` | A hook stops a recursive delete of a computed path, and asks you before a destructive database command |
+| Every new session starts from zero | A short hand-off loads in the next session, and `/dream` turns past sessions into better notes |
+| Nobody knows what is left to do | One pending list, checked on every push, and `/pending triage` to clean it |
 
 ## Quick start
 
@@ -72,7 +75,7 @@ fail not configured: paths.code (needed by fix-has-test, graph-current), run /ad
 Good to know:
 
 - Nothing is committed or pushed for you. You decide when to commit what the installer wrote.
-- The installer asks a question only when something of yours is already there: a skill or agent with the same name, a git hook, a file it did not write.
+- The installer asks a question only when something of yours is already there: a skill or agent with the same name, a git hook, a file it did not write, or a `CLAUDE.md` that does not load `AGENTS.md` yet (`Add @AGENTS.md to CLAUDE.md?`). With no terminal to ask in, it answers `no` and says so.
 - A git hook you already have that is a shell script is never renamed or moved. With a yes, `install` adds one marked line to it, which runs the check first and then the rest of your hook; `uninstall` removes that line. For husky, the line goes in husky's own file for that hook.
 - A hook written by lefthook or pre-commit, a hook that is not a shell script, and a hook that is a link cannot take the line, so they stay chained: with a yes, `install` renames the hook `<name>.before-xworkflows` and its own hook runs it first, with the same input; `uninstall` gives it its name back.
 - A hooks folder outside your repository (a `core.hooksPath` shared by several projects) gets nothing written. `doctor` gives you the same line to put first in its `pre-push`: it runs the check, then the rest of that hook with the pushed refs, and does nothing in a project without xworkflows. The line is yours to take out after `uninstall`.
@@ -138,22 +141,50 @@ flowchart LR
 | 2 | Design questions | The agent asks you the decisions, with its recommended answer each time | the `design-first` hook: no spec before the questions |
 | 3 | Plan | A written plan of small tasks, tied to one of your goals | the `goal-cited` check |
 | 4 | Implement | Small batches, each task done by its own agent, test first | the `orchestrator` hook, the `fix-has-test` and `change-size` checks |
-| 5 | Review by risk | A reviewer checks each batch; risky paths get a stricter one | the `review-seal` check |
+| 5 | Review by risk | A reviewer checks each batch; risky paths get a stricter one. Each finding is sorted `blocking`, `pending` or `drop`, and you judge the last two in one numbered list | the `review-seal` check |
 | 6 | Brakes | A check that refuses `git push` when something is missing | 14 checks, run by a pre-push hook |
-| 7 | Pending list | One living list of what is left to do | the `pending` check |
+| 7 | Pending list | One living list of what is left to do; `/pending triage` has cheap agents judge every unscheduled card, and you confirm | the `pending` check |
 
 ## What gets installed
 
 | | Count | Where |
 |---|---|---|
 | Skills | 14 | `.claude/skills/` |
-| Agents | 12 | `.claude/agents/` |
-| Hooks | 7 | `.xworkflows/hooks/`, registered in `.claude/settings.json` |
+| Agents | 13 | `.claude/agents/` |
+| Hooks | 10 | `.xworkflows/hooks/`, registered in `.claude/settings.json` |
 | Push checks | 14, plus 3 optional tool packs | `.xworkflows/checks/`, run by `.git/hooks/pre-push` |
 
 It also writes a short block in `AGENTS.md`, a memory folder (`docs/memory`) where the agent keeps its notes, and a `.graphifyignore` that keeps the method's own files out of your code graph. Your settings live in `.xworkflows/config.json`, which `/adapt` writes.
 
-Between sessions, `/dream` improves the agent's notes from past sessions, on a branch you review; you start it by hand, and it works in Claude Code only.
+## It remembers, without bloating
+
+Long work dies in two ways: the next session forgets what was decided, or it starts so loaded with notes that it is slow and expensive. xworkflows handles both.
+
+| Piece | What it does |
+|---|---|
+| Hand-off | When a batch merges, `/handoff` writes a short note (1,500 bytes at most) for the next session. The `handoff-load` hook loads it after `/clear` or a compaction, and only while `main` is still where the note says. A stale hand-off stays silent |
+| Memory | One folder, `docs/memory`, tracked in git: one fact per note and an index. The memory job keeps the index current at compaction and at session end |
+| `/dream` | Reads the sessions since its last run, knowing how each one ended, and improves the notes: decisions, lessons, current state. It works on a branch of its own, so nothing reaches `main` until you merge it. You start it by hand; Claude Code only |
+| Start-up budget | `doctor` fails when the text loaded at every session start passes 3,333 bytes, and prints the input tokens of your newest session's first turn |
+
+<details>
+<summary><strong>The 10 hooks</strong></summary>
+
+| Hook | When | What it does |
+|---|---|---|
+| `design-first` | before a write | denies a spec until `/grill` asked the design questions this session |
+| `orchestrator` | before a tool call | keeps the main session planning: long reads, web calls and images go to an agent, and no agent starts before `/orchestrate` was loaded |
+| `handback` | when an agent reports | sends back a report without its red and green test lines, what it skipped and its commit |
+| `safe-rm` | before a shell command | stops `rm -r` on a computed path, also through `xargs` |
+| `safe-db` | before a shell command | asks you before a destructive database command; inside an agent it denies it |
+| `adapt-gates`, `adapt-record` | during `/adapt` | guard the `/adapt` run and record each answer you give |
+| `memory` | before a write, at start, compaction and end | refreshes the memory index, brings back the notes on the current topic, and suggests `/dream` when sessions pile up unread |
+| `modes` | at session start | turns on your personal preferences |
+| `handoff-load` | at start and compaction | loads the hand-off when it is still current |
+
+A hook that gets input it cannot read lets the call through: a broken hook never blocks your work.
+
+</details>
 
 <details>
 <summary><strong>The 14 checks that can refuse a push</strong></summary>
@@ -200,6 +231,14 @@ Run each one as `npx github:omarperezr/xworkflows <command>`.
 ## Status
 
 This is an early version (0.1.0). It is tested in real Claude Code sessions. Known limits are listed in [docs/gaps.md](docs/gaps.md), and the full design is in [docs/design.md](docs/design.md).
+
+What has been proven so far, in a real terminal:
+
+- Claude Code asked to write a spec before the design questions: denied, with `Run /grill and settle the design questions with the owner before writing docs/superpowers/specs/prueba.md.` After `/grill`, the same request went through.
+- `install` on a fresh repository asked `Add @AGENTS.md to CLAUDE.md?`, and a yes put the line in.
+- `doctor` on a full install: `0 fail, 0 warn`.
+
+Still to come before 1.0: a measured pilot in a second real project (minutes from `install` to the first reviewed batch, and the count of manual steps), and an install by someone other than the author.
 
 | Tool | Status |
 |---|---|
