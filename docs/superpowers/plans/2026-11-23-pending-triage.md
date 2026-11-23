@@ -57,3 +57,4 @@ Spec: docs/superpowers/specs/2026-11-23-pending-triage.md
 
 ## Seals
 review ok at 54cb519
+review ok at ae60aa6
