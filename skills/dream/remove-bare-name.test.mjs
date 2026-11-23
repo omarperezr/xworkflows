@@ -20,5 +20,7 @@ test("close: --remove with the absolute path of a note in the memory folder does
   writeFileSync(n, "---\nname: a\ndescription: a\n---\nx\n");
   const r = run(["close", "--worktree", o.worktree, "--out", out, "--remove", n], root, home);
   assert.notEqual(r.code, 2, r.stdout);
+  assert.deepEqual(JSON.parse(r.stdout).skipped, []);
+  assert.equal(git(root, "ls-tree", "-r", "--name-only", o.branch).includes("a.md"), false);
   assert.equal(git(root, "rev-list", "--count", `main..${o.branch}`), "1");
 });
