@@ -7,7 +7,7 @@ const body = text.replace(/export const meta = \{[\s\S]*?\n\};\n/, "");
 const AsyncFunction = (async () => {}).constructor;
 
 const cards = (k) => Array.from({ length: k }, (_, i) => ({ n: i + 1, text: `card ${i + 1}`, origin: "review" }));
-const ARGS = (k) => ({ cards: cards(k), agent: "xwf-pending-triage", model: "haiku", modelUp: "sonnet" });
+const ARGS = (k) => ({ cards: cards(k), agent: "xwf-pending-triage", model: "haiku" });
 const inPrompt = (p) => JSON.parse(p.slice(p.indexOf("[")));
 // a judge: even cards are findings with row "pending", odd cards are ordered
 const judge = (p) => ({ results: inPrompt(p).map((c) => (c.n % 2 ? { n: c.n, kind: "ordered", row: null, reason: "asked" } : { n: c.n, kind: "finding", row: "pending", reason: "real" })) });
@@ -45,14 +45,11 @@ test("a finding without a valid row is not judged", async () => {
   assert.deepEqual(result.notJudged, [1]);
 });
 
-test("a failed chunk is retried once with modelUp, a second failure leaves its cards not judged", async () => {
-  const first = await run(ARGS(25), (p, o, i) => (i === 2 && o.model === "haiku" ? null : judge(p)));
-  assert.equal(first.calls.length, 3);
-  assert.equal(first.calls[2].opts.model, "sonnet");
-  assert.deepEqual(first.result.notJudged, []);
-  const second = await run(ARGS(25), (p, o) => (inPrompt(p)[0].n === 21 ? null : judge(p)));
-  assert.equal(second.calls.length, 3);
-  assert.deepEqual(second.result.notJudged, [21, 22, 23, 24, 25]);
+test("a failed chunk is asked once and its cards are not judged", async () => {
+  const { calls, result } = await run(ARGS(25), (p) => (inPrompt(p)[0].n === 21 ? null : judge(p)));
+  assert.equal(calls.length, 2);
+  assert.ok(calls.every((c) => c.opts.model === "haiku"));
+  assert.deepEqual(result.notJudged, [21, 22, 23, 24, 25]);
 });
 
 test("the script is fixed: no filesystem", () => {
