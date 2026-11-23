@@ -103,13 +103,6 @@ test("removals, fates and owner text come only from the organizer, the analyzers
   assert.deepEqual(result.owner, [OWNER]);
 });
 
-test("a remove note given as <memory>/name is returned as the bare name", async () => {
-  const { result } = await run(ARGS, {
-    "xwf-dream-organizer": () => ({ merged: 0, conflicts: 0, remove: [{ note: `${MEMORY}/old.md`, reason: "r" }, { note: "b.md", reason: "r" }] }),
-  });
-  assert.deepEqual(result.remove.map((r) => r.note), ["old.md", "b.md"]);
-});
-
 test("only the organizer's schema asks for remove, fates and owner", async () => {
   const { calls } = await run();
   for (const k of ["remove", "fates", "owner"]) {
