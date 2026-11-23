@@ -594,28 +594,29 @@ test("close --remove removes the named notes with git rm and shows them as remov
   assert.deepEqual(git(root, "ls-tree", "--name-only", o.branch, "docs/memory/").split("\n").sort(), ["docs/memory/MEMORY.md", "docs/memory/b.md", "docs/memory/dream.json"]);
 });
 
-test("close --remove refuses every path outside the branch's memory folder, names it, and changes nothing", () => {
-  const root = repo();
-  const o = opened(root);
-  const away = join(o.worktree, "other.txt");
-  const bad = ["../../other.txt", away, "sub/x.md", "MEMORY.md", "dream.json", "nope.txt"];
-  for (const b of bad) {
+test("close --remove skips every path outside the branch's memory folder, names it, and removes nothing there", () => {
+  for (const name of ["../../other.txt", "away", "sub/x.md", "MEMORY.md", "dream.json", "nope.txt"]) {
+    const root = repo();
+    const o = opened(root);
+    const away = join(o.worktree, "other.txt");
+    writeFileSync(away, "keep");
+    const b = name === "away" ? away : name;
     const c = run(["close", "--worktree", o.worktree, "--out", extracted(), "--remove", `a.md,${b}`], root);
-    assert.equal(c.code, 2, b);
-    assert.ok(c.stdout.includes(b), c.stdout);
-    assert.ok(existsSync(join(o.memory, "a.md")) && existsSync(away), b);
+    assert.equal(c.code, 0, `${b}: ${c.stdout}`);
+    assert.ok(JSON.parse(c.stdout).skipped.includes(b), c.stdout);
+    if (existsSync(away)) assert.equal(readFileSync(away, "utf8"), "keep", b);
   }
-  assert.ok(existsSync(o.worktree));
 });
 
-test("close --remove refuses a note that is a link", () => {
+test("close --remove skips a note that is a link and leaves its target", () => {
   const root = repo();
   const o = opened(root);
   const away = realpathSync(mkdtempSync(join(tmpdir(), "dream-b-away-"))); made.push(away);
   writeFileSync(join(away, "t.md"), "t");
   symlinkSync(join(away, "t.md"), join(o.memory, "l.md"));
   const c = run(["close", "--worktree", o.worktree, "--out", extracted(), "--remove", "l.md"], root);
-  assert.equal(c.code, 2, c.stdout);
+  assert.equal(c.code, 0, c.stdout);
+  assert.ok(JSON.parse(c.stdout).skipped.includes("l.md"), c.stdout);
   assert.equal(readFileSync(join(away, "t.md"), "utf8"), "t");
 });
 
