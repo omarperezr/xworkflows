@@ -180,7 +180,7 @@ test("doctor prints the session-start bytes and fails above the budget", () => {
   mkdirSync(join(home, ".xworkflows")); writeFileSync(join(home, ".xworkflows/owner.md"), "Replies: short and direct.\n");
   const out = doctor(r, { HOME: home });
   assert.equal(out.status, 0, out.stdout);
-  assert.match(out.stdout, /^ok +session-start text: [1-9]\d* bytes of 2000$/m);
+  assert.match(out.stdout, /^ok +session-start text: [1-9]\d* bytes of 3333$/m);
   withConfig(r, { tokens: { sessionStartBytes: 10 } });
   const over = doctor(r, { HOME: home });
   assert.equal(over.status, 1);
@@ -195,7 +195,7 @@ test("doctor does not count the hand-off in the session-start bytes and warns on
   const fired = spawnSync("sh", ["-c", hook.command], { cwd: r, encoding: "utf8", input: JSON.stringify({ session_id: "s", cwd: r, hook_event_name: "SessionStart", source: "startup" }) });
   assert.match(fired.stdout, /Next: x/); // the hook really prints it, so the measure has something to leave out
   const out = doctor(r, { HOME: EMPTY_HOME }).stdout;
-  assert.match(out, new RegExp(`^ok +session-start text: ${base} bytes of 2000$`, "m"));
+  assert.match(out, new RegExp(`^ok +session-start text: ${base} bytes of 3333$`, "m"));
   assert.doesNotMatch(out, /^warn .*handoff/m);
   const over = (sha) => writeFileSync(join(r, ".xworkflows/handoff.md"), `main: ${sha}\n${"x".repeat(1500)}`);
   over("b".repeat(40)); // stale: silent at any size
