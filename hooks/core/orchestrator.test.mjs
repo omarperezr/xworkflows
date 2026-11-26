@@ -20,7 +20,7 @@ const sh = (command) => ev("shell", { command });
 const SUMMARY = "/r/.xworkflows/summary.md";
 // a ctx where the session is oriented: approved summary, orchestrate mark, every agent type defined, index fresh
 function mk({ marks = ["orchestrate"], files = { [SUMMARY]: "status: approved\n" }, exist = [".claude/agents/", "graphify-out"], head = "h1", state = {}, config = cfg, home = "/h" } = {}) {
-  const st = new Map(Object.entries({ index: T0 - 1000, ...state }));
+  const st = new Map(Object.entries({ index: T0 - 1000, qmd: T0 - 1000, ...state }));
   return {
     config, st, home,
     marked: (s) => marks.includes(s),
@@ -188,30 +188,35 @@ test("risk reviewer needs a plan or spec in the prompt", () => {
   assert.ok(allowed(decide(agent("risk-review", { prompt: "docs\\superpowers\\specs\\x.md" }), mk())));
 });
 
-test("risk reviewer twice on the same HEAD denies; a new HEAD passes", () => {
+test("risk reviewer runs once per batch (branch + plan/spec): same batch after a fix commit denies; new branch or plan passes", () => {
   const e = agent("risk-review", { prompt: "docs/superpowers/specs/x.md" });
-  const c = mk();
+  const gitFor = (branch, head) => (...a) => (a.includes("--abbrev-ref") ? branch : head);
+  const c = { ...mk(), git: gitFor("tanda-1", "h1") };
   assert.ok(allowed(decide(e, c)));
-  assert.equal(c.st.get("risk"), "h1");
-  assert.ok(denied(decide(e, c), /already reviewed.*name the commit to review/));
-  assert.ok(allowed(decide(e, { ...c, git: () => "h2" })));
+  assert.equal(c.st.get("risk"), "tanda-1::docs/superpowers/specs/x.md");
+  // Same branch + same spec denies even after a fix commit moves HEAD
+  assert.ok(denied(decide(e, { ...c, git: gitFor("tanda-1", "h2") }), /confirm fixes with review/));
+  // Different branch or different plan passes
+  assert.ok(allowed(decide(e, { ...c, git: gitFor("tanda-2", "h2") })));
+  assert.ok(allowed(decide(agent("risk-review", { prompt: "docs/superpowers/plans/other.md" }), { ...c, git: gitFor("tanda-2", "h2") })));
 });
 
 test("third agent denies; risk reviewer does not count; ask, user prompt or seal reset", () => {
+  const impl = agent("implement");
   const c = mk();
   assert.ok(allowed(decide(ev("prompt", { event: "prompt", prompt: "go", fromUser: true }), c)));
-  assert.ok(allowed(decide(explore, c)));
-  assert.ok(allowed(decide(explore, c)));
+  assert.ok(allowed(decide(impl, c)));
+  assert.ok(allowed(decide(impl, c)));
   assert.ok(allowed(decide(agent("risk-review", { prompt: "docs/superpowers/plans/x.md" }), c)));
-  assert.ok(denied(decide(explore, c), /Workflow/));
+  assert.ok(denied(decide(impl, c), /Workflow/));
   assert.ok(allowed(decide(ev("ask"), c)));
-  assert.ok(allowed(decide(explore, c)));
-  assert.ok(allowed(decide(explore, c)));
-  assert.ok(denied(decide(explore, c)));
+  assert.ok(allowed(decide(impl, c)));
+  assert.ok(allowed(decide(impl, c)));
+  assert.ok(denied(decide(impl, c)));
   const seal = ev("write", { writes: [{ path: "/r/docs/superpowers/plans/p.md", old: "Status: draft", new: "review ok at abc1234" }] });
   assert.ok(allowed(decide(seal, c)));
-  assert.ok(allowed(decide(explore, c)));
-  assert.ok(allowed(decide(explore, c)));
+  assert.ok(allowed(decide(impl, c)));
+  assert.ok(allowed(decide(impl, c)));
 });
 
 test("a seal resets only when added, in plans or specs, with the configured roles", () => {
@@ -230,11 +235,16 @@ test("a seal resets only when added, in plans or specs, with the configured role
 });
 
 test("a prompt not from the user changes nothing", () => {
+  const impl = agent("implement");
   const c = mk({ state: { agents: 2 } });
   assert.ok(allowed(decide(ev("other", { event: "prompt", prompt: "<task-notification>x", fromUser: false }), c)));
-  assert.ok(denied(decide(explore, c)));
+  assert.ok(denied(decide(impl, c)));
+  assert.equal(c.st.get("index"), T0 - 1000);
+  assert.equal(c.st.get("qmd"), T0 - 1000);
   decide(ev("other", { event: "prompt", prompt: "go", fromUser: true }), c);
-  assert.ok(allowed(decide(explore, c)));
+  assert.ok(allowed(decide(impl, c)));
+  assert.equal(c.st.get("index"), T0 - 1000);
+  assert.equal(c.st.get("qmd"), T0 - 1000);
 });
 
 test("lookup agent: index folder missing, then no recent query", () => {
@@ -270,7 +280,7 @@ test("a stamped query lets the lookup agent through", () => {
 });
 
 test("a real report does not reset; a message from the owner does", () => {
-  const count = (fromUser) => { const c = mk({ state: { agents: 2 } }); decide(ev("other", { event: "prompt", fromUser }), c); return decide(explore, c).decision; };
+  const count = (fromUser) => { const c = mk({ state: { agents: 2 } }); decide(ev("other", { event: "prompt", fromUser }), c); return decide(agent("implement"), c).decision; };
   assert.equal(count(false), "deny");
   assert.equal(count(true), "allow");
 });
@@ -335,38 +345,35 @@ test("the index query counts behind env, -u and NAME=value words", () => {
     assert.equal(q(c), 0, c);
 });
 
-test("risk reviewer keys on the commit ids the prompt names, cut to 7, with the root HEAD", () => {
+test("risk reviewer on detached HEAD keys on doc + commit ids cut to 7; on a named branch keys on branch + doc", () => {
   const p = (ids) => agent("risk-review", { prompt: `docs/superpowers/specs/x.md ${ids}` });
-  const c = mk({ head: "h000000" });
+  const detached = (h) => ({ ...mk(), git: (...a) => (a.includes("--abbrev-ref") ? "HEAD" : h) });
+  const c = detached("h000000");
   assert.ok(allowed(decide(p("abc1234 and def5678"), c)));
-  assert.equal(c.st.get("risk"), "abc1234,def5678,h000000");
-  assert.ok(denied(decide(p("def5678 abc1234 abc1234"), c), /already reviewed/));
-  assert.ok(allowed(decide(p("abc1234"), c))); // other ids: another review
-  assert.ok(denied(decide(p("abc1234abcdef0123456789abcdef0123456789"), c))); // the long spelling of the same commit is the same key
-  assert.ok(allowed(decide(p("abc123"), c))); // 6 chars is no id: keys on HEAD alone
-  assert.equal(c.st.get("risk"), "h000000");
+  assert.equal(c.st.get("risk"), "docs/superpowers/specs/x.md::abc1234,def5678,h000000");
+  assert.ok(denied(decide(p("def5678 abc1234 abc1234"), c), /confirm fixes with review/));
+  assert.ok(denied(decide(p("abc1234abcdef0123456789abcdef0123456789 def5678"), c)));
+  assert.ok(allowed(decide(p("abc123"), c)));
   assert.ok(denied(decide(p("abc123"), c)));
-  assert.ok(allowed(decide(p("abc123"), { ...c, git: () => "h2" })));
+  assert.ok(allowed(decide(p("abc123"), { ...c, git: (...a) => (a.includes("--abbrev-ref") ? "HEAD" : "h2") })));
 });
 
-test("the same ids after a fix commit moved HEAD are another review", () => {
+test("on a named branch, a fix commit moving HEAD still denies a second risk-review on the same plan", () => {
   const p = (t) => agent("risk-review", { prompt: `docs/superpowers/plans/x.md ${t}` });
-  const c = mk({ head: "1d81d4e0000000000000000000000000000000aa" });
+  const gitFor = (branch, head) => (...a) => (a.includes("--abbrev-ref") ? branch : head);
+  const c = { ...mk(), git: gitFor("batch-1", "1d81d4e0000000000000000000000000000000aa") };
   assert.ok(allowed(decide(p("main...1d81d4e (reviewed sha 1d81d4e)"), c)));
-  assert.ok(denied(decide(p("main...1d81d4e (reviewed sha 1d81d4e)"), c), /name the commit to review/));
-  const moved = { ...c, git: () => "9999999ffffffffffffffffffffffffffffffffff" };
-  assert.ok(allowed(decide(p("findings; reviewed sha 1d81d4e, git diff 1d81d4e..HEAD"), moved)));
-});
-
-test("the same commit under another spelling is the same key", () => {
-  const p = (t) => agent("risk-review", { prompt: `docs/superpowers/plans/x.md ${t}` });
-  const full = "1d81d4e0000000000000000000000000000000aa";
-  const a = mk({ head: full });
-  assert.ok(allowed(decide(p("1d81d4e"), a)));
-  assert.ok(denied(decide(p(full), a)));
-  const b = mk({ head: full });
-  assert.ok(allowed(decide(p("no id here"), b)));
-  assert.ok(denied(decide(p("1d81d4e"), b)));
+  assert.ok(denied(decide(p("main...1d81d4e (reviewed sha 1d81d4e)"), c), /confirm fixes with review/));
+  const moved = { ...c, git: gitFor("batch-1", "9999999ffffffffffffffffffffffffffffffffff") };
+  assert.ok(denied(decide(p("findings; reviewed sha 1d81d4e, git diff 1d81d4e..HEAD"), moved), /confirm fixes with review/));
+  // Next batch branch with the same plan is allowed
+  const nextBatch = { ...c, git: gitFor("batch-2", "9999999ffffffffffffffffffffffffffffffffff") };
+  assert.ok(allowed(decide(p("main...9999999"), nextBatch)));
+  // Worktree workflow (root stays on main): same root HEAD denies a second risk-review even with a different prompt SHA, while merging Batch 1 into main unlocks Batch 2
+  const wt = { ...mk(), git: gitFor("main", "m111111") };
+  assert.ok(allowed(decide(p("main...aaa1111"), wt)));
+  assert.ok(denied(decide(p("main...bbb2222"), wt), /confirm fixes with review/));
+  assert.ok(allowed(decide(p("main...ccc3333"), { ...wt, git: gitFor("main", "m222222") })));
 });
 
 test("shell: a redirect target stops at a separator", () => {
@@ -459,4 +466,100 @@ test("the lite risk reviewer is a risk reviewer: it needs a plan, and a second r
   const c = mk();
   assert.ok(allowed(decide(e, c)));
   assert.ok(denied(decide(e, c), /already reviewed/));
+});
+
+test("code grep/find in main session is opt-in (gateShell/perMessage); pipes and subagents pass", () => {
+  // default config leaves shell grep allowed and preserves the 30-min index window across user prompts
+  const def = mk({ state: { index: T0 - 1000 } });
+  assert.ok(allowed(decide(sh("grep -n foo src/a.ts"), def)));
+  decide(ev("other", { event: "prompt", fromUser: true }), def);
+  assert.equal(def.st.get("index"), T0 - 1000);
+
+  const optCfg = { ...cfg, lookup: { ...cfg.lookup, index: { ...cfg.lookup.index, gateShell: true, perMessage: true } } };
+  const c = mk({ state: { index: 0 }, config: optCfg });
+  for (const cmd of ["grep -n foo src/a.ts", "rg bar src/", "git grep baz src/", "find src/ -name '*.ts'"])
+    assert.ok(denied(decide(sh(cmd), c), /graphify query/), cmd);
+  assert.ok(allowed(decide(sh("git log --oneline | grep src/"), c)));
+  assert.ok(allowed(decide(sh("grep -n foo README.md"), c)));
+  assert.ok(allowed(decide(ev("shell", { command: "grep -n foo src/a.ts", isSubagent: true }), c)));
+  // stamp via graphify query unlocks for this message
+  assert.ok(allowed(decide(sh('graphify query "foo"'), c)));
+  assert.ok(allowed(decide(sh("grep -n foo src/a.ts"), c)));
+  // new user message clears the pass when perMessage is enabled
+  decide(ev("other", { event: "prompt", fromUser: true }), c);
+  assert.ok(denied(decide(sh("grep -n foo src/a.ts"), c), /graphify query/));
+});
+
+test("qmd-first in main session is opt-in, never blocks MEMORY.md, and suggests valid qmd query syntax", () => {
+  // default config (lookup.memory.command = null) never blocks pending grep or memory reads
+  const def = mk({ state: { qmd: 0 }, home: "/h" });
+  assert.ok(allowed(decide(sh("grep -nw 'P-12' docs/PENDING.md"), def)));
+  assert.ok(allowed(decide(read("/r/docs/memory/note.md"), def)));
+
+  const memCfg = { ...cfg, lookup: { ...cfg.lookup, memory: { command: "bash scripts/mem.sh search", paths: ["docs/db/"] } } };
+  const c = mk({ state: { qmd: 0 }, config: memCfg, home: "/h" });
+  // MEMORY.md fallback stays readable even before qmd runs
+  assert.ok(allowed(decide(read("/r/docs/memory/MEMORY.md"), c)));
+  assert.ok(allowed(decide(sh("cat docs/memory/MEMORY.md"), c)));
+  // reads of other memory notes and session transcripts denied until qmd runs
+  assert.ok(denied(decide(read("/r/docs/memory/note.md"), c), /scripts\/mem\.sh search/));
+  assert.ok(denied(decide(read("/h/.claude/projects/p/s.jsonl"), c), /scripts\/mem\.sh search/));
+  assert.ok(denied(decide(read("/h/.gemini/antigravity-cli/brain/id/.system_generated/logs/transcript_full.jsonl"), c), /scripts\/mem\.sh search/));
+  assert.ok(denied(decide(sh("cat docs/memory/note.md"), c), /scripts\/mem\.sh search/));
+  // bare "qmd" config suggests valid `qmd query`
+  const bareQmd = mk({ state: { qmd: 0 }, config: { ...cfg, lookup: { ...cfg.lookup, memory: { command: "qmd", paths: [] } } }, home: "/h" });
+  assert.ok(denied(decide(read("/r/docs/memory/note.md"), bareQmd), /qmd query/));
+  // scratch/steps inside brain and direct plan/spec/pending reads stay allowed
+  assert.ok(allowed(decide(read("/h/.gemini/antigravity-cli/brain/id/scratch/x.mjs"), c)));
+  assert.ok(allowed(decide(read("/r/docs/superpowers/plans/p.md"), c)));
+  assert.ok(allowed(decide(read("/r/docs/superpowers/specs/s.md"), c)));
+  assert.ok(allowed(decide(read("/r/docs/PENDING.md"), c)));
+  assert.ok(allowed(decide(read("/r/docs/db/schema.md"), c)));
+  // searching any qmd-indexed path denied until qmd runs
+  for (const cmd of ["grep -rn x docs/memory/", "rg x docs/superpowers/plans/", "git grep x docs/PENDING.md", "find docs/db/ -name '*.md'", "grep x ~/.claude/projects/p/a.jsonl"])
+    assert.ok(denied(decide(sh(cmd), c), /scripts\/mem\.sh search/), cmd);
+  // subagents unaffected
+  assert.ok(allowed(decide(ev("read", { path: "/r/docs/memory/note.md", isSubagent: true }), c)));
+  assert.ok(allowed(decide(ev("shell", { command: "grep -rn x docs/memory/", isSubagent: true }), c)));
+  // running configured command or qmd unlocks for this message
+  assert.ok(allowed(decide(sh('bash scripts/mem.sh search "topic"'), c)));
+  assert.ok(allowed(decide(read("/r/docs/memory/note.md"), c)));
+  assert.ok(allowed(decide(sh("grep -rn x docs/superpowers/plans/"), c)));
+  // new user message clears pass; bare qmd also unlocks
+  decide(ev("other", { event: "prompt", fromUser: true }), c);
+  assert.ok(denied(decide(read("/r/docs/memory/note.md"), c)));
+  assert.ok(allowed(decide(sh('qmd --index idx query "topic"'), c)));
+  assert.ok(allowed(decide(read("/r/docs/memory/note.md"), c)));
+});
+
+test("Antigravity reviewers are denied through invoke_subagent and gated through run-agent.mjs", () => {
+  const c = {
+    ...mk({ files: { "/r/.xworkflows/summary.md": "status: approved\n", "/r/my repo/.xworkflows/summary.md": "status: approved\n", "/r/prompt-ok.txt": "Review docs/superpowers/plans/p.md commit abc1234", "/r/my prompt.md": "Review docs/superpowers/plans/p.md commit def5678", "/r/prompt-noplan.txt": "Review commit abc1234" } }),
+    exists: (p) => p.startsWith(".agents/agents/") || p === "graphify-out",
+  };
+  const agAgent = (type, extra = {}) => ({ ...agent(type, extra), toolDir: ".agents" });
+  for (const role of ["review", "risk-review", "risk-review-lite"]) {
+    assert.ok(denied(decide(agAgent(role, { prompt: "docs/superpowers/plans/p.md" }), c), /run-agent\.mjs/), role);
+  }
+  // non-reviewer agents still work through invoke_subagent
+  assert.ok(allowed(decide(agAgent("implement"), c)));
+  // run-agent.mjs passes review, enforces plan & duplicate-commit on risk-review (including quoted paths & spaces)
+  const agSh = (command) => ({ ...sh(command), toolDir: ".agents" });
+  assert.ok(allowed(decide(agSh("node .xworkflows/hooks/run-agent.mjs review prompt-ok.txt"), c)));
+  assert.ok(denied(decide(agSh('node ".xworkflows/hooks/run-agent.mjs" risk-review prompt-noplan.txt'), c), /plan or spec/));
+  assert.ok(denied(decide({ ...agSh('node "$PWD/.xworkflows/hooks/run-agent.mjs" risk-review prompt-noplan.txt'), root: "/r/my repo" }, c), /plan or spec/));
+  assert.ok(allowed(decide(agSh('node .xworkflows/hooks/run-agent.mjs risk-review "my prompt.md"'), c)));
+  assert.ok(denied(decide(agSh('node .xworkflows/hooks/run-agent.mjs risk-review "my prompt.md"'), c), /already reviewed/));
+  // direct `agy -p` / `--print` from the main session in Antigravity is denied; `agy models` / `--help` stay allowed
+  assert.ok(denied(decide(agSh('agy -p "review" --model gemini-4-neon-xhigh'), c), /run-agent\.mjs/));
+  assert.ok(denied(decide(agSh('cd repo && XWORKFLOWS_AGENT=risk-review agy --print "x"'), c), /run-agent\.mjs/));
+  assert.ok(allowed(decide(agSh("agy models"), c)));
+  assert.ok(allowed(decide(agSh("agy --help"), c)));
+  // reviewer subagents cannot write files; a project's own review agent when ours is renamed xwf-review stays allowed
+  for (const role of ["review", "risk-review", "risk-review-lite"]) {
+    assert.ok(denied(decide(ev("write", { isSubagent: true, agent: role, writes: [{ path: "src/a.ts" }] }), c), /never edits/), role);
+  }
+  const renamed = { ...c, agentName: (id) => `xwf-${id}` };
+  assert.ok(allowed(decide(ev("write", { isSubagent: true, agent: "review", writes: [{ path: "src/a.ts" }] }), renamed)));
+  assert.ok(denied(decide(ev("write", { isSubagent: true, agent: "xwf-review", writes: [{ path: "src/a.ts" }] }), renamed), /never edits/));
 });

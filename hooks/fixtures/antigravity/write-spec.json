@@ -1,0 +1,29 @@
+{
+  "label": "recorded",
+  "source": "Antigravity CLI (agy), real session, 2026-11-25; home and temp folders replaced by /home/user",
+  "input": {
+    "artifactDirectoryPath": "/home/user/.gemini/antigravity-cli/brain/4b237757-fe6c-4fcf-8eae-f4e2b2dd52d1",
+    "conversationId": "4b237757-fe6c-4fcf-8eae-f4e2b2dd52d1",
+    "cwd": "/home/user/work/xworkflows/sandbox",
+    "hookEventName": "PreToolUse",
+    "lastUserInput": "Try to write the file docs/superpowers/specs/2026-11-25-demo.md with content '# Demo'. If a hook denies it, run 'node .xworkflows/mark.mjs grill' in the shell and then write docs/superpowers/specs/2026-11-25-demo.md again. Report what happened in 3 short lines.",
+    "modelName": "gemini-4-hydrogen-high",
+    "stepIdx": 3,
+    "toolCall": {
+      "args": {
+        "Content": "# Demo",
+        "Path": "/home/user/work/xworkflows/sandbox/docs/superpowers/specs/2026-11-25-demo.md"
+      },
+      "id": "call_6350989936204954800",
+      "name": "write_file"
+    },
+    "transcriptPath": "/home/user/.gemini/antigravity-cli/brain/4b237757-fe6c-4fcf-8eae-f4e2b2dd52d1/.system_generated/logs/transcript_full.jsonl",
+    "workspacePaths": [
+      "/home/user/work/xworkflows/sandbox"
+    ]
+  },
+  "output": {
+    "stdout": "{\"decision\":\"deny\",\"reason\":\"Run /grill and settle the design questions with the owner before writing docs/superpowers/specs/2026-11-25-demo.md.\"}",
+    "exitCode": 0
+  }
+}

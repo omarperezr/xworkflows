@@ -114,3 +114,11 @@ test("one list item holding two names fails, plugin:skill form or not", async ()
     assert.match(r.lines.join("\n"), new RegExp(item));
   }
 });
+
+test("Antigravity .agents/agents/*.md skills resolve against .agents/skills/", async () => {
+  const ok = await check({ ".agents/agents/a.md": agent("skills:\n  - tdd\n  - skills/ponytail-review\n"), ".agents/skills/tdd/SKILL.md": "x\n", ".agents/skills/ponytail-review/SKILL.md": "x\n" });
+  assert.deepEqual(ok, { ok: true, lines: [] });
+  const bad = await check({ ".agents/agents/a.md": agent("skills:\n  - tdd\n  - missing\n"), ".agents/skills/tdd/SKILL.md": "x\n" });
+  assert.equal(bad.ok, false);
+  assert.match(bad.lines.join("\n"), /\.agents\/skills\/missing\/SKILL\.md/);
+});

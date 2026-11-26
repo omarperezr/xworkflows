@@ -23,6 +23,31 @@ function rebuild(ev, ctx) {
   ctx.background(process.execPath, [path.join(import.meta.dirname, "memory-job.mjs"), ev.root]); // the runner does the steps; the hook returns at once
 }
 
+function rebuildIfStale(ev, ctx) {
+  const read = (p) => ctx.readFile(path.resolve(ev.root, p));
+  const { dir } = memoryFolder(ctx.config, ev.root, ctx.outsideLine);
+  if (!dir) return;
+  const names = ctx.listDir(dir).filter((f) => f.endsWith(".md") && f !== "MEMORY.md");
+  const { before, index: qIndex } = ctx.config.memory;
+  const last = Number(ctx.state?.("memstop")) || 0;
+  if (!names.length) {
+    if (!last && (ctx.exists(path.join(dir, "MEMORY.md")) || runnable(before) || qIndex)) {
+      rebuild(ev, ctx);
+      ctx.save?.("memstop", ctx.now());
+    }
+    return;
+  }
+  const files = names.flatMap((file) => { const text = read(path.join(dir, file)); return text === null ? [] : [{ file, text }]; });
+  const index = path.join(dir, "MEMORY.md");
+  const changed = read(index) !== buildIndex(files);
+  const baseTime = last || ctx.mtime(index) || 0;
+  const newer = names.some((f) => { const t = ctx.mtime(path.join(dir, f)); return t !== null && t > baseTime; });
+  if (changed || newer) {
+    rebuild(ev, ctx);
+    ctx.save?.("memstop", ctx.now());
+  }
+}
+
 function typed(transcript) {
   const out = [];
   for (const line of transcript.split("\n")) {
@@ -42,19 +67,31 @@ function typed(transcript) {
 function dreamLine(ev, ctx) {
   const o = ctx.config.dream ?? {};
   const after = (k) => (Number.isInteger(o[k]) && o[k] > 0 ? o[k] : DEFAULTS.dream[k]); // a threshold that is not a whole number above zero is its default
-  if (o.suggest === false || (ev.source !== "startup" && ev.source !== "clear") || typeof ev.transcript !== "string" || !ev.transcript || ev.isSubagent) return null;
+  if (o.suggest === false || (ev.source !== "startup" && ev.source !== "clear") || (ev.toolDir !== ".agents" && (typeof ev.transcript !== "string" || !ev.transcript)) || ev.isSubagent) return null;
   const { dir } = memoryFolder(ctx.config, ev.root, ctx.outsideLine);
   if (!dir || !ctx.listDir(dir).some((f) => f.endsWith(".md") && f !== "MEMORY.md")) return null;
   if (ctx.realPath(dir) !== path.join(ctx.realPath(""), dir)) return null; // a link, or under one: dream refuses to run there
   let ran = NaN;
   try { const r = JSON.parse(ctx.readFile(path.resolve(ev.root, dir, "dream.json")))?.ran; if (typeof r === "string") ran = Date.parse(r); } catch { /* no state: never ran */ }
   const never = Number.isNaN(ran);
-  const folder = path.dirname(ev.transcript), self = path.basename(ev.transcript);
-  const count = ctx.listDir(folder).filter((f) => {
-    if (!f.endsWith(".jsonl") || f === self) return false;
-    const t = ctx.mtime(path.join(folder, f));
-    return t !== null && (never || t > ran);
-  }).length;
+  let count = 0;
+  if (ev.toolDir === ".agents") {
+    let sessions = [];
+    try { sessions = JSON.parse(ctx.readFile(path.resolve(ev.root, ".xworkflows", "local.json")))?.antigravity?.sessions ?? []; } catch { /* absent or broken */ }
+    if (!Array.isArray(sessions)) sessions = [];
+    count = sessions.filter((s) => {
+      if (!s || typeof s.transcript !== "string" || !s.transcript || s.id === ev.session || s.transcript === ev.transcript) return false;
+      const t = ctx.mtime(s.transcript);
+      return t !== null && (never || t > ran);
+    }).length;
+  } else {
+    const folder = path.dirname(ev.transcript), self = path.basename(ev.transcript);
+    count = ctx.listDir(folder).filter((f) => {
+      if (!f.endsWith(".jsonl") || f === self) return false;
+      const t = ctx.mtime(path.join(folder, f));
+      return t !== null && (never || t > ran);
+    }).length;
+  }
   const days = never ? 0 : Math.max(0, Math.floor((ctx.now() - ran) / 86400000));
   if (!(count >= after("suggestAfterSessions") || (!never && count >= 1 && days >= after("suggestAfterDays")))) return null;
   return `Dream is due: ${count} sessions since ${never ? "it never ran here" : `the last run ${days} days ago`}. Suggest /dream to the owner; nothing runs by itself.`;
@@ -104,6 +141,7 @@ function start(ev, ctx) {
 
 export function decide(ev, ctx) {
   if (ev.event === "preCompact" || ev.event === "sessionEnd") rebuild(ev, ctx);
+  else if (ev.event === "stop" && ev.fullyIdle && !ev.isSubagent) rebuildIfStale(ev, ctx);
   else if (ev.event === "sessionStart") {
     const lines = start(ev, ctx);
     if (lines.length) return { decision: "allow", context: lines.join("\n") };

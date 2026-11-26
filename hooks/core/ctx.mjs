@@ -24,8 +24,9 @@ export function makeCtx(ev, { env, config, stateDir }) {
   const installed = (dir, id) => { // the installed name of piece id under dir: a renamed one (xwf-grill) differs from its id
     try { const k = Object.entries(JSON.parse(read(join(ev.root, ".xworkflows", "installed.json"))).renamed ?? {}).find(([f, v]) => v === id && f.startsWith(dir)); return k ? k[0].split("/").pop().replace(/\.md$/, "") : id; } catch { return id; }
   };
-  const skillName = (id) => installed(".claude/skills/", id);
-  const agentName = (id) => installed(".claude/agents/", id);
+  const toolDir = ev.toolDir || ".claude";
+  const skillName = (id) => installed(`${toolDir}/skills/`, id);
+  const agentName = (id) => installed(`${toolDir}/agents/`, id);
   const exec = (cmd, args, { timeout = 8000, input } = {}) => {
     const r = spawnSync(cmd, args, { cwd: ev.root, encoding: "utf8", timeout, input, env });
     return { code: r.error ? null : r.status, out: r.stdout ?? "", err: r.stderr ?? "" };
@@ -38,7 +39,7 @@ export function makeCtx(ev, { env, config, stateDir }) {
     agentName,
     marked: (skill) => existsSync(markFile(stateDir, skill, ev.session)),
     runCheck: (args) => { // the gate decides what a failed check means
-      const r = spawnSync(process.execPath, [join(ev.root, ".claude", "skills", skillName("adapt"), "research.mjs"), "check", ...args], { cwd: ev.root, encoding: "utf8", timeout: 10000 });
+      const r = spawnSync(process.execPath, [join(ev.root, toolDir, "skills", skillName("adapt"), "research.mjs"), "check", ...args], { cwd: ev.root, encoding: "utf8", timeout: 10000 });
       return { code: r.error ? null : r.status, out: r.stdout ?? "", err: r.stderr ?? "" };
     },
     state: (key) => read(stateFile(key)),
