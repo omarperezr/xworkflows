@@ -402,9 +402,9 @@
         "skills/adapt/research.workflow.js": "c7d72c728a5eef056d9a23f56d3334b6f2400fa9730cb96dfcad23dadd579daa",
         "skills/adapt/research.mjs": "0e4c2b2e776a00e66e2177bc27bd3af3e320b5eea2108e5b77609877b2097b4b",
         "skills/adapt/screens.mjs": "46218539062b06597556be39eebd0f0a6b47dfa6e31154232c55a7967c537a4c",
-        "skills/adapt/research.workflow.py": "6acf1b975484005ec6e837e2ca5e1e3af6d670fa40f5e9de614e6a29807a3b0c"
+        "skills/adapt/research.workflow.py": "ba8030ca726629127e6412647c8e69432e5f7fe9aa4978723f90ccf430b65a63"
       },
-      "sha256": "c8a15350b151c562754be116feee5c59332358cc7f1c9d6964ac49592a336dd3"
+      "sha256": "74bdd1ee69643c11f0e1cbe7b52c4092e16affd6819a5e3821eca9843939e7bc"
     },
     {
       "id": "full-review",

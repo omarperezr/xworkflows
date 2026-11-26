@@ -705,7 +705,7 @@ function renderAntigravitySkill(skillId, f, text) {
       .replaceAll("research.mjs model", "research.mjs model --tool antigravity")
       .replace(
         'Call the `Workflow` tool with `scriptPath: "<base>/research.workflow.py"` and `args: { root: "<absolute repository root>", zeroHits: [...], agents: {...}, language: "<the owner\'s language>" }`',
-        'Call the `run_workflow` tool with `ScriptPath: "<base>/research.workflow.py"` and `Args: { root: "<absolute repository root>", zeroHits: [...], agents: {...}, models: { medium: "<medium tier in .xworkflows/tiers.json under antigravity>" }, language: "<the owner\'s language>" }`',
+        'Call the `run_workflow` tool with `ScriptPath: "<base>/research.workflow.py"` and `Args: { root: "<absolute repository root>", zeroHits: [...], agents: {...}, models: { medium: "<medium tier in .xworkflows/tiers.json under antigravity>", cheap: "<cheap tier in .xworkflows/tiers.json under antigravity>" }, language: "<the owner\'s language>" }`',
       )
       .replace("Front matter `paths:` lists the zone's paths as globs: a folder `src` or `src/` becomes `src/**`; `dir/*` and `*` stay as written.", "Front matter uses Antigravity glob rules: `trigger: glob`, `description: <one line>`, and `globs: \"<comma-separated globs>\"` (a folder `src` or `src/` becomes `src/**`; `dir/*` and `*` stay as written).")
       .replace("`tools: Read, Grep, Glob, Bash`; `effort: xhigh`, so its first review runs at xhigh.", "`tools: read_file, run_command`; `subagent: true`; `mainAgent: false` (omit `effort:`; Antigravity custom subagents inherit effort from the main session).");

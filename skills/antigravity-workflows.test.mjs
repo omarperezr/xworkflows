@@ -96,7 +96,10 @@ async def mock_agent(c):
   assert.equal(out.areas.order.status, "not-present");
   assert.equal(out.kinds.conc.status, "not-present");
   assert.equal(out.kinds.values.status, "found");
-  assert.ok(calls.every((c) => c.model === null || c.model === "inherit"));
+  const byRole = Object.fromEntries(calls.map((c) => [c.role, c.model]));
+  assert.equal(byRole["a:truth"], "inherit");
+  assert.equal(byRole["a:shelf"], "inherit");
+  for (const r of ["a:boundary", "a:compat", "a:limits", "k:values", "questions", "plain"]) assert.equal(byRole[r], "flash", r);
   const { sum: gotSum, ...rest } = out;
   assert.equal(gotSum, sum(JSON.stringify(rest)), "Python checksum must match research.mjs sum()");
 });
