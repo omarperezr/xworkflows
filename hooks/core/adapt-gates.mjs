@@ -18,16 +18,17 @@ export function decide(ev, ctx) {
     if (w) ctx.writeFile(x("adapt-run.json"), JSON.stringify({ ...run, summarySha: createHash("sha256").update(w.content).digest("hex") }, null, 2) + "\n");
     return { decision: "allow" };
   }
+  const toolDir = ev.toolDir || ".claude";
   const name = ctx.skillName?.("adapt") ?? "adapt";
-  const script = `.claude/skills/${name}/research.workflow.js`;
-  const deny = (why) => ({ decision: "deny", reason: `${why} If no /adapt is in progress (a stale run file), run node .claude/skills/${name}/research.mjs done. To bypass in an emergency: XWORKFLOWS_FREE=1.` });
+  const script = `${toolDir}/skills/${name}/research.workflow.${toolDir === ".agents" ? "py" : "js"}`;
+  const deny = (why) => ({ decision: "deny", reason: `${why} If no /adapt is in progress (a stale run file), run node ${toolDir}/skills/${name}/research.mjs done. To bypass in an emergency: XWORKFLOWS_FREE=1.` });
   const check = (...a) => {
     const r = ctx.runCheck(a);
     if (r.code === 0) return null;
     const out = (r.out ?? "").trim();
     if (r.code === 1 && out) return `Ask these first: ${out.split("\n").join(", ")}.`;
     const line = r.code === 1 ? (r.err ?? "").split("\n").find((l) => l.startsWith("adapt: ")) : null;
-    if (line) return /interview\.json/.test(line) ? `${line} Run node .claude/skills/${name}/research.mjs queue.` : line;
+    if (line) return /interview\.json/.test(line) ? `${line} Run node ${toolDir}/skills/${name}/research.mjs queue.` : line;
     process.stderr.write("xworkflows: adapt check could not run\n"); // a crash, a signal or a spawn error never traps
     return null;
   };
@@ -48,8 +49,8 @@ export function decide(ev, ctx) {
     const abs = realFile(path.resolve(ev.root, w.path.replaceAll("\\", "/")));
     // Files the adapt scripts write; the agent never writes them directly.
     for (const [f, by] of [["research.md", "research.mjs render"], ["screens.json", "research.mjs render"], ["details.md", "research.mjs render"],["rules.json", "rules.mjs"], ["scan.json", "scan.mjs"], ["interview.json", "research.mjs queue"], ["adapt-run.json", "research.mjs start"]])
-      if (same(abs, realFile(x(f)))) return deny(`${f} is written by node .claude/skills/${name}/${by}.`);
-    if (same(abs, realFile(x("interview.log.jsonl")))) return deny("interview.log.jsonl is written by the adapt-record hook when the owner answers; ask the question with AskUserQuestion.");
+      if (same(abs, realFile(x(f)))) return deny(`${f} is written by node ${toolDir}/skills/${name}/${by}.`);
+    if (same(abs, realFile(x("interview.log.jsonl")))) return deny(`interview.log.jsonl is written by the adapt-record hook when the owner answers; ask the question with ${toolDir === ".agents" ? "ask_question" : "AskUserQuestion"}.`);
     if (!same(abs, realFile(x("summary.md")))) continue;
     if (w.content === undefined) return deny("Write the whole summary with Write.");
     const status = (w.content.match(/^status:\s*["']?(\w+)/mi) ?? [])[1]?.toLowerCase();

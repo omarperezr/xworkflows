@@ -1,0 +1,29 @@
+{
+  "label": "recorded",
+  "source": "Antigravity CLI (agy), real session, 2026-11-25; home folder replaced by /home/user",
+  "input": {
+    "conversationId": "7f3a9d10-4b2e-4c88-9a12-1e8b0c4d5e6f",
+    "workspacePaths": [
+      "/home/user/work/xworkflows/sandbox"
+    ],
+    "cwd": "/home/user/work/xworkflows/sandbox",
+    "transcriptPath": "/home/user/.gemini/antigravity-cli/brain/7f3a9d10-4b2e-4c88-9a12-1e8b0c4d5e6f/.system_generated/logs/transcript_full.jsonl",
+    "artifactDirectoryPath": "/home/user/.gemini/antigravity-cli/brain/7f3a9d10-4b2e-4c88-9a12-1e8b0c4d5e6f",
+    "modelName": "gemini-4-neon-xhigh",
+    "lastUserInput": "Write docs/superpowers/specs/2026-11-25-demo.md",
+    "hookEventName": "PreToolUse",
+    "stepIdx": 6,
+    "toolCall": {
+      "id": "call_ag_write_2",
+      "name": "write_file",
+      "args": {
+        "Path": "/home/user/work/xworkflows/sandbox/docs/superpowers/specs/2026-11-25-demo.md",
+        "Content": "# Demo\n"
+      }
+    }
+  },
+  "output": {
+    "stdout": "{\"decision\":\"allow\"}",
+    "exitCode": 0
+  }
+}

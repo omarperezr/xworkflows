@@ -12,13 +12,14 @@ test.after(() => { for (const d of madeTmp) rmSync(d, { recursive: true, force: 
 const run = join(import.meta.dirname, "..", "run.mjs");
 const fixtures = join(import.meta.dirname, "..", "fixtures");
 const tools = {
+  antigravity: { denied: (o) => JSON.parse(o).decision === "deny", allow: '{"decision":"allow"}' },
   claude: { denied: (o) => JSON.parse(o).hookSpecificOutput.permissionDecision === "deny", allow: "" },
   codex: { denied: (o) => JSON.parse(o).hookSpecificOutput.permissionDecision === "deny", allow: "" },
   cursor: { denied: (o) => JSON.parse(o).permission === "deny", allow: '{"permission":"allow"}' },
   gemini: { denied: (o) => JSON.parse(o).decision === "deny", allow: "{}" },
 };
 const load = (tool, name) => existsSync(join(fixtures, tool, name + ".json")) ? JSON.parse(readFileSync(join(fixtures, tool, name + ".json"), "utf8")) : null;
-const sessionKey = (tool) => (tool === "cursor" ? "conversation_id" : "session_id");
+const sessionKey = (tool) => (tool === "antigravity" ? "conversationId" : tool === "cursor" ? "conversation_id" : "session_id");
 
 function spawn(tool, stdin, extra = {}) {
   const env = { ...process.env, ...extra };

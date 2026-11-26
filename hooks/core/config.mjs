@@ -13,8 +13,8 @@ export const DEFAULTS = {
     pending: "docs/PENDING.md",
     business: "docs/BUSINESS.md",
     riskLite: [],
-    nonCode: ["docs/", ".claude/", ".xworkflows/", "**/*.md", ".gitignore"],
-    curated: ["AGENTS.md", "CLAUDE.md", ".claude/rules/"],
+    nonCode: ["docs/", ".claude/", ".agents/", ".xworkflows/", "**/*.md", ".gitignore"],
+    curated: ["AGENTS.md", "CLAUDE.md", "GEMINI.md", ".claude/rules/", ".agents/rules/"],
   },
   roles: {
     reviewer: "review",

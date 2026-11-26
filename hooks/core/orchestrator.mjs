@@ -105,9 +105,10 @@ export function decide(ev, ctx) {
   if (ev.kind === "agent") {
     const { roles, paths, limits } = config;
     const type = ev.agent;
+    const toolDir = ev.toolDir || ".claude";
     const is = (role) => type === (ctx.agentName?.(role) ?? role); // the installed name: when ours was renamed xwf-<role>, the bare name is the project's own agent
-    if (!type || !(ctx.exists(`.claude/agents/${type}.md`) || roles.builtIn.includes(type)))
-      return deny("Use an agent defined in .claude/agents/.");
+    if (!type || !(ctx.exists(`${toolDir}/agents/${type}.md`) || roles.builtIn.includes(type)))
+      return deny(`Use an agent defined in ${toolDir}/agents/.`);
     if (is(roles.lookup) && list(paths.code)) {
       const { command, folder, minutes } = config.lookup.index;
       if (!ctx.exists(folder)) return deny(`The index is missing: build the graph first: \`${command.split(" ")[0]} update .\`.`);
