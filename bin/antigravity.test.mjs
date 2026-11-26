@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { repo, git, cli, readJson, writeJson, doctor } from "./shared.test.mjs";
 
@@ -43,13 +43,14 @@ test("antigravity fresh install writes .agents/skills, .agents/agents, .agents/h
 
   const impl = readFileSync(join(r, ".agents/agents/implement.md"), "utf8");
   const implFm = impl.match(/^---\n([\s\S]*?)\n---/)[1];
-  assert.match(implFm, /^model: inherit$/m);
+  assert.match(implFm, /^model: pro$/m);
   assert.match(implFm, /^tools:\n  - read_file\n  - run_command\n  - write_file\n  - edit_file$/m);
   assert.match(implFm, /  - tdd/);
   assert.doesNotMatch(implFm, /ponytail:ponytail/);
 
   const rev = readFileSync(join(r, ".agents/agents/review.md"), "utf8");
-  assert.match(rev, /^model: inherit$/m);
+  assert.match(rev, /^model: pro$/m);
+  for (const f of readdirSync(join(r, ".agents/agents"))) assert.doesNotMatch(readFileSync(join(r, ".agents/agents", f), "utf8"), /^model: inherit$/m, f);
   assert.match(rev, /\.agents\/rules\//);
 
   // Rendered skills reference Antigravity tools & Python workflows
@@ -62,7 +63,7 @@ test("antigravity fresh install writes .agents/skills, .agents/agents, .agents/h
   assert.match(dreamSkill, /ANTIGRAVITY_CONVERSATION_ID/);
   assert.match(dreamSkill, /dream\.workflow\.py/);
   const orchSkill = readFileSync(join(r, ".agents/skills/orchestrate/SKILL.md"), "utf8");
-  assert.match(orchSkill, /\/effort xhigh/);
+  assert.match(orchSkill, /`strongest` tier of `\.xworkflows\/tiers\.json`, never `inherit`/);
 
   // .agents/hooks.json has all 10 hooks with Antigravity schema (nested matcher for PreToolUse/PostToolUse, flat handler array for SessionStart/PreInvocation/Stop)
   const hooks = readJson(r, ".agents/hooks.json");

@@ -97,8 +97,9 @@ async def mock_agent(c):
   assert.equal(out.kinds.conc.status, "not-present");
   assert.equal(out.kinds.values.status, "found");
   const byRole = Object.fromEntries(calls.map((c) => [c.role, c.model]));
-  assert.equal(byRole["a:truth"], "inherit");
-  assert.equal(byRole["a:shelf"], "inherit");
+  assert.equal(byRole["a:truth"], "pro");
+  assert.equal(byRole["a:shelf"], "pro");
+  assert.ok(calls.every((c) => c.model !== "inherit" && c.model !== null), "no agent inherits the main session");
   for (const r of ["a:boundary", "a:compat", "a:limits", "k:values", "questions", "plain"]) assert.equal(byRole[r], "flash", r);
   const { sum: gotSum, ...rest } = out;
   assert.equal(gotSum, sum(JSON.stringify(rest)), "Python checksum must match research.mjs sum()");
@@ -207,12 +208,12 @@ test("dream extract.mjs: --tool antigravity reads .xworkflows/local.json and par
   assert.equal(readFileSync(json.sessions[0].file, "utf8"), "user: Fix the invoice rounding\nassistant: Done, rounded to 2 decimals.");
 });
 
-test("adapt research.mjs: --tool antigravity skips redundant H6-model when strongest == top and resolves inherit", () => {
+test("adapt research.mjs: --tool antigravity skips redundant H6-model when strongest == top and resolves pro", () => {
   const root = tmp();
   mkdirSync(join(root, ".xworkflows"), { recursive: true });
   writeFileSync(join(root, ".xworkflows/tiers.json"), JSON.stringify({
     claude: { cheap: "haiku", medium: "sonnet", top: "opus", strongest: "fable" },
-    antigravity: { cheap: "flash", medium: "inherit", top: "inherit", strongest: "inherit" },
+    antigravity: { cheap: "flash", medium: "pro", top: "pro", strongest: "pro" },
   }));
   writeFileSync(join(root, ".xworkflows/adapt-run.json"), JSON.stringify({ run: "r1", startedAt: Date.now() }));
   writeFileSync(join(root, ".xworkflows/screens.json"), JSON.stringify({ drawer1: [], drawer1LeftOut: [], drawer2: [], drawer3: [] }));
@@ -231,7 +232,7 @@ test("adapt research.mjs: --tool antigravity skips redundant H6-model when stron
 
   const m = spawnSync(process.execPath, [script, "model", "--tool", "antigravity"], { cwd: root, encoding: "utf8" });
   assert.equal(m.status, 0, m.stderr);
-  assert.equal(m.stdout.trim(), "inherit");
+  assert.equal(m.stdout.trim(), "pro");
 
   const mTier = spawnSync(process.execPath, [script, "model", "--tool", "antigravity", "cheap"], { cwd: root, encoding: "utf8" });
   assert.equal(mTier.status, 0, mTier.stderr);

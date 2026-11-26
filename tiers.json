@@ -1,4 +1,4 @@
 {
   "claude": { "cheap": "haiku", "medium": "sonnet", "top": "opus", "strongest": "fable" },
-  "antigravity": { "cheap": "flash", "medium": "inherit", "top": "inherit", "strongest": "inherit" }
+  "antigravity": { "cheap": "flash", "medium": "pro", "top": "pro", "strongest": "pro" }
 }

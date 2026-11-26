@@ -459,7 +459,7 @@ async def safe_agent(prompt, schema, role, type_name, model=None):
 root = args.get("root", ".")
 agents_map = args.get("agents") or {}
 models_map = args.get("models") or {}
-medium_model = models_map.get("medium") or "inherit"
+medium_model = models_map.get("medium") or "pro"
 cheap_model = models_map.get("cheap") or "flash"
 CRITICAL_AREAS = {"truth", "state", "access"}
 
@@ -521,7 +521,7 @@ else:
     def run_stage2(job):
         if job["kind"] == "topic":
             i = job["i"]
-            return safe_agent(at(f"Topic {i + 1}.\n{job['p']}\n\n{RULES}\n{READ}"), TOPIC_SCHEMA, f"t{i + 1}", name("explore"))
+            return safe_agent(at(f"Topic {i + 1}.\n{job['p']}\n\n{RULES}\n{READ}"), TOPIC_SCHEMA, f"t{i + 1}", name("explore"), cheap_model)
         if job["kind"] == "doc":
             i = job["i"]
             return safe_agent(at(written_prompt(job["c"]["files"], keys)), WRITTEN_SCHEMA, f"docs{i + 1}", name("mechanism"), medium_model)

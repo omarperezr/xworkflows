@@ -647,7 +647,7 @@ function renderAgent(text, ov, on) {
   }) + (typeof o.append === "string" && o.append.trim() ? `\n${o.append.replace(/\s+$/, "")}\n` : "");
 }
 
-// Antigravity custom subagent render: tier -> flash|inherit, valid CLI tool names only (no unmapped Grep/Glob), subagent: true, mainAgent: false, no effort:, local skills only.
+// Antigravity custom subagent render: tier -> flash|pro (never inherit: no agent depends on the main session), valid CLI tool names only (no unmapped Grep/Glob), subagent: true, mainAgent: false, no effort:, local skills only.
 function renderAntigravityAgent(text, tiers, ov) {
   const o = isObj(ov) ? ov : {};
   const mapped = tierToModel(text, tiers, "antigravity").replace(/^---\n([\s\S]*?)\n---\n/, (_, fm) => {
@@ -708,7 +708,7 @@ function renderAntigravitySkill(skillId, f, text) {
         'Call the `run_workflow` tool with `ScriptPath: "<base>/research.workflow.py"` and `Args: { root: "<absolute repository root>", zeroHits: [...], agents: {...}, models: { medium: "<medium tier in .xworkflows/tiers.json under antigravity>", cheap: "<cheap tier in .xworkflows/tiers.json under antigravity>" }, language: "<the owner\'s language>" }`',
       )
       .replace("Front matter `paths:` lists the zone's paths as globs: a folder `src` or `src/` becomes `src/**`; `dir/*` and `*` stay as written.", "Front matter uses Antigravity glob rules: `trigger: glob`, `description: <one line>`, and `globs: \"<comma-separated globs>\"` (a folder `src` or `src/` becomes `src/**`; `dir/*` and `*` stay as written).")
-      .replace("`tools: Read, Grep, Glob, Bash`; `effort: xhigh`, so its first review runs at xhigh.", "`tools: read_file, run_command`; `subagent: true`; `mainAgent: false` (omit `effort:`; Antigravity custom subagents inherit effort from the main session).");
+      .replace("`tools: Read, Grep, Glob, Bash`; `effort: xhigh`, so its first review runs at xhigh.", "`tools: read_file, run_command`; `subagent: true`; `mainAgent: false` (omit `effort:`; the tier keyword carries the effort, and `inherit` is never used).");
   } else if (skillId === "dream") {
     out = out
       .replace("extract.mjs --current $ANTIGRAVITY_CONVERSATION_ID", "extract.mjs --tool antigravity --current $ANTIGRAVITY_CONVERSATION_ID")
@@ -727,7 +727,7 @@ function renderAntigravitySkill(skillId, f, text) {
     out = out
       .replace("One or two agents go with `Agent`, in one message when they are independent. Three or more in a stretch, parallel or serial, go in one `Workflow`", "One or two agents go with `invoke_subagent`, in one message when they are independent. Three or more in a stretch, parallel or serial, go in one `run_workflow`")
       .replace("In a `Workflow`, every `agent()` names its `agentType`", "In a `run_workflow` script, every `agent()` names its `type_name`")
-      .replace("the risk reviewer's first review of a batch runs at effort `xhigh`.", "the risk reviewer's first review of a batch runs at effort `xhigh` (in Antigravity, if the session is not already at `xhigh`, remind the owner to run `/effort xhigh` before dispatching `risk-review` so `model: inherit` runs at `xhigh`).");
+      .replace("the risk reviewer's first review of a batch runs at effort `xhigh`.", "the risk reviewer's first review of a batch runs at effort `xhigh` (in Antigravity it runs on the `strongest` tier of `.xworkflows/tiers.json`, never `inherit`).");
   }
   return out;
 }
