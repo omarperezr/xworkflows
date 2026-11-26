@@ -42,6 +42,11 @@ Spec: docs/superpowers/specs/2026-11-25-antigravity.md
 - Open design questions, settled with the owner before any code: the child session's permissions (`agy` offers `--sandbox`, `--mode plan`, and the tool list of the agent named by `--agent`); whether `--agent` loads a project agent with `mainAgent: false` (`agy agents` run in the reference project lists only plugin agents); how the main session calls the runner and how `orchestrator` (one risk review per commit, a plan named) and `handback` (`reviewed:`, `not checked:`) still judge it.
 - Done: tests pass; live `agy -p`: the transcript `model` of `risk-review` reads `gemini-4-neon-xhigh`, of `review` `gemini-4-neon-high`, of `mechanism` `gemini-4-hydrogen-tiered-xhigh`, of `explore` `gemini-4-hydrogen-tiered-high`, whatever model and effort the main session runs; a second risk review of the same commit and one whose prompt names no plan are still denied; a reviewer report without `reviewed:` or `not checked:` is still denied.
 
+**T5: A SessionStart notice must not drop the context** (P-258)
+- Files: `hooks/adapters/antigravity.mjs`, `hooks/adapters/antigravity.test.mjs`, `bin/xworkflows.mjs` (doctor reads the notice), `manifest.json`.
+- Role: implement
+- Done: tests pass; live `agy -p` in a repository with a hand-off: asked without tools, the model quotes a line of `.xworkflows/handoff.md`.
+
 ## Review Focus
 
 - Hook adapter security: symlink checks, subagent isolation (`dream-analyzer`/`dream-organizer` memory-folder boundary, `paths.curated` protection), fail-open on malformed JSON, no `/Users/<name>` leakage in `XWORKFLOWS_RECORD` or fixtures.
