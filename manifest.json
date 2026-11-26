@@ -71,9 +71,9 @@
         "hooks/core/config.mjs": "ececcefa854ce0690966ee1fa237de0537d82bb6802e3141808223c91568b163",
         "hooks/core/ctx.mjs": "d5868fef1fc74b450a80ae68dce853d331727b2f78e7450422dfbb278fb8df6a",
         "hooks/core/shell-words.mjs": "d2b55f18ca767512692d8a4aed20eaa6e91dd9e3144e180f9ea051a3861679f1",
-        "hooks/adapters/antigravity.mjs": "e0b88cb541862572c7211f2eb823e28a5ab22f76d7d293185e93a74b890aed7e"
+        "hooks/adapters/antigravity.mjs": "e57d323db16b1f6c887be3b6f960c42bc2c9aa5f202c1032d25cb341d0cd8e70"
       },
-      "sha256": "e564f7be4c4bcf77b97e3c98691d2a7f063ba496a9f3286cf373a59156e93abf"
+      "sha256": "ce389879a3ed7e957a9d437b38ec13d1371156ddd994c4f9d4ee948b6f544734"
     },
     {
       "id": "design-first",

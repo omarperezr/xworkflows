@@ -1426,7 +1426,7 @@ async function doctor() {
           if (!`${h?.command} `.includes('/.xworkflows/hooks/run.mjs" antigravity ')) continue;
           const out = fire(h.command, { conversationId: `doctor-${process.pid}`, workspacePaths: [ROOT], cwd: ROOT, hookEventName: "SessionStart", transcriptPath: "" }).stdout ?? "";
           if (k !== "xworkflows-handoff-load") { agBytes += Buffer.byteLength(out); continue; }
-          let note; try { note = JSON.parse(out).injectSteps?.[0]?.systemMessage?.metadata?.user_markdown; } catch {}
+          let note; try { note = JSON.parse(out).injectSteps?.[0]?.systemMessage?.systemMessage; } catch {}
           if (typeof note === "string" && note.startsWith("The hand-off .xworkflows/handoff.md was not loaded")) say("warn", ".xworkflows/handoff.md was not loaded: it is over tokens.handoffBytes; shorten it");
         }
       }

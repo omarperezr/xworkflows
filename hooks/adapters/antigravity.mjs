@@ -297,8 +297,9 @@ export function answer(d, ev) {
     return { stdout: JSON.stringify({ decision: "allow" }), exitCode: 0 };
   }
   if ((ev.event === "sessionStart" || ev.event === "prompt") && d.decision !== "deny" && d.decision !== "ask" && typeof d.context === "string" && d.context) {
-    const msg = { systemMessage: d.context, ...(typeof d.notice === "string" && d.notice ? { metadata: { user_markdown: d.notice } } : {}) };
-    return { stdout: JSON.stringify({ injectSteps: [{ systemMessage: msg }] }), exitCode: 0 };
+    // Antigravity drops a SessionStart injection carrying metadata.user_markdown (measured 2026-11-26); keep any distinct notice in the text.
+    const text = typeof d.notice === "string" && d.notice && d.notice !== d.context ? `${d.notice}\n\n${d.context}` : d.context;
+    return { stdout: JSON.stringify({ injectSteps: [{ systemMessage: { systemMessage: text } }] }), exitCode: 0 };
   }
   return { stdout: "{}", exitCode: 0 };
 }

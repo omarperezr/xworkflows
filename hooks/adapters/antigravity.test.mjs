@@ -57,7 +57,10 @@ test("antigravity: answer formats PreToolUse, SessionStart/PreInvocation injectS
   assert.deepEqual(JSON.parse(answer({ decision: "deny", reason: "no" }, { event: "preTool" }).stdout), { decision: "deny", reason: "no" });
   assert.deepEqual(JSON.parse(answer({ decision: "ask", reason: "sure?" }, { event: "preTool" }).stdout), { decision: "ask", reason: "sure?" });
   assert.deepEqual(JSON.parse(answer({ decision: "allow", context: "hi", notice: "shown" }, { event: "sessionStart" }).stdout), {
-    injectSteps: [{ systemMessage: { systemMessage: "hi", metadata: { user_markdown: "shown" } } }],
+    injectSteps: [{ systemMessage: { systemMessage: "shown\n\nhi" } }],
+  });
+  assert.deepEqual(JSON.parse(answer({ decision: "allow", context: "same", notice: "same" }, { event: "sessionStart" }).stdout), {
+    injectSteps: [{ systemMessage: { systemMessage: "same" } }],
   });
   assert.deepEqual(JSON.parse(answer({ decision: "allow", context: "hi" }, { event: "prompt" }).stdout), {
     injectSteps: [{ systemMessage: { systemMessage: "hi" } }],
