@@ -20,7 +20,7 @@ const sh = (command) => ev("shell", { command });
 const SUMMARY = "/r/.xworkflows/summary.md";
 // a ctx where the session is oriented: approved summary, orchestrate mark, every agent type defined, index fresh
 function mk({ marks = ["orchestrate"], files = { [SUMMARY]: "status: approved\n" }, exist = [".claude/agents/", "graphify-out"], head = "h1", state = {}, config = cfg, home = "/h" } = {}) {
-  const st = new Map(Object.entries({ index: T0 - 1000, ...state }));
+  const st = new Map(Object.entries({ index: T0 - 1000, qmd: T0 - 1000, ...state }));
   return {
     config, st, home,
     marked: (s) => marks.includes(s),
@@ -198,20 +198,21 @@ test("risk reviewer twice on the same HEAD denies; a new HEAD passes", () => {
 });
 
 test("third agent denies; risk reviewer does not count; ask, user prompt or seal reset", () => {
+  const impl = agent("implement");
   const c = mk();
   assert.ok(allowed(decide(ev("prompt", { event: "prompt", prompt: "go", fromUser: true }), c)));
-  assert.ok(allowed(decide(explore, c)));
-  assert.ok(allowed(decide(explore, c)));
+  assert.ok(allowed(decide(impl, c)));
+  assert.ok(allowed(decide(impl, c)));
   assert.ok(allowed(decide(agent("risk-review", { prompt: "docs/superpowers/plans/x.md" }), c)));
-  assert.ok(denied(decide(explore, c), /Workflow/));
+  assert.ok(denied(decide(impl, c), /Workflow/));
   assert.ok(allowed(decide(ev("ask"), c)));
-  assert.ok(allowed(decide(explore, c)));
-  assert.ok(allowed(decide(explore, c)));
-  assert.ok(denied(decide(explore, c)));
+  assert.ok(allowed(decide(impl, c)));
+  assert.ok(allowed(decide(impl, c)));
+  assert.ok(denied(decide(impl, c)));
   const seal = ev("write", { writes: [{ path: "/r/docs/superpowers/plans/p.md", old: "Status: draft", new: "review ok at abc1234" }] });
   assert.ok(allowed(decide(seal, c)));
-  assert.ok(allowed(decide(explore, c)));
-  assert.ok(allowed(decide(explore, c)));
+  assert.ok(allowed(decide(impl, c)));
+  assert.ok(allowed(decide(impl, c)));
 });
 
 test("a seal resets only when added, in plans or specs, with the configured roles", () => {
@@ -230,11 +231,16 @@ test("a seal resets only when added, in plans or specs, with the configured role
 });
 
 test("a prompt not from the user changes nothing", () => {
+  const impl = agent("implement");
   const c = mk({ state: { agents: 2 } });
   assert.ok(allowed(decide(ev("other", { event: "prompt", prompt: "<task-notification>x", fromUser: false }), c)));
-  assert.ok(denied(decide(explore, c)));
+  assert.ok(denied(decide(impl, c)));
+  assert.equal(c.st.get("index"), T0 - 1000);
+  assert.equal(c.st.get("qmd"), T0 - 1000);
   decide(ev("other", { event: "prompt", prompt: "go", fromUser: true }), c);
-  assert.ok(allowed(decide(explore, c)));
+  assert.ok(allowed(decide(impl, c)));
+  assert.equal(c.st.get("index"), 0);
+  assert.equal(c.st.get("qmd"), 0);
 });
 
 test("lookup agent: index folder missing, then no recent query", () => {
@@ -270,7 +276,7 @@ test("a stamped query lets the lookup agent through", () => {
 });
 
 test("a real report does not reset; a message from the owner does", () => {
-  const count = (fromUser) => { const c = mk({ state: { agents: 2 } }); decide(ev("other", { event: "prompt", fromUser }), c); return decide(explore, c).decision; };
+  const count = (fromUser) => { const c = mk({ state: { agents: 2 } }); decide(ev("other", { event: "prompt", fromUser }), c); return decide(agent("implement"), c).decision; };
   assert.equal(count(false), "deny");
   assert.equal(count(true), "allow");
 });
@@ -459,4 +465,50 @@ test("the lite risk reviewer is a risk reviewer: it needs a plan, and a second r
   const c = mk();
   assert.ok(allowed(decide(e, c)));
   assert.ok(denied(decide(e, c), /already reviewed/));
+});
+
+test("code grep/find in main session needs graphify query per user message; pipes and subagents pass", () => {
+  const c = mk({ state: { index: 0 } });
+  for (const cmd of ["grep -n foo src/a.ts", "rg bar src/", "git grep baz src/", "find src/ -name '*.ts'"])
+    assert.ok(denied(decide(sh(cmd), c), /graphify query/), cmd);
+  assert.ok(allowed(decide(sh("git log --oneline | grep src/"), c)));
+  assert.ok(allowed(decide(sh("grep -n foo README.md"), c)));
+  assert.ok(allowed(decide(ev("shell", { command: "grep -n foo src/a.ts", isSubagent: true }), c)));
+  // stamp via graphify query unlocks for this message
+  assert.ok(allowed(decide(sh('graphify query "foo"'), c)));
+  assert.ok(allowed(decide(sh("grep -n foo src/a.ts"), c)));
+  // new user message clears the pass
+  decide(ev("other", { event: "prompt", fromUser: true }), c);
+  assert.ok(denied(decide(sh("grep -n foo src/a.ts"), c), /graphify query/));
+});
+
+test("qmd-first in main session gates memory/session reads and indexed searches per user message; direct plan reads and subagents pass", () => {
+  const memCfg = { ...cfg, lookup: { ...cfg.lookup, memory: { command: "bash scripts/mem.sh search", paths: ["docs/db/"] } } };
+  const c = mk({ state: { qmd: 0 }, config: memCfg, home: "/h" });
+  // reads of memory and session transcripts denied until qmd runs
+  assert.ok(denied(decide(read("/r/docs/memory/note.md"), c), /scripts\/mem\.sh search/));
+  assert.ok(denied(decide(read("/h/.claude/projects/p/s.jsonl"), c), /scripts\/mem\.sh search/));
+  assert.ok(denied(decide(read("/h/.gemini/antigravity-cli/brain/id/.system_generated/logs/transcript_full.jsonl"), c), /scripts\/mem\.sh search/));
+  assert.ok(denied(decide(sh("cat docs/memory/note.md"), c), /scripts\/mem\.sh search/));
+  // scratch/steps inside brain and direct plan/spec/pending reads stay allowed
+  assert.ok(allowed(decide(read("/h/.gemini/antigravity-cli/brain/id/scratch/x.mjs"), c)));
+  assert.ok(allowed(decide(read("/r/docs/superpowers/plans/p.md"), c)));
+  assert.ok(allowed(decide(read("/r/docs/superpowers/specs/s.md"), c)));
+  assert.ok(allowed(decide(read("/r/docs/PENDING.md"), c)));
+  assert.ok(allowed(decide(read("/r/docs/db/schema.md"), c)));
+  // searching any qmd-indexed path denied until qmd runs
+  for (const cmd of ["grep -rn x docs/memory/", "rg x docs/superpowers/plans/", "git grep x docs/PENDING.md", "find docs/db/ -name '*.md'", "grep x ~/.claude/projects/p/a.jsonl"])
+    assert.ok(denied(decide(sh(cmd), c), /scripts\/mem\.sh search/), cmd);
+  // subagents unaffected
+  assert.ok(allowed(decide(ev("read", { path: "/r/docs/memory/note.md", isSubagent: true }), c)));
+  assert.ok(allowed(decide(ev("shell", { command: "grep -rn x docs/memory/", isSubagent: true }), c)));
+  // running configured command or qmd unlocks for this message
+  assert.ok(allowed(decide(sh('bash scripts/mem.sh search "topic"'), c)));
+  assert.ok(allowed(decide(read("/r/docs/memory/note.md"), c)));
+  assert.ok(allowed(decide(sh("grep -rn x docs/superpowers/plans/"), c)));
+  // new user message clears pass; bare qmd also unlocks
+  decide(ev("other", { event: "prompt", fromUser: true }), c);
+  assert.ok(denied(decide(read("/r/docs/memory/note.md"), c)));
+  assert.ok(allowed(decide(sh('qmd --index idx query "topic"'), c)));
+  assert.ok(allowed(decide(read("/r/docs/memory/note.md"), c)));
 });

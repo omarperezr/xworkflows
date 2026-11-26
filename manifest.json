@@ -68,12 +68,12 @@
         "hooks/adapters/codex.mjs": "0589bf97b5cec7e06fee8a70bd92d8a0f51e8bb082cc241f743a80308e44d059",
         "hooks/adapters/cursor.mjs": "394c1a81f4040089b67f0fbf1131012bbb5883bdf705ce3af12dff66d9b3cbd5",
         "hooks/adapters/gemini.mjs": "eff8f29bce46d7c4a7c62845f3762a16c6fd38e831e6c4a5d6b54361ec599175",
-        "hooks/core/config.mjs": "ececcefa854ce0690966ee1fa237de0537d82bb6802e3141808223c91568b163",
+        "hooks/core/config.mjs": "42632f122865ead091c373b5cbdb5ef03693dcec969e2c9fb4c7b89aaa1cb3bf",
         "hooks/core/ctx.mjs": "d5868fef1fc74b450a80ae68dce853d331727b2f78e7450422dfbb278fb8df6a",
         "hooks/core/shell-words.mjs": "d2b55f18ca767512692d8a4aed20eaa6e91dd9e3144e180f9ea051a3861679f1",
         "hooks/adapters/antigravity.mjs": "e57d323db16b1f6c887be3b6f960c42bc2c9aa5f202c1032d25cb341d0cd8e70"
       },
-      "sha256": "ce389879a3ed7e957a9d437b38ec13d1371156ddd994c4f9d4ee948b6f544734"
+      "sha256": "f8a40422c2424bb6f7fba56f98df401121acca98a2e7ef22986227b70826a75a"
     },
     {
       "id": "design-first",
@@ -479,9 +479,9 @@
         }
       ],
       "files": {
-        "hooks/core/orchestrator.mjs": "54cee86e307710a8823594a40c3611fa43af2d2fc64fbd60cb4ca89d420972d4"
+        "hooks/core/orchestrator.mjs": "9c40538300dfc2fb20d9a832240d773a888c5ca6c67641b5ec8405013201322d"
       },
-      "sha256": "546c90e48acb57d7418317b7603496d398b13771cd281698f997c5d48a093c6c"
+      "sha256": "062b723779c3467f2198cba8538cab6c1b36dcf7a4fbd33d2ff5cca1c7f5746e"
     },
     {
       "id": "handback",

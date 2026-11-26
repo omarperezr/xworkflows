@@ -42,7 +42,11 @@ export function decide(ev, ctx) {
     return bad ? deny(`${bad.path} is curated by ${config.owner}: report the change you wanted instead.`) : allow;
   }
   if (ev.event === "prompt") {
-    if (ev.fromUser) ctx.save("agents", 0);
+    if (ev.fromUser) {
+      ctx.save("agents", 0);
+      ctx.save("index", 0);
+      ctx.save("qmd", 0);
+    }
     return allow;
   }
   if (ev.event !== "preTool") return allow;
@@ -66,11 +70,29 @@ export function decide(ev, ctx) {
   }
 
   const heavy = list(get(config, "paths.heavyRead"));
+  const idxCfg = config.lookup?.index ?? DEFAULTS.lookup.index;
+  const memCfg = config.lookup?.memory ?? DEFAULTS.lookup.memory;
+  const memCmd = typeof memCfg?.command === "string" && memCfg.command.trim() ? memCfg.command.trim() : null;
+  const memDir = memoryDir(config.memory?.dir);
+  const home = String(ctx.home ?? "~").replaceAll("\\", "/").replace(/(.)\/$/, "$1");
+  const fresh = (key, mins) => { const t = Number(ctx.state(key)) || 0; return t > 0 && ctx.now() - t <= mins * 60000; };
+  const idxFresh = () => fresh("index", idxCfg.minutes ?? 30);
+  const qmdFresh = () => fresh("qmd", memCfg?.minutes ?? idxCfg.minutes ?? 30);
+  const isSessionTranscript = (p) => {
+    const n = String(p ?? "").replaceAll("\\", "/");
+    if (home === "~") return false;
+    return n.startsWith(`${home}/.claude/projects/`) || (n.startsWith(`${home}/.gemini/antigravity-cli/brain/`) && /\/transcript(?:_full)?\.jsonl$/.test(n));
+  };
+  const qmdSearchPaths = [
+    ...(memDir ? [`${memDir}/`] : []),
+    config.paths?.pending, config.paths?.plans, config.paths?.specs,
+    ...(Array.isArray(memCfg?.paths) ? memCfg.paths : []),
+  ].filter((p) => typeof p === "string" && p.trim());
+
   if (ev.kind === "shell") {
-    const idx = config.lookup.index.command;
+    const idx = idxCfg.command;
     const root = ev.root.replaceAll("\\", "/").replace(/\/{2,}/g, "/").replace(/(.)\/$/, "$1");
     // the root under its usual spellings, one way; `//` and `/./` collapse
-    const home = String(ctx.home ?? "~").replaceAll("\\", "/");
     const text = String(ev.command ?? "").replace(/\\\r?\n/g, " ").replaceAll("\\", "/")
       .replace(/(^|[\s"'=:])~(?=\/)/g, (_, p) => p + home)
       .replace(/\$\{?HOME\}?"?/g, () => home)
@@ -84,14 +106,36 @@ export function decide(ev, ctx) {
     // a here-document body is text; a here-string and a shift are not here-documents
     let end = null;
     const code = text.split("\n").filter((l) => end === null ? ((end = /(?<!<)<<(?!<)-?\s*['"]?([A-Za-z_][\w.-]*)/.exec(l)?.[1] ?? null), true) : (l.trim() === end && (end = null), false)).join("\n");
-    if (new RegExp(`(^|[;&|(\\n][ \\t\\r]*)${env}(${word}*/)?${esc(idx).replace(/\s+/g, "\\s+")}\\b`).test(code)) ctx.save("index", ctx.now());
+    if (idx && new RegExp(`(^|[;&|(\\n][ \\t\\r]*)${env}(${word}*/)?${esc(idx).replace(/\s+/g, "\\s+")}\\b`).test(code)) ctx.save("index", ctx.now());
+    if (memCmd && new RegExp(`(^|[;&|(\\n][ \\t\\r]*)${env}(${word}*/)?(${esc(memCmd).replace(/\s+/g, "\\s+")}|qmd(?:\\s+--index\\s+${word}+)?\\s+(?:query|search|vsearch))\\b`).test(code)) ctx.save("qmd", ctx.now());
     const prefixes = (heavy ?? []).map((p) => esc(p.replace(/\/?$/, "/"))).join("|");
     // shortcut: a line inside a quoted text of several lines counts as a command, like `;` inside quotes; upgrade when a real command is denied for it
     // a redirect target is written, not read
     // shortcut: a line is judged by its first 4000 characters (the reader pattern costs the square of a line): a read that starts after them is not seen; upgrade when a real command is allowed late
     const read = code.replace(/>>?\s*&?[^\s<>;&|()]+/g, " ").split("\n").map((l) => l.slice(0, 4000)).join("\n");
-    if (prefixes && new RegExp(`(^|[;&|(\\n][ \\t\\r]*)(((do|then|else|elif|time|!|\\{)|[A-Za-z_]\\w*=${word}*)[ \\t]+)*(${word}*/)?(cat|sed\\s+-n|head|tail)\\b[^|;&\\n]*(^|[\\s"'=])(\\./|${esc(root)}/)?(${prefixes})`).test(read))
+    const cmdLead = `(^|[;&|(\\n][ \\t\\r]*)(((do|then|else|elif|time|!|\\{)|[A-Za-z_]\\w*=${word}*)[ \\t]+)*(${word}*/)?`;
+    const searchLead = `(^|[;&(\\n][ \\t\\r]*)(((do|then|else|elif|time|!|\\{)|[A-Za-z_]\\w*=${word}*)[ \\t]+)*(${word}*/)?(git\\s+grep|grep|egrep|fgrep|rg|find)\\b`;
+    const pathAlt = (ps) => ps.map((p) => {
+      const clean = p.replace(/^\.\//, "");
+      return clean.endsWith("/") ? esc(clean) : `${esc(clean)}(?=[/\\s"'=;&|()]|$)`;
+    }).join("|");
+    if (prefixes && new RegExp(`${cmdLead}(cat|sed\\s+-n|head|tail)\\b[^|;&\\n]*(^|[\\s"'=])(\\./|${esc(root)}/)?(${prefixes})`).test(read))
       return deny("Reading that much into the main session costs context: delegate it to an agent.");
+    if (memCmd && !qmdFresh()) {
+      const homeAlt = home !== "~" ? `|${esc(home)}/\\.claude/projects/|${esc(home)}/\\.gemini/antigravity-cli/brain/[^\\s"'=;&|()]*transcript(?:_full)?\\.jsonl` : "";
+      const qmdReadAlt = [memDir && esc(`${memDir}/`)].filter(Boolean).join("|");
+      if ((qmdReadAlt || homeAlt) && new RegExp(`${cmdLead}(cat|sed\\s+-n|head|tail)\\b[^|;&\\n]*(^|[\\s"'=])(${qmdReadAlt ? `(\\./|${esc(root)}/)?(${qmdReadAlt})` : "(?!)"}` + `${homeAlt})`).test(read))
+        return deny(`Ask memory first: run \`${memCmd} "<topic>"\` before reading memory or past sessions.`);
+      const qmdSAlt = pathAlt(qmdSearchPaths);
+      if ((qmdSAlt || homeAlt) && new RegExp(`${searchLead}[^|;&\\n]*(^|[\\s"'=])(${qmdSAlt ? `(\\./|${esc(root)}/)?(${qmdSAlt})` : "(?!)"}` + `${homeAlt})`).test(read))
+        return deny(`Ask memory first: run \`${memCmd} "<topic>"\` before searching indexed memory or docs.`);
+    }
+    const codeDirs = list(config.paths?.code);
+    if (codeDirs && idx && ctx.exists(idxCfg.folder) && !idxFresh()) {
+      const codeAlt = pathAlt(codeDirs);
+      if (codeAlt && new RegExp(`${searchLead}[^|;&\\n]*(^|[\\s"'=])(\\./|${esc(root)}/)?(${codeAlt})`).test(read))
+        return deny(`Ask the index first: run \`${idx} "<topic>"\` before grepping code.`);
+    }
     return allow;
   }
 
@@ -137,6 +181,8 @@ export function decide(ev, ctx) {
   if (ev.kind === "read") {
     const ext = path.extname(String(ev.path ?? "")).slice(1).toLowerCase();
     if (ext && config.mainSession.denyExtensions.includes(ext)) return deny("Screenshots and PDFs are read by an agent.");
+    if (memCmd && !qmdFresh() && ((memDir && under(ev.path, [`${memDir}/`])) || isSessionTranscript(ev.path)))
+      return deny(`Ask memory first: run \`${memCmd} "<topic>"\` before reading memory or past sessions.`);
     if (heavy && under(ev.path, heavy) && !(ev.limit <= config.limits.inlineReadLines))
       return deny(`Reading more than ${config.limits.inlineReadLines} lines of that code here costs context: delegate it to ${config.roles.lookup}, or pass a limit.`);
   }
