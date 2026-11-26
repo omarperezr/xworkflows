@@ -11,6 +11,9 @@ One living list. The `pending` brake checks these rules:
 
 
 ## Installer and docs
+- **P-254** — Native Antigravity hook adapter, tiers, core hook multi-tool support, and recorded fixtures (`plan docs/superpowers/plans/2026-11-25-antigravity.md`). Origin: docs/superpowers/plans/2026-11-25-antigravity.md. Status: in progress on antigravity-1.
+- **P-255** — Python `run_workflow` scripts (`adapt`, `dream`, `pending`, `full-review`) and Antigravity transcript/tier support (`plan docs/superpowers/plans/2026-11-25-antigravity.md`). Origin: docs/superpowers/plans/2026-11-25-antigravity.md. Status: scheduled.
+- **P-256** — Antigravity installer (`--tool antigravity`), coexistence with Claude Code, `doctor`, `uninstall`, `skills-travel`, manifest, docs, and live `agy -p` proof (`plan docs/superpowers/plans/2026-11-25-antigravity.md`). Origin: docs/superpowers/plans/2026-11-25-antigravity.md. Status: scheduled.
 
 
 ## Workflow upgrade
