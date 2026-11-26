@@ -57,7 +57,8 @@
         "claude",
         "codex",
         "cursor",
-        "gemini"
+        "gemini",
+        "antigravity"
       ],
       "files": {
         "hooks/run.mjs": "f16b9c43cc1525dabc0e50672516b74065524927d90bef3462c66c4e05ba6d67",
@@ -67,11 +68,12 @@
         "hooks/adapters/codex.mjs": "0589bf97b5cec7e06fee8a70bd92d8a0f51e8bb082cc241f743a80308e44d059",
         "hooks/adapters/cursor.mjs": "394c1a81f4040089b67f0fbf1131012bbb5883bdf705ce3af12dff66d9b3cbd5",
         "hooks/adapters/gemini.mjs": "eff8f29bce46d7c4a7c62845f3762a16c6fd38e831e6c4a5d6b54361ec599175",
-        "hooks/core/config.mjs": "347973c9885907da756b23509b3644114d715b2d35548c4141c1f6dc4dbb84d0",
-        "hooks/core/ctx.mjs": "c467ec88a800a1b3df3193922b7bd1377e12d610b6c75e2a7becc81cdd848138",
-        "hooks/core/shell-words.mjs": "d2b55f18ca767512692d8a4aed20eaa6e91dd9e3144e180f9ea051a3861679f1"
+        "hooks/core/config.mjs": "ececcefa854ce0690966ee1fa237de0537d82bb6802e3141808223c91568b163",
+        "hooks/core/ctx.mjs": "d5868fef1fc74b450a80ae68dce853d331727b2f78e7450422dfbb278fb8df6a",
+        "hooks/core/shell-words.mjs": "d2b55f18ca767512692d8a4aed20eaa6e91dd9e3144e180f9ea051a3861679f1",
+        "hooks/adapters/antigravity.mjs": "e0b88cb541862572c7211f2eb823e28a5ab22f76d7d293185e93a74b890aed7e"
       },
-      "sha256": "b68b88c0fc9f40cd812c715a9f295b37640e0a0d04698133f03485e45f4da02e"
+      "sha256": "e564f7be4c4bcf77b97e3c98691d2a7f063ba496a9f3286cf373a59156e93abf"
     },
     {
       "id": "design-first",
@@ -84,12 +86,19 @@
         "claude",
         "codex",
         "cursor",
-        "gemini"
+        "gemini",
+        "antigravity"
       ],
       "claude": [
         {
           "event": "PreToolUse",
           "matcher": "Write|Edit|MultiEdit|Bash"
+        }
+      ],
+      "antigravity": [
+        {
+          "event": "PreToolUse",
+          "matcher": "write_file|edit_file|write_to_file|replace_file_content|multi_replace_file_content|run_command"
         }
       ],
       "files": {
@@ -108,12 +117,19 @@
         "claude",
         "codex",
         "cursor",
-        "gemini"
+        "gemini",
+        "antigravity"
       ],
       "claude": [
         {
           "event": "PreToolUse",
           "matcher": "Bash"
+        }
+      ],
+      "antigravity": [
+        {
+          "event": "PreToolUse",
+          "matcher": "run_command"
         }
       ],
       "files": {
@@ -129,12 +145,19 @@
       "license": "MIT",
       "scope": "project",
       "tools": [
-        "claude"
+        "claude",
+        "antigravity"
       ],
       "claude": [
         {
           "event": "PreToolUse",
           "matcher": "Bash"
+        }
+      ],
+      "antigravity": [
+        {
+          "event": "PreToolUse",
+          "matcher": "run_command"
         }
       ],
       "files": {
@@ -150,7 +173,8 @@
       "license": "MIT",
       "scope": "project",
       "tools": [
-        "claude"
+        "claude",
+        "antigravity"
       ],
       "claude": [
         {
@@ -163,10 +187,16 @@
           ]
         }
       ],
+      "antigravity": [
+        {
+          "event": "PreToolUse",
+          "matcher": "write_file|edit_file|write_to_file|replace_file_content|multi_replace_file_content|run_workflow"
+        }
+      ],
       "files": {
-        "hooks/core/adapt-gates.mjs": "d1ac987c691d8322c7391e8a4045af9adeac4ce6a94a691cb3cdd68a879be407"
+        "hooks/core/adapt-gates.mjs": "8c61d1510b8f4366f21b04958d9a28a9b6f8d3f9c0613bfa4aeb4e2ea3fbd1ef"
       },
-      "sha256": "913b3479ada56045b99d00d2d353510abf6801310957ba47db8d991480604b98"
+      "sha256": "0baa64b335d6c11ddcc144398ce2d571331e28908d946cfe2434c91d7e670d91"
     },
     {
       "id": "adapt-record",
@@ -176,7 +206,8 @@
       "license": "MIT",
       "scope": "project",
       "tools": [
-        "claude"
+        "claude",
+        "antigravity"
       ],
       "claude": [
         {
@@ -184,10 +215,16 @@
           "matcher": "AskUserQuestion"
         }
       ],
+      "antigravity": [
+        {
+          "event": "PostToolUse",
+          "matcher": "ask_question"
+        }
+      ],
       "files": {
-        "hooks/core/adapt-record.mjs": "a1249e0941e840ddf76d1edc6c8b411cb3888db32f5461b7812bfc6d27ee823a"
+        "hooks/core/adapt-record.mjs": "282b5cb0401355a4058d7b2c89a70094cf653cf91d6dbe6c5c696f921b6ab3cd"
       },
-      "sha256": "059fe7b93a26c989a356d9ac5a02541e55ee039e7498cc19423e3d5173b7d686"
+      "sha256": "86088396c63b7a0cbc89f7bb26eb6dddf1d8640096a8777c903a8e465851dbfe"
     },
     {
       "id": "grill",
@@ -202,7 +239,8 @@
         "claude",
         "codex",
         "cursor",
-        "gemini"
+        "gemini",
+        "antigravity"
       ],
       "files": {
         "skills/grill/SKILL.md": "e47dbadf6fd577421b48695a5ad715d64d18abcbb70887c036c8501b08434090",
@@ -222,7 +260,8 @@
         "claude",
         "codex",
         "cursor",
-        "gemini"
+        "gemini",
+        "antigravity"
       ],
       "files": {
         "agents/explore.md": "d07a4fca0f0000289d620bc278b50163ac6032c0be044288ec0491320512ea5b"
@@ -240,7 +279,8 @@
         "claude",
         "codex",
         "cursor",
-        "gemini"
+        "gemini",
+        "antigravity"
       ],
       "files": {
         "agents/mechanism.md": "b607db73bd98816c986025dd4e87f83fe86dccaae1c879d2704d724faadb7792"
@@ -260,7 +300,8 @@
         "claude",
         "codex",
         "cursor",
-        "gemini"
+        "gemini",
+        "antigravity"
       ],
       "files": {
         "skills/thermo-nuclear-review/SKILL.md": "73004532dae6f52935950caced2446b835379393cf0df20623561dd817c6af60",
@@ -282,7 +323,8 @@
         "claude",
         "codex",
         "cursor",
-        "gemini"
+        "gemini",
+        "antigravity"
       ],
       "files": {
         "skills/thermo-nuclear-code-quality-review/SKILL.md": "ca3738f76cca43ec3662920c150869266fb4b29c4c97296e8a4a6523dcf8e90a",
@@ -302,7 +344,8 @@
         "claude",
         "codex",
         "cursor",
-        "gemini"
+        "gemini",
+        "antigravity"
       ],
       "files": {
         "agents/zone-review.md": "a4bc05cc4b5713f1ffad6667f1a5051c68c4aac2703c3ff824f78a9c1cbba385"
@@ -320,7 +363,8 @@
         "claude",
         "codex",
         "cursor",
-        "gemini"
+        "gemini",
+        "antigravity"
       ],
       "files": {
         "agents/verify-finding.md": "58092420516b186214ac7e3d600af55aaf52613c843b7d9949d13c6a29962101"
@@ -338,7 +382,8 @@
         "claude",
         "codex",
         "cursor",
-        "gemini"
+        "gemini",
+        "antigravity"
       ],
       "retired": {
         "skills/adapt/topics.md": [
@@ -355,10 +400,11 @@
         "skills/adapt/scan.mjs": "c7d9a47a268cdf6135057da9eb267826b3d5df6df574b7fc206daccacfe401e9",
         "skills/adapt/rules.mjs": "736bb9ee53874d8c9447ab4107780d9b8f5733cee26597dae96862d43d37bde2",
         "skills/adapt/research.workflow.js": "c7d72c728a5eef056d9a23f56d3334b6f2400fa9730cb96dfcad23dadd579daa",
-        "skills/adapt/research.mjs": "81fd85001c9c022dc30d284d8557c037b05b35f37b5848044b0e4f7e042b5e0e",
-        "skills/adapt/screens.mjs": "46218539062b06597556be39eebd0f0a6b47dfa6e31154232c55a7967c537a4c"
+        "skills/adapt/research.mjs": "0e4c2b2e776a00e66e2177bc27bd3af3e320b5eea2108e5b77609877b2097b4b",
+        "skills/adapt/screens.mjs": "46218539062b06597556be39eebd0f0a6b47dfa6e31154232c55a7967c537a4c",
+        "skills/adapt/research.workflow.py": "6acf1b975484005ec6e837e2ca5e1e3af6d670fa40f5e9de614e6a29807a3b0c"
       },
-      "sha256": "d5336e7e89c37b453e16d665a5a878f089f2f79492307533a7c062f620230a82"
+      "sha256": "c8a15350b151c562754be116feee5c59332358cc7f1c9d6964ac49592a336dd3"
     },
     {
       "id": "full-review",
@@ -371,12 +417,14 @@
         "claude",
         "codex",
         "cursor",
-        "gemini"
+        "gemini",
+        "antigravity"
       ],
       "files": {
-        "skills/full-review/SKILL.md": "d14bab9cb14aed685541c2e38f79d342702fa0f7007c7b84550edbe9541b7f19"
+        "skills/full-review/SKILL.md": "d14bab9cb14aed685541c2e38f79d342702fa0f7007c7b84550edbe9541b7f19",
+        "skills/full-review/full-review.workflow.py": "7132f28911069f8b959614ad58876c4a504c6fa175917ab6e06cd06c795d0a8e"
       },
-      "sha256": "021a772857a56a8d6dbf71197328003e4497db422c0a628dd23360a06ed9b8c7"
+      "sha256": "aba0372e94cb1aa9e43dc1a0aeacc575e9a348c6e07864f3d977791c5ae44e53"
     },
     {
       "id": "next-step",
@@ -389,7 +437,8 @@
         "claude",
         "codex",
         "cursor",
-        "gemini"
+        "gemini",
+        "antigravity"
       ],
       "files": {
         "skills/next-step/SKILL.md": "54c08c9c200f0eb600903b99f159d2160b1175830058be5f566ae34f61e9263c"
@@ -404,7 +453,8 @@
       "license": "MIT",
       "scope": "project",
       "tools": [
-        "claude"
+        "claude",
+        "antigravity"
       ],
       "claude": [
         {
@@ -415,10 +465,23 @@
           "event": "UserPromptSubmit"
         }
       ],
+      "antigravity": [
+        {
+          "event": "PreToolUse",
+          "matcher": "invoke_subagent|run_workflow|read_file|view_file|run_command|search_web|read_url_content|ask_question|write_file|edit_file|write_to_file|replace_file_content|multi_replace_file_content"
+        },
+        {
+          "event": "PostToolUse",
+          "matcher": "invoke_subagent"
+        },
+        {
+          "event": "PreInvocation"
+        }
+      ],
       "files": {
-        "hooks/core/orchestrator.mjs": "f2110b5d226c7f0ecadf4c15ca970ad3e623105969493ddf17c7ce76bba5dca0"
+        "hooks/core/orchestrator.mjs": "54cee86e307710a8823594a40c3611fa43af2d2fc64fbd60cb4ca89d420972d4"
       },
-      "sha256": "8977b13ce372a2051707263c84aa3a17047d9e8b554a5604373fa57e083dee80"
+      "sha256": "546c90e48acb57d7418317b7603496d398b13771cd281698f997c5d48a093c6c"
     },
     {
       "id": "handback",
@@ -428,12 +491,19 @@
       "license": "MIT",
       "scope": "project",
       "tools": [
-        "claude"
+        "claude",
+        "antigravity"
       ],
       "claude": [
         {
           "event": "PreToolUse",
           "matcher": "SubagentHandback"
+        }
+      ],
+      "antigravity": [
+        {
+          "event": "PreToolUse",
+          "matcher": "send_message"
         }
       ],
       "files": {
@@ -449,7 +519,8 @@
       "license": "MIT",
       "scope": "project",
       "tools": [
-        "claude"
+        "claude",
+        "antigravity"
       ],
       "claude": [
         {
@@ -466,12 +537,24 @@
           "event": "SessionEnd"
         }
       ],
+      "antigravity": [
+        {
+          "event": "PreToolUse",
+          "matcher": "write_file|edit_file|write_to_file|replace_file_content|multi_replace_file_content"
+        },
+        {
+          "event": "SessionStart"
+        },
+        {
+          "event": "Stop"
+        }
+      ],
       "files": {
-        "hooks/core/memory.mjs": "eab306514fa0824761c706f4337b18590bd566f50b540cbabb27c9b6673fa69e",
+        "hooks/core/memory.mjs": "43d33cd31cb1743d5011dc97b4c96901a5284bdc34005a62bb2e6a940abbf8d9",
         "hooks/core/memory-index.mjs": "ed9d990262ae86bfb68b63b7c34e6594e3239460136907fbb376011990898006",
         "hooks/core/memory-job.mjs": "119f88b3e2c613620ac8dd96002ea3b2eaf603382712726261d822d91f727956"
       },
-      "sha256": "c9d1bce2b820cf2f311af1e1cf4e7c87896935b661ad4023ea8a5bc78796a790"
+      "sha256": "3e550020f2c309d1dcf70fadd2ac392fca62baa6cec1fdf190509c12a0ddf289"
     },
     {
       "id": "modes",
@@ -481,9 +564,15 @@
       "license": "MIT",
       "scope": "project",
       "tools": [
-        "claude"
+        "claude",
+        "antigravity"
       ],
       "claude": [
+        {
+          "event": "SessionStart"
+        }
+      ],
+      "antigravity": [
         {
           "event": "SessionStart"
         }
@@ -501,7 +590,8 @@
       "license": "MIT",
       "scope": "project",
       "tools": [
-        "claude"
+        "claude",
+        "antigravity"
       ],
       "claude": [
         {
@@ -509,6 +599,11 @@
         },
         {
           "event": "PreCompact"
+        }
+      ],
+      "antigravity": [
+        {
+          "event": "SessionStart"
         }
       ],
       "files": {
@@ -524,7 +619,8 @@
       "license": "MIT",
       "scope": "project",
       "tools": [
-        "claude"
+        "claude",
+        "antigravity"
       ],
       "files": {
         "agents/implement.md": "fe896b86c25a9526828089972a078505d3ec8b637b24e9dfb8178a9b00807255"
@@ -539,7 +635,8 @@
       "license": "MIT",
       "scope": "project",
       "tools": [
-        "claude"
+        "claude",
+        "antigravity"
       ],
       "files": {
         "agents/review-small.md": "eef0a5107516b5dfc96f283b0f3673ee3b28acec5cfbd02507879a737ed9f25c"
@@ -554,7 +651,8 @@
       "license": "MIT",
       "scope": "project",
       "tools": [
-        "claude"
+        "claude",
+        "antigravity"
       ],
       "files": {
         "agents/implement-sql.md": "c5d2390d3ae1eb34865bb4258584fe4f237ab58426b4871c1cdca7ae9891cd34"
@@ -569,7 +667,8 @@
       "license": "MIT",
       "scope": "project",
       "tools": [
-        "claude"
+        "claude",
+        "antigravity"
       ],
       "files": {
         "agents/implement-front.md": "0974288962afa2ad6dd559c5d3e00b5016a2d5109cf385bca273ab3f69087c36"
@@ -584,7 +683,8 @@
       "license": "MIT",
       "scope": "project",
       "tools": [
-        "claude"
+        "claude",
+        "antigravity"
       ],
       "files": {
         "agents/mechanical.md": "216d5a29faa9140afc153f20d96aa7e0206d2f748cb729a03001b81a341ad06e"
@@ -599,7 +699,8 @@
       "license": "MIT",
       "scope": "project",
       "tools": [
-        "claude"
+        "claude",
+        "antigravity"
       ],
       "files": {
         "agents/review.md": "7c1257da88f29438a4932f872286054cda7c36692002b0f06229b6a938ad1cfd"
@@ -614,7 +715,8 @@
       "license": "MIT",
       "scope": "project",
       "tools": [
-        "claude"
+        "claude",
+        "antigravity"
       ],
       "files": {
         "agents/dream-analyzer.md": "95f7373c3e2c2faf013e3a6397f9c5b871836215054d61583d5fb2ae07b84cfb"
@@ -629,7 +731,8 @@
       "license": "MIT",
       "scope": "project",
       "tools": [
-        "claude"
+        "claude",
+        "antigravity"
       ],
       "files": {
         "agents/pending-triage.md": "3403ff68a4f5c3210cefc45d2507be1cc67f14f053f5e547f77224aefe814840"
@@ -644,7 +747,8 @@
       "license": "MIT",
       "scope": "project",
       "tools": [
-        "claude"
+        "claude",
+        "antigravity"
       ],
       "files": {
         "agents/dream-organizer.md": "797c0692ac8a150675c2c3cee8a651db88ea253555a0b67a7e70dbbdc4cdf40b"
@@ -659,7 +763,8 @@
       "license": "MIT",
       "scope": "project",
       "tools": [
-        "claude"
+        "claude",
+        "antigravity"
       ],
       "files": {
         "skills/deepen/SKILL.md": "f214e700952f4b085cb62223f4a96bf215cd2123dbbb916989058a1e2cde363a"
@@ -674,7 +779,8 @@
       "license": "MIT",
       "scope": "project",
       "tools": [
-        "claude"
+        "claude",
+        "antigravity"
       ],
       "files": {
         "skills/plan/SKILL.md": "0685602aaf43fc28c3ab8c94d2a210501ce2c7fe206b8a9aff7dff47e0907677"
@@ -689,7 +795,8 @@
       "license": "MIT",
       "scope": "project",
       "tools": [
-        "claude"
+        "claude",
+        "antigravity"
       ],
       "files": {
         "skills/orchestrate/SKILL.md": "ae41ac457227d5a4b0ee41083b56fc3710dbc177febb3ca790f108a61f3d1ce2"
@@ -707,7 +814,8 @@
         "claude",
         "codex",
         "cursor",
-        "gemini"
+        "gemini",
+        "antigravity"
       ],
       "files": {
         "skills/handoff/SKILL.md": "725c8e6ac2ec401d7143f1f0b649e8d0b2dbb4cb515993772555c9dd28ddc255"
@@ -722,15 +830,17 @@
       "license": "MIT",
       "scope": "project",
       "tools": [
-        "claude"
+        "claude",
+        "antigravity"
       ],
       "files": {
         "skills/pending/SKILL.md": "48b015bce75259bfa78cd081dba32816ca2dcc67afd2855549b0607d8f73c59d",
         "templates/PENDING.md": "024be763b231bbc39ea583635fe25413985745180345c5e731119a5f4259551f",
         "skills/pending/triage.mjs": "e1fa871419ef8e36d025a9ca3ed2a146b9e5feb8f916e79431ccaf8fb5d0ddb4",
-        "skills/pending/triage.workflow.js": "efc9ff0b88380989ce2a0db3aa5ce21584f7b0068e5e189c41682c8b0767a23d"
+        "skills/pending/triage.workflow.js": "efc9ff0b88380989ce2a0db3aa5ce21584f7b0068e5e189c41682c8b0767a23d",
+        "skills/pending/triage.workflow.py": "9b399dda7d4787ba9ea0e9dabe57305794041cee2e6d3695adf9aa1d9196b080"
       },
-      "sha256": "ffa9341ed855fe663dccc3a311bc9209018928edc87294a52762c2dd8811c377"
+      "sha256": "02ad8ef59b8e574654e1ab63d247dbd2fdb16d48ceae328bf216f72b6b6c0d61"
     },
     {
       "id": "tdd",
@@ -742,7 +852,8 @@
       "modified": true,
       "scope": "project",
       "tools": [
-        "claude"
+        "claude",
+        "antigravity"
       ],
       "files": {
         "skills/tdd/SKILL.md": "ac05d3320e3a90238fdbcc2694a60ce34af707dcc1dd5fe314637f8241b28c3e",
@@ -762,7 +873,8 @@
       "modified": false,
       "scope": "project",
       "tools": [
-        "claude"
+        "claude",
+        "antigravity"
       ],
       "retired": {
         "skills/ponytail/SKILL.md": [
@@ -790,16 +902,18 @@
       "license": "MIT",
       "scope": "project",
       "tools": [
-        "claude"
+        "claude",
+        "antigravity"
       ],
       "files": {
         "skills/dream/SKILL.md": "166c2384fcbc1b6da2668ff132efa75fe2f2ae8623bc03e476046244f3ac6657",
-        "skills/dream/extract.mjs": "998d6fc48d5485b85111dd8bd4dc0bbf29ff1cd3405d2336604ead321a026584",
+        "skills/dream/extract.mjs": "dc1ba092b90d04ee265f65cdb7eaaa8e47e5a9741aaba7f831431c01636651ab",
         "skills/dream/branch.mjs": "42bb22e738b4df71daa6adee2e458760f3ffcb9b773134eae1cc38e78a823f91",
         "skills/dream/shared.mjs": "bf95131c640e732cc08fdf7c44b21bbef9f35b65966a1815e638b58e8d79434a",
-        "skills/dream/dream.workflow.js": "4e3f459464a46b23a59b4e0d96be6e65e3fa8ffdee231f3bb5bae9ef1fbf6232"
+        "skills/dream/dream.workflow.js": "4e3f459464a46b23a59b4e0d96be6e65e3fa8ffdee231f3bb5bae9ef1fbf6232",
+        "skills/dream/dream.workflow.py": "0103e01fc35b0c299ab413bd8f5c02c555ddcc2a7a5aa4d87ca68a6717a06c93"
       },
-      "sha256": "0446a47a06d2d26f9ae2fcb66ed1f6643e00fb9a807f36c497036ba640661357"
+      "sha256": "20cffc1c348919f2296ac97f7324f116184d975def922a30f218df9ebab6132b"
     },
     {
       "id": "checks",
@@ -809,7 +923,8 @@
       "license": "MIT",
       "scope": "project",
       "tools": [
-        "claude"
+        "claude",
+        "antigravity"
       ],
       "earlierHooks": {
         "post-merge": [
@@ -843,7 +958,7 @@
         "checks/fix-has-test.mjs": "63ba9b3dbbf9251be58632b667ed69f611aa0c6a7fb6c893a114c1a2610defc4",
         "checks/change-size.mjs": "be1366d8e2f5fa80b0616cf4a22c660526316b988df38d28643c31c46ac8b855",
         "checks/comment-ratio.mjs": "20112da90275485c4cfa149cb2164517aa308873b49a97d1f5d8c98f9a621310",
-        "checks/skills-travel.mjs": "678c45e0c26acc5c56e5bb7bce927cedf907cfabefe7bf84d023e5544e49c7fa",
+        "checks/skills-travel.mjs": "61be77f5607caf6bd5f2dc50b0362f4a4bdb0c0dc1a66b1fa73b4afdff91ace8",
         "checks/patterns.mjs": "b76bd62236b34035c628147793d6d428959a91036f7700389bd6d7c443805e12",
         "checks/ratchet.mjs": "5eaaeeecccfd4cc62ceba0961f39d99dc162c1b0592efee6a576d643946d2a88",
         "checks/graph-current.mjs": "3a174bf16b0e546ade3c5dfc5a7633e570020adb527a9385724880b41dd93c21",
@@ -851,7 +966,7 @@
         "checks/index-current.mjs": "e76348a0862428fa5ee2754746a77a5bddb0a734a9ac037668cb5837977a10be",
         "checks/project.mjs": "3756970ca6af156dc599cdae8afcb7f2adc0982d5be72cb0c79b04d2777ce901"
       },
-      "sha256": "322d9d532da4bd762a9e6917d1d1424ce7ab39547231093b70195aa9617f1211"
+      "sha256": "24db21ae60db6a384e978b0cb88e24a943481fb40cb47048aa7d1ff4573a9b67"
     },
     {
       "id": "lint",
@@ -861,7 +976,8 @@
       "license": "MIT",
       "scope": "project",
       "tools": [
-        "claude"
+        "claude",
+        "antigravity"
       ],
       "files": {
         "checks/packs/lint.mjs": "dcdeeb4f80cb30a25f80c420a27ce52c503e40309fda2f5aad4ee94acf5739af"
@@ -877,7 +993,8 @@
       "license": "LGPL-2.1",
       "scope": "project",
       "tools": [
-        "claude"
+        "claude",
+        "antigravity"
       ],
       "files": {
         "checks/packs/semgrep.mjs": "084d969104ea88917a3bfc90ea74ad97990dfc79f29ab5b4a220314ede32060b"
@@ -893,7 +1010,8 @@
       "license": "Apache-2.0",
       "scope": "project",
       "tools": [
-        "claude"
+        "claude",
+        "antigravity"
       ],
       "files": {
         "checks/packs/trivy.mjs": "e9422f56fa76b1f48533e61afc9622bf7623e4a9ea371a789f780704cd945afa"

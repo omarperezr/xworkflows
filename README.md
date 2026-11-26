@@ -242,10 +242,11 @@ Still to come before 1.0: a measured pilot in a second real project (minutes fro
 
 | Tool | Status |
 |---|---|
-| Claude Code | **tested** in real sessions |
+| Claude Code | **tested** in real sessions (`--tool claude`, default) |
+| Antigravity (`agy` CLI / App / IDE) | **tested** in real sessions (`--tool antigravity`, coexists with Claude Code via `--tool claude,antigravity`) |
 | Codex | planned: config written from the official docs, not run yet |
 | Cursor | planned: config written from the official docs, not run yet |
-| Gemini CLI | planned: config written from the official docs, not run yet |
+| Gemini CLI | superseded by Antigravity CLI (2026-06-18); Phase-0 stub kept |
 
 ## Develop
 

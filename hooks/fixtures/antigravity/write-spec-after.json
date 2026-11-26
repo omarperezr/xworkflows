@@ -1,26 +1,26 @@
 {
   "label": "recorded",
-  "source": "Antigravity CLI (agy), real session, 2026-11-25; home folder replaced by /home/user",
+  "source": "Antigravity CLI (agy), real session, 2026-11-25; home and temp folders replaced by /home/user",
   "input": {
-    "conversationId": "7f3a9d10-4b2e-4c88-9a12-1e8b0c4d5e6f",
+    "artifactDirectoryPath": "/home/user/.gemini/antigravity-cli/brain/4b237757-fe6c-4fcf-8eae-f4e2b2dd52d1",
+    "conversationId": "4b237757-fe6c-4fcf-8eae-f4e2b2dd52d1",
+    "cwd": "/home/user/work/xworkflows/sandbox",
+    "hookEventName": "PreToolUse",
+    "lastUserInput": "Try to write the file docs/superpowers/specs/2026-11-25-demo.md with content '# Demo'. If a hook denies it, run 'node .xworkflows/mark.mjs grill' in the shell and then write docs/superpowers/specs/2026-11-25-demo.md again. Report what happened in 3 short lines.",
+    "modelName": "gemini-4-hydrogen-high",
+    "stepIdx": 8,
+    "toolCall": {
+      "args": {
+        "Content": "# Demo",
+        "Path": "/home/user/work/xworkflows/sandbox/docs/superpowers/specs/2026-11-25-demo.md"
+      },
+      "id": "call_3962507351134856125",
+      "name": "write_file"
+    },
+    "transcriptPath": "/home/user/.gemini/antigravity-cli/brain/4b237757-fe6c-4fcf-8eae-f4e2b2dd52d1/.system_generated/logs/transcript_full.jsonl",
     "workspacePaths": [
       "/home/user/work/xworkflows/sandbox"
-    ],
-    "cwd": "/home/user/work/xworkflows/sandbox",
-    "transcriptPath": "/home/user/.gemini/antigravity-cli/brain/7f3a9d10-4b2e-4c88-9a12-1e8b0c4d5e6f/.system_generated/logs/transcript_full.jsonl",
-    "artifactDirectoryPath": "/home/user/.gemini/antigravity-cli/brain/7f3a9d10-4b2e-4c88-9a12-1e8b0c4d5e6f",
-    "modelName": "gemini-4-neon-xhigh",
-    "lastUserInput": "Write docs/superpowers/specs/2026-11-25-demo.md",
-    "hookEventName": "PreToolUse",
-    "stepIdx": 6,
-    "toolCall": {
-      "id": "call_ag_write_2",
-      "name": "write_file",
-      "args": {
-        "Path": "/home/user/work/xworkflows/sandbox/docs/superpowers/specs/2026-11-25-demo.md",
-        "Content": "# Demo\n"
-      }
-    }
+    ]
   },
   "output": {
     "stdout": "{\"decision\":\"allow\"}",

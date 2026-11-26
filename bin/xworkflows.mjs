@@ -23,7 +23,7 @@ export const digest = (files) =>
   hash(Object.keys(files).sort().map((p) => `${p} ${files[p]}\n`).join(""));
 export const readManifest = () => JSON.parse(readFileSync(join(PKG, "manifest.json"), "utf8"));
 
-const KEYS = ["id", "kind", "origin", "source", "version", "license", "modified", "scope", "tools", "claude", "earlierHooks", "retired", "files", "sha256"];
+const KEYS = ["id", "kind", "origin", "source", "version", "license", "modified", "scope", "tools", "claude", "antigravity", "earlierHooks", "retired", "files", "sha256"];
 
 function pack(check) {
   const m = readManifest();
@@ -54,7 +54,7 @@ function pack(check) {
   }
   // a hook id of the manifest at the merge-base with the main branch that this one drops must be listed as retired: a stale copy never unwires a hook it did not retire
   // (HEAD already holds the change once it is committed on the branch)
-  const hooks = (x) => x.pieces.filter((p) => p.claude?.length).map((p) => p.id);
+  const hooks = (x, k) => x.pieces.filter((p) => p[k]?.length).map((p) => p.id);
   const git = (...a) => spawnSync("git", a, { cwd: PKG, encoding: "utf8" });
   const warn = (t) => console.error(`warn: ${t}`);
   let main = DEFAULTS.mainBranch;
@@ -70,7 +70,9 @@ function pack(check) {
       else if (ls.stdout.trim()) { // no manifest there: nothing to compare
         try {
           const old = JSON.parse(git("show", at).stdout);
-          for (const id of hooks(old)) if (!hooks(m).includes(id) && !(m.retiredHooks ?? []).includes(id)) errs.push(`hook ${id} is in the manifest at the merge-base with ${main} and not in this one: list it in retiredHooks`);
+          for (const k of ["claude", "antigravity"]) {
+            for (const id of hooks(old, k)) if (!hooks(m, k).includes(id) && !(m.retiredHooks ?? []).includes(id)) errs.push(`hook ${id} is in the manifest at the merge-base with ${main} and not in this one: list it in retiredHooks`);
+          }
         } catch { warn(`${at} does not read: retired hooks are not checked`); }
       }
     }
@@ -101,13 +103,22 @@ function parse(args) {
   return flags;
 }
 
+const SUPPORTED_TOOLS = ["claude", "antigravity"];
+function parseTools(raw) {
+  if (!raw) return null;
+  const list = raw.split(",").map((s) => s.trim()).filter(Boolean);
+  if (!list.length) die(2, "--tool needs a value");
+  for (const t of list) if (!SUPPORTED_TOOLS.includes(t)) die(2, `not yet: ${t} comes in a later phase`);
+  return SUPPORTED_TOOLS.filter((t) => list.includes(t));
+}
+
 export function main(argv) {
   const [cmd, ...rest] = argv;
-  if (!COMMANDS.includes(cmd)) die(2, `usage: xworkflows <${COMMANDS.join("|")}> [--tool claude] [--yes] [--dry-run]`);
+  if (!COMMANDS.includes(cmd)) die(2, `usage: xworkflows <${COMMANDS.join("|")}> [--tool claude|antigravity] [--yes] [--dry-run]`);
   const flags = cmd === "check" ? {} : parse(rest);
   if ((flags["dry-run"] || flags.yes) && cmd !== "install") die(2, "--dry-run and --yes are for install only");
   if (flags.check && cmd !== "pack") die(2, "--check is for pack only");
-  if (flags.tool && flags.tool !== "claude") die(2, `not yet: ${flags.tool} comes in a later phase`);
+  flags.tools = parseTools(flags.tool);
   if (cmd === "pack") return pack(flags.check);
   try {
     ROOT = execFileSync("git", ["rev-parse", "--show-toplevel"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
@@ -131,18 +142,29 @@ const json = (v, text) => JSON.stringify(v, null, indentOf(text)) + "\n";
 const isObj = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
 const SECTION_FIX = "make it an object, or take it out of .xworkflows/config.json";
 
-function target(f) {
-  if (f === "hooks/mark.mjs") return ".xworkflows/mark.mjs";
-  if (f.startsWith("skills/")) return ".claude/" + f;
-  if (f.startsWith("agents/")) return ".claude/" + f;
-  if (f.startsWith("hooks/adapters/")) return f === "hooks/adapters/claude.mjs" ? ".xworkflows/" + f : null;
-  return ".xworkflows/" + f;
+function targets(f, tools = ["claude"]) {
+  if (f === "hooks/mark.mjs") return [".xworkflows/mark.mjs"];
+  if (f.startsWith("skills/")) {
+    if (f.endsWith(".workflow.py")) return tools.includes("antigravity") ? [".agents/" + f] : [];
+    if (f.endsWith(".workflow.js")) return tools.includes("claude") ? [".claude/" + f] : [];
+    return [...(tools.includes("claude") ? [".claude/" + f] : []), ...(tools.includes("antigravity") ? [".agents/" + f] : [])];
+  }
+  if (f.startsWith("agents/")) {
+    return [...(tools.includes("claude") ? [".claude/" + f] : []), ...(tools.includes("antigravity") ? [".agents/" + f] : [])];
+  }
+  if (f.startsWith("hooks/adapters/")) {
+    if (f === "hooks/adapters/claude.mjs") return tools.includes("claude") ? [".xworkflows/" + f] : [];
+    if (f === "hooks/adapters/antigravity.mjs") return tools.includes("antigravity") ? [".xworkflows/" + f] : [];
+    return [];
+  }
+  return [".xworkflows/" + f];
 }
 
 // a list that grows with the repository (files, logs) is read through this: the default buffer of 1 MiB fails on a big one
 const gitList = (args, cwd) => execFileSync("git", args, { cwd, encoding: "utf8", maxBuffer: 1 << 28 });
 const read = (root, p) => (existsSync(join(root, p)) ? readFileSync(join(root, p), "utf8") : null);
 const hookCmd = (id) => `node "$(git rev-parse --show-toplevel)/.xworkflows/hooks/run.mjs" claude ${id}`;
+const agHookCmd = (id) => `node "$(git rev-parse --show-toplevel)/.xworkflows/hooks/run.mjs" antigravity ${id}`;
 const isOurs = (e, id) => e?.hooks?.some((h) => `${h.command} `.includes(`/.xworkflows/hooks/run.mjs" claude ${id} `));
 const MARK = "Bash(node .xworkflows/mark.mjs:*)";
 const START = "<!-- xworkflows:start -->";
@@ -226,11 +248,64 @@ function settingsWants(manifest) {
   return want;
 }
 
+// What install puts in .agents/hooks.json for Antigravity, grouped under named xworkflows-<id> keys.
+function agHooksWants(manifest) {
+  const want = [];
+  for (const p of manifest.pieces) {
+    if (!p.antigravity?.length) continue;
+    const def = {};
+    for (const c of p.antigravity) {
+      const handler = { type: "command", command: agHookCmd(p.id) };
+      const item = c.event === "PreToolUse" || c.event === "PostToolUse"
+        ? { ...(c.matcher && { matcher: c.matcher }), hooks: [handler] }
+        : handler;
+      (def[c.event] ??= []).push(item);
+    }
+    want.push({ key: `xworkflows-${p.id}`, id: p.id, entry: def });
+  }
+  return want;
+}
+
+function mergeAntigravityHooks(root, manifest, record) {
+  const path = AG_HOOKS;
+  const { old, s } = readObject(root, path);
+  const want = agHooksWants(manifest);
+  const merged = [], notes = [];
+  let changed = false;
+  for (const id of orphanIds(manifest)) {
+    const k = `xworkflows-${id}`;
+    if (k in s) { delete s[k]; changed = true; }
+  }
+  for (const { key, id, entry } of want) {
+    if (!(key in s)) {
+      s[key] = entry;
+      changed = true;
+      merged.push({ file: path, key: [key], entry, createdKey: true });
+      continue;
+    }
+    if (isDeepStrictEqual(s[key], entry)) {
+      const known = record.merged.some((m) => m.file === path && isDeepStrictEqual(m.key, [key]) && isDeepStrictEqual(m.entry, entry));
+      if (!known) merged.push({ file: path, key: [key], entry, createdKey: false });
+      continue;
+    }
+    const recorded = record.merged.find((m) => m.file === path && isDeepStrictEqual(m.key, [key]));
+    if (recorded && isDeepStrictEqual(s[key], recorded.entry)) {
+      s[key] = entry;
+      changed = true;
+      merged.push({ file: path, key: [key], entry, createdKey: recorded.createdKey ?? false });
+    } else {
+      notes.push(`kept: ${path} hook ${id} differs from the package's entry; to get the package's entry, delete ${key} and run xworkflows install`);
+    }
+  }
+  return { path, notes, text: changed ? json(s, old) : null, rec: { merged, created: old === null && changed ? [path] : [] } };
+}
+
 // the hook id a recorded entry runs: orphan lookup, apply and doctor read it the same way
 const hookId = (e) => e?.hooks?.[0]?.command?.match(/\/\.xworkflows\/hooks\/run\.mjs" claude (\S+)/)?.[1];
+const agHookKeyId = (m) => (m?.file === AG_HOOKS && typeof m.key?.[0] === "string" && m.key[0].startsWith("xworkflows-") ? m.key[0].slice("xworkflows-".length) : undefined);
 // the hook ids the manifest lists as retired (renamed or dropped by this version); a copy that merely lacks a hook retires nothing
 const orphanIds = (manifest) => {
-  const ids = new Set(settingsWants(manifest).map((w) => w.id));
+  const ids = new Set([...settingsWants(manifest).map((w) => w.id), ...agHooksWants(manifest).map((w) => w.id)]);
   return new Set((manifest.retiredHooks ?? []).filter((id) => !ids.has(id)));
 };
 
@@ -340,13 +415,13 @@ const MARK_TEXT = "written by xworkflows install: uninstall removes index.yml an
 const localYml = (root) => [".qmd/index.yaml", YML].find((f) => existsSync(join(root, f)));
 const IGNORE = [["graphify-out/", "graphify-out/x"], [".claude/settings.local.json", ".claude/settings.local.json"], [".qmd/", ".qmd/x"], [".xworkflows/handoff.md", ".xworkflows/handoff.md"], [EARLIER, EARLIER]];
 // `.qmd/` is added only in a run that writes the yml
-function mergeIgnore(root, qmd) {
+function mergeIgnore(root, qmd, tools = ["claude"]) {
   const path = ".gitignore";
   const old = read(root, path);
   let text = old ?? "";
   const imports = [];
   for (const [line, probe] of IGNORE) {
-    if ((line === ".qmd/" && !qmd) || spawnSync("git", ["check-ignore", "-q", "--no-index", probe], { cwd: root }).status === 0) continue;
+    if ((line === ".qmd/" && !qmd) || (line === ".claude/settings.local.json" && !tools.includes("claude")) || spawnSync("git", ["check-ignore", "-q", "--no-index", probe], { cwd: root }).status === 0) continue;
     const addedNewline = text !== "" && !text.endsWith("\n");
     imports.push({ file: path, line, ...(addedNewline && { addedNewline }) });
     text += (addedNewline ? "\n" : "") + line + "\n";
@@ -357,7 +432,7 @@ function mergeIgnore(root, qmd) {
 // .graphifyignore: the folders install writes, one line each, so the graph does not index the method's own files
 const GI = ".graphifyignore";
 // a skill folder, or an agent file, by its exact path
-const giLine = (p) => p.match(/^\.claude\/skills\/[^/]+/)?.[0]?.concat("/") ?? p.match(/^\.claude\/agents\/[^/]+\.md$/)?.[0];
+const giLine = (p) => p.match(/^\.(?:claude|agents)\/skills\/[^/]+/)?.[0]?.concat("/") ?? p.match(/^\.(?:claude|agents)\/agents\/[^/]+\.md$/)?.[0];
 function mergeGraphifyIgnore(root, writes) {
   const old = read(root, GI);
   let text = old ?? "";
@@ -516,8 +591,8 @@ function mergeAgents(root) {
   return { path, text: text === old ? null : text, rec: { blocks: [nl ? { file: path, addedNewline: true } : { file: path }], created: old === null ? [path] : [] } };
 }
 
-const UNIT = /^\.claude\/(skills|agents)\/[^/]+/;
-const LITE_FILE = /^\.claude\/agents\/[^/]+\.md$/;
+const UNIT = /^\.(?:claude|agents)\/(skills|agents)\/[^/]+/;
+const LITE_FILE = /^\.(?:claude|agents)\/agents\/[^/]+\.md$/;
 const IMPORT = "Add @AGENTS.md to CLAUDE.md?";
 
 const plain = (p) => typeof p === "string" && p !== "" && p !== "." && !isAbsolute(p) && normalize(p) === p && !p.split("/").includes("..");
@@ -542,13 +617,15 @@ const clean = (root, p) => !way(root, p);
 // Reads and parses every target file before any write (ruling P2) and refuses before any write.
 // `ans` maps question id -> chosen label; an unanswered question is listed in `questions` and planned with its safe answer.
 // The two changes install makes to a package text it writes; published() undoes them.
-const tierToModel = (text, tiers) => text.replace(/^tier: (\w+)$/m, (_, k) => `model: ${tiers.claude[k]}`);
+const tierToModel = (text, tiers, tool = "claude") => text.replace(/^tier: (\w+)$/m, (_, k) => `model: ${tiers[tool][k]}`);
 const nameAs = (text, name) => text.replace(/^name: .*$/m, `name: ${name}`);
 // the file of a unit that carries its name line: the agent file, or a skill's SKILL.md
 const named = (p, u) => p === u || p.endsWith("/SKILL.md");
 // The agent's file as this project has it: the config's agents.<id> block (a bad value is ignored), and a `plugin:skill` only where
 // the plugin is on after install, else the skill check refuses every push.
 const NAME = /^[\w.:-]+$/;
+const AG_TOOL_MAP = { Read: "read_file", Write: "write_file", Edit: "edit_file", Bash: "run_command", WebSearch: "search_web", WebFetch: "read_url_content" };
+
 function renderAgent(text, ov, on) {
   const o = isObj(ov) ? ov : {};
   return text.replace(/^---\n([\s\S]*?)\n---\n/, (_, fm) => {
@@ -569,6 +646,91 @@ function renderAgent(text, ov, on) {
     return `---\n${lines.join("\n")}\n---\n`;
   }) + (typeof o.append === "string" && o.append.trim() ? `\n${o.append.replace(/\s+$/, "")}\n` : "");
 }
+
+// Antigravity custom subagent render: tier -> flash|inherit, valid CLI tool names only (no unmapped Grep/Glob), subagent: true, mainAgent: false, no effort:, local skills only.
+function renderAntigravityAgent(text, tiers, ov) {
+  const o = isObj(ov) ? ov : {};
+  const mapped = tierToModel(text, tiers, "antigravity").replace(/^---\n([\s\S]*?)\n---\n/, (_, fm) => {
+    const lines = fm.split("\n").filter((l) => !/^effort:/.test(l));
+    const ti = lines.findIndex((l) => /^tools:/.test(l));
+    if (ti >= 0) {
+      let tn = 0;
+      while (/^\s+- /.test(lines[ti + 1 + tn] ?? "")) tn++;
+      const inline = lines[ti].slice("tools:".length).trim();
+      const rawTools = inline
+        ? inline.replace(/^\[(.*)\]$/, "$1").split(",").map((s) => s.trim().replace(/^["']|["']$/g, "")).filter(Boolean)
+        : lines.slice(ti + 1, ti + 1 + tn).map((l) => l.replace(/^\s+- /, "").trim());
+      const agTools = [...new Set(rawTools.map((t) => AG_TOOL_MAP[t] ?? (Object.values(AG_TOOL_MAP).includes(t) ? t : null)).filter(Boolean))];
+      const tList = agTools.length ? ["tools:", ...agTools.map((t) => `  - ${t}`)] : [];
+      lines.splice(ti, 1 + tn, ...tList);
+    }
+    const at = lines.indexOf("skills:");
+    let n = 0;
+    while (at >= 0 && /^\s+- /.test(lines[at + 1 + n] ?? "")) n++;
+    const have = at < 0 ? [] : lines.slice(at + 1, at + 1 + n).map((l) => l.replace(/^\s+- /, "").trim());
+    const asked = Array.isArray(o.skills) && o.skills.every((k) => typeof k === "string" && NAME.test(k));
+    const want = (asked ? o.skills : have).filter((k) => !k.includes(":"));
+    if (at >= 0 || want.length) {
+      const list = want.length ? ["skills:", ...want.map((k) => `  - ${k}`)] : [];
+      if (at < 0) lines.push(...list); else lines.splice(at, 1 + n, ...list);
+    }
+    if (!lines.some((l) => /^subagent:/.test(l))) lines.push("subagent: true");
+    if (!lines.some((l) => /^mainAgent:/.test(l))) lines.push("mainAgent: false");
+    return `---\n${lines.join("\n")}\n---\n`;
+  });
+  const full = mapped + (typeof o.append === "string" && o.append.trim() ? `\n${o.append.replace(/\s+$/, "")}\n` : "");
+  return full
+    .replaceAll(".claude/rules/", ".agents/rules/")
+    .replaceAll(".claude/skills/", ".agents/skills/")
+    .replaceAll(".claude/agents/", ".agents/agents/");
+}
+
+// Antigravity skill render: preserves Claude source intact while rendering .agents/skills/*/SKILL.md for Antigravity tools & Python workflows.
+function renderAntigravitySkill(skillId, f, text) {
+  if (!f.endsWith("/SKILL.md")) return text;
+  let out = text
+    .replaceAll(".claude/agents/", ".agents/agents/")
+    .replaceAll(".claude/rules/", ".agents/rules/")
+    .replaceAll(".claude/skills/", ".agents/skills/")
+    .replaceAll("AskUserQuestion", "ask_question")
+    .replaceAll("research.workflow.js", "research.workflow.py")
+    .replaceAll("dream.workflow.js", "dream.workflow.py")
+    .replaceAll("triage.workflow.js", "triage.workflow.py")
+    .replaceAll("CLAUDE_CODE_SESSION_ID", "ANTIGRAVITY_CONVERSATION_ID")
+    .replaceAll("Claude Code only.", "Antigravity and Claude Code.");
+  if (skillId === "adapt") {
+    out = out
+      .replace("the `header` is the item id.", "prefix every question text with `[<id>] ` (Antigravity's `ask_question` has no `header` field, and `adapt-record` reads `[<id>] ` as the id).")
+      .replaceAll("research.mjs queue", "research.mjs queue --tool antigravity")
+      .replaceAll("research.mjs model", "research.mjs model --tool antigravity")
+      .replace(
+        'Call the `Workflow` tool with `scriptPath: "<base>/research.workflow.py"` and `args: { root: "<absolute repository root>", zeroHits: [...], agents: {...}, language: "<the owner\'s language>" }`',
+        'Call the `run_workflow` tool with `ScriptPath: "<base>/research.workflow.py"` and `Args: { root: "<absolute repository root>", zeroHits: [...], agents: {...}, models: { medium: "<medium tier in .xworkflows/tiers.json under antigravity>" }, language: "<the owner\'s language>" }`',
+      )
+      .replace("Front matter `paths:` lists the zone's paths as globs: a folder `src` or `src/` becomes `src/**`; `dir/*` and `*` stay as written.", "Front matter uses Antigravity glob rules: `trigger: glob`, `description: <one line>`, and `globs: \"<comma-separated globs>\"` (a folder `src` or `src/` becomes `src/**`; `dir/*` and `*` stay as written).")
+      .replace("`tools: Read, Grep, Glob, Bash`; `effort: xhigh`, so its first review runs at xhigh.", "`tools: read_file, run_command`; `subagent: true`; `mainAgent: false` (omit `effort:`; Antigravity custom subagents inherit effort from the main session).");
+  } else if (skillId === "dream") {
+    out = out
+      .replace("extract.mjs --current $ANTIGRAVITY_CONVERSATION_ID", "extract.mjs --tool antigravity --current $ANTIGRAVITY_CONVERSATION_ID")
+      .replace('Call the `Workflow` tool with `scriptPath: "<base>/dream.workflow.py"` and `args:', 'Call the `run_workflow` tool with `ScriptPath: "<base>/dream.workflow.py"` and `Args:')
+      .replace("The model of `cheap` is in `.xworkflows/tiers.json`.", "The model of `cheap` is in `.xworkflows/tiers.json` under `antigravity` (`flash`).");
+  } else if (skillId === "pending") {
+    out = out
+      .replace('Call the `Workflow` tool with `scriptPath: "<base>/triage.workflow.py"` and `args:', 'Call the `run_workflow` tool with `ScriptPath: "<base>/triage.workflow.py"` and `Args:')
+      .replace("`model` is `cheap` in `.xworkflows/tiers.json`.", "`model` is `cheap` in `.xworkflows/tiers.json` under `antigravity` (`flash`).");
+  } else if (skillId === "full-review") {
+    out = out.replace(
+      /## Step 3: The Workflow[\s\S]*?```\n/,
+      '## Step 3: The Workflow\n\nCall the `run_workflow` tool with `ScriptPath: "<base>/full-review.workflow.py"` and `Args: { zones, skills, agent }` (`<base>` is this skill\'s folder). `zones` is the `zones` array; `skills` maps each review (`thermo-nuclear-review`, `thermo-nuclear-code-quality-review`) to its installed folder `.agents/skills/<name>` (or `.agents/skills/xwf-<name>` if renamed in `.xworkflows/installed.json`); `agent` is `zone-review` (or `xwf-zone-review` if renamed).\n',
+    );
+  } else if (skillId === "orchestrate") {
+    out = out
+      .replace("One or two agents go with `Agent`, in one message when they are independent. Three or more in a stretch, parallel or serial, go in one `Workflow`", "One or two agents go with `invoke_subagent`, in one message when they are independent. Three or more in a stretch, parallel or serial, go in one `run_workflow`")
+      .replace("In a `Workflow`, every `agent()` names its `agentType`", "In a `run_workflow` script, every `agent()` names its `type_name`")
+      .replace("the risk reviewer's first review of a batch runs at effort `xhigh`.", "the risk reviewer's first review of a batch runs at effort `xhigh` (in Antigravity, if the session is not already at `xhigh`, remind the owner to run `/effort xhigh` before dispatching `risk-review` so `model: inherit` runs at `xhigh`).");
+  }
+  return out;
+}
 // the plugins on in settings.json once install has run: those it holds, and those install turns on
 // the check's rule: <plugin>@<marketplace>: true in the settings install leaves (a plugin install adds only when the key is absent); a linked settings file is not written, so counts nothing
 function pluginsOn(manifest, root) {
@@ -585,24 +747,38 @@ function liteOf(src, full, name, model) {
   return /^model: /m.test(t) ? t.replace(/^model: .*$/m, `model: ${model}`) : t.replace(/^name: .*$/m, `$&\nmodel: ${model}`);
 }
 // Every file this package copies, with the text it copies (tier line included, config applied to the agents); plan() and uninstall share it.
-function pkgWrites(manifest, root) {
+function pkgWrites(manifest, root, tools = ["claude"]) {
   const tiers = readFileSync(join(PKG, "tiers.json"), "utf8");
+  const tiersObj = JSON.parse(tiers);
   let cfg = DEFAULTS;
   try { cfg = loadConfig(root); } catch {} // a config that does not parse is said by the other readers
-  const on = pluginsOn(manifest, root);
+  const on = tools.includes("claude") ? pluginsOn(manifest, root) : new Set();
   const writes = [{ path: ".xworkflows/tiers.json", text: tiers, piece: "installer", src: "tiers.json" }];
   for (const p of manifest.pieces) {
     for (const f of Object.keys(p.files)) {
-      const t = target(f);
-      if (!t) continue;
-      let text = readFileSync(join(PKG, f), "utf8");
-      if (f.startsWith("agents/")) text = renderAgent(tierToModel(text, JSON.parse(tiers)), cfg.agents?.[basename(f, ".md")], on);
-      writes.push({ path: t, text, piece: p.id, src: f });
+      const dests = targets(f, tools);
+      if (!dests.length) continue;
+      const raw = readFileSync(join(PKG, f), "utf8");
+      for (const t of dests) {
+        let text = raw;
+        if (f.startsWith("agents/")) {
+          const ov = cfg.agents?.[basename(f, ".md")];
+          text = t.startsWith(".agents/") ? renderAntigravityAgent(raw, tiersObj, ov) : renderAgent(tierToModel(raw, tiersObj, "claude"), ov, on);
+        } else if (f.startsWith("skills/") && t.startsWith(".agents/")) {
+          text = renderAntigravitySkill(p.id, f, raw);
+        }
+        writes.push({ path: t, text, piece: p.id, src: f });
+      }
     }
   }
-  const { riskReviewer: full, riskReviewerLite: lite } = cfg.roles, from = `.claude/agents/${full}.md`;
-  const source = Array.isArray(cfg.paths.riskLite) && cfg.paths.riskLite.length && [full, lite].every((n) => NAME.test(n)) && full !== lite ? read(root, from) : null;
-  if (source !== null) writes.push({ path: `.claude/agents/${lite}.md`, text: liteOf(source, full, lite, JSON.parse(tiers).claude.top), piece: "installer", src: from });
+  const { riskReviewer: full, riskReviewerLite: lite } = cfg.roles;
+  if (Array.isArray(cfg.paths.riskLite) && cfg.paths.riskLite.length && [full, lite].every((n) => NAME.test(n)) && full !== lite) {
+    for (const [tool, dir] of [["claude", ".claude"], ["antigravity", ".agents"]]) {
+      if (!tools.includes(tool)) continue;
+      const from = `${dir}/agents/${full}.md`, source = read(root, from);
+      if (source !== null) writes.push({ path: `${dir}/agents/${lite}.md`, text: liteOf(source, full, lite, tiersObj[tool].top), piece: "installer", src: from });
+    }
+  }
   return writes;
 }
 // The xwf- form of a file of unit u.
@@ -617,22 +793,24 @@ function renameWrite(w, u) {
 function published(p, text, tiers) {
   const u = p.match(UNIT)?.[0], id = u && basename(u, ".md");
   const t = id?.startsWith("xwf-") && named(p, u) && nameAs(text, id) === text ? nameAs(text, id.slice(4)) : text;
-  const ks = p.startsWith(".claude/agents/") ? Object.keys(tiers.claude) : [];
+  const ks = p.startsWith(".claude/agents/") ? Object.keys(tiers.claude) : p.startsWith(".agents/agents/") ? Object.keys(tiers.antigravity ?? {}) : [];
   return [t, ...ks.map((k) => t.replace(/^model: .*$/m, `tier: ${k}`))];
 }
 
 // path -> the hashes the manifest lists for a retired file, at every place install may have written it, the xwf- one included
-function retiredPaths(manifest) {
+function retiredPaths(manifest, tools = ["claude"]) {
   const listed = new Map();
   for (const [f, hashes] of manifest.pieces.flatMap((p) => Object.entries(p.retired ?? {}))) {
-    const t = target(f), u = t?.match(UNIT)?.[0];
-    if (t) for (const p of u ? [t, renameWrite({ path: t, text: "" }, u).path] : [t]) listed.set(p, hashes);
+    for (const t of targets(f, tools)) {
+      const u = t.match(UNIT)?.[0];
+      for (const p of u ? [t, renameWrite({ path: t, text: "" }, u).path] : [t]) listed.set(p, hashes);
+    }
   }
   return listed;
 }
 
-export function plan(manifest, root, record, ans = {}) {
-  let writes = pkgWrites(manifest, root);
+export function plan(manifest, root, record, ans = {}, tools = Array.isArray(record?.tools) && record.tools.length ? record.tools : ["claude"]) {
+  let writes = pkgWrites(manifest, root, tools);
   const questions = [], kept = [], renamed = {}, notes = [];
   const ask = (id, text, labels, yes = 1) => {
     if (ans[id] === undefined) questions.push({ id, text, labels, yes });
@@ -731,7 +909,7 @@ export function plan(manifest, root, record, ans = {}) {
   }
   // a file install wrote that this version no longer ships: found from the record, removed only when the manifest lists it as retired
   // with the hash of the text on disk as the package published it, kept and named once when edited, and then out of the record; the record's hash never decides
-  const listed = retiredPaths(manifest);
+  const listed = retiredPaths(manifest, tools);
   const shipped = new Set(writes.map((w) => w.key ?? w.path));
   const retired = [], tiers = JSON.parse(readFileSync(join(PKG, "tiers.json"), "utf8"));
   for (const p of Object.keys(record.files)) {
@@ -742,16 +920,19 @@ export function plan(manifest, root, record, ans = {}) {
     if ((!hashes && !lite) || kept.includes(u) || record.kept.includes(u) || shipped.has(p) || !plain(p) || !clean(root, p) || !lstatSync(join(root, p), { throwIfNoEntry: false })?.isFile()) continue;
     if (lite ? hash(read(root, p)) === record.files[p].sha256 : published(p, read(root, p), tiers).some((t) => hashes.includes(hash(t)))) retired.push(p);
     // an agent is rendered from the config: its text is the record's hash and no published text, so it is neither deleted nor changed
-    else notes.push(`kept (no longer shipped, ${p.startsWith(".claude/agents/") && hash(read(root, p)) === record.files[p]?.sha256 ? "as install recorded it" : "changed locally"}): ${p}`);
+    else notes.push(`kept (no longer shipped, ${/^\.(?:claude|agents)\/agents\//.test(p) && hash(read(root, p)) === record.files[p]?.sha256 ? "as install recorded it" : "changed locally"}): ${p}`);
   }
   // the module of a hook id the manifest no longer has: removed when it is the text install wrote, else kept and said
-  const settingsOn = !off(SETTINGS);
+  const hasClaude = tools.includes("claude"), hasAg = tools.includes("antigravity");
+  const settingsOn = hasClaude && !off(SETTINGS);
+  const agHooksOn = hasAg && !off(AG_HOOKS);
+  const hooksWiredOn = (!hasClaude || settingsOn) && (!hasAg || agHooksOn);
   const orphans = orphanIds(manifest);
   for (const id of orphans) {
     const p = `.xworkflows/hooks/core/${id}.mjs`, f = record.files[p];
     if (!f || shipped.has(p) || !plain(p) || !clean(root, p) || !lstatSync(join(root, p), { throwIfNoEntry: false })?.isFile()) continue;
-    // the settings merge drops the entries: skipped, the module and its record line stay for a later install
-    if (!settingsOn) dropped.push({ path: p });
+    // the settings/hooks merge drops the entries: skipped, the module and its record line stay for a later install
+    if (!hooksWiredOn) dropped.push({ path: p });
     else if (hash(read(root, p)) === f.sha256) retired.push(p);
     else notes.push(`kept (no longer shipped, changed locally): ${p}`);
   }
@@ -765,28 +946,31 @@ export function plan(manifest, root, record, ans = {}) {
     if (!existsSync(join(root, md)) && !off(md)) merges.push({ path: md, text: null, dir: true, verb: "create", rec: { created: [md] } });
     const keep = join(md, "MEMORY.md");
     if (mem.autoDirectory !== false && !existsSync(join(root, keep)) && !off(keep)) merges.push({ path: keep, text: "", verb: "create", rec: { created: [keep] } });
-    if (mem.autoDirectory !== false && !off(EARLIER)) merges.push(mergeEarlier(root, md));
+    if (hasClaude && mem.autoDirectory !== false && !off(EARLIER)) merges.push(mergeEarlier(root, md));
     qmd = !mem.index && !localYml(root) && !off(YML);
     if (qmd) merges.push({ path: YML, text: `collections:\n  memory:\n    path: ${JSON.stringify(resolve(root, md))}\n    pattern: "**/*.md"\n`, verb: "write", rec: {} });
     // the marker passes the yml's test and is never written over something that is there
     if (qmd && !off(QMARK) && !lstatSync(join(root, QMARK), { throwIfNoEntry: false })) merges.push({ path: QMARK, text: MARK_TEXT, verb: "write", rec: {} });
   }
   if (settingsOn) { const ms = mergeSettings(root, manifest, record); notes.push(...ms.notes); merges.push(ms); }
-  if (!off(LOCAL)) { const local = mergeLocal(root); if (local.note) notes.push(local.note); merges.push(local); }
-  if (!off(".gitignore")) merges.push(mergeIgnore(root, qmd));
+  if (agHooksOn) { const ma = mergeAntigravityHooks(root, manifest, record); notes.push(...ma.notes); merges.push(ma); }
+  if (hasClaude && !off(LOCAL)) { const local = mergeLocal(root); if (local.note) notes.push(local.note); merges.push(local); }
+  if (!off(".gitignore")) merges.push(mergeIgnore(root, qmd, tools));
   if (!off(GI)) merges.push(mergeGraphifyIgnore(root, writes));
   if (!off("AGENTS.md")) merges.push(mergeAgents(root));
   merges.push(...hookMerges);
-  const link = off("CLAUDE.md");
-  const claude = link ? undefined : read(root, "CLAUDE.md");
-  if (link) { /* noted above */ } else if (claude === null) {
-    merges.push({ path: "CLAUDE.md", text: "@AGENTS.md\n", rec: { imports: [{ file: "CLAUDE.md", line: "@AGENTS.md" }], created: ["CLAUDE.md"] } });
-  } else if (!/^@AGENTS\.md\s*$/m.test(claude) && !record.declined.some((d) => d.file === "CLAUDE.md" && d.what === "import")) {
-    if (ask("import", IMPORT, ["no", "yes"]) === "yes") {
-      merges.push({ path: "CLAUDE.md", text: claude + (claude.endsWith("\n") ? "" : "\n") + "@AGENTS.md\n", rec: { imports: [claude.endsWith("\n") ? { file: "CLAUDE.md", line: "@AGENTS.md" } : { file: "CLAUDE.md", line: "@AGENTS.md", addedNewline: true }] } });
-    } else merges.push({ path: "CLAUDE.md", text: null, rec: { declined: [{ file: "CLAUDE.md", what: "import" }] } });
+  if (hasClaude) {
+    const link = off("CLAUDE.md");
+    const claude = link ? undefined : read(root, "CLAUDE.md");
+    if (link) { /* noted above */ } else if (claude === null) {
+      merges.push({ path: "CLAUDE.md", text: "@AGENTS.md\n", rec: { imports: [{ file: "CLAUDE.md", line: "@AGENTS.md" }], created: ["CLAUDE.md"] } });
+    } else if (!/^@AGENTS\.md\s*$/m.test(claude) && !record.declined.some((d) => d.file === "CLAUDE.md" && d.what === "import")) {
+      if (ask("import", IMPORT, ["no", "yes"]) === "yes") {
+        merges.push({ path: "CLAUDE.md", text: claude + (claude.endsWith("\n") ? "" : "\n") + "@AGENTS.md\n", rec: { imports: [claude.endsWith("\n") ? { file: "CLAUDE.md", line: "@AGENTS.md" } : { file: "CLAUDE.md", line: "@AGENTS.md", addedNewline: true }] } });
+      } else merges.push({ path: "CLAUDE.md", text: null, rec: { declined: [{ file: "CLAUDE.md", what: "import" }] } });
+    }
   }
-  return { writes, dropped, merges, questions, kept, renamed, notes, retired, orphans: settingsOn ? orphans : new Set() };
+  return { writes, dropped, merges, questions, kept, renamed, notes, retired, orphans: hooksWiredOn ? orphans : new Set(), tools };
 }
 
 const differs = (root, w) => !existsSync(join(root, w.path)) || readFileSync(join(root, w.path), "utf8") !== w.text;
@@ -805,7 +989,7 @@ export function apply(pl, root, manifest, record) {
   // a folder the removal empties goes with it when it is the package's own: a subfolder of .xworkflows/ or a skill's folder
   for (const p of pl.retired) {
     linked(p); rmSync(join(root, p)); out.push(`removed ${p}`);
-    for (let d = dirname(p); /^\.xworkflows\/|^\.claude\/(skills|agents)\/[^/]+/.test(d) && !readdirSync(join(root, d)).length; d = dirname(d)) { rmdirSync(join(root, d)); out.push(`removed ${d}/`); }
+    for (let d = dirname(p); /^\.xworkflows\/|^\.(?:claude|agents)\/(skills|agents)\/[^/]+/.test(d) && !readdirSync(join(root, d)).length; d = dirname(d)) { rmdirSync(join(root, d)); out.push(`removed ${d}/`); }
   }
   for (const w of pl.writes) if (!w.keep && differs(root, w)) {
     const hook = HOOKS.includes(w.src);
@@ -814,8 +998,9 @@ export function apply(pl, root, manifest, record) {
     put(root, w.path, w.text, w.mode, hook);
     out.push(w.path);
   }
-  const orphaned = record.merged.filter((m) => pl.orphans.has(hookId(m.entry)));
-  const next = { ...record, xworkflows: manifest.version, tools: ["claude"], pieces: {}, files: {}, merged: record.merged.filter((m) => !orphaned.includes(m)), dirs: [...new Set([...(record.dirs ?? []), ...made])], kept: [...new Set([...record.kept, ...pl.kept])], renamed: { ...record.renamed, ...pl.renamed } };
+  const tools = pl.tools ?? (Array.isArray(record.tools) && record.tools.length ? record.tools : ["claude"]);
+  const orphaned = record.merged.filter((m) => pl.orphans.has(hookId(m.entry) ?? agHookKeyId(m)));
+  const next = { ...record, xworkflows: manifest.version, tools, pieces: {}, files: {}, merged: record.merged.filter((m) => !orphaned.includes(m)), dirs: [...new Set([...(record.dirs ?? []), ...made])], kept: [...new Set([...record.kept, ...pl.kept])], renamed: { ...record.renamed, ...pl.renamed } };
   const moved = [];
   for (const m of pl.merges) {
     let rec = m.rec;
@@ -837,8 +1022,11 @@ export function apply(pl, root, manifest, record) {
     for (const [k, list] of Object.entries(rec)) {
       next[k] = [...next[k]];
       // the replaced entry of a hook leaves the record
-      if (k === "merged") for (const x of list) { const gone = next[k].find((y) => x.entry?.hooks && x.file === y.file && isDeepStrictEqual(x.key, y.key) && x.entry.hooks[0].command === y.entry?.hooks?.[0]?.command); if (gone?.createdKey) { x.createdKey = true; x.levels = gone.levels; } }
-      if (k === "merged") next[k] = next[k].filter((y) => !list.some((x) => x.entry?.hooks && x.file === y.file && isDeepStrictEqual(x.key, y.key) && x.entry.hooks[0].command === y.entry?.hooks?.[0]?.command));
+      if (k === "merged") for (const x of list) {
+        const gone = next[k].find((y) => (x.entry?.hooks && x.file === y.file && isDeepStrictEqual(x.key, y.key) && x.entry.hooks[0].command === y.entry?.hooks?.[0]?.command) || (x.file === AG_HOOKS && y.file === AG_HOOKS && isDeepStrictEqual(x.key, y.key)));
+        if (gone?.createdKey) { x.createdKey = true; if (gone.levels) x.levels = gone.levels; }
+      }
+      if (k === "merged") next[k] = next[k].filter((y) => !list.some((x) => (x.entry?.hooks && x.file === y.file && isDeepStrictEqual(x.key, y.key) && x.entry.hooks[0].command === y.entry?.hooks?.[0]?.command) || (x.file === AG_HOOKS && y.file === AG_HOOKS && isDeepStrictEqual(x.key, y.key))));
       for (const x of list) if (!next[k].some((y) => (k === "merged" ? x.file === y.file && isDeepStrictEqual(x.key, y.key) && isDeepStrictEqual(x.entry, y.entry) : (k === "blocks" || k === "imports" ? x.file === y.file && x.line === y.line : isDeepStrictEqual(x, y))))) next[k].push(x);
     }
   }
@@ -876,17 +1064,22 @@ async function install(flags) {
   const rp = join(ROOT, ".xworkflows/installed.json");
   // uninstall refuses a linked record, so install must not read or write through one
   if (!clean(ROOT, ".xworkflows/installed.json")) die(1, "not written (symlink): .xworkflows/installed.json");
+  let existingTools = null;
   if (existsSync(rp)) {
     try {
       const parsed = JSON.parse(readFileSync(rp, "utf8"));
       record = { ...EMPTY, ...parsed };
+      if (Array.isArray(parsed.tools) && parsed.tools.length) existingTools = parsed.tools.filter((t) => SUPPORTED_TOOLS.includes(t));
       // a record of an earlier version has no dirs: it stays so, because an empty list would switch off the removal of empty parents
       if (!Array.isArray(parsed.dirs)) record.dirs = undefined;
     } catch {
       die(1, ".xworkflows/installed.json does not parse; fix or remove it");
     }
   }
-  let pl = plan(m, ROOT, record);
+  const tools = flags.tools
+    ? (existingTools ? SUPPORTED_TOOLS.filter((t) => existingTools.includes(t) || flags.tools.includes(t)) : flags.tools)
+    : (existingTools?.length ? existingTools : ["claude"]);
+  let pl = plan(m, ROOT, record, {}, tools);
   // a linked folder, or a file or unreadable folder in the way, under .xworkflows would leave the hooks wired to files that were not written
   const linked = pl.notes.find((n) => /^not written \((symlink\)|not a folder, or not readable\)): \.xworkflows\//.test(n));
   if (linked) die(1, linked);
@@ -905,7 +1098,7 @@ async function install(flags) {
     } else { ans[q.id] = q.labels[0]; auto.push(`answered for you: ${q.text} -> ${q.labels[0]}`); }
   }
   rl?.close();
-  if (pl.questions.length) pl = plan(m, ROOT, record, ans);
+  if (pl.questions.length) pl = plan(m, ROOT, record, ans, tools);
   for (const n of pl.notes) console.log(n);
   if (flags["dry-run"]) {
     for (const w of pl.writes) if (!w.keep && differs(ROOT, w)) console.log(`${w.rename ? `would rename ${w.path} to ${w.rename}\n` : ""}would write ${w.path}`);
@@ -919,7 +1112,9 @@ async function install(flags) {
   } else {
     const done = apply(pl, ROOT, m, record);
     console.log(done.length ? done.join("\n") : "nothing to do");
-    console.log("Next: open Claude Code and type /adapt");
+    const approved = /^status:\s*approved\s*$/m.test(read(ROOT, ".xworkflows/summary.md") ?? "");
+    const targetName = tools.length === 2 ? "Claude Code or Antigravity" : tools[0] === "antigravity" ? "Antigravity" : "Claude Code";
+    console.log(approved && tools.includes("antigravity") ? `Next: open ${targetName} and type /next-step (already adapted)` : `Next: open ${targetName} and type /adapt`);
   }
   for (const a of auto) console.log(a);
 }
@@ -969,8 +1164,10 @@ async function doctor() {
     const n = gitHooks.get(f), same = hash(t) === sha256 && !(f.startsWith(".xworkflows/git/") && t.includes("\r"));
     say(same ? "ok" : "warn", same ? f : n && !hookState(readManifest(), ROOT, rec, n).mine ? `changed locally: ${f}, the project's own hook now: ${INSTALL}` : `changed locally: ${f}; to put the package's copy back, delete it, then ${INSTALL} (install keeps a changed file)`);
   }
+  const tools = Array.isArray(rec.tools) && rec.tools.length ? rec.tools : ["claude"];
+  const hasClaude = tools.includes("claude"), hasAg = tools.includes("antigravity");
   for (const k of rec.kept) {
-    const gs = k === ".claude/skills/grill" && rec.pieces["design-first"] ? read(ROOT, `${k}/SKILL.md`) : null;
+    const gs = (k === ".claude/skills/grill" || k === ".agents/skills/grill") && rec.pieces["design-first"] ? read(ROOT, `${k}/SKILL.md`) : null;
     if (gs !== null && !gs.includes("node .xworkflows/mark.mjs grill")) say("fail", 'kept grill never marks itself: spec writes will be denied. Add the line "node .xworkflows/mark.mjs grill" to its first step');
     else say("warn", `kept theirs: ${k}; to use the package's copy, delete ${k}, take it out of "kept" in .xworkflows/installed.json and ${INSTALL}`);
   }
@@ -983,8 +1180,23 @@ async function doctor() {
     say("warn", w.earlier.some((x) => isDeepStrictEqual(x, mine)) ? `${lbl} hook ${w.id} holds an earlier text of the package: ${INSTALL} replaces it` : `${lbl} hook ${w.id} differs from every text the package published; to get the package's entry, delete it and ${INSTALL}`);
     return true;
   };
-  const wants = settingsWants(readManifest()).filter((w) => w.id);
+  const manifest = readManifest();
+  const wants = hasClaude ? settingsWants(manifest).filter((w) => w.id) : [];
+  const agWants = hasAg ? agHooksWants(manifest) : [];
+  let agObj = null;
+  if (hasAg) try { agObj = JSON.parse(readFileSync(join(ROOT, AG_HOOKS), "utf8")); } catch {}
   for (const m of rec.merged) {
+    if (m.file === AG_HOOKS) {
+      if (!hasAg) continue;
+      const k = m.key[0], lbl = `${m.file} ${k}`;
+      const w = agWants.find((x) => x.key === k);
+      const cur = isObj(agObj) ? agObj[k] : undefined;
+      if (cur === undefined) say("fail", `merged entry missing: ${lbl}: ${INSTALL}`);
+      else if (w && !isDeepStrictEqual(cur, w.entry)) say("warn", `${lbl} hook ${w.id} differs from the package's entry; to get the package's entry, delete ${k} and ${INSTALL}`);
+      else say("ok", `merged: ${lbl}`);
+      continue;
+    }
+    if (!hasClaude) continue;
     const arr = readArr(m.file, m.key);
     const id = hookId(m.entry);
     const lbl = `${m.file} ${m.key.join(".")}`;
@@ -993,22 +1205,31 @@ async function doctor() {
     if (arr.some((e) => isDeepStrictEqual(e, m.entry))) say("ok", `merged: ${lbl}`);
     else say("fail", `merged entry missing: ${lbl}: ${INSTALL}`);
   }
-  for (const w of wants) if (!rec.merged.some((m) => isDeepStrictEqual(m.key, w.key) && w.ours(m.entry))) differs(w, readArr(".claude/settings.json", w.key), `.claude/settings.json ${w.key.join(".")}`);
-  const inSettings = (key) => { try { return key.reduce((o, k) => o?.[k], JSON.parse(readFileSync(join(ROOT, ".claude/settings.json"), "utf8"))); } catch { return undefined; } };
-  for (const { key } of pluginWants(readManifest(), ROOT, false, (t) => say("warn", t))) {
-    const lbl = `.claude/settings.json ${key.join(".")}`;
-    if (inSettings(key) !== undefined) say("ok", `merged: ${lbl}`);
-    else say("fail", `merged entry missing: ${lbl}: ${INSTALL}`);
+  for (const w of wants) if (!rec.merged.some((m) => m.file === SETTINGS && isDeepStrictEqual(m.key, w.key) && w.ours(m.entry))) differs(w, readArr(SETTINGS, w.key), `${SETTINGS} ${w.key.join(".")}`);
+  for (const w of agWants) if (!rec.merged.some((m) => m.file === AG_HOOKS && m.key[0] === w.key)) {
+    const cur = isObj(agObj) ? agObj[w.key] : undefined;
+    if (cur === undefined) say("fail", `merged entry missing: ${AG_HOOKS} ${w.key}: ${INSTALL}`);
+    else if (!isDeepStrictEqual(cur, w.entry)) say("warn", `${AG_HOOKS} ${w.key} hook ${w.id} differs from the package's entry; to get the package's entry, delete ${w.key} and ${INSTALL}`);
+  }
+  if (hasClaude) {
+    const inSettings = (key) => { try { return key.reduce((o, k) => o?.[k], JSON.parse(readFileSync(join(ROOT, ".claude/settings.json"), "utf8"))); } catch { return undefined; } };
+    for (const { key } of pluginWants(manifest, ROOT, false, (t) => say("warn", t))) {
+      const lbl = `.claude/settings.json ${key.join(".")}`;
+      if (inSettings(key) !== undefined) say("ok", `merged: ${lbl}`);
+      else say("fail", `merged entry missing: ${lbl}: ${INSTALL}`);
+    }
   }
   // 4
   if (!rec.blocks.length) say("fail", `AGENTS.md block was never written: ${INSTALL}`);
   else if ((read(ROOT, "AGENTS.md") ?? "").includes(agentsBlock())) say("ok", "AGENTS.md block matches the template");
   else say("fail", `AGENTS.md block differs from the template: ${INSTALL}`);
-  // a CLAUDE.md that is a link to AGENTS.md is the same file
-  const one = (() => { try { return realpathSync(join(ROOT, "CLAUDE.md")) === realpathSync(join(ROOT, "AGENTS.md")); } catch { return false; } })();
-  if (one || /^@AGENTS\.md\s*$/m.test(read(ROOT, "CLAUDE.md") ?? "")) say("ok", "CLAUDE.md imports AGENTS.md");
-  else if (rec.declined.some((d) => d.file === "CLAUDE.md" && d.what === "import")) say("warn", "CLAUDE.md does not import AGENTS.md: add the line @AGENTS.md");
-  else say("fail", "CLAUDE.md does not import AGENTS.md: add the line @AGENTS.md");
+  if (hasClaude) {
+    // a CLAUDE.md that is a link to AGENTS.md is the same file
+    const one = (() => { try { return realpathSync(join(ROOT, "CLAUDE.md")) === realpathSync(join(ROOT, "AGENTS.md")); } catch { return false; } })();
+    if (one || /^@AGENTS\.md\s*$/m.test(read(ROOT, "CLAUDE.md") ?? "")) say("ok", "CLAUDE.md imports AGENTS.md");
+    else if (rec.declined.some((d) => d.file === "CLAUDE.md" && d.what === "import")) say("warn", "CLAUDE.md does not import AGENTS.md: add the line @AGENTS.md");
+    else say("fail", "CLAUDE.md does not import AGENTS.md: add the line @AGENTS.md");
+  }
   // config
   let cfg = {}, unparsed = false;
   // a file holding null is said by the config line below
@@ -1024,17 +1245,30 @@ async function doctor() {
   if (memRefused) say("fail", `${memRefused}: ${MEMFIX}`);
   const budget = cfg.tokens?.alwaysLoadedBytes ?? 24000;
   // 5
-  let command;
-  try {
-    const s = JSON.parse(readFileSync(join(ROOT, ".claude/settings.json"), "utf8"));
-    command = Object.values(s.hooks ?? {}).flat().find((e) => isOurs(e, "design-first"))?.hooks.find((h) => `${h.command} `.includes('claude design-first '))?.command;
-  } catch {}
-  if (!command) say("fail", `probe: no design-first hook entry: ${INSTALL}`);
-  else {
-    const event = { session_id: `doctor-${process.pid}`, cwd: ROOT, hook_event_name: "PreToolUse", tool_name: "Write", tool_input: { file_path: join(ROOT, specs, "xwf-doctor-probe.md"), content: "# probe\n" } };
-    const r = fire(command, event);
-    let d; try { d = JSON.parse(r.stdout).hookSpecificOutput?.permissionDecision; } catch {}
-    say(d === "deny" ? "ok" : "fail", d === "deny" ? "probe: design-first denies a spec write" : `probe: expected deny, got ${d ?? "no valid output"}: ${unparsed ? FIXJSON : `delete the files named "changed locally" above, then ${INSTALL}`}`);
+  if (hasClaude) {
+    let command;
+    try {
+      const s = JSON.parse(readFileSync(join(ROOT, ".claude/settings.json"), "utf8"));
+      command = Object.values(s.hooks ?? {}).flat().find((e) => isOurs(e, "design-first"))?.hooks.find((h) => `${h.command} `.includes('claude design-first '))?.command;
+    } catch {}
+    if (!command) say("fail", `probe: no design-first hook entry: ${INSTALL}`);
+    else {
+      const event = { session_id: `doctor-${process.pid}`, cwd: ROOT, hook_event_name: "PreToolUse", tool_name: "Write", tool_input: { file_path: join(ROOT, specs, "xwf-doctor-probe.md"), content: "# probe\n" } };
+      const r = fire(command, event);
+      let d; try { d = JSON.parse(r.stdout).hookSpecificOutput?.permissionDecision; } catch {}
+      say(d === "deny" ? "ok" : "fail", d === "deny" ? "probe: design-first denies a spec write" : `probe: expected deny, got ${d ?? "no valid output"}: ${unparsed ? FIXJSON : `delete the files named "changed locally" above, then ${INSTALL}`}`);
+    }
+  }
+  if (hasAg) {
+    const pfx = hasClaude ? "probe (antigravity)" : "probe";
+    const command = agObj?.["xworkflows-design-first"]?.PreToolUse?.[0]?.hooks?.[0]?.command;
+    if (!command) say("fail", `${pfx}: no design-first hook entry: ${INSTALL} --tool antigravity`);
+    else {
+      const event = { conversationId: `doctor-${process.pid}`, workspacePaths: [ROOT], cwd: ROOT, hookEventName: "PreToolUse", toolCall: { name: "write_file", args: { Path: join(ROOT, specs, "xwf-doctor-probe.md"), Content: "# probe\n" } } };
+      const r = fire(command, event);
+      let d; try { d = JSON.parse(r.stdout).decision; } catch {}
+      say(d === "deny" ? "ok" : "fail", d === "deny" ? `${pfx}: design-first denies a spec write` : `${pfx}: expected deny, got ${d ?? "no valid output"}: ${unparsed ? FIXJSON : `delete the files named "changed locally" above, then ${INSTALL} --tool antigravity`}`);
+    }
   }
   // 6
   const seen = new Set();
@@ -1046,11 +1280,14 @@ async function doctor() {
     seen.add(p);
     bytes += statSync(p).size;
     for (const l of text.split("\n")) {
-      const m = l.trim().match(/^@(\S+)/);
-      if (m) load(resolve(dirname(p), m[1]));
+      const mdLink = l.trim().match(/^@\[[^\]]*\]\(([^)]+)\)/);
+      const plainImp = !mdLink && l.trim().match(/^@(\S+)/);
+      const target = mdLink?.[1] ?? plainImp?.[1];
+      if (target) load(resolve(dirname(p), target));
     }
   };
-  load(join(ROOT, "CLAUDE.md"));
+  if (hasClaude) load(join(ROOT, "CLAUDE.md"));
+  if (hasAg) { load(join(ROOT, "AGENTS.md")); load(join(ROOT, "GEMINI.md")); }
   const memFile = mem && join(ROOT, mem, "MEMORY.md");
   if (memFile && existsSync(memFile) && !seen.has(memFile)) { seen.add(memFile); bytes += statSync(memFile).size; }
   say(bytes > budget ? "fail" : "ok", `always-loaded: ${bytes} bytes of ${budget}${bytes > budget ? ": shorten CLAUDE.md, AGENTS.md and what they import, or raise tokens.alwaysLoadedBytes in .xworkflows/config.json" : ""}`);
@@ -1140,42 +1377,68 @@ async function doctor() {
     say(...SAY[hook.state]);
     }
     // the lite reviewer is a copy of the project's risk reviewer: it follows its source only when install runs again
-    const lw = conf.paths.riskLite?.length && pkgWrites(readManifest(), ROOT).find((w) => w.src === `.claude/agents/${conf.roles.riskReviewer}.md`);
-    // a recorded file that is missing or changed is said by the files loop: one step for the file
-    const recLite = rec.files[lw?.path], curLite = lw && read(ROOT, lw.path);
-    if (lw && curLite !== lw.text && (!recLite || (curLite !== null && hash(curLite) === recLite.sha256))) say("warn", `${lw.path} is not the render of ${lw.src}: ${INSTALL}`);
-    let st = {}, local = {};
-    try { st = JSON.parse(readFileSync(join(ROOT, ".claude/settings.json"), "utf8")); } catch {}
-    try { local = JSON.parse(readFileSync(join(ROOT, ".claude/settings.local.json"), "utf8")); } catch {}
-    let bytes = 0;
-    // a session file with as many sessions beside it as make the memory hook suggest dream, as the hook reads the threshold
-    // shortcut: a threshold over 1000 is probed with 1000 sessions, so its line is not measured; raise it when a project sets one
-    const after = conf.dream?.suggestAfterSessions, sessions = mkdtempSync(join(tmpdir(), "xwf-doctor-sessions-"));
-    for (let i = 0; i <= Math.min(Number.isInteger(after) && after > 0 ? after : DEFAULTS.dream.suggestAfterSessions, 1000); i++) writeFileSync(join(sessions, `${i}.jsonl`), "");
-    for (const h of (st.hooks?.SessionStart ?? []).flatMap((e) => e.hooks ?? [])) {
-      if (!`${h.command} `.includes('/.xworkflows/hooks/run.mjs" claude ')) continue;
-      const out = fire(h.command, { session_id: `doctor-${process.pid}`, cwd: ROOT, hook_event_name: "SessionStart", source: "startup", transcript_path: join(sessions, "0.jsonl") }).stdout ?? "";
-      // the hand-off is the last session's text, not the hook's: its bytes stay out of the measure, and the hook alone says whether it loads
-      if (!isOurs({ hooks: [h] }, "handoff-load")) { bytes += Buffer.byteLength(out); continue; }
-      // the hook's notice alone, never its context, which holds the hand-off text itself
-      let note; try { note = JSON.parse(out).systemMessage; } catch {}
-      if (typeof note === "string" && note.startsWith("The hand-off .xworkflows/handoff.md was not loaded")) say("warn", ".xworkflows/handoff.md was not loaded: it is over tokens.handoffBytes; shorten it");
+    const allWrites = conf.paths.riskLite?.length ? pkgWrites(manifest, ROOT, tools) : [];
+    for (const dir of [...(hasClaude ? [".claude"] : []), ...(hasAg ? [".agents"] : [])]) {
+      const lw = allWrites.find((w) => w.src === `${dir}/agents/${conf.roles.riskReviewer}.md`);
+      // a recorded file that is missing or changed is said by the files loop: one step for the file
+      const recLite = rec.files[lw?.path], curLite = lw && read(ROOT, lw.path);
+      if (lw && curLite !== lw.text && (!recLite || (curLite !== null && hash(curLite) === recLite.sha256))) say("warn", `${lw.path} is not the render of ${lw.src}: ${INSTALL}`);
     }
-    rmSync(sessions, { recursive: true, force: true });
     const sb = conf.tokens.sessionStartBytes;
-    say(bytes > sb ? "fail" : "ok", `session-start text: ${bytes} bytes of ${sb}${bytes > sb ? ": raise tokens.sessionStartBytes in .xworkflows/config.json or cut what the hook prints" : ""}`);
-    const ai = st.attribution && typeof st.attribution === "object" ? [st.attribution.commit, st.attribution.pr].some((x) => x) : !!st.attribution;
-    if (ai) say("warn", 'attribution in .claude/settings.json shows an AI line: set "attribution" to {"commit": "", "pr": ""} there');
-    const amd = local.autoMemoryDirectory, abs = mem && resolve(ROOT, mem);
-    if (mem) {
-      // a link out that memory.outside lists
-      try {
-        const where = real(abs), base = real(ROOT);
-        if (where !== base && !where.startsWith(base + sep)) say("warn", 'the memory folder is outside the repository: qmd indexes it only after "qmd trust" is run here');
-      } catch {}
-      if (conf.memory?.autoDirectory === false) {} // the owner turned the key off
-      else if (amd === undefined) say("warn", `autoMemoryDirectory is not set in .claude/settings.local.json: add "autoMemoryDirectory": "${abs}" to it`);
-      else if (typeof amd !== "string" || !(resolve(ROOT, amd) + sep).startsWith(abs + sep)) say("warn", `autoMemoryDirectory is not the memory folder ${mem}: set it to "${abs}" in .claude/settings.local.json`);
+    if (hasClaude) {
+      let st = {}, local = {};
+      try { st = JSON.parse(readFileSync(join(ROOT, ".claude/settings.json"), "utf8")); } catch {}
+      try { local = JSON.parse(readFileSync(join(ROOT, ".claude/settings.local.json"), "utf8")); } catch {}
+      let bytes = 0;
+      // a session file with as many sessions beside it as make the memory hook suggest dream, as the hook reads the threshold
+      // shortcut: a threshold over 1000 is probed with 1000 sessions, so its line is not measured; raise it when a project sets one
+      const after = conf.dream?.suggestAfterSessions, sessions = mkdtempSync(join(tmpdir(), "xwf-doctor-sessions-"));
+      for (let i = 0; i <= Math.min(Number.isInteger(after) && after > 0 ? after : DEFAULTS.dream.suggestAfterSessions, 1000); i++) writeFileSync(join(sessions, `${i}.jsonl`), "");
+      for (const h of (st.hooks?.SessionStart ?? []).flatMap((e) => e.hooks ?? [])) {
+        if (!`${h.command} `.includes('/.xworkflows/hooks/run.mjs" claude ')) continue;
+        const out = fire(h.command, { session_id: `doctor-${process.pid}`, cwd: ROOT, hook_event_name: "SessionStart", source: "startup", transcript_path: join(sessions, "0.jsonl") }).stdout ?? "";
+        // the hand-off is the last session's text, not the hook's: its bytes stay out of the measure, and the hook alone says whether it loads
+        if (!isOurs({ hooks: [h] }, "handoff-load")) { bytes += Buffer.byteLength(out); continue; }
+        // the hook's notice alone, never its context, which holds the hand-off text itself
+        let note; try { note = JSON.parse(out).systemMessage; } catch {}
+        if (typeof note === "string" && note.startsWith("The hand-off .xworkflows/handoff.md was not loaded")) say("warn", ".xworkflows/handoff.md was not loaded: it is over tokens.handoffBytes; shorten it");
+      }
+      rmSync(sessions, { recursive: true, force: true });
+      say(bytes > sb ? "fail" : "ok", `session-start text: ${bytes} bytes of ${sb}${bytes > sb ? ": raise tokens.sessionStartBytes in .xworkflows/config.json or cut what the hook prints" : ""}`);
+      const ai = st.attribution && typeof st.attribution === "object" ? [st.attribution.commit, st.attribution.pr].some((x) => x) : !!st.attribution;
+      if (ai) say("warn", 'attribution in .claude/settings.json shows an AI line: set "attribution" to {"commit": "", "pr": ""} there');
+      const amd = local.autoMemoryDirectory, abs = mem && resolve(ROOT, mem);
+      if (mem) {
+        // a link out that memory.outside lists
+        try {
+          const where = real(abs), base = real(ROOT);
+          if (where !== base && !where.startsWith(base + sep)) say("warn", 'the memory folder is outside the repository: qmd indexes it only after "qmd trust" is run here');
+        } catch {}
+        if (conf.memory?.autoDirectory === false) {} // the owner turned the key off
+        else if (amd === undefined) say("warn", `autoMemoryDirectory is not set in .claude/settings.local.json: add "autoMemoryDirectory": "${abs}" to it`);
+        else if (typeof amd !== "string" || !(resolve(ROOT, amd) + sep).startsWith(abs + sep)) say("warn", `autoMemoryDirectory is not the memory folder ${mem}: set it to "${abs}" in .claude/settings.local.json`);
+      }
+    }
+    if (hasAg) {
+      let agBytes = 0;
+      for (const [k, def] of isObj(agObj) ? Object.entries(agObj) : []) {
+        for (const h of Array.isArray(def?.SessionStart) ? def.SessionStart : []) {
+          if (!`${h?.command} `.includes('/.xworkflows/hooks/run.mjs" antigravity ')) continue;
+          const out = fire(h.command, { conversationId: `doctor-${process.pid}`, workspacePaths: [ROOT], cwd: ROOT, hookEventName: "SessionStart", transcriptPath: "" }).stdout ?? "";
+          if (k !== "xworkflows-handoff-load") { agBytes += Buffer.byteLength(out); continue; }
+          let note; try { note = JSON.parse(out).injectSteps?.[0]?.systemMessage?.metadata?.user_markdown; } catch {}
+          if (typeof note === "string" && note.startsWith("The hand-off .xworkflows/handoff.md was not loaded")) say("warn", ".xworkflows/handoff.md was not loaded: it is over tokens.handoffBytes; shorten it");
+        }
+      }
+      const lbl = hasClaude ? "session-start text (antigravity)" : "session-start text";
+      say(agBytes > sb ? "fail" : "ok", `${lbl}: ${agBytes} bytes of ${sb}${agBytes > sb ? ": raise tokens.sessionStartBytes in .xworkflows/config.json or cut what the hook prints" : ""}`);
+      if (!hasClaude && mem) {
+        const abs = resolve(ROOT, mem);
+        try {
+          const where = real(abs), base = real(ROOT);
+          if (where !== base && !where.startsWith(base + sep)) say("warn", 'the memory folder is outside the repository: qmd indexes it only after "qmd trust" is run here');
+        } catch {}
+      }
     }
     for (const n of Object.keys(conf.packs).filter((n) => run.PACKS.includes(n))) {
       let tool;
@@ -1186,25 +1449,46 @@ async function doctor() {
       const got = `${v.stdout}${v.stderr}`.match(/\d+\.\d+\.\d+/)?.[0];
       say(got === tool.version ? "ok" : "warn", got === tool.version ? `pack ${n}: ${got}` : `pack ${n}: version ${got ?? "unknown"}, tested with ${tool.version}: install ${tool.command} ${tool.version}`);
     }
-    // shortcut: reads the whole session file, when sessions grow past a few MB read only the first lines
-    const sess = join(homedir(), ".claude/projects", ROOT.replace(/[^a-zA-Z0-9]/g, "-"));
-    let first;
-    try {
-      const newest = readdirSync(sess).filter((f) => f.endsWith(".jsonl")).map((f) => [statSync(join(sess, f)).mtimeMs, f]).sort((a, b) => b[0] - a[0])[0];
-      for (const line of readFileSync(join(sess, newest[1]), "utf8").split("\n")) {
-        let u; try { u = JSON.parse(line)?.message?.usage; } catch {}
-        if (u) { first = (u.input_tokens ?? 0) + (u.cache_creation_input_tokens ?? 0) + (u.cache_read_input_tokens ?? 0); break; }
-      }
-    } catch {}
-    say("ok", first === undefined ? "first turn: no session recorded" : `first turn: ${first} input tokens (newest session)`);
+    if (hasClaude) {
+      // shortcut: reads the whole session file, when sessions grow past a few MB read only the first lines
+      const sess = join(homedir(), ".claude/projects", ROOT.replace(/[^a-zA-Z0-9]/g, "-"));
+      let first;
+      try {
+        const newest = readdirSync(sess).filter((f) => f.endsWith(".jsonl")).map((f) => [statSync(join(sess, f)).mtimeMs, f]).sort((a, b) => b[0] - a[0])[0];
+        for (const line of readFileSync(join(sess, newest[1]), "utf8").split("\n")) {
+          let u; try { u = JSON.parse(line)?.message?.usage; } catch {}
+          if (u) { first = (u.input_tokens ?? 0) + (u.cache_creation_input_tokens ?? 0) + (u.cache_read_input_tokens ?? 0); break; }
+        }
+      } catch {}
+      say("ok", first === undefined ? "first turn: no session recorded" : `first turn: ${first} input tokens (newest session)`);
+    }
+    if (hasAg) {
+      let first;
+      try {
+        const sessions = JSON.parse(readFileSync(join(ROOT, EARLIER), "utf8"))?.antigravity?.sessions ?? [];
+        const newest = (Array.isArray(sessions) ? sessions : [])
+          .filter((s) => typeof s?.transcript === "string" && existsSync(s.transcript))
+          .map((s) => [statSync(s.transcript).mtimeMs, s.transcript])
+          .sort((a, b) => b[0] - a[0])[0];
+        if (newest) {
+          for (const line of readFileSync(newest[1], "utf8").split("\n")) {
+            let o; try { o = JSON.parse(line); } catch {}
+            if (o?.type === "PLANNER_RESPONSE" && Number.isFinite(o.input_tokens)) { first = o.input_tokens + (o.cache_read_tokens ?? 0); break; }
+          }
+        }
+      } catch {}
+      const lbl = hasClaude ? "first turn (antigravity)" : "first turn";
+      say("ok", first === undefined ? `${lbl}: no session recorded` : `${lbl}: ${first} input tokens (newest session)`);
+    }
   };
   await tooling();
-  say("ok", "Claude Code: tested");
+  if (hasClaude) say("ok", "Claude Code: tested");
+  if (hasAg) say("ok", "Antigravity: tested");
   }
 }
 
-const SETTINGS = ".claude/settings.json", LOCAL = ".claude/settings.local.json", LOCAL_KEY = "autoMemoryDirectory";
-const FIVE = [SETTINGS, LOCAL, ".gitignore", GI, "AGENTS.md", "CLAUDE.md"];
+const SETTINGS = ".claude/settings.json", LOCAL = ".claude/settings.local.json", LOCAL_KEY = "autoMemoryDirectory", AG_HOOKS = ".agents/hooks.json";
+const FIVE = [SETTINGS, LOCAL, AG_HOOKS, ".gitignore", GI, "AGENTS.md", "CLAUDE.md"];
 // The lines install adds to the files it merges into.
 const LINES = new Map([[".gitignore", IGNORE.map(([l]) => l)], ["CLAUDE.md", ["@AGENTS.md"]]]);
 
@@ -1217,10 +1501,11 @@ function uninstall() {
   for (const k of ["merged", "blocks", "imports", "scalars", "chained"]) rec[k] = Array.isArray(rec[k]) ? rec[k].filter((e) => e && typeof e === "object") : [];
   for (const k of ["created", "kept", "dirs"]) rec[k] = Array.isArray(rec[k]) ? rec[k] : [];
   if (!rec.files || typeof rec.files !== "object" || Array.isArray(rec.files)) rec.files = {};
+  const tools = Array.isArray(rec.tools) && rec.tools.length ? rec.tools : ["claude"];
   const manifest = readManifest();
   const out = [], gone = [];
   // the package's own folders go when empty, listed or not; the shared parents only when the record lists them, or has no list at all
-  const units = pkgWrites(manifest, ROOT).map((w) => w.path.match(UNIT)?.[0]).filter(Boolean).flatMap((u) => [u, `${dirname(u)}/xwf-${basename(u)}`]);
+  const units = pkgWrites(manifest, ROOT, tools).map((w) => w.path.match(UNIT)?.[0]).filter(Boolean).flatMap((u) => [u, `${dirname(u)}/xwf-${basename(u)}`]);
   const own = (d) => d === ".xworkflows" || d.startsWith(".xworkflows/") || units.some((u) => d === u || d.startsWith(`${u}/`));
   if (rec.xworkflows !== manifest.version) out.push(`record written by xworkflows ${rec.xworkflows || "unknown"}; this is ${manifest.version}`);
 
@@ -1228,7 +1513,7 @@ function uninstall() {
   const hookRel = new Map(hooksDir ? HOOKS.map((n) => [n, hookKey(ROOT, n)]) : []);
   const hookSet = new Set(hookRel.values());
   const wanted = new Map(HOOKS.map((n) => [`.xworkflows/git/${n}`, gitText(n)])); // path -> the text plan() writes there, renamed units included
-  for (const w of pkgWrites(manifest, ROOT)) {
+  for (const w of pkgWrites(manifest, ROOT, tools)) {
     wanted.set(w.path, w.text);
     const u = w.path.match(UNIT)?.[0];
     if (u) { const x = renameWrite(w, u); wanted.set(x.path, x.text); }
@@ -1236,13 +1521,14 @@ function uninstall() {
   // the lite reviewer file is named by the record (install's own agent file), never by today's config
   for (const [p, f] of Object.entries(rec.files)) if (f?.piece === "installer" && LITE_FILE.test(p) && !wanted.has(p)) wanted.set(p, "");
   const wants = settingsWants(manifest);
+  const agWants = agHooksWants(manifest);
   // a recorded entry belongs to a want by its key and its hook id, not by the event alone
   const theirs = (w, m) => isDeepStrictEqual(w.key, m.key) && (w.id ? w.ours(m.entry) : isDeepStrictEqual(w.entry, m.entry));
   // a plugin sub-key goes only when the manifest declares it: the record never names one on its own
   const declared = pluginWants(manifest, ROOT, true);
   const planted = (x) => x.file === SETTINGS && declared.find((w) => isDeepStrictEqual(w.key, x.key));
   // a retired unit's line too: install wrote it, and it stays while a changed file keeps the unit's folder
-  const giLines = new Set([".xworkflows/", ...[...wanted.keys(), ...retiredPaths(manifest).keys()].map(giLine).filter(Boolean)]);
+  const giLines = new Set([".xworkflows/", ...[...wanted.keys(), ...retiredPaths(manifest, tools).keys()].map(giLine).filter(Boolean)]);
   // the raw value: a section the loader refuses must not keep what install wrote for the memory folder
   let raw = {};
   try { raw = JSON.parse(readFileSync(join(ROOT, ".xworkflows/config.json"), "utf8")) ?? {}; } catch {}
@@ -1254,7 +1540,7 @@ function uninstall() {
 
   const named = {
     files: (_, p) => wanted.has(p) || hookSet.has(p),
-    merged: (m) => m.file === SETTINGS && wants.some((w) => theirs(w, m)),
+    merged: (m) => (m.file === SETTINGS && wants.some((w) => theirs(w, m))) || (m.file === AG_HOOKS && agWants.some((w) => w.key === m.key?.[0])),
     scalars: (x) => (x.file === SETTINGS && (isDeepStrictEqual(x.key, ["attribution"]) || planted(x))) || (x.file === LOCAL && isDeepStrictEqual(x.key, [LOCAL_KEY])),
     blocks: (b) => b.file === "AGENTS.md",
     imports: (i) => !!LINES.get(i.file)?.includes(i.line) || (i.file === GI && giLines.has(i.line)) || i.line === hookLine(basename(i.file)),
@@ -1280,7 +1566,7 @@ function uninstall() {
     if (!recFiles.has(p) || rec.kept.includes(p) || rec.kept.includes(p.match(UNIT)?.[0])) continue;
     if (!lstatSync(join(ROOT, p), { throwIfNoEntry: false })?.isFile()) continue;
     // an agent is rendered from the config and the plugins: it is install's when it holds the text the record has, never by today's render
-    if (hash(read(ROOT, p)) === hash(text) || (p.startsWith(".claude/agents/") && hash(read(ROOT, p)) === rec.files[p]?.sha256)) { rm(p); out.push(`deleted ${p}`); }
+    if (hash(read(ROOT, p)) === hash(text) || (/^\.(?:claude|agents)\/agents\//.test(p) && hash(read(ROOT, p)) === rec.files[p]?.sha256)) { rm(p); out.push(`deleted ${p}`); }
     else out.push(`kept (changed locally): ${p}`);
   }
   for (const [name, p] of hookRel) {
@@ -1294,7 +1580,8 @@ function uninstall() {
       if (lstatSync(before, { throwIfNoEntry: false })) { renameSync(before, abs); out.push(`restored ${p}`); }
     } catch (e) { if (recFiles.has(p)) out.push(`not deleted (${e.code}): ${p}`); }
   }
-  const merged = rec.merged;
+  const merged = rec.merged.filter((m) => m.file === SETTINGS);
+  const agMerged = rec.merged.filter((m) => m.file === AG_HOOKS);
   const plugs = rec.scalars.filter(planted);
   const text = merged.length || plugs.length ? read(ROOT, SETTINGS) : null;
   if (text !== null) {
@@ -1326,6 +1613,22 @@ function uninstall() {
         for (let d = key.length; d > 0 && made.has(JSON.stringify(key.slice(0, d))) && parents[d] && typeof parents[d] === "object" && Object.keys(parents[d]).length === 0; d--) { delete parents[d - 1][key[d - 1]]; changed = true; }
       }
       if (changed) write(SETTINGS, json(s, text));
+    }
+  }
+  const agText = agMerged.length ? read(ROOT, AG_HOOKS) : null;
+  if (agText !== null) {
+    let s;
+    try { s = JSON.parse(agText); } catch { out.push(`kept (does not parse): ${AG_HOOKS}`); }
+    if (isObj(s)) {
+      let changed = false;
+      for (const m of agMerged) {
+        const k = m.key[0];
+        if (!(k in s)) continue;
+        const w = agWants.find((x) => x.key === k);
+        if (isDeepStrictEqual(s[k], m.entry) || (w && isDeepStrictEqual(s[k], w.entry))) { delete s[k]; changed = true; }
+        else out.push(`kept (changed locally): ${AG_HOOKS} ${k}`);
+      }
+      if (changed) write(AG_HOOKS, json(s, agText));
     }
   }
   let memory;

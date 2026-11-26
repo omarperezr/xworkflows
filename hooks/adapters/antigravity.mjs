@@ -1,16 +1,25 @@
+import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync, existsSync, lstatSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 
 const WF_SUFFIX = "When you are done, call the finish tool with your result.";
 const safeId = (s) => String(s).replace(/[^A-Za-z0-9_-]/g, "_");
+const rootKey = (r) => createHash("sha1").update(String(r || "")).digest("hex").slice(0, 12);
 const readText = (p) => { try { return readFileSync(p, "utf8"); } catch { return null; } };
 const readJson = (p) => { try { return JSON.parse(readFileSync(p, "utf8")); } catch { return null; } };
 const writeState = (p, v) => { try { writeFileSync(p, typeof v === "string" ? v : JSON.stringify(v)); } catch { /* ignore */ } };
 
+function fullTranscriptOf(p) {
+  if (typeof p !== "string" || !p) return null;
+  const full = p.replace(/([\\/])transcript\.jsonl$/, "$1transcript_full.jsonl");
+  return existsSync(full) ? full : existsSync(p) ? p : null;
+}
+
 function readStep(transcriptPath, stepIdx) {
-  if (typeof transcriptPath !== "string" || !transcriptPath || !Number.isInteger(stepIdx)) return null;
-  const text = readText(transcriptPath);
+  const path = fullTranscriptOf(transcriptPath);
+  if (!path || !Number.isInteger(stepIdx)) return null;
+  const text = readText(path);
   if (!text) return null;
   const lines = text.trimEnd().split("\n");
   for (let i = lines.length - 1; i >= 0; i--) {
@@ -22,8 +31,9 @@ function readStep(transcriptPath, stepIdx) {
 }
 
 function lastStep(transcriptPath) {
-  if (typeof transcriptPath !== "string" || !transcriptPath) return null;
-  const text = readText(transcriptPath);
+  const path = fullTranscriptOf(transcriptPath);
+  if (!path) return null;
+  const text = readText(path);
   if (!text) return null;
   const lines = text.trimEnd().split("\n");
   for (let i = lines.length - 1; i >= 0; i--) {
@@ -34,10 +44,11 @@ function lastStep(transcriptPath) {
 }
 
 function parentFromTranscript(transcriptPath) {
-  if (typeof transcriptPath !== "string" || !transcriptPath) return null;
-  const text = readText(transcriptPath);
+  const path = fullTranscriptOf(transcriptPath);
+  if (!path) return null;
+  const text = readText(path);
   if (!text) return null;
-  const lines = text.split("\n", 5);
+  const lines = text.split("\n", 6);
   for (const line of lines) {
     if (!line.trim()) continue;
     let o;
@@ -47,6 +58,62 @@ function parentFromTranscript(transcriptPath) {
     if (m) return { parent: m[1] };
   }
   return null;
+}
+
+function recordPendingSpawn(raw, args, root, stateDir) {
+  const types = Array.isArray(args.Subagents) ? args.Subagents.map((s) => s?.TypeName).filter(Boolean) : args.TypeName ? [args.TypeName] : [];
+  const pFile = join(stateDir, `xwf-ag-pending-${safeId(raw.conversationId)}`);
+  const prev = Array.isArray(readJson(pFile)) ? readJson(pFile) : [];
+  const next = [...prev.slice(-20), { stepIdx: raw.stepIdx, types, transcript: raw.transcriptPath, ts: Date.now() }];
+  writeState(pFile, next);
+  if (root) writeState(join(stateDir, `xwf-ag-spawning-${rootKey(root)}`), { parent: raw.conversationId, ts: Date.now() });
+}
+
+function resolveAgentFromParent(parent, childCid, childTranscript, stateDir) {
+  const pending = readJson(join(stateDir, `xwf-ag-pending-${safeId(parent)}`));
+  const list = Array.isArray(pending) ? pending : [];
+  const candidates = [];
+  for (let i = list.length - 1; i >= 0; i--) if (typeof list[i]?.transcript === "string") candidates.push(list[i].transcript);
+  if (typeof childTranscript === "string" && childTranscript) {
+    // <appDataDir>/brain/<childCid>/.system_generated/logs/transcript_full.jsonl -> sibling <parent>
+    const brainDir = dirname(dirname(dirname(dirname(childTranscript))));
+    candidates.push(join(brainDir, parent, ".system_generated", "logs", "transcript_full.jsonl"));
+  }
+  for (const cand of candidates) {
+    const p = fullTranscriptOf(cand);
+    if (!p) continue;
+    const text = readText(p);
+    if (!text || !text.includes(childCid)) continue;
+    const lines = text.trimEnd().split("\n");
+    let matchStep = null;
+    const parsed = [];
+    for (const l of lines) {
+      let o;
+      try { o = JSON.parse(l); } catch { continue; }
+      parsed.push(o);
+      if (typeof o?.content === "string" && o.content.includes(childCid)) matchStep = o;
+    }
+    if (!matchStep) continue;
+    const ids = [...matchStep.content.matchAll(/"conversationId"\s*:\s*"([^"]+)"/g)].map((m) => m[1]);
+    const pos = Math.max(0, ids.indexOf(childCid));
+    const pend = list.find((x) => x.stepIdx === matchStep.step_index);
+    if (pend?.types?.length) return pend.types[pos] ?? pend.types[0];
+    // Fallback: inspect the preceding PLANNER_RESPONSE tool_calls in parent's transcript
+    for (let i = parsed.length - 1; i >= 0; i--) {
+      const o = parsed[i];
+      if (o.step_index >= matchStep.step_index || o.type !== "PLANNER_RESPONSE" || !Array.isArray(o.tool_calls)) continue;
+      const calls = o.tool_calls.filter((tc) => tc?.name === "invoke_subagent");
+      if (!calls.length) continue;
+      const allTypes = calls.flatMap((tc) => (Array.isArray(tc.args?.Subagents) ? tc.args.Subagents.map((s) => s?.TypeName) : [tc.args?.TypeName])).filter(Boolean);
+      if (allTypes.length === 1) return allTypes[0];
+      if (allTypes[pos]) return allTypes[pos];
+      break;
+    }
+  }
+  // If parent only spawned one recent type, use it as last fallback
+  const recent = list.filter((x) => Date.now() - (x.ts || 0) < 30000);
+  if (recent.length === 1 && recent[0].types?.length === 1) return recent[0].types[0];
+  return undefined;
 }
 
 function recordSession(root, cid, transcript, env) {
@@ -117,7 +184,15 @@ export function normalize(raw, env = {}) {
     if (m) agent = m[1];
   } else if (!isSubagent && !lastInput && raw.transcriptPath) {
     const fromT = parentFromTranscript(raw.transcriptPath);
-    if (fromT) { isSubagent = true; parent = fromT.parent; }
+    if (fromT) {
+      isSubagent = true;
+      parent = fromT.parent;
+      agent = resolveAgentFromParent(parent, cid, raw.transcriptPath, stateDir);
+      if (agent) writeState(join(stateDir, `xwf-ag-sub-${safeId(cid)}`), { parent, agent });
+    }
+  } else if (isSubagent && parent && !agent) {
+    agent = resolveAgentFromParent(parent, cid, raw.transcriptPath, stateDir);
+    if (agent) writeState(join(stateDir, `xwf-ag-sub-${safeId(cid)}`), { parent, agent });
   }
 
   const tool = raw.toolCall?.name;
@@ -136,7 +211,11 @@ export function normalize(raw, env = {}) {
   };
 
   if (hookEvent === "SessionStart") {
-    if (isSubagent) return { ...ev, event: "other" };
+    if (!isSubagent && !lastInput && root) {
+      const sp = readJson(join(stateDir, `xwf-ag-spawning-${rootKey(root)}`));
+      if (sp && sp.parent !== cid && Date.now() - (sp.ts || 0) < 10000) isSubagent = true;
+    }
+    if (isSubagent) return { ...ev, event: "other", isSubagent: true };
     recordSession(root, cid, raw.transcriptPath, env);
     return { ...ev, event: "sessionStart", source: "startup", transcript: raw.transcriptPath };
   }
@@ -198,6 +277,7 @@ export function normalize(raw, env = {}) {
   if (tool === "read_file") return { ...ev, kind: "read", path: a.Path, limit: lineLimit(a) };
   if (tool === "view_file") return { ...ev, kind: "read", path: a.AbsolutePath, limit: lineLimit(a) };
   if (tool === "invoke_subagent") {
+    recordPendingSpawn(raw, a, root, stateDir);
     const first = Array.isArray(a.Subagents) ? a.Subagents[0] : null;
     return { ...ev, kind: "agent", agent: a.TypeName ?? first?.TypeName, prompt: a.Prompt ?? first?.Prompt };
   }

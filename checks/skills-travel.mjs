@@ -40,7 +40,8 @@ export function run(range, ctx) {
   const inTree = new Set(tree);
   const bad = [];
   let on;
-  for (const f of tree.filter((p) => /^\.claude\/agents\/[^/]+\.md$/.test(p))) {
+  for (const f of tree.filter((p) => /^\.(?:claude|agents)\/agents\/[^/]+\.md$/.test(p))) {
+    const dir = f.startsWith(".agents/") ? ".agents" : ".claude";
     const agent = f.slice(f.lastIndexOf("/") + 1, -3);
     for (const n of skillNames(ctx.show(range.head, f) ?? "")) {
       if (/\s/.test(n)) bad.push(`${agent}: "${n}" is more than one name; give each skill its own list item`);
@@ -48,7 +49,12 @@ export function run(range, ctx) {
         on ??= enabled(range, ctx, inTree);
         if (!on) return { ok: false, cannotRun: true, lines: [".claude/settings.json at the pushed commit cannot be read as settings with an enabledPlugins object"] };
         if (!on.has(n.split(":")[0])) bad.push(`${agent}: ${n} is not enabled; declare the plugin as "<plugin>@<marketplace>": true in enabledPlugins of .claude/settings.json`);
-      } else if (!inTree.has(`.claude/skills/${n}/SKILL.md`)) bad.push(`${agent}: ${n} is not in git; commit .claude/skills/${n}/SKILL.md`);
+      } else {
+        const skillPath = dir === ".agents" && n.startsWith(".agents/skills/") ? `${n}/SKILL.md`
+          : dir === ".agents" && n.startsWith("skills/") ? `.agents/${n}/SKILL.md`
+          : `${dir}/skills/${n}/SKILL.md`;
+        if (!inTree.has(skillPath)) bad.push(`${agent}: ${n} is not in git; commit ${skillPath}`);
+      }
     }
   }
   return bad.length ? { ok: false, lines: [`${bad.length} agent skill(s) do not travel with the repository`, ...bad] } : { ok: true, lines: [] };

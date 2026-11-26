@@ -100,6 +100,26 @@ test("antigravity: PostToolUse(invoke_subagent) links child events and enforces 
   assert.equal(ctx.state("agents"), "0");
 });
 
+test("antigravity: resolves child agent from parent transcript when PostToolUse flushed late", () => {
+  const dir = mkdtempSync(join(tmpdir(), "xwf-ag-late-"));
+  const stateDir = mkdtempSync(join(tmpdir(), "xwf-ag-st-"));
+  const env = { XWORKFLOWS_STATE_DIR: stateDir };
+  const parentTr = join(dir, "parent-transcript_full.jsonl");
+  const childTr = join(dir, "child-transcript_full.jsonl");
+  // PreToolUse(invoke_subagent) records pending spawn; PostToolUse saw no step yet
+  normalize(pre("invoke_subagent", { TypeName: "implement", Prompt: "do" }, { conversationId: "51a95bd0-0000-0000-0000-000000000001", stepIdx: 5, workspacePaths: [dir], cwd: dir, transcriptPath: parentTr }), env);
+  // Child SessionStart arrives before child step 1 is written -> suppressed as subagent
+  const css = normalize(base({ conversationId: "a5953c78-0000-0000-0000-000000000002", hookEventName: "SessionStart", workspacePaths: [dir], cwd: dir, lastUserInput: "", transcriptPath: childTr }), env);
+  assert.deepEqual([css.event, css.isSubagent], ["other", true]);
+  // Later both transcripts flush
+  writeFileSync(parentTr, JSON.stringify({ step_index: 5, type: "GENERIC", content: 'Created the following subagent:\n{\n  "conversationId":  "a5953c78-0000-0000-0000-000000000002"\n}' }) + "\n");
+  writeFileSync(childTr, JSON.stringify({ step_index: 1, type: "SYSTEM_MESSAGE", content: "[Message] sender=51a95bd0-0000-0000-0000-000000000001 content=hi" }) + "\n");
+  const hb = normalize(pre("send_message", { Recipient: "51a95bd0-0000-0000-0000-000000000001", Message: "done" }, { conversationId: "a5953c78-0000-0000-0000-000000000002", workspacePaths: [dir], cwd: dir, lastUserInput: "", transcriptPath: childTr }), env);
+  assert.deepEqual([hb.kind, hb.agent, hb.isSubagent, hb.session], ["handback", "implement", true, "51a95bd0-0000-0000-0000-000000000001"]);
+  const ctx = makeCtx({ root: dir, session: hb.session, toolDir: ".agents" }, { env, config: DEFAULTS, stateDir });
+  assert.equal(handback.decide(hb, ctx).decision, "deny");
+});
+
 test("antigravity: workflow child agents are marked isSubagent and carry Agent: role header for dream boundary", () => {
   const dir = mkdtempSync(join(tmpdir(), "xwf-ag-wf-"));
   const stateDir = mkdtempSync(join(tmpdir(), "xwf-ag-st-"));
