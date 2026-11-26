@@ -512,3 +512,26 @@ test("qmd-first in main session gates memory/session reads and indexed searches 
   assert.ok(allowed(decide(sh('qmd --index idx query "topic"'), c)));
   assert.ok(allowed(decide(read("/r/docs/memory/note.md"), c)));
 });
+
+test("Antigravity reviewers are denied through invoke_subagent and gated through run-agent.mjs", () => {
+  const c = {
+    ...mk({ files: { "/r/.xworkflows/summary.md": "status: approved\n", "/r/prompt-ok.txt": "Review docs/superpowers/plans/p.md commit abc1234", "/r/prompt-noplan.txt": "Review commit abc1234" } }),
+    exists: (p) => p.startsWith(".agents/agents/") || p === "graphify-out",
+  };
+  const agAgent = (type, extra = {}) => ({ ...agent(type, extra), toolDir: ".agents" });
+  for (const role of ["review", "risk-review", "risk-review-lite"]) {
+    assert.ok(denied(decide(agAgent(role, { prompt: "docs/superpowers/plans/p.md" }), c), /run-agent\.mjs/), role);
+  }
+  // non-reviewer agents still work through invoke_subagent
+  assert.ok(allowed(decide(agAgent("implement"), c)));
+  // run-agent.mjs passes review, enforces plan & duplicate-commit on risk-review
+  const agSh = (command) => ({ ...sh(command), toolDir: ".agents" });
+  assert.ok(allowed(decide(agSh("node .xworkflows/hooks/run-agent.mjs review prompt-ok.txt"), c)));
+  assert.ok(denied(decide(agSh("node .xworkflows/hooks/run-agent.mjs risk-review prompt-noplan.txt"), c), /plan or spec/));
+  assert.ok(allowed(decide(agSh("node .xworkflows/hooks/run-agent.mjs risk-review prompt-ok.txt"), c)));
+  assert.ok(denied(decide(agSh("node .xworkflows/hooks/run-agent.mjs risk-review prompt-ok.txt"), c), /already reviewed/));
+  // reviewer subagents cannot write files (enforces read-only under run-agent.mjs)
+  for (const role of ["review", "risk-review", "risk-review-lite"]) {
+    assert.ok(denied(decide(ev("write", { isSubagent: true, agent: role, writes: [{ path: "src/a.ts" }] }), c), /never edits/), role);
+  }
+});

@@ -461,6 +461,7 @@ agents_map = args.get("agents") or {}
 models_map = args.get("models") or {}
 medium_model = models_map.get("medium") or "pro"
 cheap_model = models_map.get("cheap") or "flash"
+lite_model = models_map.get("lite") or "flash_lite"
 CRITICAL_AREAS = {"truth", "state", "access"}
 
 
@@ -521,7 +522,7 @@ else:
     def run_stage2(job):
         if job["kind"] == "topic":
             i = job["i"]
-            return safe_agent(at(f"Topic {i + 1}.\n{job['p']}\n\n{RULES}\n{READ}"), TOPIC_SCHEMA, f"t{i + 1}", name("explore"), cheap_model)
+            return safe_agent(at(f"Topic {i + 1}.\n{job['p']}\n\n{RULES}\n{READ}"), TOPIC_SCHEMA, f"t{i + 1}", name("explore"), lite_model)
         if job["kind"] == "doc":
             i = job["i"]
             return safe_agent(at(written_prompt(job["c"]["files"], keys)), WRITTEN_SCHEMA, f"docs{i + 1}", name("mechanism"), medium_model)
@@ -557,15 +558,15 @@ else:
     crit_areas = [a for a in run_areas if a["key"] in CRITICAL_AREAS or a["key"] in own_keys]
     sec_areas = [a for a in run_areas if a["key"] not in CRITICAL_AREAS and a["key"] not in own_keys]
 
-    def run_area(a, model):
+    def run_area(a, agent_role, model):
         mine = [r for r in written_rules if r.get("area") == a["key"]]
-        return safe_agent(at(area_prompt(a["key"], a["gloss"], a["hint"], mine[:15], max(0, len(mine) - 15))), AREA_SCHEMA, f"a:{a['key']}", name("mechanism"), model)
+        return safe_agent(at(area_prompt(a["key"], a["gloss"], a["hint"], mine[:15], max(0, len(mine) - 15))), AREA_SCHEMA, f"a:{a['key']}", name(agent_role), model)
 
-    crit_res = await parallel(crit_areas, lambda a: run_area(a, medium_model)) if crit_areas else []
-    sec_res = await parallel(sec_areas, lambda a: run_area(a, cheap_model)) if sec_areas else []
+    crit_res = await parallel(crit_areas, lambda a: run_area(a, "mechanism", medium_model)) if crit_areas else []
+    sec_res = await parallel(sec_areas, lambda a: run_area(a, "mechanism-cheap", cheap_model)) if sec_areas else []
     kind_res = []
     for i in range(0, len(kind_run), 6):
-        kind_res.extend(await parallel(kind_run[i : i + 6], lambda k: safe_agent(at(kind_prompt(k)), KIND_SCHEMA, f"k:{k}", name("mechanism"), cheap_model)))
+        kind_res.extend(await parallel(kind_run[i : i + 6], lambda k: safe_agent(at(kind_prompt(k)), KIND_SCHEMA, f"k:{k}", name("mechanism-cheap"), cheap_model)))
     areas = {
         a["key"]: (
             {"area": a["key"], "status": "not-present", "support": [], "exceptions": [], "contradicted": [], "unprotected": [], "commentRules": [], "doubted": [], "details": [], "notChecked": []}
@@ -595,7 +596,7 @@ else:
         for k in keys
         if areas.get(k) and areas[k].get("general")
     ]
-    asked = await safe_agent(at(ask_prompt(profile.get("what", ""), lines, written_notes, generals)), QUESTION_SCHEMA, "questions", name("mechanism"), cheap_model)
+    asked = await safe_agent(at(ask_prompt(profile.get("what", ""), lines, written_notes, generals)), QUESTION_SCHEMA, "questions", name("mechanism-cheap"), cheap_model)
     questions = asked.get("questions") if isinstance(asked, dict) else None
 
     phase("Plain")
@@ -611,7 +612,7 @@ else:
         for i, x in enumerate((areas.get(k) or {}).get("ideas") or []):
             items.append({"id": f"{k}.{i + 1}", "idea": x["text"]})
     language = args.get("language") or "English"
-    plain = await safe_agent(at(plain_prompt(language, items)), PLAIN_SCHEMA, "plain", name("mechanism"), cheap_model)
+    plain = await safe_agent(at(plain_prompt(language, items)), PLAIN_SCHEMA, "plain", name("mechanism-cheap"), cheap_model)
 
     out = {
         "version": 3,

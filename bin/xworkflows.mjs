@@ -142,19 +142,21 @@ const json = (v, text) => JSON.stringify(v, null, indentOf(text)) + "\n";
 const isObj = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
 const SECTION_FIX = "make it an object, or take it out of .xworkflows/config.json";
 
-function targets(f, tools = ["claude"]) {
+function targets(f, tools = ["claude"], allowed = null) {
+  const active = allowed ? tools.filter((t) => allowed.includes(t)) : tools;
+  if (!active.length) return [];
   if (f === "hooks/mark.mjs") return [".xworkflows/mark.mjs"];
   if (f.startsWith("skills/")) {
-    if (f.endsWith(".workflow.py")) return tools.includes("antigravity") ? [".agents/" + f] : [];
-    if (f.endsWith(".workflow.js")) return tools.includes("claude") ? [".claude/" + f] : [];
-    return [...(tools.includes("claude") ? [".claude/" + f] : []), ...(tools.includes("antigravity") ? [".agents/" + f] : [])];
+    if (f.endsWith(".workflow.py")) return active.includes("antigravity") ? [".agents/" + f] : [];
+    if (f.endsWith(".workflow.js")) return active.includes("claude") ? [".claude/" + f] : [];
+    return [...(active.includes("claude") ? [".claude/" + f] : []), ...(active.includes("antigravity") ? [".agents/" + f] : [])];
   }
   if (f.startsWith("agents/")) {
-    return [...(tools.includes("claude") ? [".claude/" + f] : []), ...(tools.includes("antigravity") ? [".agents/" + f] : [])];
+    return [...(active.includes("claude") ? [".claude/" + f] : []), ...(active.includes("antigravity") ? [".agents/" + f] : [])];
   }
   if (f.startsWith("hooks/adapters/")) {
-    if (f === "hooks/adapters/claude.mjs") return tools.includes("claude") ? [".xworkflows/" + f] : [];
-    if (f === "hooks/adapters/antigravity.mjs") return tools.includes("antigravity") ? [".xworkflows/" + f] : [];
+    if (f === "hooks/adapters/claude.mjs") return active.includes("claude") ? [".xworkflows/" + f] : [];
+    if (f === "hooks/adapters/antigravity.mjs") return active.includes("antigravity") ? [".xworkflows/" + f] : [];
     return [];
   }
   return [".xworkflows/" + f];
@@ -708,8 +710,9 @@ function renderAntigravitySkill(skillId, f, text) {
       .replaceAll("research.mjs model", "research.mjs model --tool antigravity")
       .replace(
         'Call the `Workflow` tool with `scriptPath: "<base>/research.workflow.py"` and `args: { root: "<absolute repository root>", zeroHits: [...], agents: {...}, language: "<the owner\'s language>" }`',
-        'Call the `run_workflow` tool with `ScriptPath: "<base>/research.workflow.py"` and `Args: { root: "<absolute repository root>", zeroHits: [...], agents: {...}, models: { medium: "<medium tier in .xworkflows/tiers.json under antigravity>", cheap: "<cheap tier in .xworkflows/tiers.json under antigravity>" }, language: "<the owner\'s language>" }`',
+        'Call the `run_workflow` tool with `ScriptPath: "<base>/research.workflow.py"` and `Args: { root: "<absolute repository root>", zeroHits: [...], agents: {...}, models: { medium: "<medium tier in .xworkflows/tiers.json under antigravity>", cheap: "<cheap tier in .xworkflows/tiers.json under antigravity>", lite: "<lite tier in .xworkflows/tiers.json under antigravity>" }, language: "<the owner\'s language>" }`',
       )
+      .replace("each agent the workflow uses (mechanism, explore)", "each agent the workflow uses (mechanism, mechanism-cheap, explore)")
       .replace("Front matter `paths:` lists the zone's paths as globs: a folder `src` or `src/` becomes `src/**`; `dir/*` and `*` stay as written.", "Front matter uses Antigravity glob rules: `trigger: glob`, `description: <one line>`, and `globs: \"<comma-separated globs>\"` (a folder `src` or `src/` becomes `src/**`; `dir/*` and `*` stay as written).")
       .replace("`tools: Read, Grep, Glob, Bash`; `effort: xhigh`, so its first review runs at xhigh.", "`tools: read_file, run_command`; `subagent: true`; `mainAgent: false` (omit `effort:`; the tier keyword carries the effort, and `inherit` is never used).");
   } else if (skillId === "dream") {
@@ -759,7 +762,7 @@ function pkgWrites(manifest, root, tools = ["claude"]) {
   const writes = [{ path: ".xworkflows/tiers.json", text: tiers, piece: "installer", src: "tiers.json" }];
   for (const p of manifest.pieces) {
     for (const f of Object.keys(p.files)) {
-      const dests = targets(f, tools);
+      const dests = targets(f, tools, p.tools);
       if (!dests.length) continue;
       const raw = readFileSync(join(PKG, f), "utf8");
       for (const t of dests) {

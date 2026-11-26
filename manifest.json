@@ -63,7 +63,7 @@
       "files": {
         "hooks/run.mjs": "f16b9c43cc1525dabc0e50672516b74065524927d90bef3462c66c4e05ba6d67",
         "hooks/mark.mjs": "f2ecad21dedeb1515287063237e6852b9374781f71ce876f13b57324bfcb88a5",
-        "hooks/run-agent.mjs": "af78410d757c93770816a6182c2618f8b173425fe4f44dd6dcda9ca1b30cc591",
+        "hooks/run-agent.mjs": "3339b4164efd45e4e81927eb5e0ee0e784c49c1221689f1a78d6d1deecd8fa1a",
         "hooks/core/marks.mjs": "9f52d052c8fb1275e92335d1dd5664be0f1bff7d43a4a9432268bac01d61a2b7",
         "hooks/adapters/claude.mjs": "43836faaab18cffa02853bf98b64f3a3a14150fbeef84e7b52009e526fab69ad",
         "hooks/adapters/codex.mjs": "0589bf97b5cec7e06fee8a70bd92d8a0f51e8bb082cc241f743a80308e44d059",
@@ -74,7 +74,7 @@
         "hooks/core/shell-words.mjs": "d2b55f18ca767512692d8a4aed20eaa6e91dd9e3144e180f9ea051a3861679f1",
         "hooks/adapters/antigravity.mjs": "1b5366209274a13f08138d762e31ebe8c6c1da4f654b999ae022db65d697313b"
       },
-      "sha256": "4e4e07025527ac29673ec8a7e9943fdb2fcbdd6d70d11c83fd7dbe806da1681e"
+      "sha256": "61d96459c4b3bf4c60f992406720e9c2373023365eca26b8596f8141e31f0336"
     },
     {
       "id": "design-first",
@@ -265,9 +265,9 @@
         "antigravity"
       ],
       "files": {
-        "agents/explore.md": "d07a4fca0f0000289d620bc278b50163ac6032c0be044288ec0491320512ea5b"
+        "agents/explore.md": "6e8ba3c7c34b5befe3a8898d0fbc35f5386bf4f7c1d41e30557540ee145eb9cf"
       },
-      "sha256": "db94fb8cc7ebee7eab9df55b7a29c6be7ca279b365072e3a5f398d71e7c9b6cb"
+      "sha256": "1d41060282ce004cbb527ab67fa5774d561e99d1b1a1be2eb827499af67d6e48"
     },
     {
       "id": "mechanism",
@@ -287,6 +287,21 @@
         "agents/mechanism.md": "b607db73bd98816c986025dd4e87f83fe86dccaae1c879d2704d724faadb7792"
       },
       "sha256": "2cbe54ddaac3c2fd509e1c2589576ada6765743175c5f15f8cc4a4b82ebeb84d"
+    },
+    {
+      "id": "mechanism-cheap",
+      "kind": "agent",
+      "origin": "own",
+      "version": "0.1.0",
+      "license": "MIT",
+      "scope": "project",
+      "tools": [
+        "antigravity"
+      ],
+      "files": {
+        "agents/mechanism-cheap.md": "30ab65c63cade4334c1eff99639b41d346ffb50b4899f0bdb64a65ffb4dd75fb"
+      },
+      "sha256": "7b80ce65f3360457ac62a44b9060e85688ff7003981f168a5fd79aa3288cc778"
     },
     {
       "id": "thermo-nuclear-review",
@@ -403,9 +418,9 @@
         "skills/adapt/research.workflow.js": "c7d72c728a5eef056d9a23f56d3334b6f2400fa9730cb96dfcad23dadd579daa",
         "skills/adapt/research.mjs": "0e4c2b2e776a00e66e2177bc27bd3af3e320b5eea2108e5b77609877b2097b4b",
         "skills/adapt/screens.mjs": "46218539062b06597556be39eebd0f0a6b47dfa6e31154232c55a7967c537a4c",
-        "skills/adapt/research.workflow.py": "aa15b66bd0ad48f7047f17e8672feb1921a383b249a595f939222f75d9496ba8"
+        "skills/adapt/research.workflow.py": "7acac8748441a1c71abd58f39782632489ef11ffec17b8a0a3379bd3a851c52b"
       },
-      "sha256": "ea9b81893b0974d87d4924b50b846a75148084c0fbfa0217559f307bf595b3b6"
+      "sha256": "f7e12c53b37f61b86f6a848f5db5d57879f1282e01fcffa2927e7fd4f7c9fe8a"
     },
     {
       "id": "full-review",
@@ -480,9 +495,9 @@
         }
       ],
       "files": {
-        "hooks/core/orchestrator.mjs": "d3e6c379db57bde12574ec2ef2932d6b293f312a23065406717312e38b852d8c"
+        "hooks/core/orchestrator.mjs": "5513054b0e9079f96e4bcc446ec4ac56dc45fb9e6620db466bf68a58c0dd293f"
       },
-      "sha256": "bb9f09f1f500533c9f99f0039aa18ddb4df0f62573f396d822c6bfe5b28a1f42"
+      "sha256": "eddb491032114ca40486785f63d3ef097773b2fdb3089697293bb82835a98964"
     },
     {
       "id": "handback",
@@ -672,9 +687,9 @@
         "antigravity"
       ],
       "files": {
-        "agents/implement-front.md": "0974288962afa2ad6dd559c5d3e00b5016a2d5109cf385bca273ab3f69087c36"
+        "agents/implement-front.md": "5129eaa7e55be7019f076943c9d9d621c2f8bae45512047901b22e01e49ed7db"
       },
-      "sha256": "98f2c8f592f6fc4dae0ebef608f2f9857eeeff455ae5d03b3b88a0932ee7a305"
+      "sha256": "ff1246eae553e400742e4614112afd591ff4f7e4ef6732d7db231a7e2ba54b94"
     },
     {
       "id": "mechanical",

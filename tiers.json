@@ -1,4 +1,4 @@
 {
-  "claude": { "cheap": "haiku", "medium": "sonnet", "top": "opus", "strongest": "fable" },
-  "antigravity": { "cheap": "flash", "medium": "pro", "top": "gemini-4-neon-high", "strongest": "gemini-4-neon-xhigh" }
+  "claude": { "lite": "haiku", "cheap": "haiku", "light": "sonnet", "medium": "sonnet", "top": "opus", "strongest": "fable" },
+  "antigravity": { "lite": "flash_lite", "cheap": "flash", "light": "flash", "medium": "pro", "top": "gemini-4-neon-high", "strongest": "gemini-4-neon-xhigh" }
 }

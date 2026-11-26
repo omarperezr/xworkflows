@@ -6,8 +6,9 @@ import { join } from "node:path";
 import { ALL_KEYS, repo, git, cli, readJson, writeJson, PKG_ROOT, cliAt, packedCopy, tmp, GOOD, theirs, EMPTY_HOME, sha, withRecord, files, qmdLog, spy, inst, tree, lines } from "./shared.test.mjs";
 
 // install keeps the method's own files out of the code graph: a .graphifyignore with the folders it writes
-const SKILLS = [...new Set(JSON.parse(readFileSync(join(PKG_ROOT, "manifest.json"), "utf8")).pieces.flatMap((p) => Object.keys(p.files)).map((f) => f.match(/^skills\/([^/]+)\//)?.[1]).filter(Boolean))];
-const AGENTS = [...new Set(JSON.parse(readFileSync(join(PKG_ROOT, "manifest.json"), "utf8")).pieces.flatMap((p) => Object.keys(p.files)).map((f) => f.match(/^agents\/([^/]+)\.md$/)?.[1]).filter(Boolean))];
+const CLAUDE_PIECES = JSON.parse(readFileSync(join(PKG_ROOT, "manifest.json"), "utf8")).pieces.filter((p) => !p.tools || p.tools.includes("claude"));
+const SKILLS = [...new Set(CLAUDE_PIECES.flatMap((p) => Object.keys(p.files)).map((f) => f.match(/^skills\/([^/]+)\//)?.[1]).filter(Boolean))];
+const AGENTS = [...new Set(CLAUDE_PIECES.flatMap((p) => Object.keys(p.files)).map((f) => f.match(/^agents\/([^/]+)\.md$/)?.[1]).filter(Boolean))];
 const GI = [".xworkflows/", ...SKILLS.map((n) => `.claude/skills/${n}/`), ...AGENTS.map((n) => `.claude/agents/${n}.md`)];
 const sameLines = (a, b) => assert.deepEqual([...a].sort(), [...b].sort());
 

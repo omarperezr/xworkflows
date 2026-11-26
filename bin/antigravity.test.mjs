@@ -34,7 +34,7 @@ test("antigravity fresh install writes .agents/skills, .agents/agents, .agents/h
   // Rendered agents use valid Antigravity tier keywords, valid CLI tools as YAML list (no unmapped Grep/Glob), subagent: true, mainAgent: false, no effort:, no plugin:skill
   const explore = readFileSync(join(r, ".agents/agents/explore.md"), "utf8");
   const exploreFm = explore.match(/^---\n([\s\S]*?)\n---/)[1];
-  assert.match(exploreFm, /^model: flash$/m);
+  assert.match(exploreFm, /^model: flash_lite$/m);
   assert.match(exploreFm, /^tools:\n  - read_file\n  - run_command\n  - search_web$/m);
   assert.match(exploreFm, /^subagent: true$/m);
   assert.match(exploreFm, /^mainAgent: false$/m);
@@ -47,6 +47,11 @@ test("antigravity fresh install writes .agents/skills, .agents/agents, .agents/h
   assert.match(implFm, /^tools:\n  - read_file\n  - run_command\n  - write_file\n  - edit_file$/m);
   assert.match(implFm, /  - tdd/);
   assert.doesNotMatch(implFm, /ponytail:ponytail/);
+
+  const implFront = readFileSync(join(r, ".agents/agents/implement-front.md"), "utf8");
+  assert.match(implFront, /^model: flash$/m);
+  const mechCheap = readFileSync(join(r, ".agents/agents/mechanism-cheap.md"), "utf8");
+  assert.match(mechCheap, /^model: flash$/m);
 
   const rev = readFileSync(join(r, ".agents/agents/review.md"), "utf8");
   assert.match(rev, /^model: pro$/m);
@@ -104,6 +109,10 @@ test("antigravity coexists with claude, preserves user hooks in .agents/hooks.js
   assert.deepEqual(rec.tools, ["claude", "antigravity"]);
   assert.ok(existsSync(join(r, ".claude/skills/grill/SKILL.md")));
   assert.ok(existsSync(join(r, ".agents/skills/grill/SKILL.md")));
+  assert.ok(existsSync(join(r, ".agents/agents/mechanism-cheap.md")));
+  assert.ok(!existsSync(join(r, ".claude/agents/mechanism-cheap.md")));
+  assert.match(readFileSync(join(r, ".claude/agents/explore.md"), "utf8"), /^model: haiku$/m);
+  assert.match(readFileSync(join(r, ".claude/agents/implement-front.md"), "utf8"), /^model: sonnet$/m);
   assert.ok(existsSync(join(r, ".xworkflows/hooks/adapters/claude.mjs")));
   assert.ok(existsSync(join(r, ".xworkflows/hooks/adapters/antigravity.mjs")));
 

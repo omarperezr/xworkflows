@@ -1,7 +1,7 @@
 ---
 name: implement-front
 description: Implements one written task in screens, components and styles, test first. The task, the files owned and the files forbidden must be in the prompt.
-tier: medium
+tier: light
 effort: medium
 tools: Read, Grep, Glob, Bash, Write, Edit
 skills:

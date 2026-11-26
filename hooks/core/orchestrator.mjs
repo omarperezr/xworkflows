@@ -25,6 +25,10 @@ export function decide(ev, ctx) {
   const under = (p, prefixes) => { const r = rel(p); return !r.startsWith("..") && inPaths(r, prefixes); };
 
   if (ev.isSubagent) {
+    // reviewers never edit files (also enforces read-only when launched via run-agent.mjs)
+    const isRole = (id) => id && String(ev.agent ?? "").endsWith(id) && (ev.agent === id || ev.agent === (ctx.agentName?.(id) ?? id));
+    if ((ev.writes ?? []).length && [config.roles.reviewer, config.roles.riskReviewer, config.roles.riskReviewerLite].some(isRole))
+      return deny(`${ev.agent} never edits files: report findings only.`);
     // the installed name is the id or xwf-<id>: an agent whose name ends otherwise costs no read
     const dream = ["dream-analyzer", "dream-organizer"].some((id) => String(ev.agent ?? "").endsWith(id) && ev.agent === (ctx.agentName?.(id) ?? id));
     const writes = dream ? (ev.writes ?? []).filter((w) => typeof w?.path === "string") : [];
