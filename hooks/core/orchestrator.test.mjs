@@ -188,13 +188,17 @@ test("risk reviewer needs a plan or spec in the prompt", () => {
   assert.ok(allowed(decide(agent("risk-review", { prompt: "docs\\superpowers\\specs\\x.md" }), mk())));
 });
 
-test("risk reviewer twice on the same HEAD denies; a new HEAD passes", () => {
+test("risk reviewer runs once per batch (branch + plan/spec): same batch after a fix commit denies; new branch or plan passes", () => {
   const e = agent("risk-review", { prompt: "docs/superpowers/specs/x.md" });
-  const c = mk();
+  const gitFor = (branch, head) => (...a) => (a.includes("--abbrev-ref") ? branch : head);
+  const c = { ...mk(), git: gitFor("tanda-1", "h1") };
   assert.ok(allowed(decide(e, c)));
-  assert.equal(c.st.get("risk"), "h1");
-  assert.ok(denied(decide(e, c), /already reviewed.*name the commit to review/));
-  assert.ok(allowed(decide(e, { ...c, git: () => "h2" })));
+  assert.equal(c.st.get("risk"), "tanda-1::docs/superpowers/specs/x.md");
+  // Same branch + same spec denies even after a fix commit moves HEAD
+  assert.ok(denied(decide(e, { ...c, git: gitFor("tanda-1", "h2") }), /confirm fixes with review/));
+  // Different branch or different plan passes
+  assert.ok(allowed(decide(e, { ...c, git: gitFor("tanda-2", "h2") })));
+  assert.ok(allowed(decide(agent("risk-review", { prompt: "docs/superpowers/plans/other.md" }), { ...c, git: gitFor("tanda-2", "h2") })));
 });
 
 test("third agent denies; risk reviewer does not count; ask, user prompt or seal reset", () => {
@@ -341,38 +345,30 @@ test("the index query counts behind env, -u and NAME=value words", () => {
     assert.equal(q(c), 0, c);
 });
 
-test("risk reviewer keys on the commit ids the prompt names, cut to 7, with the root HEAD", () => {
+test("risk reviewer on detached HEAD keys on doc + commit ids cut to 7; on a named branch keys on branch + doc", () => {
   const p = (ids) => agent("risk-review", { prompt: `docs/superpowers/specs/x.md ${ids}` });
-  const c = mk({ head: "h000000" });
+  const detached = (h) => ({ ...mk(), git: (...a) => (a.includes("--abbrev-ref") ? "HEAD" : h) });
+  const c = detached("h000000");
   assert.ok(allowed(decide(p("abc1234 and def5678"), c)));
-  assert.equal(c.st.get("risk"), "abc1234,def5678,h000000");
-  assert.ok(denied(decide(p("def5678 abc1234 abc1234"), c), /already reviewed/));
-  assert.ok(allowed(decide(p("abc1234"), c))); // other ids: another review
-  assert.ok(denied(decide(p("abc1234abcdef0123456789abcdef0123456789"), c))); // the long spelling of the same commit is the same key
-  assert.ok(allowed(decide(p("abc123"), c))); // 6 chars is no id: keys on HEAD alone
-  assert.equal(c.st.get("risk"), "h000000");
+  assert.equal(c.st.get("risk"), "docs/superpowers/specs/x.md::abc1234,def5678,h000000");
+  assert.ok(denied(decide(p("def5678 abc1234 abc1234"), c), /confirm fixes with review/));
+  assert.ok(denied(decide(p("abc1234abcdef0123456789abcdef0123456789 def5678"), c)));
+  assert.ok(allowed(decide(p("abc123"), c)));
   assert.ok(denied(decide(p("abc123"), c)));
-  assert.ok(allowed(decide(p("abc123"), { ...c, git: () => "h2" })));
+  assert.ok(allowed(decide(p("abc123"), { ...c, git: (...a) => (a.includes("--abbrev-ref") ? "HEAD" : "h2") })));
 });
 
-test("the same ids after a fix commit moved HEAD are another review", () => {
+test("on a named branch, a fix commit moving HEAD still denies a second risk-review on the same plan", () => {
   const p = (t) => agent("risk-review", { prompt: `docs/superpowers/plans/x.md ${t}` });
-  const c = mk({ head: "1d81d4e0000000000000000000000000000000aa" });
+  const gitFor = (branch, head) => (...a) => (a.includes("--abbrev-ref") ? branch : head);
+  const c = { ...mk(), git: gitFor("batch-1", "1d81d4e0000000000000000000000000000000aa") };
   assert.ok(allowed(decide(p("main...1d81d4e (reviewed sha 1d81d4e)"), c)));
-  assert.ok(denied(decide(p("main...1d81d4e (reviewed sha 1d81d4e)"), c), /name the commit to review/));
-  const moved = { ...c, git: () => "9999999ffffffffffffffffffffffffffffffffff" };
-  assert.ok(allowed(decide(p("findings; reviewed sha 1d81d4e, git diff 1d81d4e..HEAD"), moved)));
-});
-
-test("the same commit under another spelling is the same key", () => {
-  const p = (t) => agent("risk-review", { prompt: `docs/superpowers/plans/x.md ${t}` });
-  const full = "1d81d4e0000000000000000000000000000000aa";
-  const a = mk({ head: full });
-  assert.ok(allowed(decide(p("1d81d4e"), a)));
-  assert.ok(denied(decide(p(full), a)));
-  const b = mk({ head: full });
-  assert.ok(allowed(decide(p("no id here"), b)));
-  assert.ok(denied(decide(p("1d81d4e"), b)));
+  assert.ok(denied(decide(p("main...1d81d4e (reviewed sha 1d81d4e)"), c), /confirm fixes with review/));
+  const moved = { ...c, git: gitFor("batch-1", "9999999ffffffffffffffffffffffffffffffffff") };
+  assert.ok(denied(decide(p("findings; reviewed sha 1d81d4e, git diff 1d81d4e..HEAD"), moved), /confirm fixes with review/));
+  // Next batch branch with the same plan is allowed
+  const nextBatch = { ...c, git: gitFor("batch-2", "9999999ffffffffffffffffffffffffffffffffff") };
+  assert.ok(allowed(decide(p("main...9999999"), nextBatch)));
 });
 
 test("shell: a redirect target stops at a separator", () => {
@@ -548,6 +544,11 @@ test("Antigravity reviewers are denied through invoke_subagent and gated through
   assert.ok(denied(decide(agSh('node ".xworkflows/hooks/run-agent.mjs" risk-review prompt-noplan.txt'), c), /plan or spec/));
   assert.ok(allowed(decide(agSh('node .xworkflows/hooks/run-agent.mjs risk-review "my prompt.md"'), c)));
   assert.ok(denied(decide(agSh('node .xworkflows/hooks/run-agent.mjs risk-review "my prompt.md"'), c), /already reviewed/));
+  // direct `agy -p` / `--print` from the main session in Antigravity is denied; `agy models` / `--help` stay allowed
+  assert.ok(denied(decide(agSh('agy -p "review" --model gemini-4-neon-xhigh'), c), /run-agent\.mjs/));
+  assert.ok(denied(decide(agSh('cd repo && XWORKFLOWS_AGENT=risk-review agy --print "x"'), c), /run-agent\.mjs/));
+  assert.ok(allowed(decide(agSh("agy models"), c)));
+  assert.ok(allowed(decide(agSh("agy --help"), c)));
   // reviewer subagents cannot write files; a project's own review agent when ours is renamed xwf-review stays allowed
   for (const role of ["review", "risk-review", "risk-review-lite"]) {
     assert.ok(denied(decide(ev("write", { isSubagent: true, agent: role, writes: [{ path: "src/a.ts" }] }), c), /never edits/), role);

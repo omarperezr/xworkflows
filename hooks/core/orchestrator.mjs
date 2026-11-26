@@ -151,6 +151,9 @@ export function decide(ev, ctx) {
       const file = ra[ra.length - 3] ?? ra[ra.length - 2] ?? ra[ra.length - 1];
       return agentGate({ ...ev, kind: "agent", agent: role, prompt: ctx.readFile(path.resolve(ev.root, file)) ?? "", viaRunner: true });
     }
+    // In Antigravity, never bypass orchestrator/handback gates by running `agy -p` directly from the main session.
+    if (ev.toolDir === ".agents" && new RegExp(`(^|[;&|(\\n][ \\t\\r]*)${env}(${word}*/)?agy(?:[ \\t]+[^;&|\\n]*)?[ \\t]+(-p|--print|--prompt)(?:$|[ \\t=])`).test(code))
+      return deny("Do not run `agy -p` directly from the main session: dispatch reviewers through `node .xworkflows/hooks/run-agent.mjs <role> <prompt file>` so orchestrator and handback gates apply.");
     return allow;
   }
 
@@ -183,14 +186,18 @@ export function decide(ev, ctx) {
     }
     if (is(roles.riskReviewer) || is(roles.riskReviewerLite)) {
       const dirs = [paths.plans, paths.specs].map((p) => esc(p.replace(/\/$/, ""))).join("|");
-      if (!new RegExp(`(${dirs})/\\S+\\.md`).test(String(ev.prompt ?? "").replaceAll("\\", "/")))
+      const docMatch = new RegExp(`(${dirs})/\\S+\\.md`).exec(String(ev.prompt ?? "").replaceAll("\\", "/"));
+      if (!docMatch)
         return deny(`${type} reviews against a plan or spec: name its .md path under ${paths.plans} or ${paths.specs}.`);
-      // the commits the prompt names and the root HEAD, each cut to 7: the same commit is one key in any spelling, and a fix commit opens a new review
+      // One risk review per batch (branch + plan/spec): confirm fixes with roles.reviewer at effort high, never a second risk reviewer.
+      const branch = ctx.git("rev-parse", "--abbrev-ref", "HEAD") ?? "";
+      const doc = docMatch[0];
       const named = String(ev.prompt ?? "").match(/(?<![0-9A-Za-z])[0-9a-f]{7,40}(?![0-9A-Za-z])/g) ?? [];
       const head = [...new Set([...named, ctx.git("rev-parse", "HEAD") ?? ""].map((x) => x.slice(0, 7)).filter(Boolean))].sort().join(",");
-      if (head && ctx.state("risk") === head)
-        return deny(`${type} already reviewed this commit: name the commit to review in the prompt and commit the fixes, or confirm them with ${roles.reviewer}.`);
-      ctx.save("risk", head);
+      const batchKey = branch && branch !== "HEAD" ? `${branch}::${doc}` : `${doc}::${head}`;
+      if (ctx.state("risk") === batchKey)
+        return deny(`${type} already reviewed this batch (${branch || "detached"}, ${doc}): confirm fixes with ${roles.reviewer} at effort high, never a second ${type}.`);
+      ctx.save("risk", batchKey);
     } else {
       const n = Number(ctx.state("agents")) || 0;
       if (n >= limits.agentsBeforeWorkflow)
