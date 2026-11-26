@@ -57,3 +57,6 @@ Spec: docs/superpowers/specs/2026-11-25-antigravity.md
 ## Declined findings
 
 ## Seals
+
+risk-review ok at a8b580e
+review ok at 24000d6
