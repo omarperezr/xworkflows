@@ -1,6 +1,6 @@
 // The text of each session from where the last dream run stopped, masked, for the analyzers. No model.
 // Usage: node extract.mjs [--sessions <folder>] [--current <id>]
-import { readFileSync, readdirSync, statSync, mkdtempSync, writeFileSync, existsSync, realpathSync } from "node:fs";
+import { readFileSync, readdirSync, statSync, lstatSync, mkdtempSync, writeFileSync, existsSync, realpathSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -97,13 +97,23 @@ export function mask(text) {
   return [lines.map(([l]) => l).join("\n"), lines.reduce((s, [, c]) => s + c, n)];
 }
 
+const AG_WRAP = /<(?:ADDITIONAL_METADATA|USER_SETTINGS_CHANGE|SYSTEM_MESSAGE)>[\s\S]*?<\/(?:ADDITIONAL_METADATA|USER_SETTINGS_CHANGE|SYSTEM_MESSAGE)>/g;
+const AG_REQ = /<\/?USER_REQUEST>/g;
+
 // one line of a session file: its kept text ("user: ..." / "assistant: ..."), its timestamp, and whether it was not JSON
 function line(raw) {
   if (!raw.trim()) return { text: "", time: null, bad: false };
   let o;
   try { o = JSON.parse(raw); } catch { return { text: "", time: null, bad: true }; }
-  const time = typeof o?.timestamp === "string" && !Number.isNaN(Date.parse(o.timestamp)) ? o.timestamp : null;
+  const ts = typeof o?.timestamp === "string" ? o.timestamp : typeof o?.created_at === "string" ? o.created_at : null;
+  const time = ts && !Number.isNaN(Date.parse(ts)) ? ts : null;
   const side = o?.type;
+  if (side === "USER_INPUT" || side === "PLANNER_RESPONSE") {
+    if (side === "USER_INPUT" && o.source && o.source !== "USER_EXPLICIT") return { text: "", time, bad: false };
+    const text = typeof o.content === "string" ? o.content.replace(AG_WRAP, "").replace(AG_REQ, "").replace(NOISE, "").trim() : "";
+    if (!text || (side === "USER_INPUT" && REPORT.test(text))) return { text: "", time, bad: false };
+    return { text: `${side === "USER_INPUT" ? "user" : "assistant"}: ${text}`, time, bad: false };
+  }
   const c = (side === "user" || side === "assistant") && !o.isMeta && !o.isCompactSummary && o.isSidechain !== true ? o.message?.content : null;
   const parts = typeof c === "string" ? [c] : Array.isArray(c) ? c.filter((b) => b?.type === "text" && typeof b.text === "string").map((b) => b.text) : [];
   const out = [];
@@ -116,16 +126,35 @@ function line(raw) {
 
 const arg = (argv, k) => (argv.includes(k) ? argv[argv.indexOf(k) + 1] : undefined);
 
+function antigravitySessions(root) {
+  const file = join(root, ".xworkflows", "local.json");
+  try {
+    if (lstatSync(file).isSymbolicLink()) return [];
+    const list = JSON.parse(readFileSync(file, "utf8"))?.antigravity?.sessions;
+    if (!Array.isArray(list)) return [];
+    const seen = new Set();
+    const out = [];
+    for (const s of list) {
+      if (!s || typeof s.id !== "string" || !s.id || typeof s.transcript !== "string" || !s.transcript || seen.has(s.id)) continue;
+      seen.add(s.id);
+      if (existsSync(s.transcript) && statSync(s.transcript).isFile()) out.push({ name: s.id, file: s.transcript });
+    }
+    return out;
+  } catch { return []; }
+}
+
 export function run(argv, env, root, home) {
   const refuse = (why) => ({ code: 2, stdout: "", stderr: `dream extract: ${why}\n` });
-  const current = arg(argv, "--current") || env.CLAUDE_CODE_SESSION_ID;
-  if (!current) return refuse("the id of the running session is unknown: pass --current <id> or set CLAUDE_CODE_SESSION_ID");
+  const tool = arg(argv, "--tool") || "claude";
+  const current = arg(argv, "--current") || (tool === "antigravity" ? env.ANTIGRAVITY_CONVERSATION_ID : env.CLAUDE_CODE_SESSION_ID);
+  if (!current) return refuse(tool === "antigravity" ? "the id of the running session is unknown: pass --current <id> or set ANTIGRAVITY_CONVERSATION_ID" : "the id of the running session is unknown: pass --current <id> or set CLAUDE_CODE_SESSION_ID");
   const config = load(root);
   const cap = config.dream?.maxExtractBytes;
   if (!Number.isInteger(cap) || cap <= 0) return refuse(`dream.maxExtractBytes is ${JSON.stringify(cap)}, not a whole number above zero: fix it in .xworkflows/config.json`);
   const dir = memoryDir(config.memory.dir) ?? DEFAULTS.memory.dir, memory = join(root, dir);
   const notes = existsSync(memory) ? readdirSync(memory).filter((f) => f.endsWith(".md") && f !== "MEMORY.md").length : 0;
-  const folder = arg(argv, "--sessions") ?? join(home, ".claude", "projects", root.replace(/[^A-Za-z0-9]/g, "-"));
+  const sessionsArg = arg(argv, "--sessions");
+  const folder = sessionsArg ?? join(home, ".claude", "projects", root.replace(/[^A-Za-z0-9]/g, "-"));
   const outside = outsideFolders(memory, root, home, config.memory.autoDirectory);
 
   // the state of the adopted runs is on the main branch, the commit `branch.mjs open` starts from; the working folder is not read
@@ -150,12 +179,17 @@ export function run(argv, env, root, home) {
     return { code: 0, stdout: text + "\n", stderr: "" };
   };
 
+  const sources = tool === "antigravity" && !sessionsArg
+    ? antigravitySessions(root).filter((s) => s.name !== current)
+    : (existsSync(folder) ? readdirSync(folder, { withFileTypes: true }) : [])
+      .filter((e) => e.isFile() && e.name.endsWith(".jsonl") && e.name !== `${current}.jsonl`)
+      .map((e) => ({ name: e.name.slice(0, -6), file: join(folder, e.name) }));
+
   const found = [];
-  for (const e of existsSync(folder) ? readdirSync(folder, { withFileTypes: true }) : []) {
-    if (!e.isFile() || !e.name.endsWith(".jsonl") || e.name === `${current}.jsonl`) continue;
-    const file = join(folder, e.name), all = readFileSync(file, "utf8").split("\n");
+  for (const { name, file } of sources) {
+    const all = readFileSync(file, "utf8").split("\n");
     all.pop(); // after the last newline: nothing, or a line still being written, read at a later run
-    const name = e.name.slice(0, -6), from = Number.isInteger(state[name]) && state[name] > 0 ? state[name] : 0;
+    const from = Number.isInteger(state[name]) && state[name] > 0 ? state[name] : 0;
     if (all.length <= from) continue;
     const lines = all.slice(from).map(line);
     found.push({ name, from, lines, time: lines.find((l) => l.time)?.time ?? statSync(file).mtime.toISOString() });

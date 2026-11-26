@@ -64,7 +64,7 @@ export function buildQueue(s, research = {}, scan = {}, prev = null, cfg = {}, e
     item("H2-pays", "2", "Who pays for this, and what is sold?", o.length ? [...o, OPEN[0]] : OPEN),
     item("H6-zones", "6", "Does this split of the code into zones match how you think about it?"),
     ...(scan.zones || []).map((z, i) => item(`H6-r${i + 1}`, "6", `What does a mistake in ${z.key} risk? If more than one applies, type them all in Type something.`, ["Money", "Data", "Access", "No risk"])),
-    ...(tiers?.strongest && tiers.top ? [item("H6-model", "6", `Which model should run the risk reviewer of this project: ${tiers.strongest}, the strongest, or ${tiers.top}, the one of the plain reviewer? If another, type it in Type something.`, [tiers.strongest, tiers.top])] : []),
+    ...(tiers?.strongest && tiers.top && tiers.strongest !== tiers.top ? [item("H6-model", "6", `Which model should run the risk reviewer of this project: ${tiers.strongest}, the strongest, or ${tiers.top}, the one of the plain reviewer? If another, type it in Type something.`, [tiers.strongest, tiers.top])] : []),
     ...["Keep one branch per batch, merged with --no-ff and never rebased after review?", "Push only when you say so?", "Add files by explicit path, never `git add .` or `-A`?", "No commit, PR or comment names an AI as author or co-author?"].map((t, i) => confirm(`H7-g${i + 1}`, "7", t)),
     item("H7-depth", "7", "How deep should a review go on a normal change?"),
     item("H7-push", "7", "Who may push?"),
@@ -270,9 +270,12 @@ function cli(cmd, root) {
   } else if (cmd === "queue" || cmd === "check" || cmd === "model") {
     const need = (f) => { try { return readJson(join(dir, f)); } catch { console.error(`adapt: ${f} is missing or unreadable`); process.exit(1); } };
     const opt = (f) => { try { return readJson(join(dir, f)); } catch { return null; } };
+    const ti = process.argv.indexOf("--tool");
+    const installedTools = opt("installed.json")?.tools;
+    const tool = (ti >= 0 && process.argv[ti + 1]) || (Array.isArray(installedTools) && installedTools.length === 1 ? installedTools[0] : "claude");
     if (cmd === "queue") {
       const prevRun = opt("research.prev.json"), cfg = opt("config.json") || {};
-      const q = buildQueue(need("screens.json"), need("research.json"), need("scan.json"), prevRun, cfg, prevRun && earlier(root, dir, cfg), opt("tiers.json")?.claude);
+      const q = buildQueue(need("screens.json"), need("research.json"), need("scan.json"), prevRun, cfg, prevRun && earlier(root, dir, cfg), opt("tiers.json")?.[tool]);
       put(join(dir, "interview.json"), JSON.stringify(q, null, 2) + "\n");
     } else {
       const { run } = need("adapt-run.json");
@@ -287,11 +290,17 @@ function cli(cmd, root) {
         // the last answer of this run, as check counts it; a re-adapt is the run queue leaves the kept items out of
         const answer = log.filter((l) => l.run === run && l.id === "H6-model" && l.answer !== undefined && l.answer !== "").pop()?.answer;
         let file = null;
-        try { file = readFileSync(join(root, ".claude", "agents", "risk-review.md"), "utf8"); } catch {}
-        const tier = modelText(process.argv[3]).toLowerCase(), tiers = opt("tiers.json")?.claude;
-        if (TIER_NAMES.includes(tier) && !tiers?.[tier]) { console.error(`adapt: the tier ${tier} is not in .xworkflows/tiers.json under claude`); process.exit(1); }
-        const m = riskModel({ tiers, answer, readapt: !!opt("research.prev.json"), file, given: process.argv[3] });
-        if (!m) { console.error("adapt: no model for the risk reviewer: .xworkflows/tiers.json has neither strongest nor top under claude"); process.exit(1); }
+        const primaryDir = tool === "antigravity" ? ".agents" : ".claude";
+        const fallbackDir = tool === "antigravity" ? ".claude" : ".agents";
+        for (const d of [primaryDir, fallbackDir]) {
+          try { file = readFileSync(join(root, d, "agents", "risk-review.md"), "utf8"); break; } catch {}
+        }
+        const rest = process.argv.slice(3).filter((_, i, a) => a[i] !== "--tool" && a[i - 1] !== "--tool");
+        const given = rest[0];
+        const tier = modelText(given).toLowerCase(), tiers = opt("tiers.json")?.[tool];
+        if (TIER_NAMES.includes(tier) && !tiers?.[tier]) { console.error(`adapt: the tier ${tier} is not in .xworkflows/tiers.json under ${tool}`); process.exit(1); }
+        const m = riskModel({ tiers, answer, readapt: !!opt("research.prev.json"), file, given });
+        if (!m) { console.error(`adapt: no model for the risk reviewer: .xworkflows/tiers.json has neither strongest nor top under ${tool}`); process.exit(1); }
         console.log(m);
       }
     }
