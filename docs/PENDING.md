@@ -14,6 +14,7 @@ One living list. The `pending` brake checks these rules:
 - **P-254** — Native Antigravity hook adapter, tiers, core hook multi-tool support, and recorded fixtures (`plan docs/superpowers/plans/2026-11-25-antigravity.md`). Origin: docs/superpowers/plans/2026-11-25-antigravity.md. Status: in progress on antigravity-1.
 - **P-255** — Python `run_workflow` scripts (`adapt`, `dream`, `pending`, `full-review`) and Antigravity transcript/tier support (`plan docs/superpowers/plans/2026-11-25-antigravity.md`). Origin: docs/superpowers/plans/2026-11-25-antigravity.md. Status: scheduled.
 - **P-256** — Antigravity installer (`--tool antigravity`), coexistence with Claude Code, `doctor`, `uninstall`, `skills-travel`, manifest, docs, and live `agy -p` proof (`plan docs/superpowers/plans/2026-11-25-antigravity.md`). Origin: docs/superpowers/plans/2026-11-25-antigravity.md. Status: scheduled.
+- **P-257** — Antigravity agents depend on the main session's model and effort: `medium`, `top` and `strongest` are `inherit`, so a session left on XHigh ran all 23 `mechanism` agents of an adapt research on XHigh and used up the owner's quota (2026-11-25). Wanted: the fixed map of the plan's Global Constraints (`flash`, `pro`, `gemini-4-neon-high`, `gemini-4-neon-xhigh`), `top` and `strongest` through an `agy -p --model` runner, T4 (`plan docs/superpowers/plans/2026-11-25-antigravity.md`). Origin: the owner, 2026-11-26. Status: scheduled.
 
 
 ## Workflow upgrade

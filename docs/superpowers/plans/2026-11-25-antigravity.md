@@ -9,7 +9,7 @@ Spec: docs/superpowers/specs/2026-11-25-antigravity.md
 - "quiero todo, quiero poder usar todos los skills y que xworkflows funcione al 100%, el proyecto original de xworkflows esta en ../xworkflows"
 - Coexist with Claude Code in the same repository; every existing Claude Code test and behavior must remain green.
 - Node standard library only (zero new dependencies); every shipped file is listed in `manifest.json` with its SHA-256 hash; no private user paths in tracked files or fixtures.
-- Antigravity tiers in `tiers.json`: `cheap: "flash"`, `medium: "inherit"`, `top: "inherit"`, `strongest: "inherit"`. Never emit concrete model IDs or unmapped tool names into `.agents/agents/*.md`.
+- Antigravity agents never depend on the main session's model or effort (owner, 2026-11-26: "nada debe depender del esfuerzo ni modelo de la sesion principal"); `inherit` is never used. Tiers in `tiers.json` under `antigravity`: `cheap` `flash` (resolves to `gemini-4-hydrogen-tiered-high`), `medium` `pro` (resolves to `gemini-4-hydrogen-tiered-xhigh`), `top` `gemini-4-neon-high`, `strongest` `gemini-4-neon-xhigh` (owner, 2026-11-26: "top neon high, ... cheap flash, strongest neon xhigh"). `.agents/agents/*.md`, `invoke_subagent` and `run_workflow` accept only `inherit`, `flash_lite`, `flash`, `pro`, so `top` and `strongest` run through `agy -p --model <id>`; `zone-review` stays `pro` inside the full-review workflow (owner, 2026-11-26: option 1). Never emit a concrete model ID into `.agents/agents/*.md`.
 
 ## Tasks
 
@@ -33,6 +33,14 @@ Spec: docs/superpowers/specs/2026-11-25-antigravity.md
 - Files: `bin/xworkflows.mjs`, `bin/antigravity.test.mjs`, `checks/skills-travel.mjs`, `checks/skills-travel.test.mjs`, `manifest.json`, `docs/gaps.md`, `README.md`, installed copies in this repo
 - Role: implement
 - Done: `node bin/xworkflows.mjs pack --check` prints nothing, `node --test $(git ls-files '*.test.mjs')` passes, `node bin/xworkflows.mjs doctor` exits 0, privacy check passes, and live `agy -p` proves `design-first` deny/allow + `handback` deny/allow + custom agent invocation + Python `run_workflow`.
+
+### Batch 4: `antigravity-4`
+
+**T4: Fixed Antigravity model map and an `agy -p` runner for `top` and `strongest`** (Global Constraints, model map; P-257)
+- Files: `tiers.json`, `bin/xworkflows.mjs` (agent renderer), the runner and its test, `hooks/core/orchestrator.mjs`, `hooks/core/handback.mjs`, `hooks/adapters/antigravity.mjs`, `skills/orchestrate/SKILL.md`, `skills/full-review/`, `skills/adapt/`, `manifest.json`, tests beside each.
+- Role: implement
+- Open design questions, settled with the owner before any code: the child session's permissions (`agy` offers `--sandbox`, `--mode plan`, and the tool list of the agent named by `--agent`); whether `--agent` loads a project agent with `mainAgent: false` (`agy agents` run in the reference project lists only plugin agents); how the main session calls the runner and how `orchestrator` (one risk review per commit, a plan named) and `handback` (`reviewed:`, `not checked:`) still judge it.
+- Done: tests pass; live `agy -p`: the transcript `model` of `risk-review` reads `gemini-4-neon-xhigh`, of `review` `gemini-4-neon-high`, of `mechanism` `gemini-4-hydrogen-tiered-xhigh`, of `explore` `gemini-4-hydrogen-tiered-high`, whatever model and effort the main session runs; a second risk review of the same commit and one whose prompt names no plan are still denied; a reviewer report without `reviewed:` or `not checked:` is still denied.
 
 ## Review Focus
 
