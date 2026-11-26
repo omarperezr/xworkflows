@@ -177,6 +177,11 @@ export function normalize(raw, env = {}) {
   let isSubagent = Boolean(sub);
   let parent = sub?.parent ?? null;
   let agent = sub?.agent;
+  // a child started by run-agent.mjs (agy -p) carries its role: a subagent to every rule
+  if (!isSubagent && typeof env.XWORKFLOWS_AGENT === "string" && /^[A-Za-z0-9_-]+$/.test(env.XWORKFLOWS_AGENT)) {
+    isSubagent = true;
+    agent = env.XWORKFLOWS_AGENT;
+  }
 
   if (!isSubagent && lastInput.trimEnd().endsWith(WF_SUFFIX)) {
     isSubagent = true;

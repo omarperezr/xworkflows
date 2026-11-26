@@ -648,9 +648,12 @@ function renderAgent(text, ov, on) {
 }
 
 // Antigravity custom subagent render: tier -> flash|pro (never inherit: no agent depends on the main session), valid CLI tool names only (no unmapped Grep/Glob), subagent: true, mainAgent: false, no effort:, local skills only.
+// An agent file takes only a tier keyword (a concrete model id makes agy drop the agent): a tier set to a model id renders `pro`; run-agent.mjs runs that model through agy -p.
+const AG_KEYWORDS = new Set(["flash_lite", "flash", "pro"]);
 function renderAntigravityAgent(text, tiers, ov) {
   const o = isObj(ov) ? ov : {};
-  const mapped = tierToModel(text, tiers, "antigravity").replace(/^---\n([\s\S]*?)\n---\n/, (_, fm) => {
+  const agTiers = { ...tiers, antigravity: Object.fromEntries(Object.entries(tiers.antigravity ?? {}).map(([k, v]) => [k, AG_KEYWORDS.has(v) ? v : "pro"])) };
+  const mapped = tierToModel(text, agTiers, "antigravity").replace(/^---\n([\s\S]*?)\n---\n/, (_, fm) => {
     const lines = fm.split("\n").filter((l) => !/^effort:/.test(l));
     const ti = lines.findIndex((l) => /^tools:/.test(l));
     if (ti >= 0) {
@@ -727,7 +730,7 @@ function renderAntigravitySkill(skillId, f, text) {
     out = out
       .replace("One or two agents go with `Agent`, in one message when they are independent. Three or more in a stretch, parallel or serial, go in one `Workflow`", "One or two agents go with `invoke_subagent`, in one message when they are independent. Three or more in a stretch, parallel or serial, go in one `run_workflow`")
       .replace("In a `Workflow`, every `agent()` names its `agentType`", "In a `run_workflow` script, every `agent()` names its `type_name`")
-      .replace("the risk reviewer's first review of a batch runs at effort `xhigh`.", "the risk reviewer's first review of a batch runs at effort `xhigh` (in Antigravity it runs on the `strongest` tier of `.xworkflows/tiers.json`, never `inherit`).");
+      .replace("the risk reviewer's first review of a batch runs at effort `xhigh`.", "the risk reviewer's first review of a batch runs at effort `xhigh` (in Antigravity, dispatch `roles.reviewer`, `roles.riskReviewer` and `roles.riskReviewerLite` only with `node .xworkflows/hooks/run-agent.mjs <role> <prompt file>`, after writing the prompt to that file: it runs them on the `top` and `strongest` models of `.xworkflows/tiers.json`, never `inherit`, and the hook denies them through invoke_subagent).");
   }
   return out;
 }

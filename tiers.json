@@ -1,4 +1,4 @@
 {
   "claude": { "cheap": "haiku", "medium": "sonnet", "top": "opus", "strongest": "fable" },
-  "antigravity": { "cheap": "flash", "medium": "pro", "top": "pro", "strongest": "pro" }
+  "antigravity": { "cheap": "flash", "medium": "pro", "top": "gemini-4-neon-high", "strongest": "gemini-4-neon-xhigh" }
 }

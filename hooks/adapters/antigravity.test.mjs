@@ -52,6 +52,15 @@ test("antigravity: CLI and App/IDE file, shell, web, ask, agent and workflow too
   assert.equal(normalize(pre("run_workflow", { Script: "print(1)" }), env).inline, true);
 });
 
+test("antigravity: a child started by run-agent.mjs (XWORKFLOWS_AGENT) is a subagent with its role", () => {
+  const env = { XWORKFLOWS_STATE_DIR: mkdtempSync(join(tmpdir(), "xwf-ag-")), XWORKFLOWS_AGENT: "risk-review" };
+  const ss = normalize(base({ conversationId: "c-child", hookEventName: "SessionStart", lastUserInput: "review" }), env);
+  assert.deepEqual([ss.event, ss.isSubagent], ["other", true]);
+  const r = normalize(pre("run_command", { CommandLine: "grep -rn x src/" }, { conversationId: "c-child" }), env);
+  assert.deepEqual([r.isSubagent, r.agent], [true, "risk-review"]);
+  assert.equal(normalize(pre("run_command", { CommandLine: "ls" }, { conversationId: "c-x" }), { ...env, XWORKFLOWS_AGENT: "bad name;" }).isSubagent, false);
+});
+
 test("antigravity: answer formats PreToolUse, SessionStart/PreInvocation injectSteps, and PostToolUse/Stop", () => {
   assert.deepEqual(JSON.parse(answer({ decision: "allow" }).stdout), { decision: "allow" });
   assert.deepEqual(JSON.parse(answer({ decision: "deny", reason: "no" }, { event: "preTool" }).stdout), { decision: "deny", reason: "no" });

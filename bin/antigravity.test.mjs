@@ -63,7 +63,7 @@ test("antigravity fresh install writes .agents/skills, .agents/agents, .agents/h
   assert.match(dreamSkill, /ANTIGRAVITY_CONVERSATION_ID/);
   assert.match(dreamSkill, /dream\.workflow\.py/);
   const orchSkill = readFileSync(join(r, ".agents/skills/orchestrate/SKILL.md"), "utf8");
-  assert.match(orchSkill, /`strongest` tier of `\.xworkflows\/tiers\.json`, never `inherit`/);
+  assert.match(orchSkill, /node \.xworkflows\/hooks\/run-agent\.mjs <role> <prompt file>/);
 
   // .agents/hooks.json has all 10 hooks with Antigravity schema (nested matcher for PreToolUse/PostToolUse, flat handler array for SessionStart/PreInvocation/Stop)
   const hooks = readJson(r, ".agents/hooks.json");

@@ -136,9 +136,19 @@ export function decide(ev, ctx) {
       if (codeAlt && new RegExp(`${searchLead}[^|;&\\n]*(^|[\\s"'=])(\\./|${esc(root)}/)?(${codeAlt})`).test(read))
         return deny(`Ask the index first: run \`${idx} "<topic>"\` before grepping code.`);
     }
+    // run-agent.mjs launches a reviewer through agy -p: judged as launching that agent
+    const ra = new RegExp(`(^|[;&|(\\n][ \\t\\r]*)${env}(${word}*/)?node[ \\t]+(${word}*/)?run-agent\\.mjs[ \\t]+(${word}+)[ \\t]+(${word}+)`).exec(code);
+    if (ra) {
+      const file = ra[ra.length - 1].replace(/^["']|["']$/g, "");
+      return agentGate({ ...ev, kind: "agent", agent: ra[ra.length - 2].replace(/^["']|["']$/g, ""), prompt: ctx.readFile(path.resolve(ev.root, file)) ?? "", viaRunner: true });
+    }
     return allow;
   }
 
+  return agentGate(ev);
+
+  // the rules of launching an agent or a workflow, then the main-session web and read rules
+  function agentGate(ev) {
   if (ev.kind === "agent" || ev.kind === "workflow") {
     const summary = ctx.readFile(path.resolve(ev.root, ".xworkflows/summary.md"));
     if (!/^status:\s*approved\s*$/m.test(summary ?? "") && !ctx.marked("adapt"))
@@ -153,6 +163,9 @@ export function decide(ev, ctx) {
     const is = (role) => type === (ctx.agentName?.(role) ?? role); // the installed name: when ours was renamed xwf-<role>, the bare name is the project's own agent
     if (!type || !(ctx.exists(`${toolDir}/agents/${type}.md`) || roles.builtIn.includes(type)))
       return deny(`Use an agent defined in ${toolDir}/agents/.`);
+    // in Antigravity a reviewer runs on its fixed model through agy -p, never on what invoke_subagent gives it
+    if (toolDir === ".agents" && !ev.viaRunner && (is(roles.reviewer) || is(roles.riskReviewer) || is(roles.riskReviewerLite)))
+      return deny(`In Antigravity, run ${type} with \`node .xworkflows/hooks/run-agent.mjs ${type} <prompt file>\`: it runs on its fixed model from .xworkflows/tiers.json.`);
     if (is(roles.lookup) && list(paths.code)) {
       const { command, folder, minutes } = config.lookup.index;
       if (!ctx.exists(folder)) return deny(`The index is missing: build the graph first: \`${command.split(" ")[0]} update .\`.`);
@@ -187,4 +200,5 @@ export function decide(ev, ctx) {
       return deny(`Reading more than ${config.limits.inlineReadLines} lines of that code here costs context: delegate it to ${config.roles.lookup}, or pass a limit.`);
   }
   return allow;
+  }
 }
