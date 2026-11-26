@@ -268,6 +268,27 @@ function agHooksWants(manifest) {
   return want;
 }
 
+// An .agents/hooks.json entry is ours only when every handler inside it runs our antigravity hook for `id`.
+function isAgOurs(entry, id) {
+  if (!isObj(entry)) return false;
+  const events = Object.values(entry);
+  if (!events.length) return false;
+  const mark = `/.xworkflows/hooks/run.mjs" antigravity ${id} `;
+  let seen = 0;
+  for (const list of events) {
+    if (!Array.isArray(list) || !list.length) return false;
+    for (const item of list) {
+      const hs = Array.isArray(item?.hooks) ? item.hooks : [item];
+      if (!hs.length) return false;
+      for (const h of hs) {
+        if (typeof h?.command !== "string" || !`${h.command} `.includes(mark)) return false;
+        seen++;
+      }
+    }
+  }
+  return seen > 0;
+}
+
 function mergeAntigravityHooks(root, manifest, record) {
   const path = AG_HOOKS;
   const { old, s } = readObject(root, path);
@@ -276,7 +297,7 @@ function mergeAntigravityHooks(root, manifest, record) {
   let changed = false;
   for (const id of orphanIds(manifest)) {
     const k = `xworkflows-${id}`;
-    if (k in s) { delete s[k]; changed = true; }
+    if (k in s && isAgOurs(s[k], id)) { delete s[k]; changed = true; }
   }
   for (const { key, id, entry } of want) {
     if (!(key in s)) {
@@ -290,11 +311,11 @@ function mergeAntigravityHooks(root, manifest, record) {
       if (!known) merged.push({ file: path, key: [key], entry, createdKey: false });
       continue;
     }
-    const recorded = record.merged.find((m) => m.file === path && isDeepStrictEqual(m.key, [key]));
-    if (recorded && isDeepStrictEqual(s[key], recorded.entry)) {
+    if (isAgOurs(s[key], id)) {
+      const recorded = record.merged.find((m) => m.file === path && isDeepStrictEqual(m.key, [key]));
       s[key] = entry;
       changed = true;
-      merged.push({ file: path, key: [key], entry, createdKey: recorded.createdKey ?? false });
+      merged.push({ file: path, key: [key], entry, createdKey: recorded?.createdKey ?? false });
     } else {
       notes.push(`kept: ${path} hook ${id} differs from the package's entry; to get the package's entry, delete ${key} and run xworkflows install`);
     }
@@ -782,7 +803,8 @@ function pkgWrites(manifest, root, tools = ["claude"]) {
     for (const [tool, dir] of [["claude", ".claude"], ["antigravity", ".agents"]]) {
       if (!tools.includes(tool)) continue;
       const from = `${dir}/agents/${full}.md`, source = read(root, from);
-      if (source !== null) writes.push({ path: `${dir}/agents/${lite}.md`, text: liteOf(source, full, lite, tiersObj[tool].top), piece: "installer", src: from });
+      const top = tool === "antigravity" ? (AG_KEYWORDS.has(tiersObj[tool].top) ? tiersObj[tool].top : "pro") : tiersObj[tool].top;
+      if (source !== null) writes.push({ path: `${dir}/agents/${lite}.md`, text: liteOf(source, full, lite, top), piece: "installer", src: from });
     }
   }
   return writes;
@@ -1546,7 +1568,7 @@ function uninstall() {
 
   const named = {
     files: (_, p) => wanted.has(p) || hookSet.has(p),
-    merged: (m) => (m.file === SETTINGS && wants.some((w) => theirs(w, m))) || (m.file === AG_HOOKS && agWants.some((w) => w.key === m.key?.[0])),
+    merged: (m) => (m.file === SETTINGS && wants.some((w) => theirs(w, m))) || (m.file === AG_HOOKS && agWants.some((w) => w.key === m.key?.[0] && isAgOurs(m.entry, w.id))),
     scalars: (x) => (x.file === SETTINGS && (isDeepStrictEqual(x.key, ["attribution"]) || planted(x))) || (x.file === LOCAL && isDeepStrictEqual(x.key, [LOCAL_KEY])),
     blocks: (b) => b.file === "AGENTS.md",
     imports: (i) => !!LINES.get(i.file)?.includes(i.line) || (i.file === GI && giLines.has(i.line)) || i.line === hookLine(basename(i.file)),
@@ -1631,7 +1653,7 @@ function uninstall() {
         const k = m.key[0];
         if (!(k in s)) continue;
         const w = agWants.find((x) => x.key === k);
-        if (isDeepStrictEqual(s[k], m.entry) || (w && isDeepStrictEqual(s[k], w.entry))) { delete s[k]; changed = true; }
+        if (w && (isDeepStrictEqual(s[k], w.entry) || isAgOurs(s[k], w.id))) { delete s[k]; changed = true; }
         else out.push(`kept (changed locally): ${AG_HOOKS} ${k}`);
       }
       if (changed) write(AG_HOOKS, json(s, agText));

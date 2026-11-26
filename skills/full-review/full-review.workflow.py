@@ -5,6 +5,7 @@ REVIEWS = ["thermo-nuclear-review", "thermo-nuclear-code-quality-review"]
 ZONES = args["zones"]
 SKILLS = args["skills"]
 AGENT_TYPE = args.get("agent") or "zone-review"
+MODEL = args.get("model") or "pro"
 RANK = {"high": 0, "medium": 1, "low": 2}
 
 SCHEMA = {
@@ -38,7 +39,7 @@ async def run_pair(pair):
     zone = pair["zone"]
     prompt = f'Follow {SKILLS[review]}/SKILL.md, its "Whole-repo mode" section, on this zone only. Zone "{zone["key"]}", paths: {", ".join(zone["paths"])}. Return the findings in the "findings" field.'
     try:
-        out = await agent(prompt=prompt, schema=SCHEMA, role=f"{review}: {zone['key']}", type_name=AGENT_TYPE)
+        out = await agent(prompt=prompt, schema=SCHEMA, role=f"{review}: {zone['key']}", type_name=AGENT_TYPE, model=MODEL)
         if not out or "findings" not in out:
             return None
         return [{**f, "review": review, "zone": zone["key"]} for f in out["findings"]]

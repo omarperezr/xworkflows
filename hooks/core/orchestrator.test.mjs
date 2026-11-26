@@ -239,8 +239,8 @@ test("a prompt not from the user changes nothing", () => {
   assert.equal(c.st.get("qmd"), T0 - 1000);
   decide(ev("other", { event: "prompt", prompt: "go", fromUser: true }), c);
   assert.ok(allowed(decide(impl, c)));
-  assert.equal(c.st.get("index"), 0);
-  assert.equal(c.st.get("qmd"), 0);
+  assert.equal(c.st.get("index"), T0 - 1000);
+  assert.equal(c.st.get("qmd"), T0 - 1000);
 });
 
 test("lookup agent: index folder missing, then no recent query", () => {
@@ -467,8 +467,15 @@ test("the lite risk reviewer is a risk reviewer: it needs a plan, and a second r
   assert.ok(denied(decide(e, c), /already reviewed/));
 });
 
-test("code grep/find in main session needs graphify query per user message; pipes and subagents pass", () => {
-  const c = mk({ state: { index: 0 } });
+test("code grep/find in main session is opt-in (gateShell/perMessage); pipes and subagents pass", () => {
+  // default config leaves shell grep allowed and preserves the 30-min index window across user prompts
+  const def = mk({ state: { index: T0 - 1000 } });
+  assert.ok(allowed(decide(sh("grep -n foo src/a.ts"), def)));
+  decide(ev("other", { event: "prompt", fromUser: true }), def);
+  assert.equal(def.st.get("index"), T0 - 1000);
+
+  const optCfg = { ...cfg, lookup: { ...cfg.lookup, index: { ...cfg.lookup.index, gateShell: true, perMessage: true } } };
+  const c = mk({ state: { index: 0 }, config: optCfg });
   for (const cmd of ["grep -n foo src/a.ts", "rg bar src/", "git grep baz src/", "find src/ -name '*.ts'"])
     assert.ok(denied(decide(sh(cmd), c), /graphify query/), cmd);
   assert.ok(allowed(decide(sh("git log --oneline | grep src/"), c)));
@@ -477,19 +484,30 @@ test("code grep/find in main session needs graphify query per user message; pipe
   // stamp via graphify query unlocks for this message
   assert.ok(allowed(decide(sh('graphify query "foo"'), c)));
   assert.ok(allowed(decide(sh("grep -n foo src/a.ts"), c)));
-  // new user message clears the pass
+  // new user message clears the pass when perMessage is enabled
   decide(ev("other", { event: "prompt", fromUser: true }), c);
   assert.ok(denied(decide(sh("grep -n foo src/a.ts"), c), /graphify query/));
 });
 
-test("qmd-first in main session gates memory/session reads and indexed searches per user message; direct plan reads and subagents pass", () => {
+test("qmd-first in main session is opt-in, never blocks MEMORY.md, and suggests valid qmd query syntax", () => {
+  // default config (lookup.memory.command = null) never blocks pending grep or memory reads
+  const def = mk({ state: { qmd: 0 }, home: "/h" });
+  assert.ok(allowed(decide(sh("grep -nw 'P-12' docs/PENDING.md"), def)));
+  assert.ok(allowed(decide(read("/r/docs/memory/note.md"), def)));
+
   const memCfg = { ...cfg, lookup: { ...cfg.lookup, memory: { command: "bash scripts/mem.sh search", paths: ["docs/db/"] } } };
   const c = mk({ state: { qmd: 0 }, config: memCfg, home: "/h" });
-  // reads of memory and session transcripts denied until qmd runs
+  // MEMORY.md fallback stays readable even before qmd runs
+  assert.ok(allowed(decide(read("/r/docs/memory/MEMORY.md"), c)));
+  assert.ok(allowed(decide(sh("cat docs/memory/MEMORY.md"), c)));
+  // reads of other memory notes and session transcripts denied until qmd runs
   assert.ok(denied(decide(read("/r/docs/memory/note.md"), c), /scripts\/mem\.sh search/));
   assert.ok(denied(decide(read("/h/.claude/projects/p/s.jsonl"), c), /scripts\/mem\.sh search/));
   assert.ok(denied(decide(read("/h/.gemini/antigravity-cli/brain/id/.system_generated/logs/transcript_full.jsonl"), c), /scripts\/mem\.sh search/));
   assert.ok(denied(decide(sh("cat docs/memory/note.md"), c), /scripts\/mem\.sh search/));
+  // bare "qmd" config suggests valid `qmd query`
+  const bareQmd = mk({ state: { qmd: 0 }, config: { ...cfg, lookup: { ...cfg.lookup, memory: { command: "qmd", paths: [] } } }, home: "/h" });
+  assert.ok(denied(decide(read("/r/docs/memory/note.md"), bareQmd), /qmd query/));
   // scratch/steps inside brain and direct plan/spec/pending reads stay allowed
   assert.ok(allowed(decide(read("/h/.gemini/antigravity-cli/brain/id/scratch/x.mjs"), c)));
   assert.ok(allowed(decide(read("/r/docs/superpowers/plans/p.md"), c)));
@@ -515,7 +533,7 @@ test("qmd-first in main session gates memory/session reads and indexed searches 
 
 test("Antigravity reviewers are denied through invoke_subagent and gated through run-agent.mjs", () => {
   const c = {
-    ...mk({ files: { "/r/.xworkflows/summary.md": "status: approved\n", "/r/prompt-ok.txt": "Review docs/superpowers/plans/p.md commit abc1234", "/r/prompt-noplan.txt": "Review commit abc1234" } }),
+    ...mk({ files: { "/r/.xworkflows/summary.md": "status: approved\n", "/r/prompt-ok.txt": "Review docs/superpowers/plans/p.md commit abc1234", "/r/my prompt.md": "Review docs/superpowers/plans/p.md commit def5678", "/r/prompt-noplan.txt": "Review commit abc1234" } }),
     exists: (p) => p.startsWith(".agents/agents/") || p === "graphify-out",
   };
   const agAgent = (type, extra = {}) => ({ ...agent(type, extra), toolDir: ".agents" });
@@ -524,14 +542,17 @@ test("Antigravity reviewers are denied through invoke_subagent and gated through
   }
   // non-reviewer agents still work through invoke_subagent
   assert.ok(allowed(decide(agAgent("implement"), c)));
-  // run-agent.mjs passes review, enforces plan & duplicate-commit on risk-review
+  // run-agent.mjs passes review, enforces plan & duplicate-commit on risk-review (including quoted paths & spaces)
   const agSh = (command) => ({ ...sh(command), toolDir: ".agents" });
   assert.ok(allowed(decide(agSh("node .xworkflows/hooks/run-agent.mjs review prompt-ok.txt"), c)));
-  assert.ok(denied(decide(agSh("node .xworkflows/hooks/run-agent.mjs risk-review prompt-noplan.txt"), c), /plan or spec/));
-  assert.ok(allowed(decide(agSh("node .xworkflows/hooks/run-agent.mjs risk-review prompt-ok.txt"), c)));
-  assert.ok(denied(decide(agSh("node .xworkflows/hooks/run-agent.mjs risk-review prompt-ok.txt"), c), /already reviewed/));
-  // reviewer subagents cannot write files (enforces read-only under run-agent.mjs)
+  assert.ok(denied(decide(agSh('node ".xworkflows/hooks/run-agent.mjs" risk-review prompt-noplan.txt'), c), /plan or spec/));
+  assert.ok(allowed(decide(agSh('node .xworkflows/hooks/run-agent.mjs risk-review "my prompt.md"'), c)));
+  assert.ok(denied(decide(agSh('node .xworkflows/hooks/run-agent.mjs risk-review "my prompt.md"'), c), /already reviewed/));
+  // reviewer subagents cannot write files; a project's own review agent when ours is renamed xwf-review stays allowed
   for (const role of ["review", "risk-review", "risk-review-lite"]) {
     assert.ok(denied(decide(ev("write", { isSubagent: true, agent: role, writes: [{ path: "src/a.ts" }] }), c), /never edits/), role);
   }
+  const renamed = { ...c, agentName: (id) => `xwf-${id}` };
+  assert.ok(allowed(decide(ev("write", { isSubagent: true, agent: "review", writes: [{ path: "src/a.ts" }] }), renamed)));
+  assert.ok(denied(decide(ev("write", { isSubagent: true, agent: "xwf-review", writes: [{ path: "src/a.ts" }] }), renamed), /never edits/));
 });

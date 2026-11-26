@@ -23,7 +23,7 @@ try {
   adapter = await import(`./adapters/${tool}.mjs`);
   const core = await import(`./core/${hook}.mjs`);
   input = JSON.parse(readFileSync(0, "utf8"));
-  const ev = adapter.normalize(input, env);
+  const ev = adapter.normalize(input, env, hook);
   root = ev.root;
   session = ev.session;
   if (env.XWORKFLOWS_FREE) {

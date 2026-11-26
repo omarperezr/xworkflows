@@ -53,12 +53,12 @@ Material:
 
 ## Questions for the owner
 
-- Round 1: where changes live (`../xworkflows` vs `xinventory` only), target tool (`antigravity` vs `gemini` CLI), coexistence with Claude Code, verification flow.
-- Round 2: tool name (`antigravity` vs `gemini`), tier mapping, `Stop` hook + `/dream` support, `xinventory` rules/plugins migration.
+- Round 1: where changes live (`../xworkflows` vs the reference project only), target tool (`antigravity` vs `gemini` CLI), coexistence with Claude Code, verification flow.
+- Round 2: tool name (`antigravity` vs `gemini`), tier mapping, `Stop` hook + `/dream` support, the reference project's rules/plugins migration.
 - Round 3: revised tier hierarchy based on live `agy` tests + Artificial Analysis Coding Agent Index v2.1, and how to handle `risk-review` `xhigh` effort.
 
 ## Owner's answers
 
-- Round 1: implement in `../xworkflows` and install/adapt in `xinventory`; Antigravity only (live-tested); coexist with Claude Code; full `xworkflows` flow (verify facts, design, spec/plan, separate branch, tests, live `agy -p` proofs).
-- Round 2: tool name `antigravity`; rebuild memory index on `Stop` (`fullyIdle: true`, main session) + Antigravity transcripts in `/dream` and `doctor`; in `xinventory`, `GEMINI.md` with `@[Reglas del proyecto](CLAUDE.md)`, `.agents/rules/*.md` with `trigger: glob`, adapt `risk-review.md` and `front`, import Claude plugins via `agy plugin`.
+- Round 1: implement in `../xworkflows` and install/adapt in the reference project; Antigravity only (live-tested); coexist with Claude Code; full `xworkflows` flow (verify facts, design, spec/plan, separate branch, tests, live `agy -p` proofs).
+- Round 2: tool name `antigravity`; rebuild memory index on `Stop` (`fullyIdle: true`, main session) + Antigravity transcripts in `/dream` and `doctor`; in the reference project, `GEMINI.md` with `@[Reglas del proyecto](CLAUDE.md)`, `.agents/rules/*.md` with `trigger: glob`, adapt `risk-review.md` and `front`, import Claude plugins via `agy plugin`.
 - Round 3: quality-first tiers (`cheap=flash`, `medium=inherit`, `top=inherit`, `strongest=inherit`); keep subagents 100% native (`inherit`) and remind `/effort xhigh` in `/orchestrate` before `risk-review`.

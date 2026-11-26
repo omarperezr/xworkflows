@@ -26,7 +26,7 @@ export function decide(ev, ctx) {
 
   if (ev.isSubagent) {
     // reviewers never edit files (also enforces read-only when launched via run-agent.mjs)
-    const isRole = (id) => id && String(ev.agent ?? "").endsWith(id) && (ev.agent === id || ev.agent === (ctx.agentName?.(id) ?? id));
+    const isRole = (id) => id && String(ev.agent ?? "").endsWith(id) && ev.agent === (ctx.agentName?.(id) ?? id);
     if ((ev.writes ?? []).length && [config.roles.reviewer, config.roles.riskReviewer, config.roles.riskReviewerLite].some(isRole))
       return deny(`${ev.agent} never edits files: report findings only.`);
     // the installed name is the id or xwf-<id>: an agent whose name ends otherwise costs no read
@@ -48,8 +48,8 @@ export function decide(ev, ctx) {
   if (ev.event === "prompt") {
     if (ev.fromUser) {
       ctx.save("agents", 0);
-      ctx.save("index", 0);
-      ctx.save("qmd", 0);
+      if (config.lookup?.index?.perMessage) ctx.save("index", 0);
+      if (typeof config.lookup?.memory?.command === "string" && config.lookup.memory.command.trim()) ctx.save("qmd", 0);
     }
     return allow;
   }
@@ -77,7 +77,9 @@ export function decide(ev, ctx) {
   const idxCfg = config.lookup?.index ?? DEFAULTS.lookup.index;
   const memCfg = config.lookup?.memory ?? DEFAULTS.lookup.memory;
   const memCmd = typeof memCfg?.command === "string" && memCfg.command.trim() ? memCfg.command.trim() : null;
+  const memHint = memCmd === "qmd" ? "qmd query" : memCmd;
   const memDir = memoryDir(config.memory?.dir);
+  const isMemoryIndex = (p) => path.basename(String(p ?? "").replaceAll("\\", "/")) === "MEMORY.md";
   const home = String(ctx.home ?? "~").replaceAll("\\", "/").replace(/(.)\/$/, "$1");
   const fresh = (key, mins) => { const t = Number(ctx.state(key)) || 0; return t > 0 && ctx.now() - t <= mins * 60000; };
   const idxFresh = () => fresh("index", idxCfg.minutes ?? 30);
@@ -128,23 +130,26 @@ export function decide(ev, ctx) {
     if (memCmd && !qmdFresh()) {
       const homeAlt = home !== "~" ? `|${esc(home)}/\\.claude/projects/|${esc(home)}/\\.gemini/antigravity-cli/brain/[^\\s"'=;&|()]*transcript(?:_full)?\\.jsonl` : "";
       const qmdReadAlt = [memDir && esc(`${memDir}/`)].filter(Boolean).join("|");
-      if ((qmdReadAlt || homeAlt) && new RegExp(`${cmdLead}(cat|sed\\s+-n|head|tail)\\b[^|;&\\n]*(^|[\\s"'=])(${qmdReadAlt ? `(\\./|${esc(root)}/)?(${qmdReadAlt})` : "(?!)"}` + `${homeAlt})`).test(read))
-        return deny(`Ask memory first: run \`${memCmd} "<topic>"\` before reading memory or past sessions.`);
+      const readNoIndex = memDir ? read.replace(new RegExp(`(^|[\\s"'=])(\\./|${esc(root)}/)?${esc(memDir)}/MEMORY\\.md(?=[\\s"'=;&|()]|$)`, "g"), "$1 ") : read;
+      if ((qmdReadAlt || homeAlt) && new RegExp(`${cmdLead}(cat|sed\\s+-n|head|tail)\\b[^|;&\\n]*(^|[\\s"'=])(${qmdReadAlt ? `(\\./|${esc(root)}/)?(${qmdReadAlt})` : "(?!)"}` + `${homeAlt})`).test(readNoIndex))
+        return deny(`Ask memory first: run \`${memHint} "<topic>"\` before reading memory or past sessions.`);
       const qmdSAlt = pathAlt(qmdSearchPaths);
       if ((qmdSAlt || homeAlt) && new RegExp(`${searchLead}[^|;&\\n]*(^|[\\s"'=])(${qmdSAlt ? `(\\./|${esc(root)}/)?(${qmdSAlt})` : "(?!)"}` + `${homeAlt})`).test(read))
-        return deny(`Ask memory first: run \`${memCmd} "<topic>"\` before searching indexed memory or docs.`);
+        return deny(`Ask memory first: run \`${memHint} "<topic>"\` before searching indexed memory or docs.`);
     }
     const codeDirs = list(config.paths?.code);
-    if (codeDirs && idx && ctx.exists(idxCfg.folder) && !idxFresh()) {
+    if (idxCfg.gateShell && codeDirs && idx && ctx.exists(idxCfg.folder) && !idxFresh()) {
       const codeAlt = pathAlt(codeDirs);
       if (codeAlt && new RegExp(`${searchLead}[^|;&\\n]*(^|[\\s"'=])(\\./|${esc(root)}/)?(${codeAlt})`).test(read))
         return deny(`Ask the index first: run \`${idx} "<topic>"\` before grepping code.`);
     }
     // run-agent.mjs launches a reviewer through agy -p: judged as launching that agent
-    const ra = new RegExp(`(^|[;&|(\\n][ \\t\\r]*)${env}(${word}*/)?node[ \\t]+(${word}*/)?run-agent\\.mjs[ \\t]+(${word}+)[ \\t]+(${word}+)`).exec(code);
+    const arg = `(?:"([^"]+)"|'([^']+)'|(${word}+))`;
+    const ra = new RegExp(`(^|[;&|(\\n][ \\t\\r]*)${env}(${word}*/)?node[ \\t]+["']?(${word}*/)?run-agent\\.mjs["']?[ \\t]+${arg}[ \\t]+${arg}`).exec(code);
     if (ra) {
-      const file = ra[ra.length - 1].replace(/^["']|["']$/g, "");
-      return agentGate({ ...ev, kind: "agent", agent: ra[ra.length - 2].replace(/^["']|["']$/g, ""), prompt: ctx.readFile(path.resolve(ev.root, file)) ?? "", viaRunner: true });
+      const role = ra[ra.length - 6] ?? ra[ra.length - 5] ?? ra[ra.length - 4];
+      const file = ra[ra.length - 3] ?? ra[ra.length - 2] ?? ra[ra.length - 1];
+      return agentGate({ ...ev, kind: "agent", agent: role, prompt: ctx.readFile(path.resolve(ev.root, file)) ?? "", viaRunner: true });
     }
     return allow;
   }
@@ -198,8 +203,8 @@ export function decide(ev, ctx) {
   if (ev.kind === "read") {
     const ext = path.extname(String(ev.path ?? "")).slice(1).toLowerCase();
     if (ext && config.mainSession.denyExtensions.includes(ext)) return deny("Screenshots and PDFs are read by an agent.");
-    if (memCmd && !qmdFresh() && ((memDir && under(ev.path, [`${memDir}/`])) || isSessionTranscript(ev.path)))
-      return deny(`Ask memory first: run \`${memCmd} "<topic>"\` before reading memory or past sessions.`);
+    if (memCmd && !qmdFresh() && !isMemoryIndex(ev.path) && ((memDir && under(ev.path, [`${memDir}/`])) || isSessionTranscript(ev.path)))
+      return deny(`Ask memory first: run \`${memHint} "<topic>"\` before reading memory or past sessions.`);
     if (heavy && under(ev.path, heavy) && !(ev.limit <= config.limits.inlineReadLines))
       return deny(`Reading more than ${config.limits.inlineReadLines} lines of that code here costs context: delegate it to ${config.roles.lookup}, or pass a limit.`);
   }

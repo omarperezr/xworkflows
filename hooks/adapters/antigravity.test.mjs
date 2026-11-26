@@ -45,8 +45,6 @@ test("antigravity: CLI and App/IDE file, shell, web, ask, agent and workflow too
   assert.equal(normalize(pre("ask_question", { questions: [] }), env).kind, "ask");
   const ag1 = normalize(pre("invoke_subagent", { TypeName: "explore", Prompt: "find x", Role: "Lookup" }), env);
   assert.deepEqual([ag1.kind, ag1.agent, ag1.prompt], ["agent", "explore", "find x"]);
-  const ag2 = normalize(pre("invoke_subagent", { Subagents: [{ TypeName: "review", Prompt: "check", Role: "Reviewer" }] }), env);
-  assert.deepEqual([ag2.kind, ag2.agent, ag2.prompt], ["agent", "review", "check"]);
   const wf = normalize(pre("run_workflow", { ScriptPath: "/p/.agents/skills/adapt/research.workflow.py", Args: { root: "/p" } }), env);
   assert.deepEqual([wf.kind, wf.inline, wf.scriptPath, wf.args], ["workflow", false, "/p/.agents/skills/adapt/research.workflow.py", { root: "/p" }]);
   assert.equal(normalize(pre("run_workflow", { Script: "print(1)" }), env).inline, true);
@@ -257,7 +255,7 @@ test("antigravity: SessionStart records session in .xworkflows/local.json (symli
   const d = memory.decide(ss, ctx);
   assert.match(d.context, /Dream is due: 10 sessions/);
 
-  // Symlinked local.json is never written through
+  // Symlinked local.json (live or dangling), XWORKFLOWS_FREE, and non-memory hooks never write local.json
   const root2 = mkdtempSync(join(tmpdir(), "xwf-ag-sym-"));
   mkdirSync(join(root2, ".xworkflows"));
   const target = join(root2, "outside.json");
@@ -265,6 +263,19 @@ test("antigravity: SessionStart records session in .xworkflows/local.json (symli
   symlinkSync(target, join(root2, ".xworkflows/local.json"));
   normalize(base({ conversationId: "c-sym", workspacePaths: [root2], cwd: root2, hookEventName: "SessionStart", transcriptPath: curTr }), env);
   assert.equal(readFileSync(target, "utf8"), "untouched");
+
+  const root3 = mkdtempSync(join(tmpdir(), "xwf-ag-dangle-"));
+  mkdirSync(join(root3, ".xworkflows"));
+  const missingTarget = join(root3, "never-created.json");
+  symlinkSync(missingTarget, join(root3, ".xworkflows/local.json"));
+  normalize(base({ conversationId: "c-dangle", workspacePaths: [root3], cwd: root3, hookEventName: "SessionStart", transcriptPath: curTr }), env);
+  assert.throws(() => readFileSync(missingTarget, "utf8"), /ENOENT/);
+
+  const root4 = mkdtempSync(join(tmpdir(), "xwf-ag-free-"));
+  mkdirSync(join(root4, ".xworkflows"));
+  normalize(base({ conversationId: "c-free", workspacePaths: [root4], cwd: root4, hookEventName: "SessionStart", transcriptPath: curTr }), { ...env, XWORKFLOWS_FREE: "1" }, "memory");
+  normalize(base({ conversationId: "c-modes", workspacePaths: [root4], cwd: root4, hookEventName: "SessionStart", transcriptPath: curTr }), env, "modes");
+  assert.throws(() => readFileSync(join(root4, ".xworkflows/local.json"), "utf8"), /ENOENT/);
 });
 
 test("antigravity: orchestrator resolves agents under .agents/agents/", () => {

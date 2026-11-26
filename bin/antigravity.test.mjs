@@ -129,6 +129,37 @@ test("antigravity coexists with claude, preserves user hooks in .agents/hooks.js
   assert.ok(!existsSync(join(r, ".claude/skills/grill/SKILL.md")));
 });
 
+test("antigravity hooks ownership: install and uninstall never delete custom commands under xworkflows-* keys, and risk-review-lite clamps to pro", () => {
+  const r = repo();
+  assert.equal(cli(r, ["install", "--tool", "antigravity"]).status, 0);
+  // Put a custom user hook under an orphan key name and replace xworkflows-design-first in both hooks.json and installed.json
+  const customOrphan = { SessionStart: [{ type: "command", command: "./my-handoff.sh" }] };
+  const customDf = { PreToolUse: [{ matcher: "run_command", hooks: [{ type: "command", command: "./my-df.sh" }] }] };
+  const hooks = readJson(r, ".agents/hooks.json");
+  hooks["xworkflows-handoff"] = customOrphan;
+  hooks["xworkflows-design-first"] = customDf;
+  writeJson(r, ".agents/hooks.json", hooks);
+  const rec = readJson(r, ".xworkflows/installed.json");
+  const dfRec = rec.merged.find((m) => m.file === ".agents/hooks.json" && m.key[0] === "xworkflows-design-first");
+  dfRec.entry = customDf;
+  writeJson(r, ".xworkflows/installed.json", rec);
+
+  // Also test risk-review-lite clamps concrete model ID to "pro"
+  writeJson(r, ".xworkflows/config.json", { paths: { riskLite: ["src/ui/"] } });
+  writeFileSync(join(r, ".agents/agents/risk-review.md"), "---\nname: risk-review\nmodel: pro\n---\nCheck.\n");
+  assert.equal(cli(r, ["install", "--tool", "antigravity"]).status, 0);
+  assert.match(readFileSync(join(r, ".agents/agents/risk-review-lite.md"), "utf8"), /^model: pro$/m);
+  const afterInstall = readJson(r, ".agents/hooks.json");
+  assert.deepEqual(afterInstall["xworkflows-handoff"], customOrphan);
+  assert.deepEqual(afterInstall["xworkflows-design-first"], customDf);
+
+  // Uninstall keeps both user-owned custom hooks even though installed.json was tampered with
+  assert.equal(cli(r, ["uninstall"]).status, 0);
+  const afterUn = readJson(r, ".agents/hooks.json");
+  assert.deepEqual(afterUn["xworkflows-handoff"], customOrphan);
+  assert.deepEqual(afterUn["xworkflows-design-first"], customDf);
+});
+
 test("antigravity doctor probes design-first, measures SessionStart bytes, reads GEMINI.md and first-turn tokens", () => {
   const r = repo();
   assert.equal(cli(r, ["install", "--tool", "antigravity"]).status, 0);

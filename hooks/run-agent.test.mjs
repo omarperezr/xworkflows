@@ -10,12 +10,19 @@ const made = [];
 test.after(() => { for (const d of made) rmSync(d, { recursive: true, force: true }); });
 const TIERS = { antigravity: { cheap: "flash", medium: "pro", top: "gemini-4-neon-high", strongest: "gemini-4-neon-xhigh" } };
 
-test("run-agent: reviewer on top, risk reviewers on strongest, others refused", () => {
+test("run-agent: reviewer and risk-review-lite on top, risk-review on strongest, renamed roles resolve, others refused", () => {
   assert.equal(tierOf("review", DEFAULTS.roles), "top");
   assert.equal(tierOf("risk-review", DEFAULTS.roles), "strongest");
-  assert.equal(tierOf("risk-review-lite", DEFAULTS.roles), "strongest");
+  assert.equal(tierOf("risk-review-lite", DEFAULTS.roles), "top");
   assert.equal(tierOf("implement", DEFAULTS.roles), null);
+  const renamed = (id) => `xwf-${id}`;
+  assert.equal(tierOf("xwf-review", DEFAULTS.roles, renamed), "top");
+  assert.equal(tierOf("xwf-risk-review", DEFAULTS.roles, renamed), "strongest");
+  assert.equal(tierOf("review", DEFAULTS.roles, renamed), null);
+  assert.equal(judge("xwf-review", "looks fine", DEFAULTS, renamed).decision, "deny");
+  assert.equal(judge("xwf-review", "reviewed: a.mjs\nnot checked: nothing", DEFAULTS, renamed).decision, "allow");
   assert.match(plan({ role: "implement", prompt: "x", config: DEFAULTS, tiers: TIERS }).error, /invoke_subagent/);
+  assert.equal(plan({ role: "risk-review-lite", prompt: "x", config: DEFAULTS, tiers: TIERS }).model, "gemini-4-neon-high");
 });
 
 test("run-agent: the concrete model, the agent body and the subagent mark reach agy; a keyword or inherit is refused", () => {

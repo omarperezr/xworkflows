@@ -39,8 +39,8 @@ export const DEFAULTS = {
   tokens: { sessionStartBytes: 3333, handoffBytes: 1500,alwaysLoadedBytes: 24000 },
   limits: { inlineReadLines: 40, agentsBeforeWorkflow: 2, commentRatio: 0.2, commentMinLines: 30 },
   lookup: {
-    index: { command: "graphify query", folder: "graphify-out", minutes: 30 },
-    memory: { command: "qmd", paths: [] },
+    index: { command: "graphify query", folder: "graphify-out", minutes: 30, perMessage: false, gateShell: false },
+    memory: { command: null, paths: [] },
   },
   checks: { timeoutMinutes: 10 },
   mainSession: { denyWeb: true, denyExtensions: ["png", "jpg", "jpeg", "pdf"] },

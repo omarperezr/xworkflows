@@ -61,20 +61,20 @@
         "antigravity"
       ],
       "files": {
-        "hooks/run.mjs": "f16b9c43cc1525dabc0e50672516b74065524927d90bef3462c66c4e05ba6d67",
+        "hooks/run.mjs": "6fe6fef217bb6341ffdc69560ccd1e90c1be62a27c4d018316b1772b814eb051",
         "hooks/mark.mjs": "f2ecad21dedeb1515287063237e6852b9374781f71ce876f13b57324bfcb88a5",
-        "hooks/run-agent.mjs": "3339b4164efd45e4e81927eb5e0ee0e784c49c1221689f1a78d6d1deecd8fa1a",
+        "hooks/run-agent.mjs": "8aa5c9684cf11bdd87f117b565fc36a4d96f3a53a4cd234bafc8480c6d8dba54",
         "hooks/core/marks.mjs": "9f52d052c8fb1275e92335d1dd5664be0f1bff7d43a4a9432268bac01d61a2b7",
         "hooks/adapters/claude.mjs": "43836faaab18cffa02853bf98b64f3a3a14150fbeef84e7b52009e526fab69ad",
         "hooks/adapters/codex.mjs": "0589bf97b5cec7e06fee8a70bd92d8a0f51e8bb082cc241f743a80308e44d059",
         "hooks/adapters/cursor.mjs": "394c1a81f4040089b67f0fbf1131012bbb5883bdf705ce3af12dff66d9b3cbd5",
         "hooks/adapters/gemini.mjs": "eff8f29bce46d7c4a7c62845f3762a16c6fd38e831e6c4a5d6b54361ec599175",
-        "hooks/core/config.mjs": "42632f122865ead091c373b5cbdb5ef03693dcec969e2c9fb4c7b89aaa1cb3bf",
+        "hooks/core/config.mjs": "de775ab02b085200731602b4a08c283cf75c32cc0d1eced93b055ac0fc9b8a5e",
         "hooks/core/ctx.mjs": "d5868fef1fc74b450a80ae68dce853d331727b2f78e7450422dfbb278fb8df6a",
         "hooks/core/shell-words.mjs": "d2b55f18ca767512692d8a4aed20eaa6e91dd9e3144e180f9ea051a3861679f1",
-        "hooks/adapters/antigravity.mjs": "1b5366209274a13f08138d762e31ebe8c6c1da4f654b999ae022db65d697313b"
+        "hooks/adapters/antigravity.mjs": "690c4ae638f2c790ff27f8f2d5eb2d7545d8251900b89abd7e993a2133360d92"
       },
-      "sha256": "61d96459c4b3bf4c60f992406720e9c2373023365eca26b8596f8141e31f0336"
+      "sha256": "28f2470d860bb835747ac157455f58f75e62be6573da6a0617792ede5d1f1bb0"
     },
     {
       "id": "design-first",
@@ -416,11 +416,11 @@
         "skills/adapt/scan.mjs": "c7d9a47a268cdf6135057da9eb267826b3d5df6df574b7fc206daccacfe401e9",
         "skills/adapt/rules.mjs": "736bb9ee53874d8c9447ab4107780d9b8f5733cee26597dae96862d43d37bde2",
         "skills/adapt/research.workflow.js": "c7d72c728a5eef056d9a23f56d3334b6f2400fa9730cb96dfcad23dadd579daa",
-        "skills/adapt/research.mjs": "0e4c2b2e776a00e66e2177bc27bd3af3e320b5eea2108e5b77609877b2097b4b",
+        "skills/adapt/research.mjs": "9685ad53595382550b3f9ba9dac68cf139b310cc02a577fd95b1102a3e9c3665",
         "skills/adapt/screens.mjs": "46218539062b06597556be39eebd0f0a6b47dfa6e31154232c55a7967c537a4c",
         "skills/adapt/research.workflow.py": "7acac8748441a1c71abd58f39782632489ef11ffec17b8a0a3379bd3a851c52b"
       },
-      "sha256": "f7e12c53b37f61b86f6a848f5db5d57879f1282e01fcffa2927e7fd4f7c9fe8a"
+      "sha256": "e608c9d984cf97af8684a9e0defa6beed9ecf756f77645ee149c6f59874e774b"
     },
     {
       "id": "full-review",
@@ -438,9 +438,9 @@
       ],
       "files": {
         "skills/full-review/SKILL.md": "d14bab9cb14aed685541c2e38f79d342702fa0f7007c7b84550edbe9541b7f19",
-        "skills/full-review/full-review.workflow.py": "7132f28911069f8b959614ad58876c4a504c6fa175917ab6e06cd06c795d0a8e"
+        "skills/full-review/full-review.workflow.py": "b476bb15d4fb31fe555c3a67c902d4bc7715022ce748879689d93d805f76144d"
       },
-      "sha256": "aba0372e94cb1aa9e43dc1a0aeacc575e9a348c6e07864f3d977791c5ae44e53"
+      "sha256": "4b8ef229084c2dc65ac080fcb7abe317cfb3e420861609d370aeb6545101df25"
     },
     {
       "id": "next-step",
@@ -495,9 +495,9 @@
         }
       ],
       "files": {
-        "hooks/core/orchestrator.mjs": "5513054b0e9079f96e4bcc446ec4ac56dc45fb9e6620db466bf68a58c0dd293f"
+        "hooks/core/orchestrator.mjs": "b6a4baf2ed5f9530097f964c42e7e2151a1402707df3cd72e01a6a149341ae58"
       },
-      "sha256": "eddb491032114ca40486785f63d3ef097773b2fdb3089697293bb82835a98964"
+      "sha256": "ca0570b2f8e9d956ae1fe5f10a77703f5698aabe6f7415db8954af9fdc67acb7"
     },
     {
       "id": "handback",

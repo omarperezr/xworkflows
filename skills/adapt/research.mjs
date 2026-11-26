@@ -301,7 +301,9 @@ function cli(cmd, root) {
         if (TIER_NAMES.includes(tier) && !tiers?.[tier]) { console.error(`adapt: the tier ${tier} is not in .xworkflows/tiers.json under ${tool}`); process.exit(1); }
         const m = riskModel({ tiers, answer, readapt: !!opt("research.prev.json"), file, given });
         if (!m) { console.error(`adapt: no model for the risk reviewer: .xworkflows/tiers.json has neither strongest nor top under ${tool}`); process.exit(1); }
-        console.log(m);
+        // Antigravity agent files accept only tier keywords (concrete model IDs make agy discard the agent; run-agent.mjs reads tiers.json).
+        const out = tool === "antigravity" && !["flash_lite", "flash", "pro"].includes(m) ? "pro" : m;
+        console.log(out);
       }
     }
   } else {

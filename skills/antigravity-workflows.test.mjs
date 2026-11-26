@@ -166,6 +166,7 @@ async def mock_agent(c):
     mock,
   );
   assert.equal(calls.length, 4);
+  assert.ok(calls.every((c) => c.model === "pro"), "full-review zone-review calls must pin pro, never inherit");
   assert.equal(out.errors.length, 2);
   assert.ok(out.errors.every((e) => e.both === true));
   assert.equal(out.restructures.length, 1);
@@ -237,4 +238,13 @@ test("adapt research.mjs: --tool antigravity skips redundant H6-model when stron
   const mTier = spawnSync(process.execPath, [script, "model", "--tool", "antigravity", "cheap"], { cwd: root, encoding: "utf8" });
   assert.equal(mTier.status, 0, mTier.stderr);
   assert.equal(mTier.stdout.trim(), "flash");
+
+  // Concrete model IDs in tiers.json (e.g. gemini-4-neon-xhigh) clamp to "pro" for .agents/agents/risk-review.md
+  writeFileSync(join(root, ".xworkflows/tiers.json"), JSON.stringify({
+    claude: { cheap: "haiku", medium: "sonnet", top: "opus", strongest: "fable" },
+    antigravity: { cheap: "flash", medium: "pro", top: "gemini-4-neon-high", strongest: "gemini-4-neon-xhigh" },
+  }));
+  const mConcrete = spawnSync(process.execPath, [script, "model", "--tool", "antigravity"], { cwd: root, encoding: "utf8" });
+  assert.equal(mConcrete.status, 0, mConcrete.stderr);
+  assert.equal(mConcrete.stdout.trim(), "pro");
 });

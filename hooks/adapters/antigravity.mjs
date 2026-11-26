@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { readFileSync, writeFileSync, existsSync, lstatSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync, lstatSync, renameSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 
@@ -61,7 +61,7 @@ function parentFromTranscript(transcriptPath) {
 }
 
 function recordPendingSpawn(raw, args, root, stateDir) {
-  const types = Array.isArray(args.Subagents) ? args.Subagents.map((s) => s?.TypeName).filter(Boolean) : args.TypeName ? [args.TypeName] : [];
+  const types = args.TypeName ? [args.TypeName] : [];
   const pFile = join(stateDir, `xwf-ag-pending-${safeId(raw.conversationId)}`);
   const prev = Array.isArray(readJson(pFile)) ? readJson(pFile) : [];
   const next = [...prev.slice(-20), { stepIdx: raw.stepIdx, types, transcript: raw.transcriptPath, ts: Date.now() }];
@@ -104,7 +104,7 @@ function resolveAgentFromParent(parent, childCid, childTranscript, stateDir) {
       if (o.step_index >= matchStep.step_index || o.type !== "PLANNER_RESPONSE" || !Array.isArray(o.tool_calls)) continue;
       const calls = o.tool_calls.filter((tc) => tc?.name === "invoke_subagent");
       if (!calls.length) continue;
-      const allTypes = calls.flatMap((tc) => (Array.isArray(tc.args?.Subagents) ? tc.args.Subagents.map((s) => s?.TypeName) : [tc.args?.TypeName])).filter(Boolean);
+      const allTypes = calls.map((tc) => tc.args?.TypeName).filter(Boolean);
       if (allTypes.length === 1) return allTypes[0];
       if (allTypes[pos]) return allTypes[pos];
       break;
@@ -116,20 +116,23 @@ function resolveAgentFromParent(parent, childCid, childTranscript, stateDir) {
   return undefined;
 }
 
-function recordSession(root, cid, transcript, env) {
-  if (!root || !cid || typeof transcript !== "string" || !transcript || env?.XWORKFLOWS_DRY) return;
+function recordSession(root, cid, transcript, env, hook) {
+  if (!root || !cid || typeof transcript !== "string" || !transcript || env?.XWORKFLOWS_DRY || env?.XWORKFLOWS_FREE || (hook && hook !== "memory")) return;
   try {
     const dir = join(root, ".xworkflows");
-    if (!existsSync(dir) || lstatSync(dir).isSymbolicLink()) return;
+    const dirSt = lstatSync(dir, { throwIfNoEntry: false });
+    if (!dirSt || !dirSt.isDirectory() || dirSt.isSymbolicLink()) return;
     const file = join(dir, "local.json");
-    if (existsSync(file) && lstatSync(file).isSymbolicLink()) return;
+    if (lstatSync(file, { throwIfNoEntry: false })?.isSymbolicLink()) return;
     const raw = readJson(file);
     const local = raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {};
     const ag = local.antigravity && typeof local.antigravity === "object" && !Array.isArray(local.antigravity) ? local.antigravity : {};
     const prev = Array.isArray(ag.sessions) ? ag.sessions.filter((s) => s && s.id !== cid) : [];
     prev.push({ id: cid, transcript, startedAt: new Date().toISOString() });
     local.antigravity = { ...ag, sessions: prev.slice(-200) };
-    writeFileSync(file, JSON.stringify(local, null, 2) + "\n");
+    const tmp = join(dir, `.local.${process.pid}.${Date.now()}.tmp`);
+    writeFileSync(tmp, JSON.stringify(local, null, 2) + "\n");
+    renameSync(tmp, file);
   } catch { /* never fail a hook */ }
 }
 
@@ -139,10 +142,9 @@ function recordSubagents(raw, args, stateDir) {
   if (!content) return;
   const ids = [...content.matchAll(/"conversationId"\s*:\s*"([^"]+)"/g)].map((m) => m[1]);
   if (!ids.length) return;
-  const types = Array.isArray(args.Subagents) ? args.Subagents.map((s) => s?.TypeName) : [args.TypeName];
-  for (let i = 0; i < ids.length; i++) {
-    const agent = types[i] ?? types[0];
-    writeState(join(stateDir, `xwf-ag-sub-${safeId(ids[i])}`), { parent: raw.conversationId, ...(agent ? { agent } : {}) });
+  const agent = args.TypeName;
+  for (const id of ids) {
+    writeState(join(stateDir, `xwf-ag-sub-${safeId(id)}`), { parent: raw.conversationId, ...(agent ? { agent } : {}) });
   }
 }
 
@@ -164,7 +166,7 @@ function parseAskAnswers(text, questions) {
 
 const lineLimit = (a) => (Number.isFinite(a.EndLine) ? a.EndLine - (Number.isFinite(a.StartLine) ? a.StartLine : 1) + 1 : undefined);
 
-export function normalize(raw, env = {}) {
+export function normalize(raw, env = {}, hook = null) {
   if (!raw?.conversationId || typeof raw.conversationId !== "string") throw new Error("no conversationId");
   const cid = raw.conversationId;
   const root = (Array.isArray(raw.workspacePaths) && typeof raw.workspacePaths[0] === "string" && raw.workspacePaths[0]) || raw.cwd;
@@ -221,7 +223,7 @@ export function normalize(raw, env = {}) {
       if (sp && sp.parent !== cid && Date.now() - (sp.ts || 0) < 10000) isSubagent = true;
     }
     if (isSubagent) return { ...ev, event: "other", isSubagent: true };
-    recordSession(root, cid, raw.transcriptPath, env);
+    recordSession(root, cid, raw.transcriptPath, env, hook);
     return { ...ev, event: "sessionStart", source: "startup", transcript: raw.transcriptPath };
   }
 
@@ -283,8 +285,7 @@ export function normalize(raw, env = {}) {
   if (tool === "view_file") return { ...ev, kind: "read", path: a.AbsolutePath, limit: lineLimit(a) };
   if (tool === "invoke_subagent") {
     recordPendingSpawn(raw, a, root, stateDir);
-    const first = Array.isArray(a.Subagents) ? a.Subagents[0] : null;
-    return { ...ev, kind: "agent", agent: a.TypeName ?? first?.TypeName, prompt: a.Prompt ?? first?.Prompt };
+    return { ...ev, kind: "agent", agent: a.TypeName, prompt: a.Prompt };
   }
   if (tool === "search_web" || tool === "read_url_content") return { ...ev, kind: "web" };
   if (tool === "ask_question") return { ...ev, kind: "ask" };
