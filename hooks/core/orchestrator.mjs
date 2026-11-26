@@ -144,8 +144,9 @@ export function decide(ev, ctx) {
         return deny(`Ask the index first: run \`${idx} "<topic>"\` before grepping code.`);
     }
     // run-agent.mjs launches a reviewer through agy -p: judged as launching that agent
+    const script = `(?:"[^"]*run-agent\\.mjs"|'[^']*run-agent\\.mjs'|(${word}*/)?run-agent\\.mjs)`;
     const arg = `(?:"([^"]+)"|'([^']+)'|(${word}+))`;
-    const ra = new RegExp(`(^|[;&|(\\n][ \\t\\r]*)${env}(${word}*/)?node[ \\t]+["']?(${word}*/)?run-agent\\.mjs["']?[ \\t]+${arg}[ \\t]+${arg}`).exec(code);
+    const ra = new RegExp(`(^|[;&|(\\n][ \\t\\r]*)${env}(${word}*/)?node[ \\t]+${script}[ \\t]+${arg}[ \\t]+${arg}`).exec(code);
     if (ra) {
       const role = ra[ra.length - 6] ?? ra[ra.length - 5] ?? ra[ra.length - 4];
       const file = ra[ra.length - 3] ?? ra[ra.length - 2] ?? ra[ra.length - 1];
@@ -189,12 +190,20 @@ export function decide(ev, ctx) {
       const docMatch = new RegExp(`(${dirs})/\\S+\\.md`).exec(String(ev.prompt ?? "").replaceAll("\\", "/"));
       if (!docMatch)
         return deny(`${type} reviews against a plan or spec: name its .md path under ${paths.plans} or ${paths.specs}.`);
-      // One risk review per batch (branch + plan/spec): confirm fixes with roles.reviewer at effort high, never a second risk reviewer.
+      // One risk review per batch: on a batch branch key on (branch, doc); on mainBranch (worktree workflow) key on (branch, root HEAD, doc) so worktree fixes still deny while merging Batch 1 unlocks Batch 2.
       const branch = ctx.git("rev-parse", "--abbrev-ref", "HEAD") ?? "";
       const doc = docMatch[0];
-      const named = String(ev.prompt ?? "").match(/(?<![0-9A-Za-z])[0-9a-f]{7,40}(?![0-9A-Za-z])/g) ?? [];
-      const head = [...new Set([...named, ctx.git("rev-parse", "HEAD") ?? ""].map((x) => x.slice(0, 7)).filter(Boolean))].sort().join(",");
-      const batchKey = branch && branch !== "HEAD" ? `${branch}::${doc}` : `${doc}::${head}`;
+      let batchKey;
+      if (branch && branch !== "HEAD" && branch !== config.mainBranch) {
+        batchKey = `${branch}::${doc}`;
+      } else if (branch === config.mainBranch) {
+        const rootHead = (ctx.git("rev-parse", "HEAD") ?? "").slice(0, 7);
+        batchKey = `${branch}::${rootHead}::${doc}`;
+      } else {
+        const named = String(ev.prompt ?? "").match(/(?<![0-9A-Za-z])[0-9a-f]{7,40}(?![0-9A-Za-z])/g) ?? [];
+        const head = [...new Set([...named, ctx.git("rev-parse", "HEAD") ?? ""].map((x) => x.slice(0, 7)).filter(Boolean))].sort().join(",");
+        batchKey = `${doc}::${head}`;
+      }
       if (ctx.state("risk") === batchKey)
         return deny(`${type} already reviewed this batch (${branch || "detached"}, ${doc}): confirm fixes with ${roles.reviewer} at effort high, never a second ${type}.`);
       ctx.save("risk", batchKey);

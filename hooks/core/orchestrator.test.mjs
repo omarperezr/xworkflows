@@ -369,6 +369,11 @@ test("on a named branch, a fix commit moving HEAD still denies a second risk-rev
   // Next batch branch with the same plan is allowed
   const nextBatch = { ...c, git: gitFor("batch-2", "9999999ffffffffffffffffffffffffffffffffff") };
   assert.ok(allowed(decide(p("main...9999999"), nextBatch)));
+  // Worktree workflow (root stays on main): same root HEAD denies a second risk-review even with a different prompt SHA, while merging Batch 1 into main unlocks Batch 2
+  const wt = { ...mk(), git: gitFor("main", "m111111") };
+  assert.ok(allowed(decide(p("main...aaa1111"), wt)));
+  assert.ok(denied(decide(p("main...bbb2222"), wt), /confirm fixes with review/));
+  assert.ok(allowed(decide(p("main...ccc3333"), { ...wt, git: gitFor("main", "m222222") })));
 });
 
 test("shell: a redirect target stops at a separator", () => {
@@ -529,7 +534,7 @@ test("qmd-first in main session is opt-in, never blocks MEMORY.md, and suggests 
 
 test("Antigravity reviewers are denied through invoke_subagent and gated through run-agent.mjs", () => {
   const c = {
-    ...mk({ files: { "/r/.xworkflows/summary.md": "status: approved\n", "/r/prompt-ok.txt": "Review docs/superpowers/plans/p.md commit abc1234", "/r/my prompt.md": "Review docs/superpowers/plans/p.md commit def5678", "/r/prompt-noplan.txt": "Review commit abc1234" } }),
+    ...mk({ files: { "/r/.xworkflows/summary.md": "status: approved\n", "/r/my repo/.xworkflows/summary.md": "status: approved\n", "/r/prompt-ok.txt": "Review docs/superpowers/plans/p.md commit abc1234", "/r/my prompt.md": "Review docs/superpowers/plans/p.md commit def5678", "/r/prompt-noplan.txt": "Review commit abc1234" } }),
     exists: (p) => p.startsWith(".agents/agents/") || p === "graphify-out",
   };
   const agAgent = (type, extra = {}) => ({ ...agent(type, extra), toolDir: ".agents" });
@@ -542,6 +547,7 @@ test("Antigravity reviewers are denied through invoke_subagent and gated through
   const agSh = (command) => ({ ...sh(command), toolDir: ".agents" });
   assert.ok(allowed(decide(agSh("node .xworkflows/hooks/run-agent.mjs review prompt-ok.txt"), c)));
   assert.ok(denied(decide(agSh('node ".xworkflows/hooks/run-agent.mjs" risk-review prompt-noplan.txt'), c), /plan or spec/));
+  assert.ok(denied(decide({ ...agSh('node "$PWD/.xworkflows/hooks/run-agent.mjs" risk-review prompt-noplan.txt'), root: "/r/my repo" }, c), /plan or spec/));
   assert.ok(allowed(decide(agSh('node .xworkflows/hooks/run-agent.mjs risk-review "my prompt.md"'), c)));
   assert.ok(denied(decide(agSh('node .xworkflows/hooks/run-agent.mjs risk-review "my prompt.md"'), c), /already reviewed/));
   // direct `agy -p` / `--print` from the main session in Antigravity is denied; `agy models` / `--help` stay allowed
